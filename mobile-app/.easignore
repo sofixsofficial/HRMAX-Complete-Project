@@ -1,0 +1,12 @@
+# EAS Build upload excludes (git-tracked files are uploaded; keep it lean).
+# Build artifacts and native scaffolding are not needed on the build server.
+*.aab
+*.ipa
+*.keystore
+android/
+ios/
+dist/
+dist-export/
+.expo/
+*.log
+node_modules/
