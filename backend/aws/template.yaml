@@ -27,8 +27,13 @@ Globals:
         COGNITO_CLIENT_ID: !Ref UserPoolClient
         EMAIL_FROM: !Ref EmailFrom
         EMAIL_FROM_NAME: HR MAX
-        APP_URL: !Ref AppUrl
+        APP_URL: !If [HasAppDomain, !Sub 'https://${AppDomain}', !Sub 'https://${WebDistribution.DomainName}']
     Architectures: [arm64]
+
+# Invite/reset links in emails point at the deployed web app: the custom
+# domain when one is configured, otherwise the CloudFront domain.
+Conditions:
+  HasAppDomain: !Not [!Equals [!Ref AppDomain, '']]
 
 Resources:
   # ================================================================ COGNITO
@@ -38,6 +43,10 @@ Resources:
       UserPoolName: hrmax-users
       AutoVerifiedAttributes: [email]
       UsernameAttributes: [email]
+      LambdaConfig:
+        # Injects custom:role / custom:companyId claims on every token issue
+        # (sign-in and refresh — parity with Firebase setCustomUserClaims).
+        PreTokenGeneration: !GetAtt PreTokenFn.Arn
       Policies:
         PasswordPolicy:
           MinimumLength: 8
@@ -54,7 +63,6 @@ Resources:
           AttributeDataType: String
           Mutable: true
           Required: false
-      VerificationMessageStyle: code
       AccountRecoverySetting:
         RecoveryMechanisms:
           - Name: verified_email
@@ -78,19 +86,33 @@ Resources:
     Type: AWS::Serverless::Function
     Properties:
       FunctionName: hrmax-pretoken
-      CodeUri: backend/aws/src/triggers/
-      Handler: pretoken.handler
+      CodeUri: ./
+      Handler: dist/triggers/pretoken.handler
+      # Overrides for the Globals environment: the pool's LambdaConfig now
+      # points back at this function, so it must not !Ref the pool/client
+      # (that would be a circular dependency). The trigger doesn't need
+      # either value at runtime — it reads event.request.userAttributes and
+      # the users table only.
+      Environment:
+        Variables:
+          TABLE_NAME: !Ref HRMaxTable
+          COGNITO_USER_POOL_ID: ''
+          COGNITO_CLIENT_ID: ''
       Timeout: 10
       Policies:
         - DynamoDBReadPolicy:
             TableName: !Ref HRMaxTable
 
-  UserPoolInvokePreToken:
-    Type: AWS::Cognito::UserPoolLambdaTrigger
+  # Cognito invokes the trigger via a resource-based permission; the pool's
+  # LambdaConfig (below) points at PreTokenFn, so the permission must exist
+  # for token issuance to succeed.
+  PreTokenInvokePermission:
+    Type: AWS::Lambda::Permission
     Properties:
-      FunctionName: !Ref PreTokenFn
-      UserPoolId: !Ref UserPool
-      TriggerSource: PreTokenGeneration_RefreshTokens
+      FunctionName: !GetAtt PreTokenFn.Arn
+      Action: lambda:InvokeFunction
+      Principal: cognito-idp.amazonaws.com
+      SourceArn: !GetAtt UserPool.Arn
 
   # ================================================================ DYNAMODB
   HRMaxTable:
@@ -148,23 +170,21 @@ Resources:
     Type: AWS::Serverless::Function
     Properties:
       FunctionName: hrmax-api
-      CodeUri: backend/aws/
+      CodeUri: ./
       Handler: dist/index.handler
       Events:
         Api:
           Type: HttpApi
           Properties:
+            ApiId: !Ref HttpApi
             Path: '/{proxy+}'
             Method: ANY
-            Auth:
-              Authorizer: COGNITO
         ApiRoot:
           Type: HttpApi
           Properties:
+            ApiId: !Ref HttpApi
             Path: '/'
             Method: ANY
-            Auth:
-              Authorizer: COGNITO
       Policies:
         - DynamoDBCrudPolicy:
             TableName: !Ref HRMaxTable
@@ -189,14 +209,10 @@ Resources:
   HttpApi:
     Type: AWS::Serverless::HttpApi
     Properties:
-      Auth:
-        DefaultAuthorizer: COGNITO
-        Authorizers:
-          CognitoOAuth2:
-            UserPoolArn: !GetAtt UserPool.Arn
-            Identity:
-              Headers: [Authorization]
-        # Public routes bypass auth at the app level (health, invite probe, reset)
+      # Auth is enforced in the Lambda handlers: lib/auth.ts validates the
+      # Cognito JWT per route, and public routes (health, invite probe,
+      # reset, forgot-password) pass through anonymously — mirroring the
+      # original Firebase per-callable auth checks.
       CorsConfiguration:
         AllowOrigins: ['*']
         AllowHeaders: [authorization, content-type]
@@ -207,7 +223,7 @@ Resources:
     Type: AWS::Serverless::Function
     Properties:
       FunctionName: hrmax-scheduler
-      CodeUri: backend/aws/
+      CodeUri: ./
       Handler: dist/scheduler.schedulerHandler
       Timeout: 300
       Policies:
@@ -229,7 +245,7 @@ Resources:
   CutoffRule:
     Type: AWS::Events::Rule
     Properties:
-      ScheduleExpression: cron(0 16 * * 1-5 *)
+      ScheduleExpression: cron(0 16 ? * 1-5 *)
       State: ENABLED
       Targets:
         - Arn: !GetAtt SchedulerFn.Arn

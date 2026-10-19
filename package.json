@@ -16,8 +16,8 @@
     "mobile:android": "cd mobile-app && npx expo start --android",
     "mobile:ios": "cd mobile-app && npx expo start --ios",
     "deploy": "npm run deploy:all",
-    "deploy:backend": "cd backend/aws && sam build && sam deploy",
-    "deploy:backend:guided": "cd backend/aws && sam build && sam deploy --guided",
+    "deploy:backend": "sam build -t backend/aws/template.yaml && sam deploy",
+    "deploy:backend:guided": "sam build -t backend/aws/template.yaml && sam deploy --guided",
     "deploy:hosting": "npm run build && node scripts/deploy-hosting.mjs",
     "deploy:all": "npm run deploy:backend && npm run deploy:hosting"
   }
