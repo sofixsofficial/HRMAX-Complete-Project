@@ -37,7 +37,6 @@
     "expo-sharing": "~57.0.21",
     "expo-splash-screen": "~57.0.9",
     "expo-status-bar": "~57.0.1",
-    "firebase": "^11.0.0",
     "react": "^19.2.3",
     "react-dom": "19.2.3",
     "react-native": "^0.86.3",

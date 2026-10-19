@@ -9,10 +9,10 @@ A production-oriented HR Management System built by **Sofixs** as a multi-tenant
 ### Applications
 - **Web app** (`frontend/`) — React 19, TypeScript, Vite, Tailwind CSS 4, Zustand, react-hook-form + Zod validation.
 - **Mobile app** (`mobile-app/`) — Expo SDK 54 / React Native 0.81, with camera (QR + selfie check-in), push notifications, geolocation, offline storage, and PDF print/share.
-- **Backend** (`backend/`) — Firebase Cloud Functions (Firebase Auth, Firestore, scheduled jobs, SMTP email, FCM push).
+- **Backend** (`backend/aws/`) — AWS serverless (Cognito auth, DynamoDB, API Gateway + Lambda, S3/CloudFront hosting, SES email, EventBridge schedules). The original Firebase functions are kept in `backend/functions/` for reference only.
 
 ### Core modules
-- **Multi-tenant company isolation** — every document is scoped by `companyId`; Firestore rules block cross-company access.
+- **Multi-tenant company isolation** — every record is scoped by `companyId`; API-side authorization blocks cross-company access.
 - **Role & permission system** — six roles with per-role permissions: `master-admin`, `company-admin`, `team-leader`, `reporting-manager`, `executive`, `employee`.
 - **Attendance** — QR check-in and selfie-verified check-in, attendance settings, and admin approval flows.
 - **Leave management** — multi-tier approval chain (reporting manager → company admin → team leader → executive).
@@ -28,9 +28,12 @@ A production-oriented HR Management System built by **Sofixs** as a multi-tenant
 |---|---|
 | Web | React 19, TypeScript, Vite, Tailwind 4, Zustand |
 | Mobile | Expo SDK 54, React Native 0.81 |
-| Backend | Firebase (Auth, Firestore, Cloud Functions) |
-| Notifications | FCM push + SMTP email |
-| Docs | jsPDF / jsPDF-autotable (salary slips) |
+| Auth | Amazon Cognito (JWT with role/company claims) |
+| API | API Gateway (HTTP API) + Lambda (Node 22, TypeScript) |
+| Data | DynamoDB (single-table design) |
+| Files / Hosting | S3 + CloudFront |
+| Email | Amazon SES |
+| Schedules | EventBridge Scheduler |
 
 ## Getting started
 
@@ -48,41 +51,46 @@ npm run lint
 npm run mobile
 ```
 
-### Firebase setup
+### AWS setup
 
-Requires a Firebase project with Email/Password auth, Firestore, and Cloud Functions.
+Full deploy guide: **[`docs/AWS_MIGRATION.md`](docs/AWS_MIGRATION.md)**.
 
-Web app environment variables (`frontend/.env`):
-
-```env
-VITE_FIREBASE_API_KEY=...
-VITE_FIREBASE_AUTH_DOMAIN=...
-VITE_FIREBASE_PROJECT_ID=...
-VITE_FIREBASE_STORAGE_BUCKET=...
-VITE_FIREBASE_MESSAGING_SENDER_ID=...
-VITE_FIREBASE_APP_ID=...
-```
-
-Deploy:
+Quick version:
 
 ```bash
-npm run build              # web build
-npm run deploy:all         # hosting + functions + rules
+# 1. Backend (Cognito + DynamoDB + API + S3/CloudFront + SES + schedules)
+cd backend/aws && npm install
+sam build && sam deploy --guided     # stack name: hrmax-api
+
+# 2. Web app env (frontend/.env — values from stack outputs)
+#    VITE_AWS_REGION, VITE_COGNITO_USER_POOL_ID, VITE_COGNITO_CLIENT_ID,
+#    VITE_API_URL, VITE_FILES_BUCKET_URL
+
+# 3. Build + deploy hosting (S3 sync + CloudFront invalidation)
+npm run deploy:hosting
 ```
+
+The web and mobile apps keep their Firebase-style imports (`firebase/auth`,
+`firebase/firestore`, …) — these are aliased to local AWS shims
+(`frontend/src/aws/`, `mobile-app/src/aws/`) via Vite/Metro config, so no app
+code changes were needed.
 
 ## Repository layout
 
 ```
-frontend/        Web application (React + Vite)
-mobile-app/      Expo / React Native application
-backend/         Firebase Cloud Functions
-.firebaserc      Firebase project config
-firestore.rules  Security rules (multi-tenant isolation)
-docs             Role system & architecture references
+frontend/        Web application (React + Vite) — AWS shims in src/aws/
+mobile-app/      Expo / React Native application — AWS shims in src/aws/
+backend/aws/     AWS SAM backend (Lambda + API Gateway + template.yaml)
+backend/functions/  Original Firebase functions (reference only)
+scripts/         deploy-hosting.mjs (S3 sync + CloudFront invalidation)
+firestore.rules  Original Firestore security rules (reference only)
+docs/            AWS migration guide + Firebase inventories
 ```
 
 ## Documentation
 
+- `docs/AWS_MIGRATION.md` — full AWS deploy guide (this repo's backend).
+- `docs/migration/` — Firebase inventories produced during the migration.
 - `ROLE_SYSTEM_EXPLAINED.md` — how roles and permissions work in practice.
 - `HRMS_AUTH_README.md` — authentication & authorization architecture.
 - `BUILD_OPTIMIZATION.md` — web bundle performance notes.

@@ -1,0 +1,173 @@
+/**
+ * Cognito JWT verification + caller resolution.
+ *
+ * ID tokens are issued by the HRMAX Cognito User Pool. Role/companyId live in
+ * custom:role / custom:companyId attributes (PreTokenGeneration trigger keeps
+ * them in sync from the users table), permissions stay table-side (token size).
+ */
+
+import { createRemoteJWKSet, jwtVerify, type JWTPayload } from 'jose';
+import { ApiError, type Caller, type UserRole, VALID_ROLES } from './types.js';
+import { getUserDoc } from './db.js';
+
+const POOL_ID = process.env.COGNITO_USER_POOL_ID ?? '';
+const REGION = process.env.AWS_REGION ?? 'us-east-1';
+const ISSUER = `https://cognito-idp.${REGION}.amazonaws.com/${POOL_ID}`;
+
+let jwks: ReturnType<typeof createRemoteJWKSet> | null = null;
+function getJwks() {
+  if (!jwks) {
+    jwks = createRemoteJWKSet(new URL(`${ISSUER}/.well-known/jwks.json`));
+  }
+  return jwks;
+}
+
+export interface TokenPayload extends JWTPayload {
+  'custom:role'?: string;
+  'custom:companyId'?: string;
+  email?: string;
+  name?: string;
+}
+
+/** Verify a Cognito ID token and return its payload. */
+export async function verifyToken(token: string): Promise<TokenPayload> {
+  if (!POOL_ID) throw new ApiError('internal', 'COGNITO_USER_POOL_ID not configured');
+  try {
+    const { payload } = await jwtVerify(token, getJwks(), {
+      issuer: ISSUER,
+      audience: process.env.COGNITO_CLIENT_ID,
+    });
+    return payload as TokenPayload;
+  } catch (err) {
+    throw new ApiError('unauthenticated', `Invalid token: ${(err as Error).message}`);
+  }
+}
+
+/**
+ * Resolve the full Caller from the request Authorization header.
+ * The users table is authoritative (mirrors the original design where the
+ * Firestore user doc — not the claims — decides authorization).
+ */
+export async function resolveCaller(authHeader: string | undefined, ip: string, userAgent: string): Promise<Caller> {
+  if (!authHeader?.startsWith('Bearer ')) {
+    throw new ApiError('unauthenticated', 'Missing Authorization bearer token');
+  }
+  const payload = await verifyToken(authHeader.slice(7));
+  const uid = payload.sub;
+  if (!uid) throw new ApiError('unauthenticated', 'Token missing subject');
+
+  const doc_ = await getUserDoc(uid);
+  if (!doc_) throw new ApiError('unauthenticated', 'User profile not found');
+
+  const role = (doc_.role as UserRole) ?? 'employee';
+  if (!VALID_ROLES.includes(role)) throw new ApiError('permission-denied', `Unknown role: ${role}`);
+
+  const status = String(doc_.status ?? 'Active');
+  if (status === 'Suspended' || status === 'Rejected') {
+    throw new ApiError('permission-denied', `Account ${status.toLowerCase()}`);
+  }
+
+  return {
+    uid,
+    email: String(doc_.email ?? payload.email ?? ''),
+    name: String(doc_.name ?? payload.name ?? ''),
+    role,
+    companyId: String(doc_.companyId ?? ''),
+    assignedCompanyIds: (doc_.assignedCompanyIds as string[]) ?? [],
+    linkedExecutiveIds: (doc_.linkedExecutiveIds as string[]) ?? [],
+    reportingExecutiveId: (doc_.reportingExecutiveId as string) ?? null,
+    isReportingManager: Boolean(doc_.isReportingManager),
+    permissions: (doc_.permissions as string[]) ?? [],
+    permissionsConfigured: Boolean(doc_.permissionsConfigured),
+    ip,
+    userAgent,
+  };
+}
+
+// ---------------------------------------------------------------------------
+// Authorization helpers
+// ---------------------------------------------------------------------------
+
+export function isSuperAdmin(caller: Caller): boolean {
+  return caller.role === 'master-admin';
+}
+
+export function isManagement(caller: Caller): boolean {
+  return ['master-admin', 'company-admin', 'team-leader', 'executive'].includes(caller.role);
+}
+
+/** Company ids the caller may act on ([] = all, for master-admin). */
+export function scopedCompanyIds(caller: Caller, override?: string[]): string[] {
+  if (isSuperAdmin(caller)) return override ?? [];
+  if (caller.role === 'executive') {
+    return override ?? (caller.assignedCompanyIds.length ? caller.assignedCompanyIds : caller.companyId ? [caller.companyId] : []);
+  }
+  if (caller.role === 'team-leader') return override ?? [];
+  return override ?? (caller.companyId ? [caller.companyId] : []);
+}
+
+/** Assert the caller belongs to (or oversees) the given company. */
+export function assertCompanyScope(caller: Caller, companyId: string): void {
+  if (isSuperAdmin(caller)) return;
+  const scope = scopedCompanyIds(caller);
+  if (scope.length > 0 && !scope.includes(companyId)) {
+    throw new ApiError('permission-denied', 'Company out of scope');
+  }
+  if (scope.length === 0 && caller.role !== 'team-leader') {
+    throw new ApiError('permission-denied', 'No company scope');
+  }
+}
+
+/**
+ * hasPermission with legacy fallback semantics:
+ *  - '*' grants everything
+ *  - exact match or module.* / module.manage wildcards
+ *  - unconfigured matrix for TL/executive grants defaults
+ */
+export function hasPermission(caller: Caller, perm: string): boolean {
+  if (isSuperAdmin(caller)) return true;
+
+  // company-admin: view-only except explicit allow
+  if (caller.role === 'company-admin') {
+    const [, action] = perm.split('.');
+    if (['view', 'reports', 'analytics'].includes(action)) return true;
+    if (perm.startsWith('leave.')) return true;
+  }
+
+  // employee: hard-coded subset
+  if (caller.role === 'employee') {
+    if (['leave.apply', 'leave.create', 'leave.view', 'attendance.view', 'attendance.create'].includes(perm)) return true;
+    return caller.permissions.includes(perm);
+  }
+
+  // reporting-manager
+  if (caller.role === 'reporting-manager') {
+    if (perm.startsWith('leave.')) return true;
+    if (perm === 'employees.view' || perm === 'attendance.view') return true;
+  }
+
+  // TL / executive: unconfigured matrix = full default access
+  if ((caller.role === 'team-leader' || caller.role === 'executive') && !caller.permissionsConfigured) {
+    const p = caller.permissions;
+    if (p.length === 0 || p.includes('*')) return true;
+  }
+
+  const p = caller.permissions;
+  if (p.includes('*')) return true;
+  if (p.includes(perm)) return true;
+  const module_ = perm.split('.')[0];
+  if (p.includes(`${module_}.*`) || p.includes(`${module_}.manage`)) return true;
+  return false;
+}
+
+export function assertPermission(caller: Caller, perm: string): void {
+  if (!hasPermission(caller, perm)) {
+    throw new ApiError('permission-denied', `Missing permission: ${perm}`);
+  }
+}
+
+export function assertRole(caller: Caller, roles: UserRole[]): void {
+  if (!roles.includes(caller.role)) {
+    throw new ApiError('permission-denied', `Requires role: ${roles.join(' | ')}`);
+  }
+}

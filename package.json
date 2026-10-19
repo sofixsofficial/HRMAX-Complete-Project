@@ -9,18 +9,16 @@
   "scripts": {
     "dev": "npm run dev -w frontend",
     "build": "npm run build -w frontend",
-    "build:functions": "npm run build -w backend",
+    "build:backend": "npm run build --prefix backend/aws",
     "lint": "npm run lint -w frontend",
     "preview": "npm run preview -w frontend",
     "mobile": "cd mobile-app && npx expo start",
     "mobile:android": "cd mobile-app && npx expo start --android",
     "mobile:ios": "cd mobile-app && npx expo start --ios",
-    "deploy": "npm run build && firebase deploy",
-    "deploy:hosting": "npm run build && firebase deploy --only hosting",
-    "deploy:functions": "npm run build -w backend && firebase deploy --only functions",
-    "deploy:all": "npm run build && npm run build -w backend && firebase deploy"
-  },
-  "devDependencies": {
-    "firebase-tools": "^13.29.0"
+    "deploy": "npm run deploy:all",
+    "deploy:backend": "cd backend/aws && sam build && sam deploy",
+    "deploy:backend:guided": "cd backend/aws && sam build && sam deploy --guided",
+    "deploy:hosting": "npm run build && node scripts/deploy-hosting.mjs",
+    "deploy:all": "npm run deploy:backend && npm run deploy:hosting"
   }
 }
