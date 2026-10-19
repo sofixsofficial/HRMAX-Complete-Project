@@ -44,9 +44,14 @@ export const emailRoutes: Route[] = [
     path: '/api/email/send',
     handler: async (req) => {
       const caller = must(req);
-      const { to, subject, html, text, companyId } = req.body as { to: string; subject: string; html: string; text?: string; companyId?: string };
-      if (!to || !subject || !html) throw new ApiError('bad-request', 'to, subject, html required');
-      return sendEmailCentral({ to, subject, html, text, companyId: companyId ?? caller.companyId, type: 'manual', triggeredBy: caller.uid });
+      const { to, subject, html, text, companyId, body, cc, bcc, emailId } = req.body as {
+        to: string; subject: string; html?: string; text?: string; companyId?: string;
+        body?: string; cc?: string; bcc?: string; emailId?: string;
+      };
+      // The web client sends the HTML under `body`; accept `html` too (parity).
+      const content = html ?? body;
+      if (!to || !subject || !content) throw new ApiError('bad-request', 'to, subject, html required');
+      return sendEmailCentral({ to, subject, html: content, text, cc: cc ? [cc] : undefined, bcc: bcc ? [bcc] : undefined, emailId, companyId: companyId ?? caller.companyId, type: 'manual', triggeredBy: caller.uid });
     },
   },
 

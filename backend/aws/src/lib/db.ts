@@ -112,6 +112,11 @@ export async function putEntity<T>(doc_: T, opts: StoreOptions): Promise<T> {
   const userId = opts.userIdField ? String(rec[opts.userIdField] ?? '') : '';
   if (userId) Object.assign(item, userGsi(userId, opts.entity, ts, rec.id));
   if (opts.globalList) Object.assign(item, globalGsi(opts.entity, ts, rec.id));
+  // GSI2 (users by role) — only user-entity documents: other entities may
+  // carry a `role` field and must never pollute role lookups.
+  if (opts.entity === 'user' && rec.role) {
+    Object.assign(item, roleGsi(String(rec.role), String(keyCompanyId), String(rec.id)));
+  }
   await doc.send(new PutCommand({ TableName: TABLE, Item: item }));
   return normalized;
 }

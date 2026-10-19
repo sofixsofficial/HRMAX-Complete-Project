@@ -7,11 +7,12 @@
  * reset by code (custom flow kept for web parity), and /me.
  */
 
-import { CognitoIdentityProviderClient, AdminCreateUserCommand, AdminSetUserPasswordCommand, AdminDeleteUserCommand, AdminUpdateUserAttributesCommand, AdminInitiateAuthCommand, AuthFlowType, AdminRespondToAuthChallengeCommand, ChallengeNameType } from '@aws-sdk/client-cognito-identity-provider';
+import { CognitoIdentityProviderClient, AdminCreateUserCommand, AdminSetUserPasswordCommand, AdminDeleteUserCommand, AdminUpdateUserAttributesCommand, AdminGetUserCommand, AdminInitiateAuthCommand, AuthFlowType, AdminRespondToAuthChallengeCommand, ChallengeNameType } from '@aws-sdk/client-cognito-identity-provider';
 import { createHash, randomBytes } from 'node:crypto';
 import { must, type Route } from '../lib/http.js';
 import { assertRole, assertPermission } from '../lib/auth.js';
-import { putEntity, getUserDoc, queryEntities, deleteUserDoc, patchEntity } from '../lib/db.js';
+import { PutCommand } from '@aws-sdk/lib-dynamodb';
+import { putEntity, getUserDoc, queryEntities, deleteUserDoc, patchEntity, doc, TABLE, userPK } from '../lib/db.js';
 import { sendEmailCentral, templates } from '../lib/email.js';
 import { createNotification } from '../lib/notify.js';
 import { ApiError, newId, isoNow, defaultPermissionsForRole, type UserDoc } from '../lib/types.js';
@@ -68,6 +69,22 @@ export async function writeUserDoc(uid: string, data: WriteUserInput): Promise<U
   if (gsiCompanyId !== doc_.companyId) {
     await putEntity<UserDoc>(doc_, { entity: 'user' });
   }
+  // Profile copy under USER#{uid}/PROFILE — resolveCaller reads THIS row on
+  // every authenticated request (getUserDoc), so it must always exist.
+  await doc.send(
+    new PutCommand({
+      TableName: TABLE,
+      Item: {
+        PK: userPK(uid),
+        SK: 'PROFILE',
+        entity: 'user',
+        companyId: gsiCompanyId,
+        docId: uid,
+        data: doc_,
+        updatedAt: isoNow(),
+      },
+    }),
+  );
   return doc_;
 }
 
@@ -105,6 +122,37 @@ export async function cognitoSignIn(email: string, password: string) {
     }),
   );
   return res.AuthenticationResult;
+}
+
+/** Look up a Cognito user by email (Username === email). Returns null when absent. */
+export async function cognitoGetUserByEmail(email: string): Promise<{ uid: string; email: string; name?: string } | null> {
+  try {
+    const res = await cognito.send(new AdminGetUserCommand({ UserPoolId: POOL_ID(), Username: email }));
+    const attrs = res.UserAttributes ?? [];
+    const get = (n: string) => attrs.find((a) => a.Name === n)?.Value;
+    return { uid: res.Username ?? email, email: get('email') ?? email, name: get('name') };
+  } catch {
+    return null;
+  }
+}
+
+/** Hard-delete a Cognito user (best-effort; never throws). */
+export async function cognitoDeleteUser(uidOrEmail: string): Promise<boolean> {
+  try {
+    await cognito.send(new AdminDeleteUserCommand({ UserPoolId: POOL_ID(), Username: uidOrEmail }));
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+/** Update Cognito attributes (best-effort; never throws). */
+export async function cognitoUpdateUserAttributes(uidOrEmail: string, attrs: { Name: string; Value: string }[]): Promise<void> {
+  try {
+    await cognito.send(new AdminUpdateUserAttributesCommand({ UserPoolId: POOL_ID(), Username: uidOrEmail, UserAttributes: attrs }));
+  } catch {
+    /* non-fatal */
+  }
 }
 
 // Reset codes (kept server-side in DynamoDB with 10-min TTL semantics)

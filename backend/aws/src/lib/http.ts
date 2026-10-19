@@ -24,6 +24,12 @@ export interface Route {
   path: string;
   handler: Handler;
   public?: boolean;
+  /**
+   * Allow Cognito-authenticated callers that have no users-table row yet
+   * (role resolves to 'unprovisioned' — gates still deny everything else).
+   * Used by the sign-up bootstrap routes only.
+   */
+  bootstrap?: boolean;
 }
 
 function matchRoute(routePath: string, actualPath: string): Record<string, string> | null {
@@ -71,7 +77,9 @@ export function makeRouter(routes: Route[]) {
 
         let caller: Caller | null = null;
         if (!route.public) {
-          caller = await resolveCaller(event.headers?.authorization ?? event.headers?.Authorization, ip, userAgent);
+          caller = await resolveCaller(event.headers?.authorization ?? event.headers?.Authorization, ip, userAgent, {
+            soft: route.bootstrap,
+          });
         }
 
         const result = await route.handler({ method, path, params, query, body, caller, raw: event });

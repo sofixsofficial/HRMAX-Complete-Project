@@ -8,8 +8,9 @@
 
 import type { Route } from '../lib/http.js';
 import { must } from '../lib/http.js';
+import { writeUserDoc } from './auth.js';
 import { assertCompanyScope, assertPermission, hasPermission, isSuperAdmin } from '../lib/auth.js';
-import { putEntity, getEntity, patchEntity, deleteEntity, queryEntities } from '../lib/db.js';
+import { putEntity, getEntity, patchEntity, deleteEntity, queryEntities, getUserDoc } from '../lib/db.js';
 import { ApiError, newId, isoNow } from '../lib/types.js';
 
 interface CollectionConfig {
@@ -107,7 +108,44 @@ export function crudRoutes(cfg: CollectionConfig): Route[] {
       path: `${cfg.url}/:id`,
       handler: async (req) => {
         const caller = must(req);
-        const companyId = String(req.body.companyId ?? req.query.companyId ?? caller.companyId);
+        const companyId = String(req.body.companyId || req.query.companyId || caller.companyId);
+        if (cfg.writePerm) assertPermission(caller, cfg.writePerm);
+        if (!isSuperAdmin(caller)) assertCompanyScope(caller, companyId);
+
+        const patch = { ...req.body } as Record<string, unknown>;
+        delete patch.id;
+        delete patch.companyId;
+        if (cfg.editableFields && !isSuperAdmin(caller)) {
+          for (const k of Object.keys(patch)) {
+            if (!cfg.editableFields.includes(k)) delete patch[k];
+          }
+        }
+        let updated = await patchEntity<Record<string, unknown>>(cfg.entity, companyId, req.params.id, patch, storeOpts);
+        if (!updated) {
+          // Firestore setDoc parity: PUT is an upsert — setDoc on a brand-new
+          // document id creates it (patchEntity returns null when missing).
+          const created = {
+            ...patch,
+            id: req.params.id,
+            companyId,
+            createdById: caller.uid,
+            createdByName: caller.name,
+            [tsField]: isoNow(),
+            updatedAt: isoNow(),
+          };
+          updated = await putEntity(created as never, storeOpts);
+        }
+        return { [cfg.entity]: updated };
+      },
+    },
+
+    // -------------------------------------------------------------- partial update
+    {
+      method: 'PATCH',
+      path: `${cfg.url}/:id`,
+      handler: async (req) => {
+        const caller = must(req);
+        const companyId = String(req.body.companyId || req.query.companyId || caller.companyId);
         if (cfg.writePerm) assertPermission(caller, cfg.writePerm);
         if (!isSuperAdmin(caller)) assertCompanyScope(caller, companyId);
 
@@ -202,6 +240,51 @@ export const coreCrudRoutes: Route[] = [
     },
   },
   {
+    method: 'PUT',
+    path: '/api/users/:uid',
+    bootstrap: true,
+    handler: async (req) => {
+      const caller = must(req);
+      const uid = req.params.uid;
+      const isSelf = uid === caller.uid;
+      if (!isSelf && !isSuperAdmin(caller) && !hasPermission(caller, 'employees.edit')) {
+        throw new ApiError('permission-denied', 'Cannot write this user');
+      }
+      const data = { ...req.body } as Record<string, unknown>;
+      delete data.id;
+      const existing = await getUserDoc(uid);
+      if (!existing) {
+        // Bootstrap creation (signUpCompany writes the first doc for a fresh
+        // sign-up; admins provision staff the same way). One hard line:
+        // nobody may create a master admin without already being one.
+        if (String(data.role) === 'master-admin' && !isSuperAdmin(caller)) {
+          throw new ApiError('permission-denied', 'Cannot create a master admin here');
+        }
+        const saved = await writeUserDoc(uid, {
+          ...data,
+          email: String(data.email ?? ''),
+          role: String(data.role ?? 'employee'),
+          companyId: String(data.companyId ?? ''),
+        });
+        return { user: saved };
+      }
+      // Update path: self-service whitelist (parity with PATCH) unless MA/CA self… keep parity — self = whitelist.
+      if (isSelf && !isSuperAdmin(caller)) {
+        const allowed = ['name', 'phone', 'avatar', 'address', 'emergencyContactName', 'emergencyContactPhone', 'pushToken'];
+        for (const k of Object.keys(data)) if (!allowed.includes(k)) delete data[k];
+      }
+      if (String(data.role) === 'master-admin' && !isSuperAdmin(caller)) delete data.role;
+      const saved = await writeUserDoc(uid, {
+        ...existing,
+        ...data,
+        email: String(data.email ?? existing.email ?? ''),
+        role: String(data.role ?? existing.role ?? 'employee'),
+        companyId: String(data.companyId ?? existing.companyId ?? ''),
+      });
+      return { user: saved };
+    },
+  },
+  {
     method: 'PATCH',
     path: '/api/users/:uid',
     handler: async (req) => {
@@ -216,9 +299,16 @@ export const coreCrudRoutes: Route[] = [
       } else if (!isSuperAdmin(caller) && !hasPermission(caller, 'employees.edit')) {
         throw new ApiError('permission-denied', 'Cannot edit this user');
       }
+      // No privilege escalation: only a master admin may grant master admin.
+      if (String(patch.role) === 'master-admin' && !isSuperAdmin(caller)) delete patch.role;
       const user = await (await import('../lib/db.js')).getUserDoc(uid);
       if (!user) throw new ApiError('not-found', 'User not found');
-      const updated = await patchEntity('user', String(user.companyId ?? 'global'), uid, patch, { entity: 'user' });
+      let updated = await patchEntity('user', String(user.companyId ?? 'global'), uid, patch, { entity: 'user' });
+      // Re-sync the USER#{uid}/PROFILE copy that resolveCaller reads on
+      // every authenticated request.
+      if (updated) {
+        updated = (await writeUserDoc(uid, updated as unknown as Parameters<typeof writeUserDoc>[1])) as Record<string, unknown>;
+      }
       return { user: updated };
     },
   },
@@ -277,6 +367,37 @@ export const companyRoutes: Route[] = [
       const doc_ = { ...data, id, companyId: id, status: data.status ?? 'Approved', createdOn: isoNow(), createdAt: isoNow(), updatedAt: isoNow(), createdById: caller.uid };
       await put(doc_ as never, { entity: 'company', globalList: true });
       return { id, company: doc_ };
+    },
+  },
+  {
+    method: 'PUT',
+    path: '/api/companies/:id',
+    bootstrap: true,
+    handler: async (req) => {
+      const caller = must(req);
+      const bootstrap = caller.role === 'unprovisioned';
+      if (!bootstrap && !isSuperAdmin(caller) && !hasPermission(caller, 'companies.create') && !hasPermission(caller, 'companies.edit')) {
+        throw new ApiError('permission-denied', 'Cannot write companies');
+      }
+      const { getEntity: get, putEntity: put } = await import('../lib/db.js');
+      const id = req.params.id;
+      const data = { ...req.body } as Record<string, unknown>;
+      delete data.id;
+      delete data.companyId;
+      const existing = await get<Record<string, unknown>>('company', id, id);
+      const doc_ = {
+        ...data,
+        id,
+        companyId: id,
+        status: data.status ?? 'Approved',
+        createdOn: existing?.createdOn ?? isoNow(),
+        createdAt: existing?.createdAt ?? isoNow(),
+        createdBy: existing?.createdBy ?? caller.uid,
+        createdById: existing?.createdById ?? caller.uid,
+        updatedAt: isoNow(),
+      };
+      await put(doc_ as never, { entity: 'company', globalList: true });
+      return { company: doc_ };
     },
   },
   {

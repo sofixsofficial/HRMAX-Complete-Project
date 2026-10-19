@@ -3,7 +3,7 @@
  * (port of backend/functions/src/stakeholderResolver.ts).
  */
 
-import { queryEntities, getUserDoc } from './db.js';
+import { queryEntities, getUserDoc, getEntity, usersByRole } from './db.js';
 
 export interface Stakeholders {
   employeeUserId: string;
@@ -60,16 +60,10 @@ export async function resolveStakeholders(
     }
   }
 
-  // Executives — from company assignment, else all users with role whose assignedCompanyIds contains company
-  const company = (await getUserDoc(`__company__`)) ?? null; // placeholder, company read below via query
-  void company;
-  const companies = await queryEntities<Record<string, unknown>>({
-    entity: 'company',
-    companyId: 'global',
-    filters: { id: companyId },
-    limit: 1,
-  }).catch(() => [] as Record<string, unknown>[]);
-  const companyDoc = companies[0] ?? null;
+  // Executives — from company assignment, else all users with role whose
+  // assignedCompanyIds contains company.
+  // Companies are stored at their own-id partition (companyId === id), not 'global'.
+  const companyDoc = await getEntity<Record<string, unknown>>('company', companyId, companyId).catch(() => null);
 
   const execSet = new Set<string>();
   const assignedExec = (companyDoc?.assignedExecutiveId as string) ?? null;
@@ -77,12 +71,9 @@ export async function resolveStakeholders(
   for (const e of ((companyDoc?.assignedExecutiveIds as string[]) ?? [])) execSet.add(e);
 
   if (execSet.size === 0) {
-    const executives = await queryEntities<Record<string, unknown>>({
-      entity: 'user',
-      companyId: 'global',
-      filters: { role: 'executive' },
-      limit: 500,
-    }).catch(() => [] as Record<string, unknown>[]);
+    // GSI2 role lookup (usersByRole) — non-MA users live in their own
+    // company partition, so a 'global'-partition query would never see them.
+    const executives = await usersByRole('executive').catch(() => [] as Record<string, unknown>[]);
     for (const u of executives) {
       const assigned = (u.assignedCompanyIds as string[]) ?? [];
       if (assigned.includes(companyId)) execSet.add(String(u.id));
@@ -96,12 +87,7 @@ export async function resolveStakeholders(
     const execUser = await getUserDoc(execId);
     for (const tl of ((execUser?.assignedTeamLeaderIds as string[]) ?? [])) tlSet.add(tl);
   }
-  const allTLs = await queryEntities<Record<string, unknown>>({
-    entity: 'user',
-    companyId: 'global',
-    filters: { role: 'team-leader' },
-    limit: 500,
-  }).catch(() => [] as Record<string, unknown>[]);
+  const allTLs = await usersByRole('team-leader').catch(() => [] as Record<string, unknown>[]);
   for (const tl of allTLs) {
     const linked = (tl.linkedExecutiveIds as string[]) ?? [];
     const repExec = (tl.reportingExecutiveId as string) ?? null;

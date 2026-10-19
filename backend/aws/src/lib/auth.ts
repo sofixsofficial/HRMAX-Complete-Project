@@ -48,7 +48,12 @@ export async function verifyToken(token: string): Promise<TokenPayload> {
  * The users table is authoritative (mirrors the original design where the
  * Firestore user doc — not the claims — decides authorization).
  */
-export async function resolveCaller(authHeader: string | undefined, ip: string, userAgent: string): Promise<Caller> {
+export async function resolveCaller(
+  authHeader: string | undefined,
+  ip: string,
+  userAgent: string,
+  opts?: { soft?: boolean },
+): Promise<Caller> {
   if (!authHeader?.startsWith('Bearer ')) {
     throw new ApiError('unauthenticated', 'Missing Authorization bearer token');
   }
@@ -57,7 +62,30 @@ export async function resolveCaller(authHeader: string | undefined, ip: string, 
   if (!uid) throw new ApiError('unauthenticated', 'Token missing subject');
 
   const doc_ = await getUserDoc(uid);
-  if (!doc_) throw new ApiError('unauthenticated', 'User profile not found');
+  if (!doc_) {
+    if (opts?.soft) {
+      // Bootstrap caller (routes flagged `bootstrap`): Cognito session is
+      // valid but no users-table row exists yet — e.g. signUpCompany creates
+      // the company doc and then the user doc through the API. No role, no
+      // permissions: every authorization gate denies until the row exists.
+      return {
+        uid,
+        email: String(payload.email ?? ''),
+        name: String(payload.name ?? ''),
+        role: 'unprovisioned',
+        companyId: '',
+        assignedCompanyIds: [],
+        linkedExecutiveIds: [],
+        reportingExecutiveId: null,
+        isReportingManager: false,
+        permissions: [],
+        permissionsConfigured: false,
+        ip,
+        userAgent,
+      };
+    }
+    throw new ApiError('unauthenticated', 'User profile not found');
+  }
 
   const role = (doc_.role as UserRole) ?? 'employee';
   if (!VALID_ROLES.includes(role)) throw new ApiError('permission-denied', `Unknown role: ${role}`);

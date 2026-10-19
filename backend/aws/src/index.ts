@@ -12,6 +12,7 @@ import { payrollRoutes } from './handlers/payroll.js';
 import { emailRoutes } from './handlers/email.js';
 import { broadcastRoutes } from './handlers/broadcast.js';
 import { storageRoutes } from './handlers/storage.js';
+import { legacyRoutes } from './handlers/legacy.js';
 
 export const handler = makeRouter([
   // Health (public)
@@ -27,4 +28,7 @@ export const handler = makeRouter([
   ...emailRoutes,
   ...broadcastRoutes,
   ...storageRoutes,
+
+  // Legacy Firebase callable dispatcher — POST /fn/:name
+  ...legacyRoutes,
 ]);

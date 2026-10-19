@@ -123,7 +123,9 @@ export const leaveRoutes: Route[] = [
     path: '/api/leave-requests',
     handler: async (req) => {
       const caller = must(req);
-      const input = req.body as unknown as LeaveInput;
+      const rawBody = req.body as Record<string, unknown>;
+      // The mobile client nests the payload under `leaveData`; accept flat too.
+      const input = ((rawBody?.leaveData as LeaveInput | undefined) ?? rawBody) as unknown as LeaveInput;
       if (!input.companyId || !input.userId || !input.startDate || !input.endDate) {
         throw new ApiError('bad-request', 'companyId, userId, startDate, endDate required');
       }

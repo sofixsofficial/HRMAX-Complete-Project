@@ -9,7 +9,14 @@ export type UserRole =
   | 'team-leader'
   | 'executive'
   | 'reporting-manager'
-  | 'employee';
+  | 'employee'
+  /**
+   * Transient bootstrap role: a valid Cognito session whose users-table row
+   * does not exist yet (signUpCompany writes company + user docs right after
+   * sign-up). Grants nothing — every gate denies — it only lets the two
+   * bootstrap routes run. Deliberately NOT in VALID_ROLES.
+   */
+  | 'unprovisioned';
 
 export const VALID_ROLES: UserRole[] = [
   'master-admin',

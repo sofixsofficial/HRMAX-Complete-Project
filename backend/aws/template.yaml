@@ -312,6 +312,18 @@ Resources:
     Properties:
       BucketName: !Sub hrmax-web-${AWS::AccountId}
 
+  # Origin Access Control — CloudFront signs origin requests (S3 policy only
+  # grants the signed OAC path).
+  WebOAC:
+    Type: AWS::CloudFront::OriginAccessControl
+    Properties:
+      OriginAccessControlConfig:
+        Name: !Sub ${AWS::StackName}-web-oac
+        Description: OAC for the HR MAX web bucket
+        OriginAccessControlOriginType: s3
+        SigningBehavior: always
+        SigningProtocol: sigv4
+
   WebDistribution:
     Type: AWS::CloudFront::Distribution
     Properties:
@@ -322,6 +334,7 @@ Resources:
         Origins:
           - Id: s3-web
             DomainName: !GetAtt WebBucket.RegionalDomainName
+            OriginAccessControlId: !GetAtt WebOAC.Id
             S3OriginConfig:
               OriginAccessIdentity: ''
         DefaultCacheBehavior:
@@ -364,6 +377,6 @@ Outputs:
   WebBucketName:
     Value: !Ref WebBucket
   CloudFrontUrl:
-    Value: !Sub https://${WebDistribution}.cloudfront.net
+    Value: !Sub https://${WebDistribution.DomainName}
   TableName:
     Value: !Ref HRMaxTable
