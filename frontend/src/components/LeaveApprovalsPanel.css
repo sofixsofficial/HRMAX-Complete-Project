@@ -1,0 +1,106 @@
+.lap-table-wrap {
+  overflow-x: auto;
+}
+
+.lap-table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.lap-table thead th {
+  padding: 12px 16px;
+  font-size: 12px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: #6b7280;
+  background: #f9fafb;
+  border-bottom: 1px solid #e5e7eb;
+  text-align: left;
+  white-space: nowrap;
+  vertical-align: middle;
+}
+
+.lap-table tbody td {
+  padding: 12px 16px;
+  border-bottom: 1px solid #f3f4f6;
+  font-size: 14px;
+  color: #374151;
+  vertical-align: middle;
+}
+
+.lap-table tbody tr:hover {
+  background: #f9fafb;
+}
+
+.lap-count {
+  font-size: 13px;
+  color: #6b7280;
+}
+
+.lap-loading-inline {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 32px;
+  color: #6b7280;
+  font-size: 14px;
+}
+
+.lap-empty {
+  padding: 18px 20px;
+  color: #9ca3af;
+  font-size: 13px;
+}
+
+.lap-entity {
+  font-weight: 500;
+}
+
+.lap-pill {
+  display: inline-block;
+  padding: 3px 10px;
+  border-radius: 12px;
+  font-size: 12px;
+  font-weight: 500;
+  white-space: nowrap;
+}
+
+.lap-row-actions {
+  display: flex;
+  gap: 6px;
+}
+
+.lap-row-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  height: 30px;
+  padding: 0 10px;
+  border: 1px solid #e5e7eb;
+  border-radius: 6px;
+  background: #fff;
+  color: #6b7280;
+  cursor: pointer;
+  transition: all 0.2s;
+  font-size: 13px;
+}
+
+.lap-row-btn:hover {
+  background: #f3f4f6;
+  border-color: #d1d5db;
+}
+
+.lap-approve:hover {
+  background: #dcfce7;
+  border-color: #86efac;
+  color: #16a34a;
+}
+
+.lap-reject:hover {
+  background: #fee2e2;
+  border-color: #fca5a5;
+  color: #ef4444;
+}

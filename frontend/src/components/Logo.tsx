@@ -1,0 +1,42 @@
+interface LogoProps {
+  variant?: 'stacked' | 'compact' | 'icon'
+  size?: 'sm' | 'md' | 'lg'
+  onLight?: boolean
+}
+
+export function Logo({ variant = 'compact', size = 'md', onLight = false }: LogoProps) {
+  const iconDims: Record<string, number> = { sm: 28, md: 36, lg: 48 }
+  const compactDims: Record<string, number> = { sm: 100, md: 130, lg: 170 }
+  const stackedDims: Record<string, number> = { sm: 70, md: 90, lg: 120 }
+
+  if (variant === 'icon') {
+    const dim = iconDims[size] || iconDims.md
+    return (
+      <svg width={dim} height={dim} viewBox="0 0 40 40" fill="none" xmlns="http://www.w3.org/2000/svg">
+        <rect width="40" height="40" rx="10" fill="#f97316"/>
+        <text x="20" y="27" textAnchor="middle" fontFamily="Inter, Arial, sans-serif" fontWeight="800" fontSize="18" fill="white">HR</text>
+      </svg>
+    )
+  }
+
+  if (variant === 'compact') {
+    const dim = compactDims[size] || compactDims.md
+    return (
+      <svg width={dim} height={dim * 40 / 150} viewBox="0 0 150 40" fill="none" xmlns="http://www.w3.org/2000/svg">
+        <rect x="0" y="4" width="32" height="32" rx="8" fill="#f97316"/>
+        <text x="16" y="27" textAnchor="middle" fontFamily="Inter, Arial, sans-serif" fontWeight="800" fontSize="17" fill="white">HR</text>
+        <text x="46" y="28" fontFamily="Inter, Arial, sans-serif" fontWeight="700" fontSize="24" fill={onLight ? '#111827' : 'white'}>HR</text>
+        <text x="80" y="28" fontFamily="Inter, Arial, sans-serif" fontWeight="800" fontSize="24" fill="#f97316">MAX</text>
+      </svg>
+    )
+  }
+
+  const dim = stackedDims[size] || stackedDims.md
+  return (
+    <svg width={dim} height={dim * 84 / 120} viewBox="0 0 120 84" fill="none" xmlns="http://www.w3.org/2000/svg">
+      <rect x="35" y="0" width="50" height="50" rx="12" fill="#f97316"/>
+      <text x="60" y="35" textAnchor="middle" fontFamily="Inter, Arial, sans-serif" fontWeight="800" fontSize="24" fill="white">HR</text>
+      <text x="60" y="72" textAnchor="middle" fontFamily="Inter, Arial, sans-serif" fontWeight="800" fontSize="38" fill="#FFFFFF">MAX</text>
+    </svg>
+  )
+}

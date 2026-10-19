@@ -1,0 +1,324 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
+
+.inquiry-page {
+  min-height: 100vh;
+  background: #f0f2f5;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 32px 20px;
+  font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+}
+
+.inquiry-card {
+  width: 100%;
+  max-width: 560px;
+  background: #fff;
+  border-radius: 20px;
+  box-shadow: 0 4px 24px rgba(0,0,0,0.06), 0 1px 4px rgba(0,0,0,0.04);
+  border: 1px solid #eef0f2;
+  overflow: hidden;
+}
+
+.inquiry-header {
+  background: linear-gradient(180deg, #1e293b 0%, #0f172a 100%);
+  padding: 36px 40px 28px;
+  text-align: center;
+  position: relative;
+}
+
+.inquiry-header::after {
+  content: '';
+  position: absolute;
+  top: -60%;
+  right: -30%;
+  width: 80%;
+  height: 80%;
+  background: radial-gradient(circle, rgba(249,115,22,0.08) 0%, transparent 70%);
+  pointer-events: none;
+}
+
+.inquiry-logo {
+  margin-bottom: 20px;
+  display: flex;
+  justify-content: center;
+}
+
+.inquiry-header h1 {
+  font-size: 28px;
+  font-weight: 700;
+  color: #fff;
+  margin: 0 0 8px 0;
+  line-height: 1.2;
+  position: relative;
+  z-index: 1;
+}
+
+.inquiry-header p {
+  font-size: 14px;
+  color: rgba(255,255,255,0.85);
+  line-height: 1.7;
+  margin: 0;
+  position: relative;
+  z-index: 1;
+}
+
+.inquiry-body {
+  padding: 36px 40px 40px;
+}
+
+.inquiry-benefits {
+  display: flex;
+  gap: 24px;
+  justify-content: center;
+  margin-bottom: 32px;
+  padding-bottom: 28px;
+  border-bottom: 1px solid #f0f2f4;
+}
+
+.inquiry-benefit {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 13px;
+  color: #4b5563;
+  font-weight: 500;
+}
+
+.inquiry-benefit svg {
+  color: #10b981;
+  flex-shrink: 0;
+}
+
+.back-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  color: #6b7280;
+  font-size: 13px;
+  text-decoration: none;
+  margin-bottom: 24px;
+  transition: color 0.2s;
+}
+
+.back-link:hover {
+  color: #f97316;
+}
+
+.inquiry-form {
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+}
+
+.inquiry-field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.inquiry-field label {
+  font-size: 13px;
+  font-weight: 500;
+  color: #374151;
+  letter-spacing: 0.01em;
+}
+
+.inquiry-field input,
+.inquiry-field select {
+  width: 100%;
+  padding: 12px 16px;
+  border: 1px solid #e2e4e8;
+  border-radius: 10px;
+  font-size: 14px;
+  font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+  outline: none;
+  transition: border-color 0.2s, box-shadow 0.2s;
+  background: #fff;
+  color: #111827;
+  box-sizing: border-box;
+}
+
+.inquiry-field input::placeholder {
+  color: #6b7280;
+}
+
+.inquiry-field input:focus,
+.inquiry-field select:focus {
+  border-color: #f97316;
+  box-shadow: 0 0 0 3px rgba(249,115,22,0.1);
+}
+
+.inquiry-field select {
+  appearance: none;
+  cursor: pointer;
+  color: #111827;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%239ca3af' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='6 9 12 15 18 9'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 14px center;
+  padding-right: 40px;
+}
+
+.inquiry-field select option:first-of-type {
+  color: #6b7280;
+}
+
+.inquiry-error {
+  background: #fef2f2;
+  color: #dc2626;
+  padding: 10px 14px;
+  border-radius: 8px;
+  font-size: 13px;
+  border: 1px solid #fecaca;
+}
+
+.inquiry-submit {
+  margin-top: 16px;
+}
+
+.inquiry-btn {
+  width: 100%;
+  padding: 14px 24px;
+  background: #f97316;
+  color: #fff;
+  border: none;
+  border-radius: 10px;
+  font-size: 15px;
+  font-weight: 600;
+  font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+  cursor: pointer;
+  transition: background 0.2s, box-shadow 0.2s;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+}
+
+.inquiry-btn:hover:not(:disabled) {
+  background: #ea580c;
+  box-shadow: 0 4px 12px rgba(249,115,22,0.3);
+}
+
+.inquiry-btn:disabled {
+  opacity: 0.7;
+  cursor: not-allowed;
+}
+
+.inquiry-footer {
+  margin-top: 28px;
+  text-align: center;
+  font-size: 13px;
+  color: #6b7280;
+}
+
+.inquiry-footer a {
+  color: #f97316;
+  text-decoration: none;
+  font-weight: 500;
+}
+
+.inquiry-footer a:hover {
+  text-decoration: underline;
+}
+
+/* Success state */
+.inquiry-success {
+  text-align: center;
+  padding: 32px 0 16px;
+}
+
+.inquiry-success-icon {
+  width: 72px;
+  height: 72px;
+  border-radius: 50%;
+  background: #ecfdf5;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin: 0 auto 24px;
+}
+
+.inquiry-success h2 {
+  font-size: 24px;
+  font-weight: 700;
+  color: #111827;
+  margin: 0 0 12px 0;
+}
+
+.inquiry-success p {
+  color: #6b7280;
+  font-size: 15px;
+  line-height: 1.7;
+  margin: 0 0 28px 0;
+}
+
+.inquiry-success-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 12px 28px;
+  background: #f97316;
+  color: #fff;
+  border: none;
+  border-radius: 10px;
+  font-size: 14px;
+  font-weight: 600;
+  font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+  cursor: pointer;
+  text-decoration: none;
+  transition: background 0.2s, box-shadow 0.2s;
+}
+
+.inquiry-success-btn:hover {
+  background: #ea580c;
+  box-shadow: 0 4px 12px rgba(249,115,22,0.3);
+}
+
+@media (max-width: 600px) {
+  .inquiry-page {
+    padding: 16px 12px;
+  }
+
+  .inquiry-header {
+    padding: 28px 24px 24px;
+  }
+
+  .inquiry-header h1 {
+    font-size: 22px;
+  }
+
+  .inquiry-body {
+    padding: 28px 24px 32px;
+  }
+
+  .inquiry-benefits {
+    flex-direction: column;
+    gap: 12px;
+    align-items: center;
+  }
+}
+
+@media (max-width: 400px) {
+  .inquiry-card {
+    border-radius: 14px;
+  }
+
+  .inquiry-header {
+    padding: 24px 16px 20px;
+  }
+
+  .inquiry-body {
+    padding: 24px 16px 28px;
+  }
+
+  .inquiry-field input,
+  .inquiry-field select {
+    padding: 10px 14px;
+    font-size: 13px;
+  }
+
+  .inquiry-btn {
+    padding: 12px 20px;
+    font-size: 14px;
+  }
+}

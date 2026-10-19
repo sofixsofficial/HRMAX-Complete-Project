@@ -1,0 +1,76 @@
+name: Android AAB Build
+
+on:
+  workflow_dispatch:
+  push:
+    tags:
+      - "v*"
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: mobile-app/package-lock.json
+
+      - name: Setup JDK 17
+        uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: "17"
+
+      - name: Install dependencies
+        working-directory: mobile-app
+        run: npm ci
+
+      - name: Run Expo prebuild (Android)
+        working-directory: mobile-app
+        env:
+          CI: "1"
+        run: npx expo prebuild --platform android --no-install
+
+      - name: Restore release signing key
+        working-directory: mobile-app
+        run: |
+          echo "${{ secrets.HRMAX_KEYSTORE_B64 }}" | base64 -d > android/app/hrmax-upload.jks
+          cat >> android/gradle.properties <<'EOF'
+          HRMAX_UPLOAD_STORE_FILE=hrmax-upload.jks
+          HRMAX_UPLOAD_STORE_PASSWORD=${{ secrets.HRMAX_KEYSTORE_PASSWORD }}
+          HRMAX_UPLOAD_KEY_ALIAS=${{ secrets.HRMAX_KEY_ALIAS }}
+          HRMAX_UPLOAD_KEY_PASSWORD=${{ secrets.HRMAX_KEY_PASSWORD }}
+          EOF
+          printf '\norg.gradle.jvmargs=-Xmx4g -XX:MaxMetaspaceSize=1g\n' >> android/gradle.properties
+
+      - name: Configure release signing in build.gradle
+        working-directory: mobile-app
+        run: node scripts/configure-release-signing.js
+
+      - name: Build release AAB
+        working-directory: mobile-app/android
+        env:
+          NODE_OPTIONS: "--max-old-space-size=6144"
+        run: |
+          ./gradlew bundleRelease --no-daemon --stacktrace
+
+      - name: Verify AAB signature
+        working-directory: mobile-app/android
+        run: |
+          AAB=app/build/outputs/bundle/release/app-release.aab
+          ls -la "$AAB"
+          SHA1=$(keytool -printcert -jarfile "$AAB" | sed -n 's/^[[:space:]]*SHA1: //p' | tr -d ':' | tr 'A-F' 'a-f')
+          echo "Cert SHA1: $SHA1"
+          if [ "$SHA1" != "45251c026d92a4a4ce19b061c68787663a724336" ]; then
+            echo "::error::AAB SHA1 fingerprint mismatch — expected 45251c026d92a4a4ce19b061c68787663a724336"
+            exit 1
+          fi
+          echo "AAB signed with expected Play upload key. OK"

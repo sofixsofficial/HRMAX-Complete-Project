@@ -1,0 +1,75 @@
+{
+  "expo": {
+    "name": "HR MAX",
+    "slug": "sofixs-hrm-mobile",
+    "version": "1.4.3",
+    "orientation": "portrait",
+    "icon": "./assets/icon.png",
+    "userInterfaceStyle": "automatic",
+    "assetBundlePatterns": [
+      "**/*"
+    ],
+    "ios": {
+      "supportsTablet": true,
+      "bundleIdentifier": "com.hrmax.app",
+      "buildNumber": "3",
+      "infoPlist": {
+        "NSCameraUsageDescription": "HR MAX uses the camera to verify attendance with selfie check-ins.",
+        "NSPhotoLibraryUsageDescription": "HR MAX needs photo library access to upload documents such as Aadhar, PAN, joining letter and offer letter.",
+        "NSLocationWhenInUseUsageDescription": "HR MAX accesses your location to verify attendance at the office location.",
+        "ITSAppUsesNonExemptEncryption": false
+      }
+    },
+    "android": {
+      "package": "com.hrmax.app",
+      "versionCode": 8,
+      "adaptiveIcon": {
+        "foregroundImage": "./assets/adaptive-icon.png",
+        "backgroundColor": "#FFFFFF"
+      },
+      "googleServicesFile": "./google-services.json"
+    },
+    "web": {
+      "favicon": "./assets/favicon.png",
+      "bundler": "metro"
+    },
+    "plugins": [
+      "expo-secure-store",
+      "expo-asset",
+      [
+        "expo-splash-screen",
+        {
+          "backgroundColor": "#111827",
+          "image": "./assets/splash.png",
+          "imageWidth": 320,
+          "resizeMode": "contain"
+        }
+      ],
+      "expo-notifications",
+      "expo-document-picker",
+      "expo-camera",
+      [
+        "expo-location",
+        {
+          "locationWhenInUsePermission": "Allow HR MAX to access your location to verify attendance at the office location."
+        }
+      ],
+      "expo-build-properties",
+      "expo-sharing",
+      "expo-status-bar",
+      "expo-font"
+    ],
+    "extra": {
+      "eas": {
+        "projectId": "e640ec9d-44a1-4b67-b618-cda2e8ca22d6"
+      },
+      "firebaseApiKey": "AIzaSyDzXiirytWoNeGOuxpLFugEBasQeIckx8Q",
+      "firebaseAuthDomain": "hrm-sofisx.firebaseapp.com",
+      "firebaseProjectId": "hrm-sofisx",
+      "firebaseStorageBucket": "hrm-sofisx.firebasestorage.app",
+      "firebaseMessagingSenderId": "477845263408",
+      "firebaseAppId": "1:477845263408:web:0edab6a49ddfcf5214c9f5"
+    },
+    "owner": "sofixscompany"
+  }
+}

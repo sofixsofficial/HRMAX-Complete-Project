@@ -1,0 +1,583 @@
+/* Dashboard Styles */
+
+/* ── Welcome Hero ────────────────────────────────────────────────────── */
+.dash-hero {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 24px;
+  padding: 28px 32px;
+  margin-bottom: 24px;
+  border-radius: 16px;
+  background: linear-gradient(135deg, #1e293b 0%, #334155 55%, #475569 100%);
+  box-shadow: 0 8px 24px rgba(15, 23, 42, 0.18);
+}
+
+.dash-hero-content {
+  flex: 1;
+  min-width: 0;
+}
+
+.dash-hero-greeting {
+  font-size: 13px;
+  font-weight: 500;
+  letter-spacing: 0.5px;
+  color: #94a3b8;
+  display: block;
+}
+
+.dash-hero-name {
+  margin: 2px 0 0;
+  font-size: 24px;
+  font-weight: 700;
+  color: #fff;
+}
+
+.dash-hero-role {
+  display: inline-block;
+  margin-top: 10px;
+  padding: 3px 12px;
+  border-radius: 100px;
+  background: rgba(249, 115, 22, 0.18);
+  border: 1px solid rgba(249, 115, 22, 0.35);
+  color: #fdba74;
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.dash-hero-stats {
+  display: flex;
+  gap: 28px;
+  flex-shrink: 0;
+}
+
+.dash-hero-stat {
+  text-align: center;
+}
+
+.dash-hero-stat-value {
+  display: block;
+  font-size: 26px;
+  font-weight: 700;
+  line-height: 1;
+}
+
+.dash-hero-stat-label {
+  display: block;
+  margin-top: 6px;
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  color: #94a3b8;
+}
+
+/* Quick Actions */
+.quick-actions-section {
+  margin-bottom: 24px;
+}
+
+.quick-actions-section h3 {
+  font-size: 15px;
+  font-weight: 600;
+  color: #111827;
+  margin-bottom: 16px;
+}
+
+.quick-actions-grid {
+  display: grid;
+  grid-template-columns: repeat(8, 1fr);
+  gap: 12px;
+}
+
+.quick-action-card {
+  background: #fff;
+  border: 1px solid #f3f4f6;
+  border-radius: 12px;
+  padding: 20px 12px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+  cursor: pointer;
+  transition: all 0.2s;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.04);
+}
+
+.quick-action-card:hover {
+  border-color: #f97316;
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(249,115,22,0.1);
+}
+
+.qa-icon {
+  width: 44px;
+  height: 44px;
+  border-radius: 12px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.quick-action-card span {
+  font-size: 11px;
+  font-weight: 500;
+  color: #374151;
+  text-align: center;
+}
+
+/* Accordion Sections */
+.accordion-sections {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.accordion-card {
+  background: #fff;
+  border: 1px solid #f3f4f6;
+  border-radius: 12px;
+  overflow: hidden;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.06), 0 1px 2px rgba(0,0,0,0.04);
+  transition: all 0.2s;
+}
+
+.accordion-card:hover {
+  border-color: #e5e7eb;
+}
+
+.accordion-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 16px 20px;
+  cursor: pointer;
+  user-select: none;
+  transition: background 0.15s;
+}
+
+.accordion-header:hover {
+  background: #f9fafb;
+}
+
+.accordion-header h3 {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 15px;
+  font-weight: 600;
+  color: #111827;
+  margin: 0;
+}
+
+.accordion-header h3 svg {
+  color: #f97316;
+  width: 16px;
+  height: 16px;
+}
+
+.accordion-right {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.view-all {
+  font-size: 12px;
+  font-weight: 500;
+  color: #f97316;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.view-all:hover {
+  color: #ea580c;
+}
+
+.accordion-chevron {
+  color: #9ca3af;
+  transition: transform 0.25s ease;
+  flex-shrink: 0;
+}
+
+.accordion-chevron.rotated {
+  transform: rotate(180deg);
+}
+
+.accordion-body {
+  padding: 0 20px;
+  max-height: 0;
+  overflow: hidden;
+  transition: max-height 0.3s ease, padding 0.3s ease;
+}
+
+.accordion-card.open .accordion-body {
+  max-height: 400px;
+  padding: 0 20px 20px;
+}
+
+.activity-empty {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 16px 0;
+  color: #9ca3af;
+  font-size: 13px;
+}
+
+.activity-list {
+  padding: 8px 0;
+}
+
+.activity-item {
+  display: flex;
+  align-items: flex-start;
+  gap: 14px;
+  padding: 12px 20px;
+  transition: background 0.2s;
+}
+
+.activity-item:hover {
+  background: #f9fafb;
+}
+
+.activity-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: #f97316;
+  margin-top: 6px;
+  flex-shrink: 0;
+}
+
+.activity-content {
+  flex: 1;
+}
+
+.activity-action {
+  font-size: 13px;
+  color: #374151;
+  margin: 0 0 2px 0;
+  font-weight: 500;
+}
+
+.activity-meta {
+  font-size: 11px;
+  color: #9ca3af;
+}
+
+/* Stats List */
+.stats-list {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+.stats-item-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 4px;
+}
+
+.stats-label {
+  font-size: 13px;
+  color: #6b7280;
+  font-weight: 500;
+}
+
+.stats-value {
+  font-size: 20px;
+  font-weight: 700;
+  color: #111827;
+  margin-bottom: 8px;
+}
+
+/* Role List */
+.role-list {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.role-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.role-info {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.role-dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+}
+
+.role-dot.admin { background: #f97316; }
+.role-dot.hr { background: #10b981; }
+.role-dot.manager { background: #f59e0b; }
+.role-dot.employee { background: #6366f1; }
+
+.role-info span {
+  font-size: 13px;
+  color: #374151;
+  font-weight: 500;
+}
+
+.role-count {
+  font-size: 16px;
+  font-weight: 700;
+  color: #111827;
+}
+
+/* ── Zero State (no companies) ───────────────────────────────────────── */
+.zero-state-banner {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 64px 24px;
+  text-align: center;
+  background: #fff;
+  border: 2px dashed #e5e7eb;
+  border-radius: 12px;
+  margin-bottom: 24px;
+}
+
+.zero-state-banner .zero-state-icon {
+  width: 64px;
+  height: 64px;
+  border-radius: 50%;
+  background: #f3f4f6;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #9ca3af;
+  margin-bottom: 16px;
+}
+
+.zero-state-banner h3 {
+  font-size: 18px;
+  font-weight: 600;
+  color: #111827;
+  margin: 0 0 8px;
+}
+
+.zero-state-banner p {
+  font-size: 14px;
+  color: #6b7280;
+  margin: 0;
+  max-width: 400px;
+}
+
+/* Stats Bar (used by Performance.tsx) */
+.stats-bar {
+  height: 6px;
+  background: #f3f4f6;
+  border-radius: 3px;
+  overflow: hidden;
+}
+
+.stats-bar-fill {
+  height: 100%;
+  background: #f97316;
+  border-radius: 3px;
+  transition: width 0.6s ease;
+}
+
+/* ── Shimmer / Skeleton Loader ────────────────────────────────────────── */
+@keyframes shimmer {
+  0% { background-position: -400px 0; }
+  100% { background-position: 400px 0; }
+}
+
+.stat-card-shimmer {
+  pointer-events: none;
+}
+
+.shimmer-icon {
+  width: 44px;
+  height: 44px;
+  border-radius: 10px;
+  background: linear-gradient(90deg, #f0f0f0 25%, #e0e0e0 50%, #f0f0f0 75%);
+  background-size: 800px 100%;
+  animation: shimmer 1.5s infinite ease-in-out;
+  flex-shrink: 0;
+}
+
+.shimmer-info {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.shimmer-line {
+  height: 12px;
+  border-radius: 6px;
+  background: linear-gradient(90deg, #f0f0f0 25%, #e0e0e0 50%, #f0f0f0 75%);
+  background-size: 800px 100%;
+  animation: shimmer 1.5s infinite ease-in-out;
+}
+
+.shimmer-line-label {
+  width: 60%;
+  height: 11px;
+}
+
+.shimmer-line-value {
+  width: 40%;
+  height: 20px;
+  border-radius: 4px;
+}
+
+.shimmer-line-trend {
+  width: 30%;
+  height: 10px;
+}
+
+/* ── Unauthorized Banner ─────────────────────────────────────────────── */
+.exec-unauthorized-banner {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 12px 16px;
+  margin-bottom: 16px;
+  background: #fef2f2;
+  border: 1px solid #fecaca;
+  border-radius: 8px;
+  color: #dc2626;
+  font-size: 13px;
+  font-weight: 500;
+}
+
+.exec-unauthorized-dismiss {
+  margin-left: auto;
+  padding: 4px 12px;
+  border: 1px solid #fecaca;
+  border-radius: 6px;
+  background: #fff;
+  color: #dc2626;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.exec-unauthorized-dismiss:hover {
+  background: #fef2f2;
+}
+
+/* ── Disabled (no company context) ───────────────────────────────────── */
+.stat-card-disabled {
+  opacity: 0.5;
+  cursor: default;
+  pointer-events: none;
+  user-select: none;
+}
+
+/* Hierarchy Tags in Attendance Table */
+.hierarchy-tag {
+  display: inline-block;
+  max-width: 120px;
+  padding: 3px 10px;
+  border-radius: 100px;
+  font-size: 11px;
+  font-weight: 500;
+  color: #374151;
+  background: #f3f4f6;
+  border: 1px solid #e5e7eb;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  vertical-align: middle;
+  line-height: 1.4;
+}
+
+/* ── Shared stat-card arrow ──────────────────────────────────────────── */
+.stat-arrow {
+  color: #d1d5db;
+  flex-shrink: 0;
+  transition: all 0.2s;
+}
+
+.stat-card:hover .stat-arrow {
+  color: #f97316;
+  transform: translateX(2px);
+}
+
+@media (max-width: 1400px) {
+  .quick-actions-grid {
+    grid-template-columns: repeat(4, 1fr);
+  }
+}
+
+@media (max-width: 768px) {
+  .dash-hero {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 16px;
+    padding: 20px;
+  }
+
+  .dash-hero-stats {
+    width: 100%;
+    justify-content: space-between;
+    gap: 8px;
+  }
+
+  .quick-actions-grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+
+  .accordion-header {
+    padding: 14px 16px;
+  }
+
+  .accordion-body {
+    padding: 0 16px;
+  }
+
+  .accordion-card.open .accordion-body {
+    max-height: 600px;
+    padding: 0 16px 16px;
+  }
+
+  .activity-item {
+    flex-wrap: wrap;
+    gap: 8px;
+  }
+}
+
+@media (max-width: 480px) {
+  .quick-actions-grid {
+    grid-template-columns: repeat(1, 1fr);
+  }
+
+  .quick-action-card {
+    flex-direction: row;
+    padding: 14px 16px;
+    gap: 14px;
+  }
+
+  .quick-action-card svg {
+    width: 20px;
+    height: 20px;
+  }
+
+  .accordion-header {
+    padding: 12px;
+  }
+
+  .accordion-header h3 {
+    font-size: 13px;
+  }
+
+  .accordion-card.open .accordion-body {
+    max-height: 800px;
+    padding: 0 12px 12px;
+  }
+}

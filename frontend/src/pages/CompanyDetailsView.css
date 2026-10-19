@@ -1,0 +1,351 @@
+/* Company Details View */
+.cdv-container {
+  max-width: 960px;
+  margin: 0 auto;
+}
+
+/* Header */
+.cdv-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  background: #fff;
+  border: 1px solid #e5e7eb;
+  border-radius: 12px;
+  padding: 20px 24px;
+  margin-bottom: 24px;
+  gap: 16px;
+  flex-wrap: wrap;
+}
+
+.cdv-header-left {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+
+.cdv-header-info {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.cdv-title-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.cdv-title-row h1 {
+  font-size: 22px;
+  font-weight: 700;
+  color: #1f2937;
+  margin: 0;
+}
+
+.cdv-badge {
+  font-size: 12px;
+  font-weight: 600;
+  padding: 3px 10px;
+  border-radius: 12px;
+}
+
+.cdv-badge.active {
+  background: #dcfce7;
+  color: #16a34a;
+}
+
+.cdv-badge.inactive {
+  background: #f3f4f6;
+  color: #6b7280;
+}
+
+.cdv-code {
+  font-size: 13px;
+  color: #9ca3af;
+  font-family: monospace;
+}
+
+.cdv-header-actions {
+  display: flex;
+  gap: 8px;
+}
+
+.btn-icon {
+  width: 36px;
+  height: 36px;
+  border-radius: 8px;
+  border: 1px solid #e5e7eb;
+  background: #fff;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  color: #6b7280;
+  transition: all 0.2s;
+  flex-shrink: 0;
+}
+
+.btn-icon:hover {
+  background: #f3f4f6;
+  border-color: #d1d5db;
+  color: #1f2937;
+}
+
+.btn-outline {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 16px;
+  border: 1px solid #e5e7eb;
+  background: #fff;
+  border-radius: 8px;
+  font-size: 14px;
+  font-weight: 500;
+  color: #374151;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.btn-outline:hover {
+  background: #f9fafb;
+  border-color: #d1d5db;
+}
+
+.btn-outline.delete:hover {
+  background: #fef2f2;
+  border-color: #fecaca;
+  color: #dc2626;
+}
+
+/* Grid */
+.cdv-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 20px;
+}
+
+/* Card */
+.cdv-card {
+  background: #fff;
+  border: 1px solid #e5e7eb;
+  border-radius: 12px;
+  overflow: hidden;
+}
+
+.cdv-card-full {
+  grid-column: 1 / -1;
+}
+
+.cdv-card-header {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 16px 20px;
+  background: #f9fafb;
+  border-bottom: 1px solid #e5e7eb;
+}
+
+.cdv-card-header svg {
+  color: #f97316;
+  flex-shrink: 0;
+}
+
+.cdv-card-header h3 {
+  margin: 0;
+  font-size: 15px;
+  font-weight: 600;
+  color: #1f2937;
+}
+
+.cdv-card-body {
+  padding: 16px 20px;
+}
+
+/* Field row */
+.cdv-field {
+  display: grid;
+  grid-template-columns: 20px 100px 1fr;
+  gap: 12px;
+  align-items: start;
+  padding: 10px 0;
+  border-bottom: 1px solid #f3f4f6;
+}
+
+.cdv-field:last-child {
+  border-bottom: none;
+}
+
+.cdv-field svg {
+  color: #9ca3af;
+  margin-top: 2px;
+  flex-shrink: 0;
+}
+
+.cdv-field.highlight svg {
+  color: #f97316;
+}
+
+.cdv-label {
+  font-size: 13px;
+  font-weight: 500;
+  color: #6b7280;
+}
+
+.cdv-value {
+  font-size: 14px;
+  font-weight: 500;
+  color: #1f2937;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.cdv-sub {
+  font-size: 12px;
+  font-weight: 400;
+  color: #9ca3af;
+}
+
+/* Payroll grid */
+.cdv-payroll-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr 1fr;
+  gap: 16px;
+}
+
+.cdv-payroll-item {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 14px 16px;
+  background: #f9fafb;
+  border: 1px solid #e5e7eb;
+  border-radius: 8px;
+}
+
+.cdv-payroll-label {
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.4px;
+  color: #6b7280;
+  font-weight: 500;
+}
+
+.cdv-payroll-value {
+  font-size: 16px;
+  font-weight: 600;
+  color: #1f2937;
+}
+
+.highlight .cdv-value {
+  color: #f97316;
+  font-weight: 600;
+}
+
+/* Not Configured */
+.cdv-not-configured {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  padding: 32px 20px;
+  text-align: center;
+}
+
+.not-configured-badge {
+  display: inline-block;
+  padding: 4px 12px;
+  border-radius: 12px;
+  background: #fef3c7;
+  color: #d97706;
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.cdv-not-configured p {
+  font-size: 13px;
+  color: #9ca3af;
+  margin: 0;
+}
+
+/* Skeleton */
+.cdv-skeleton {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+.skeleton-header {
+  height: 76px;
+  background: linear-gradient(90deg, #e5e7eb 25%, #f3f4f6 50%, #e5e7eb 75%);
+  background-size: 200% 100%;
+  animation: shimmer 1.5s infinite;
+  border-radius: 12px;
+}
+
+.skeleton-cards {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 20px;
+}
+
+.skeleton-card {
+  height: 320px;
+  background: linear-gradient(90deg, #e5e7eb 25%, #f3f4f6 50%, #e5e7eb 75%);
+  background-size: 200% 100%;
+  animation: shimmer 1.5s infinite;
+  border-radius: 12px;
+}
+
+@keyframes shimmer {
+  0% { background-position: 200% 0; }
+  100% { background-position: -200% 0; }
+}
+
+/* Error */
+.cdv-error {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  padding: 80px 20px;
+  text-align: center;
+}
+
+.cdv-error h2 {
+  font-size: 22px;
+  color: #1f2937;
+  margin: 0;
+}
+
+.cdv-error p {
+  font-size: 14px;
+  color: #6b7280;
+  margin: 0;
+}
+
+/* Responsive */
+@media (max-width: 768px) {
+  .cdv-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .cdv-payroll-grid {
+    grid-template-columns: 1fr 1fr;
+  }
+
+  .cdv-field {
+    grid-template-columns: 20px 1fr;
+  }
+
+  .cdv-field .cdv-label {
+    display: none;
+  }
+
+  .cdv-header {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+}

@@ -1,0 +1,3 @@
+/* All rules in this file were removed: every class they targeted
+   (dept-*, approval-*, event-*, accordion-*, quick-actions-grid) had
+   zero references in frontend/src .tsx/.ts files. */

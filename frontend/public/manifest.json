@@ -1,0 +1,17 @@
+{
+  "name": "HR MAX - HR Management",
+  "short_name": "HR MAX",
+  "description": "HR Management Platform",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#0f172a",
+  "theme_color": "#f97316",
+  "icons": [
+    {
+      "src": "/favicon.svg",
+      "sizes": "96x96",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ]
+}

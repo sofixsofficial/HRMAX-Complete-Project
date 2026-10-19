@@ -1,0 +1,28 @@
+/* Assets page - 6-column stats row + clickable cards */
+.asset-stats-row {
+  grid-template-columns: repeat(6, 1fr) !important;
+}
+
+.asset-stat-card {
+  cursor: pointer;
+  transition: all 0.2s ease;
+  border: 1px solid #f3f4f6;
+}
+
+.asset-stat-card:hover {
+  border-color: #f97316;
+  box-shadow: 0 2px 8px rgba(249, 115, 22, 0.12);
+  transform: translateY(-1px);
+}
+
+@media (max-width: 1400px) {
+  .asset-stats-row {
+    grid-template-columns: repeat(3, 1fr) !important;
+  }
+}
+
+@media (max-width: 768px) {
+  .asset-stats-row {
+    grid-template-columns: repeat(2, 1fr) !important;
+  }
+}

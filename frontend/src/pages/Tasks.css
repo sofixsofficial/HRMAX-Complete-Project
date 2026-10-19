@@ -1,0 +1,45 @@
+/* Tasks Page Styles - minimal overrides for admin design system */
+
+/* Action icon buttons (mirrors Employees.css .emp-action-icon) */
+.action-btn {
+  width: 30px;
+  height: 30px;
+  border-radius: 6px;
+  border: 1px solid #e5e7eb;
+  background: #fff;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  color: #9ca3af;
+  transition: all 0.2s;
+}
+
+.action-btn:hover {
+  background: #f3f4f6;
+}
+
+.action-btn.view:hover { color: #f97316; border-color: #f97316; }
+.action-btn.edit:hover { color: #10b981; border-color: #10b981; }
+.action-btn.delete:hover { color: #ef4444; border-color: #ef4444; }
+
+.page-size-select {
+  padding: 6px 10px;
+  border: 1px solid #e5e7eb;
+  border-radius: 6px;
+  font-size: 13px;
+  color: #374151;
+  background: #fff;
+  outline: none;
+  cursor: pointer;
+}
+
+.page-size-select:focus {
+  border-color: #f97316;
+}
+
+@media (max-width: 640px) {
+  table {
+    min-width: 700px;
+  }
+}
