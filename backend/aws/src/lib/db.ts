@@ -145,9 +145,27 @@ export async function deleteEntity(entity: string, companyId: string, id: string
   await doc.send(new DeleteCommand({ TableName: TABLE, Key: entityKeys(entity, companyId, id) }));
 }
 
-/** Delete a user profile. */
+/** Delete a user profile and every partition copy writeUserDoc created. */
 export async function deleteUserDoc(uid: string): Promise<void> {
-  await doc.send(new DeleteCommand({ TableName: TABLE, Key: { PK: userPK(uid), SK: 'PROFILE' } }));
+  // PROFILE is the authority resolveCaller reads; consult it first to learn
+  // which company partitions hold copies (mirrors writeUserDoc's dual-write,
+  // incl. the synthetic 'global' bucket for platform roles). Without this,
+  // deleting a user left ghost copies that company-scoped user lists still
+  // returned.
+  const res = await doc.send(new GetCommand({ TableName: TABLE, Key: { PK: userPK(uid), SK: 'PROFILE' } }));
+  const data = res.Item?.data as Record<string, unknown> | undefined;
+  const realCompanyId = String(data?.companyId ?? '');
+  const gsiCompanyId = data?.role === 'master-admin' ? 'global' : realCompanyId || 'global';
+  const keys: Array<Record<string, string>> = [
+    { PK: userPK(uid), SK: 'PROFILE' },
+    { PK: companyPK(gsiCompanyId), SK: `user#${uid}` },
+  ];
+  if (gsiCompanyId !== realCompanyId && realCompanyId) {
+    keys.push({ PK: companyPK(realCompanyId), SK: `user#${uid}` });
+  }
+  for (const Key of keys) {
+    await doc.send(new DeleteCommand({ TableName: TABLE, Key }));
+  }
 }
 
 /** Patch fields on an existing entity document (shallow merge, dot-notation for nested). */
