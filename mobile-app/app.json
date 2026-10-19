@@ -62,13 +62,7 @@
     "extra": {
       "eas": {
         "projectId": "e640ec9d-44a1-4b67-b618-cda2e8ca22d6"
-      },
-      "firebaseApiKey": "AIzaSyDzXiirytWoNeGOuxpLFugEBasQeIckx8Q",
-      "firebaseAuthDomain": "hrm-sofisx.firebaseapp.com",
-      "firebaseProjectId": "hrm-sofisx",
-      "firebaseStorageBucket": "hrm-sofisx.firebasestorage.app",
-      "firebaseMessagingSenderId": "477845263408",
-      "firebaseAppId": "1:477845263408:web:0edab6a49ddfcf5214c9f5"
+      }
     },
     "owner": "sofixscompany"
   }

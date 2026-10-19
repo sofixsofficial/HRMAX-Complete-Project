@@ -68,11 +68,31 @@ function decodeJwt(token: string): Record<string, string> {
   try {
     const payload = token.split('.')[1];
     const base64 = payload.replace(/-/g, '+').replace(/_/g, '/');
-    const atobFn = typeof atob === 'function' ? atob : (s: string) => Buffer.from(s, 'base64').toString('binary');
-    return JSON.parse(atobFn(base64)) as Record<string, string>;
+    return JSON.parse(b64Decode(base64)) as Record<string, string>;
   } catch {
     return {};
   }
+}
+
+/** Base64 decode without Node's Buffer (Hermes ships atob; manual fallback). */
+function b64Decode(input: string): string {
+  if (typeof atob === 'function') return atob(input);
+  const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/';
+  const clean = input.replace(/=+$/, '');
+  let bits = 0;
+  let bitCount = 0;
+  let out = '';
+  for (const ch of clean) {
+    const val = chars.indexOf(ch);
+    if (val === -1) continue;
+    bits = (bits << 6) | val;
+    bitCount += 6;
+    if (bitCount >= 8) {
+      bitCount -= 8;
+      out += String.fromCharCode((bits >> bitCount) & 0xff);
+    }
+  }
+  return out;
 }
 
 async function cognitoCall(action: string, params: Record<string, unknown>): Promise<Record<string, unknown>> {
@@ -215,8 +235,21 @@ export async function signInWithEmailAndPassword(_auth: unknown, email: string, 
   }
 }
 
-export async function createUserWithEmailAndPassword(_auth: unknown, _email: string, _password: string): Promise<UserCredential> {
-  throw new AuthError('auth/operation-not-allowed', 'Contact your administrator to create an account.');
+export async function createUserWithEmailAndPassword(_auth: unknown, email: string, password: string): Promise<UserCredential> {
+  try {
+    // Cognito self sign-up. The pool's PreSignUp trigger auto-confirms the
+    // user and marks the email verified (Firebase parity: no code-entry step).
+    await cognitoCall('SignUp', {
+      Username: email,
+      Password: password,
+      UserAttributes: [{ Name: 'email', Value: email }],
+    });
+  } catch (err) {
+    throw mapError(err as Error & { code?: string });
+  }
+  // Firebase parity: createUserWithEmailAndPassword returns an already
+  // signed-in credential; the PreSignUp trigger guarantees sign-in succeeds.
+  return signInWithEmailAndPassword(_auth, email, password);
 }
 
 export async function signOut(_auth?: unknown): Promise<void> {
