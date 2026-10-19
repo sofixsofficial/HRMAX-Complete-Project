@@ -41,7 +41,12 @@ try {
 
 const bucket = outputs.WebBucketName;
 const cloudFrontUrl = outputs.CloudFrontUrl ?? '';
-const distributionId = cloudFrontUrl.match(/^https:\/\/([^.]+)\.cloudfront\.net/)?.[1];
+// Prefer the dedicated output; fall back to parsing CloudFrontUrl for stacks
+// deployed before the CloudFrontDistributionId output existed (legacy
+// ID-shaped urls like https://EXAMPLEID.cloudfront.net).
+const distributionId =
+  outputs.CloudFrontDistributionId ??
+  (/^https:\/\/([A-Z0-9]{8,})\.cloudfront\.net/.exec(cloudFrontUrl)?.[1]);
 
 if (!bucket) {
   console.error('✗ Stack has no WebBucketName output.');

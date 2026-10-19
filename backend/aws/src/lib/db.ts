@@ -28,6 +28,7 @@ import {
   QueryCommandInput,
 } from '@aws-sdk/lib-dynamodb';
 import type { BaseEntity } from './types.js';
+import { VALID_ROLES } from './types.js';
 
 const ddb = new DynamoDBClient({});
 export const doc = DynamoDBDocumentClient.from(ddb, {
@@ -282,15 +283,21 @@ export async function usersByRole(role: string): Promise<Record<string, unknown>
 
 /** List all user profiles (master-admin use). Paginated, bounded. */
 export async function allUsers(limit = 2000): Promise<Record<string, unknown>[]> {
-  const items = await paginate(
-    {
-      TableName: TABLE,
-      KeyConditionExpression: 'begins_with(PK, :pk)',
-      ExpressionAttributeValues: { ':pk': 'USER#' },
-    },
-    limit,
-  );
-  return items.filter((i) => i.SK === 'PROFILE').map((i) => i.data as Record<string, unknown>);
+  // GSI2 role sweep. (The previous implementation issued
+  // `Query KeyConditionExpression: begins_with(PK, :pk)` — DynamoDB only allows
+  // equality on a partition key, so that query always threw
+  // "Query key condition not supported". Every user-entity item carries
+  // GSI2PK = ROLE#<role>, so union across the known roles instead.)
+  const seen = new Map<string, Record<string, unknown>>();
+  for (const role of VALID_ROLES) {
+    const items = await usersByRole(role);
+    for (const u of items) {
+      const id = String(u.id ?? '');
+      if (id && !seen.has(id)) seen.set(id, u);
+      if (seen.size >= limit) return [...seen.values()].slice(0, limit);
+    }
+  }
+  return [...seen.values()].slice(0, limit);
 }
 
 /** List companies (global GSI3). */

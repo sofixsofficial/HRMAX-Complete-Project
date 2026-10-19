@@ -229,11 +229,20 @@ export async function createUserWithEmailAndPassword(
   email: string,
   password: string,
 ): Promise<UserCredential> {
-  // Self sign-up is disabled; user creation happens server-side via the API.
-  // Kept for signature compatibility.
-  void email;
-  void password;
-  throw new AuthError('auth/operation-not-allowed', 'Contact your administrator to create an account.');
+  try {
+    // Cognito self sign-up. The pool's PreSignUp trigger auto-confirms the
+    // user and marks the email verified (Firebase parity: no code-entry step).
+    await cognitoCall('SignUp', {
+      Username: email,
+      Password: password,
+      UserAttributes: [{ Name: 'email', Value: email }],
+    });
+  } catch (err) {
+    throw mapError(err as Error & { code?: string });
+  }
+  // Firebase parity: createUserWithEmailAndPassword returns an already
+  // signed-in credential; the PreSignUp trigger guarantees sign-in succeeds.
+  return signInWithEmailAndPassword(_auth, email, password);
 }
 
 export async function signOut(_auth?: unknown): Promise<void> {

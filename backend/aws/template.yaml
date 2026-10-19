@@ -47,6 +47,9 @@ Resources:
         # Injects custom:role / custom:companyId claims on every token issue
         # (sign-in and refresh — parity with Firebase setCustomUserClaims).
         PreTokenGeneration: !GetAtt PreTokenFn.Arn
+        # Auto-confirms self sign-ups so signUpCompany can sign the new admin
+        # in immediately (Firebase createUserWithEmailAndPassword parity).
+        PreSignUp: !GetAtt PreSignUpFn.Arn
       Policies:
         PasswordPolicy:
           MinimumLength: 8
@@ -110,6 +113,31 @@ Resources:
     Type: AWS::Lambda::Permission
     Properties:
       FunctionName: !GetAtt PreTokenFn.Arn
+      Action: lambda:InvokeFunction
+      Principal: cognito-idp.amazonaws.com
+      SourceArn: !GetAtt UserPool.Arn
+
+  # PreSignUp trigger — auto-confirms self sign-ups (Firebase parity: the
+  # original flow signed users in immediately; email verification was a
+  # notification, not a login gate). Environment overridden like PreTokenFn
+  # to avoid a circular dependency with the pool.
+  PreSignUpFn:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: hrmax-presignup
+      CodeUri: ./
+      Handler: dist/triggers/presignup.handler
+      Environment:
+        Variables:
+          TABLE_NAME: !Ref HRMaxTable
+          COGNITO_USER_POOL_ID: ''
+          COGNITO_CLIENT_ID: ''
+      Timeout: 10
+
+  PreSignUpInvokePermission:
+    Type: AWS::Lambda::Permission
+    Properties:
+      FunctionName: !GetAtt PreSignUpFn.Arn
       Action: lambda:InvokeFunction
       Principal: cognito-idp.amazonaws.com
       SourceArn: !GetAtt UserPool.Arn
@@ -378,5 +406,9 @@ Outputs:
     Value: !Ref WebBucket
   CloudFrontUrl:
     Value: !Sub https://${WebDistribution.DomainName}
+
+  CloudFrontDistributionId:
+    Description: CloudFront distribution ID (for invalidations)
+    Value: !Ref WebDistribution
   TableName:
     Value: !Ref HRMaxTable
