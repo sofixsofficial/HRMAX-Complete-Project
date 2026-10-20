@@ -1,22 +1,22 @@
 # Data Migration Verification Report
 
-- Ran: 2026-10-20T09:25:52.923Z
-- Table: `HRMAX` (ap-southeast-2) — total items: **1479**
+- Ran: 2026-10-20T09:35:18.047Z
+- Table: `HRMAX` (ap-southeast-2) — total items: **1477**
 - Source: Firebase project `hrm-sofisx` — 1462 docs exported 2026-10-20T08:50:37.819Z
 - Firebase uid references remapped to Cognito subs: **1362**
 - Overall: **ALL CHECKS PASSED**
 
 | Check | Result | Detail |
 |---|---|---|
-| entity-counts | ✅ | 19 collections: exact match, 1479 total items |
-| no-firebase-uids | ✅ | deep-scanned 1479 items — 0 Firebase uid references remain |
+| entity-counts | ✅ | 19 collections: exact match, 1477 total items |
+| no-firebase-uids | ✅ | deep-scanned 1477 items — 0 Firebase uid references remain |
 | profiles | ✅ | 14/14 PROFILE rows keyed by Cognito sub |
-| user-topology | ✅ | 31 items = 29 migrated + 2 pre-existing orphan test-account item(s): USER#297ec468-f0e1-7051-c73c-d1004d00aadd/PROFILE, COMPANY#global/user#297ec468-f0e1-7051-c73c-d1004d00aadd |
+| user-topology | ✅ | 29 items = 29 migrated |
 | read-companies-gsi3 | ✅ | GSI3 global list → 2 companies |
 | read-attendance-gsi1 | ✅ | GSI1 user query → 26 attendance items for migrated user |
 | read-partition | ✅ | company partition queries → 222 attendance items (all real-company docs) |
 | read-salaryslip-gsi1 | ✅ | employee sees 12 payslip(s) via GSI1 (1 source slips reference employee ids, preserved as-is) |
-| cognito-users | ✅ | 14/14 mapped emails present in pool ap-southeast-2_DUe0sfFOx (pool total 15) |
+| cognito-users | ✅ | 14/14 mapped emails present in pool ap-southeast-2_DUe0sfFOx (pool total 14) |
 | spot-user | ✅ | somnathnmdv@gmail.com: email/role preserved, id=39cec478-f0c1-7094-dc47-74f77e953751 |
 | spot-leave | ✅ | leaveRequest 9cDSEgvLA2pkVPsnHmN9: userId remapped to Cognito sub |
 
@@ -43,7 +43,7 @@
 | payrollAudit | 16 | payrollAudit | 16 |
 | salarySlip | 39 | salarySlips | 39 |
 | salaryStructure | 3 | salaryStructures | 3 |
-| user (PROFILE + copies) | 31 | users | 14 |
+| user (PROFILE + copies) | 29 | users | 14 |
 
 ## Notes
 
