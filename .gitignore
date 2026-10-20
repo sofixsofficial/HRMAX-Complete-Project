@@ -41,7 +41,9 @@ samconfig.toml.bak
 
 # APK build artifacts
 *.apk
+*.aab
 apk-download/
+artifacts/
 
 # Secrets — never commit (AWS & Firebase)
 service-account.json
