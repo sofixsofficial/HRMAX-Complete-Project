@@ -3,6 +3,7 @@ import { useNavigate, useSearchParams, Link } from 'react-router-dom';
 import { ArrowLeft, Loader2, Shield, Lock, Eye, EyeOff, CheckCircle, XCircle } from 'lucide-react';
 import { Logo } from '../../components/Logo';
 import { getFunctions, httpsCallable } from 'firebase/functions';
+import { toDisplayError } from '../../aws/errors';
 import '../../pages/Login.css';
 
 function getPasswordStrength(pw: string): { score: number; label: string; color: string } {
@@ -70,7 +71,7 @@ export function SetNewPassword() {
         navigate('/login', { state: { passwordReset: true } });
       }, 2000);
     } catch (err: any) {
-      setError(err.message || 'Failed to reset password. The code may have expired.');
+      setError(toDisplayError(err).message)
     } finally {
       setIsLoading(false);
     }

@@ -5,12 +5,12 @@ import {
   TextInput,
   TouchableOpacity,
   StyleSheet,
-  Alert,
   ActivityIndicator,
 } from 'react-native';
 import { useTheme, ThemeColors } from '../../context/ThemeContext';
 import { ScreenHeader } from '../../components/ScreenHeader';
 import { resetPassword } from '../../services/authService';
+import { toDisplayError, validateEmail } from '../../aws/errors';
 
 interface Props {
   navigation: any;
@@ -20,19 +20,27 @@ export const ForgotPasswordScreen: React.FC<Props> = ({ navigation }) => {
   const { colors } = useTheme();
   const [email, setEmail] = useState('');
   const [loading, setLoading] = useState(false);
+  const [error, setError] = useState('');
   const s = useMemo(() => createStyles(colors), [colors]);
 
   const handleReset = async () => {
-    if (!email.trim()) {
-      Alert.alert('Error', 'Please enter your email address.');
+    const emailValue = email.trim();
+    if (!emailValue) {
+      setError('Please enter your email address.');
       return;
     }
+    const emailError = validateEmail(emailValue);
+    if (emailError) {
+      setError(emailError);
+      return;
+    }
+    setError('');
     setLoading(true);
     try {
-      await resetPassword(email.trim());
-      navigation.replace('VerifyResetCode', { email: email.trim() });
-    } catch (error: any) {
-      Alert.alert('Error', error.message || 'Failed to send reset email.');
+      await resetPassword(emailValue);
+      navigation.replace('VerifyResetCode', { email: emailValue });
+    } catch (err) {
+      setError(toDisplayError(err).message);
     } finally {
       setLoading(false);
     }
@@ -47,6 +55,12 @@ export const ForgotPasswordScreen: React.FC<Props> = ({ navigation }) => {
           Enter your email address and we'll send you a link to reset your password.
         </Text>
 
+        {error ? (
+          <View style={s.errorBox}>
+            <Text style={s.errorText}>{error}</Text>
+          </View>
+        ) : null}
+
         <View style={s.inputContainer}>
           <Text style={s.label}>Email</Text>
           <TextInput
@@ -54,7 +68,7 @@ export const ForgotPasswordScreen: React.FC<Props> = ({ navigation }) => {
             placeholder="Enter your email"
             placeholderTextColor={colors.textTertiary}
             value={email}
-            onChangeText={setEmail}
+            onChangeText={(v) => { setEmail(v); if (error) setError(''); }}
             keyboardType="email-address"
             autoCapitalize="none"
           />
@@ -103,6 +117,20 @@ const createStyles = (c: ThemeColors) => StyleSheet.create({
     textAlign: 'center',
     marginBottom: 32,
     lineHeight: 20,
+  },
+  errorBox: {
+    backgroundColor: '#FEF2F2',
+    borderColor: '#FECACA',
+    borderWidth: 1,
+    borderRadius: 10,
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+    marginBottom: 16,
+  },
+  errorText: {
+    color: '#DC2626',
+    fontSize: 14,
+    textAlign: 'center',
   },
   inputContainer: {
     marginBottom: 24,

@@ -12,6 +12,7 @@ import { useTheme, ThemeColors } from '../../context/ThemeContext';
 import { Icon } from '../../utils/icons';
 import { ScreenHeader } from '../../components/ScreenHeader';
 import { confirmResetPassword } from '../../services/authService';
+import { toDisplayError } from '../../aws/errors';
 
 interface Props {
   navigation: any;
@@ -24,27 +25,29 @@ export const VerifyResetCodeScreen: React.FC<Props> = ({ navigation, route }) =>
   const [newPassword, setNewPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [error, setError] = useState('');
   const s = useMemo(() => createStyles(colors), [colors]);
 
   const email = route.params?.email || '';
 
   const handleReset = async () => {
     if (!code.trim() || !newPassword.trim()) {
-      Alert.alert('Error', 'Please enter both the code and your new password.');
+      setError('Please enter both the code and your new password.');
       return;
     }
     if (newPassword.length < 6) {
-      Alert.alert('Error', 'Password must be at least 6 characters.');
+      setError('Password must be at least 6 characters.');
       return;
     }
+    setError('');
     setLoading(true);
     try {
       await confirmResetPassword(code.trim(), newPassword.trim());
       Alert.alert('Success', 'Your password has been reset. Please sign in.', [
         { text: 'OK', onPress: () => navigation.navigate('Login') },
       ]);
-    } catch (error: any) {
-      Alert.alert('Error', error.message || 'Failed to reset password.');
+    } catch (err) {
+      setError(toDisplayError(err).message);
     } finally {
       setLoading(false);
     }
@@ -60,6 +63,12 @@ export const VerifyResetCodeScreen: React.FC<Props> = ({ navigation, route }) =>
           enter your new password.
         </Text>
 
+        {error ? (
+          <View style={s.errorBox}>
+            <Text style={s.errorText}>{error}</Text>
+          </View>
+        ) : null}
+
         <View style={s.inputContainer}>
           <Text style={s.label}>Reset Code</Text>
           <TextInput
@@ -67,7 +76,7 @@ export const VerifyResetCodeScreen: React.FC<Props> = ({ navigation, route }) =>
             placeholder="Paste code from reset email"
             placeholderTextColor={colors.textTertiary}
             value={code}
-            onChangeText={setCode}
+            onChangeText={(v) => { setCode(v); if (error) setError(''); }}
             autoCapitalize="none"
             autoCorrect={false}
           />
@@ -81,7 +90,7 @@ export const VerifyResetCodeScreen: React.FC<Props> = ({ navigation, route }) =>
               placeholder="Enter new password"
               placeholderTextColor={colors.textTertiary}
               value={newPassword}
-              onChangeText={setNewPassword}
+              onChangeText={(v) => { setNewPassword(v); if (error) setError(''); }}
               secureTextEntry={!showPassword}
             />
             <TouchableOpacity
@@ -132,6 +141,20 @@ const createStyles = (c: ThemeColors) => StyleSheet.create({
     textAlign: 'center',
     marginBottom: 32,
     lineHeight: 20,
+  },
+  errorBox: {
+    backgroundColor: '#FEF2F2',
+    borderColor: '#FECACA',
+    borderWidth: 1,
+    borderRadius: 10,
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+    marginBottom: 16,
+  },
+  errorText: {
+    color: '#DC2626',
+    fontSize: 14,
+    textAlign: 'center',
   },
   inputContainer: {
     marginBottom: 16,

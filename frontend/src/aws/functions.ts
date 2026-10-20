@@ -5,6 +5,7 @@
 
 import { getIdToken } from './auth';
 import { AWS_CONFIG } from './config';
+import { FriendlyError, ERROR_CODES, ERROR_MESSAGES, markSessionExpired, networkError, toFriendlyError } from './errors';
 
 interface Callable<T, R> {
   (data?: T): Promise<{ data: R }>;
@@ -45,7 +46,14 @@ export function httpsCallable<T = any, R = any>(functions: unknown, name: string
   void functions;
   return async (data?: T) => {
     const route = ROUTE_MAP[name] ?? { path: `/fn/${name}`, method: 'POST' as const };
-    const token = await getIdToken();
+    let token: string;
+    try {
+      token = await getIdToken();
+    } catch (err) {
+      if (err instanceof FriendlyError) throw err; // already normalized (session expired)
+      markSessionExpired();
+      throw new FriendlyError(ERROR_CODES.sessionExpired, ERROR_MESSAGES.sessionExpired);
+    }
     const method = route.method ?? 'POST';
 
     // GET routes carry their (flat, scalar) params in the query string;
@@ -59,19 +67,25 @@ export function httpsCallable<T = any, R = any>(functions: unknown, name: string
     const qs = params.toString();
     const url = `${API()}${route.path}${qs ? `?${qs}` : ''}`;
 
-    const res = await fetch(url, {
-      method,
-      headers: {
-        'content-type': 'application/json',
-        authorization: `Bearer ${token}`,
-      },
-      ...(method === 'GET' ? {} : { body: JSON.stringify(data ?? {}) }),
-    });
+    let res: Response;
+    try {
+      res = await fetch(url, {
+        method,
+        headers: {
+          'content-type': 'application/json',
+          authorization: `Bearer ${token}`,
+        },
+        ...(method === 'GET' ? {} : { body: JSON.stringify(data ?? {}) }),
+      });
+    } catch {
+      throw networkError(); // offline / DNS / TLS — never surface raw fetch errors
+    }
 
     const body = (await res.json().catch(() => null)) as { error?: { code?: string; message?: string }; data?: unknown } | null;
     if (!res.ok) {
-      const err = new Error(body?.error?.message ?? `Callable failed (${res.status})`) as Error & { code: string };
-      err.code = body?.error?.code ?? 'internal';
+      const friendly = toFriendlyError(res.status, body);
+      const err = new Error(friendly.message) as Error & { code: string };
+      err.code = friendly.code;
       throw err;
     }
     return { data: (body?.data ?? body) as R };

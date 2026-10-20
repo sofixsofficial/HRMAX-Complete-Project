@@ -4,6 +4,7 @@ import { Mail, ArrowLeft, Loader2, CheckCircle, Lock, Shield, Zap, ArrowRight } 
 import { Logo } from '../../components/Logo';
 import { generateResetCode } from '../../services/authService';
 import { getFunctions, httpsCallable } from 'firebase/functions';
+import { ERROR_MESSAGES, toDisplayError, validateEmail } from '../../aws/errors';
 import '../../pages/Login.css';
 
 export function ForgotPassword() {
@@ -18,25 +19,37 @@ export function ForgotPassword() {
     e.preventDefault();
     setError('');
     setSuccess(false);
+
+    const emailValue = email.trim();
+    if (!emailValue) {
+      setError('Please enter your email address.');
+      return;
+    }
+    const emailError = validateEmail(emailValue);
+    if (emailError) {
+      setError(emailError);
+      return;
+    }
+
     setIsLoading(true);
 
     try {
-      const { code } = await generateResetCode(email);
+      const { code } = await generateResetCode(emailValue);
 
       try {
         const functions = getFunctions();
         const sendResetCodeFn = httpsCallable(functions, 'sendResetCode');
-        await sendResetCodeFn({ email, code });
+        await sendResetCodeFn({ email: emailValue, code });
       } catch (fnErr: any) {
         console.warn('SendResetCode cloud function failed (email may not be sent):', fnErr);
       }
 
       setSuccess(true);
       setTimeout(() => {
-        navigate(`/verify-reset-code?email=${encodeURIComponent(email)}`);
+        navigate(`/verify-reset-code?email=${encodeURIComponent(emailValue)}`);
       }, 1500);
     } catch (err: any) {
-      setError(err.message || 'Failed to send reset code. Please try again.');
+      setError(toDisplayError(err).message || ERROR_MESSAGES.generic);
     } finally {
       setIsLoading(false);
     }
@@ -97,7 +110,7 @@ export function ForgotPassword() {
                   <div className="login-error">{error}</div>
                 )}
 
-                <form onSubmit={handleSubmit} className="login-form">
+                <form onSubmit={handleSubmit} className="login-form" noValidate>
                   <div className="form-group">
                     <label>Email Address</label>
                     <div className="input-wrapper">
@@ -105,7 +118,7 @@ export function ForgotPassword() {
                       <input
                         type="email"
                         value={email}
-                        onChange={(e) => setEmail(e.target.value)}
+                        onChange={(e) => { setEmail(e.target.value); if (error) setError(''); }}
                         placeholder="Enter your email"
                         required
                       />

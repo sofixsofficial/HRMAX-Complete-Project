@@ -8,6 +8,7 @@
  */
 
 import { AWS_CONFIG } from './config';
+import { FriendlyError, ERROR_CODES, ERROR_MESSAGES, markSessionExpired, safeDisplayText } from './errors';
 
 // ---------------------------------------------------------------------------
 // Minimal Cognito REST client (USER_PASSWORD_AUTH + refresh), no SDK needed.
@@ -79,20 +80,25 @@ function decodeJwt(token: string): Record<string, string> {
 }
 
 async function cognitoCall(action: string, params: Record<string, unknown>): Promise<Record<string, unknown>> {
-  const res = await fetch(
-    `https://cognito-idp.${AWS_CONFIG.region}.amazonaws.com/`,
-    {
-      method: 'POST',
-      headers: {
-        'content-type': 'application/x-amz-json-1.1',
-        'x-amz-target': `AWSCognitoIdentityProviderService.${action}`,
+  let res: Response;
+  try {
+    res = await fetch(
+      `https://cognito-idp.${AWS_CONFIG.region}.amazonaws.com/`,
+      {
+        method: 'POST',
+        headers: {
+          'content-type': 'application/x-amz-json-1.1',
+          'x-amz-target': `AWSCognitoIdentityProviderService.${action}`,
+        },
+        body: JSON.stringify({ ClientId: AWS_CONFIG.clientId, ...params }),
       },
-      body: JSON.stringify({ ClientId: AWS_CONFIG.clientId, ...params }),
-    },
-  );
-  const data = (await res.json()) as Record<string, unknown>;
+    );
+  } catch {
+    throw new FriendlyError(ERROR_CODES.network, ERROR_MESSAGES.network);
+  }
+  const data = (await res.json().catch(() => ({}))) as Record<string, unknown>;
   if (!res.ok) {
-    const err = new Error((data?.message as string) ?? `${action} failed`) as Error & { code: string };
+    const err = new Error(safeDisplayText(data?.message)) as Error & { code: string };
     err.code = (data?.__type as string) ?? 'UnknownError';
     throw err;
   }
@@ -128,15 +134,18 @@ export async function refreshTokens(): Promise<TokenSet> {
 }
 
 export async function getIdToken(force = false): Promise<string> {
-  if (!currentTokens) throw new Error('Not signed in');
+  if (!currentTokens) {
+    throw new FriendlyError(ERROR_CODES.sessionExpired, ERROR_MESSAGES.sessionExpired);
+  }
   const expired = Date.now() > currentTokens.obtainedAt + (currentTokens.expiresIn - 60) * 1000;
   if (force || expired) {
     try {
       currentTokens = await refreshTokens();
     } catch {
-      // refresh failed → sign out
+      // refresh failed → sign out and tell the user why
       await signOut();
-      throw new Error('Session expired');
+      markSessionExpired();
+      throw new FriendlyError(ERROR_CODES.sessionExpired, ERROR_MESSAGES.sessionExpired);
     }
   }
   return currentTokens.idToken;
@@ -190,9 +199,12 @@ export class AuthError extends Error {
 
 /** Map Cognito error codes to the Firebase-style codes the UI already handles. */
 function mapError(err: Error & { code?: string }): AuthError {
+  if (err instanceof FriendlyError) {
+    return new AuthError(err.code, err.message); // already normalized (network/session)
+  }
   const map: Record<string, [string, string]> = {
     UserNotFoundException: ['auth/user-not-found', 'No account found with this email.'],
-    NotAuthorizedException: ['auth/invalid-credential', 'Invalid email or password.'],
+    NotAuthorizedException: ['auth/invalid-credential', ERROR_MESSAGES.invalidCredentials],
     PasswordResetRequiredException: ['auth/user-disabled', 'Password reset required.'],
     UserNotConfirmedException: ['auth/user-not-found', 'Email not verified.'],
     LimitExceededException: ['auth/too-many-requests', 'Too many attempts. Try again later.'],
@@ -201,7 +213,7 @@ function mapError(err: Error & { code?: string }): AuthError {
     CodeMismatchException: ['auth/invalid-credential', 'Invalid verification code.'],
     ExpiredCodeException: ['auth/invalid-credential', 'Verification code expired.'],
   };
-  const hit = map[err.code ?? ''] ?? [err.code ?? 'auth/internal-error', err.message];
+  const hit = map[err.code ?? ''] ?? [err.code ?? 'auth/internal-error', safeDisplayText(err.message)];
   return new AuthError(hit[0], hit[1]);
 }
 
@@ -277,31 +289,53 @@ export async function updatePassword(user: AwsUser, newPassword: string): Promis
   const token = await user.getIdToken();
   void token;
   // Access-token based ChangePassword
-  if (!currentTokens) throw new Error('Not signed in');
-  await fetch(`https://cognito-idp.${AWS_CONFIG.region}.amazonaws.com/`, {
-    method: 'POST',
-    headers: {
-      'content-type': 'application/x-amz-json-1.1',
-      'x-amz-target': 'AWSCognitoIdentityProviderService.ChangePassword',
-      authorization: `Bearer ${currentTokens.accessToken}`,
-    },
-    body: JSON.stringify({ PreviousPassword: (user as unknown as { _pw?: string })._pw, ProposedPassword: newPassword }),
-  }).then(async (r) => {
-    if (!r.ok) throw mapError(new Error((await r.json()).message) as Error & { code?: string });
-  });
+  if (!currentTokens) {
+    markSessionExpired();
+    throw new FriendlyError(ERROR_CODES.sessionExpired, ERROR_MESSAGES.sessionExpired);
+  }
+  let r: Response;
+  try {
+    r = await fetch(`https://cognito-idp.${AWS_CONFIG.region}.amazonaws.com/`, {
+      method: 'POST',
+      headers: {
+        'content-type': 'application/x-amz-json-1.1',
+        'x-amz-target': 'AWSCognitoIdentityProviderService.ChangePassword',
+        authorization: `Bearer ${currentTokens.accessToken}`,
+      },
+      body: JSON.stringify({ PreviousPassword: (user as unknown as { _pw?: string })._pw, ProposedPassword: newPassword }),
+    });
+  } catch {
+    throw new FriendlyError(ERROR_CODES.network, ERROR_MESSAGES.network);
+  }
+  if (!r.ok) {
+    const body = (await r.json().catch(() => ({}))) as { message?: string };
+    throw mapError(new Error(body.message) as Error & { code?: string });
+  }
 }
 
 export async function updateProfile(user: AwsUser, profile: { displayName?: string }): Promise<void> {
-  if (!currentTokens) throw new Error('Not signed in');
-  await fetch(`https://cognito-idp.${AWS_CONFIG.region}.amazonaws.com/`, {
-    method: 'POST',
-    headers: {
-      'content-type': 'application/x-amz-json-1.1',
-      'x-amz-target': 'AWSCognitoIdentityProviderService.UpdateUserAttributes',
-      authorization: `Bearer ${currentTokens.accessToken}`,
-    },
-    body: JSON.stringify({ UserAttributes: [{ Name: 'name', Value: profile.displayName ?? '' }] }),
-  });
+  if (!currentTokens) {
+    markSessionExpired();
+    throw new FriendlyError(ERROR_CODES.sessionExpired, ERROR_MESSAGES.sessionExpired);
+  }
+  let r: Response;
+  try {
+    r = await fetch(`https://cognito-idp.${AWS_CONFIG.region}.amazonaws.com/`, {
+      method: 'POST',
+      headers: {
+        'content-type': 'application/x-amz-json-1.1',
+        'x-amz-target': 'AWSCognitoIdentityProviderService.UpdateUserAttributes',
+        authorization: `Bearer ${currentTokens.accessToken}`,
+      },
+      body: JSON.stringify({ UserAttributes: [{ Name: 'name', Value: profile.displayName ?? '' }] }),
+    });
+  } catch {
+    throw new FriendlyError(ERROR_CODES.network, ERROR_MESSAGES.network);
+  }
+  if (!r.ok) {
+    const body = (await r.json().catch(() => ({}))) as { message?: string };
+    throw mapError(new Error(body.message) as Error & { code?: string });
+  }
   user.displayName = profile.displayName ?? user.displayName;
 }
 

@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import {
   View,
   Text,
@@ -7,13 +7,13 @@ import {
   StyleSheet,
   KeyboardAvoidingView,
   Platform,
-  Alert,
   ActivityIndicator,
 } from 'react-native';
 import { useAuth } from '../../context/AuthContext';
 import { useTheme, ThemeColors } from '../../context/ThemeContext';
 import { Icon } from '../../utils/icons';
 import { BrandMark } from '../../components/BrandMark';
+import { ERROR_MESSAGES, consumeSessionExpired, toDisplayError, validateEmail } from '../../aws/errors';
 
 interface Props {
   navigation: any;
@@ -25,19 +25,32 @@ export const LoginScreen: React.FC<Props> = ({ navigation }) => {
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [error, setError] = useState('');
   const { login } = useAuth();
   const s = useMemo(() => createStyles(colors), [colors]);
 
+  // Explain why the user was signed out (expired session / token refresh failed)
+  useEffect(() => {
+    if (consumeSessionExpired()) setError(ERROR_MESSAGES.sessionExpired);
+  }, []);
+
   const handleLogin = async () => {
-    if (!email.trim() || !password.trim()) {
-      Alert.alert('Error', 'Please enter both email and password.');
+    const emailValue = email.trim();
+    if (!emailValue || !password.trim()) {
+      setError(ERROR_MESSAGES.missingCredentials);
       return;
     }
+    const emailError = validateEmail(emailValue);
+    if (emailError) {
+      setError(emailError);
+      return;
+    }
+    setError('');
     setLoading(true);
     try {
-      await login(email.trim(), password.trim());
-    } catch (error: any) {
-      Alert.alert('Login Failed', error.message || 'Invalid credentials.');
+      await login(emailValue, password.trim());
+    } catch (err) {
+      setError(toDisplayError(err).message);
     } finally {
       setLoading(false);
     }
@@ -54,6 +67,12 @@ export const LoginScreen: React.FC<Props> = ({ navigation }) => {
         </View>
         <Text style={s.subtitle}>Sign in to your account</Text>
 
+        {error ? (
+          <View style={s.errorBox}>
+            <Text style={s.errorText}>{error}</Text>
+          </View>
+        ) : null}
+
         <View style={s.inputContainer}>
           <Text style={s.label}>Email</Text>
           <TextInput
@@ -61,7 +80,7 @@ export const LoginScreen: React.FC<Props> = ({ navigation }) => {
             placeholder="Enter your email"
             placeholderTextColor={colors.textTertiary}
             value={email}
-            onChangeText={setEmail}
+            onChangeText={(v) => { setEmail(v); if (error) setError(''); }}
             keyboardType="email-address"
             autoCapitalize="none"
             autoCorrect={false}
@@ -76,7 +95,7 @@ export const LoginScreen: React.FC<Props> = ({ navigation }) => {
               placeholder="Enter your password"
               placeholderTextColor={colors.textTertiary}
               value={password}
-              onChangeText={setPassword}
+              onChangeText={(v) => { setPassword(v); if (error) setError(''); }}
               secureTextEntry={!showPassword}
             />
             <TouchableOpacity
@@ -131,6 +150,20 @@ const createStyles = (c: ThemeColors) => StyleSheet.create({
     color: c.textSecondary,
     textAlign: 'center',
     marginBottom: 40,
+  },
+  errorBox: {
+    backgroundColor: '#FEF2F2',
+    borderColor: '#FECACA',
+    borderWidth: 1,
+    borderRadius: 10,
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+    marginBottom: 16,
+  },
+  errorText: {
+    color: '#DC2626',
+    fontSize: 14,
+    textAlign: 'center',
   },
   inputContainer: {
     marginBottom: 16,

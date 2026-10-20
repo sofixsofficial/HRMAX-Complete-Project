@@ -3,6 +3,7 @@ import { useNavigate, useSearchParams, Link } from 'react-router-dom';
 import { ArrowLeft, Loader2, Shield, KeyRound, CheckCircle, XCircle } from 'lucide-react';
 import { Logo } from '../../components/Logo';
 import { verifyResetCode } from '../../services/authService';
+import { toDisplayError } from '../../aws/errors';
 import '../../pages/Login.css';
 
 export function VerifyResetCode() {
@@ -70,7 +71,7 @@ export function VerifyResetCode() {
         navigate(`/set-new-password?email=${encodeURIComponent(email)}&code=${code}`);
       }, 1000);
     } catch (err: any) {
-      setError(err.message || 'Failed to verify code. Please try again.');
+      setError(toDisplayError(err).message)
     } finally {
       setIsLoading(false);
     }

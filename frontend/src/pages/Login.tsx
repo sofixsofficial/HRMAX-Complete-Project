@@ -5,6 +5,7 @@ import {
 } from 'lucide-react'
 import { useAuth } from '../context/AuthContext'
 import { Logo } from '../components/Logo'
+import { ERROR_MESSAGES, consumeSessionExpired, toDisplayError, validateEmail } from '../aws/errors'
 
 export function Login() {
   const [email, setEmail] = useState('')
@@ -27,6 +28,11 @@ export function Login() {
     }
   }, [location.state])
 
+  // Explain why the user was sent back here (expired session / token refresh failed)
+  useEffect(() => {
+    if (consumeSessionExpired()) setError(ERROR_MESSAGES.sessionExpired)
+  }, [])
+
   const rolePathMap: Record<string, string> = {
     'master-admin': '/master-admin/dashboard',
     'company-admin': '/company-admin/dashboard',
@@ -48,13 +54,24 @@ export function Login() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     setError('')
+    const emailValue = email.trim()
+
+    // Client-side validation before hitting the network
+    if (!emailValue || !password) {
+      setError(ERROR_MESSAGES.missingCredentials)
+      return
+    }
+    const emailError = validateEmail(emailValue)
+    if (emailError) {
+      setError(emailError)
+      return
+    }
+
     setIsLoading(true)
-    console.log('[Login] Attempting sign-in:', { email, passwordLength: password.length })
     try {
-      await login(email, password)
+      await login(emailValue, password)
     } catch (err: any) {
-      console.log('[Login] Sign-in failed for:', { email, passwordLength: password.length })
-      setError(err.message || 'Invalid credentials. Please try again.')
+      setError(toDisplayError(err).message)
       setIsLoading(false)
     }
   }
@@ -104,7 +121,7 @@ export function Login() {
               </div>
             )}
 
-            <form onSubmit={handleSubmit} className="flex flex-col gap-[18px]">
+            <form onSubmit={handleSubmit} className="flex flex-col gap-[18px]" noValidate>
               {/* Email Field */}
               <div className="flex flex-col gap-1.5">
                 <label className="text-[13px] font-medium text-gray-700">Email Address</label>
@@ -113,7 +130,7 @@ export function Login() {
                   <input
                     type="email"
                     value={email}
-                    onChange={(e) => setEmail(e.target.value)}
+                    onChange={(e) => { setEmail(e.target.value); if (error) setError('') }}
                     placeholder="Enter your email"
                     required
                     autoComplete="off"
@@ -130,7 +147,7 @@ export function Login() {
                   <input
                     type={showPassword ? 'text' : 'password'}
                     value={password}
-                    onChange={(e) => setPassword(e.target.value)}
+                    onChange={(e) => { setPassword(e.target.value); if (error) setError('') }}
                     placeholder="Enter your password"
                     required
                     autoComplete="new-password"

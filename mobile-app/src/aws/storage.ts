@@ -5,6 +5,7 @@
 
 import { getIdToken } from './auth';
 import { AWS_CONFIG } from './config';
+import { FriendlyError, ERROR_CODES, ERROR_MESSAGES, markSessionExpired, networkError, toFriendlyError } from './errors';
 
 const API = () => AWS_CONFIG.apiUrl;
 
@@ -18,15 +19,27 @@ export function ref(_storage: unknown, path: string): StorageReference {
 }
 
 async function presign(path: string, action: 'put' | 'get' | 'delete'): Promise<string> {
-  const token = await getIdToken();
-  const res = await fetch(`${API()}/api/storage/presign`, {
-    method: 'POST',
-    headers: { 'content-type': 'application/json', authorization: `Bearer ${token}` },
-    body: JSON.stringify({ path, action }),
-  });
+  let token: string;
+  try {
+    token = await getIdToken();
+  } catch (err) {
+    if (err instanceof FriendlyError) throw err; // already normalized (session expired)
+    markSessionExpired();
+    throw new FriendlyError(ERROR_CODES.sessionExpired, ERROR_MESSAGES.sessionExpired);
+  }
+  let res: Response;
+  try {
+    res = await fetch(`${API()}/api/storage/presign`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json', authorization: `Bearer ${token}` },
+      body: JSON.stringify({ path, action }),
+    });
+  } catch {
+    throw networkError();
+  }
   if (!res.ok) {
-    const body = (await res.json().catch(() => null)) as { error?: { message?: string } } | null;
-    throw new Error(body?.error?.message ?? `Presign failed (${res.status})`);
+    const body = await res.json().catch(() => null);
+    throw toFriendlyError(res.status, body);
   }
   return ((await res.json()) as { url: string }).url;
 }
@@ -54,8 +67,13 @@ export async function uploadBytes(
   }
 
   const url = await presign(storageRef.fullPath, 'put');
-  const res = await fetch(url, { method: 'PUT', headers: { 'content-type': contentType }, body });
-  if (!res.ok) throw new Error(`Upload failed (${res.status})`);
+  let res: Response;
+  try {
+    res = await fetch(url, { method: 'PUT', headers: { 'content-type': contentType }, body });
+  } catch {
+    throw networkError();
+  }
+  if (!res.ok) throw toFriendlyError(res.status, null);
   return { ref: storageRef, metadata: { fullPath: storageRef.fullPath } };
 }
 

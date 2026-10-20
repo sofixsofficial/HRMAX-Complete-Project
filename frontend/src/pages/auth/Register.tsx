@@ -3,6 +3,7 @@ import { useNavigate, Link } from 'react-router-dom'
 import { CheckCircle, ArrowLeft, Loader2, Send, ArrowRight } from 'lucide-react'
 import { sendCorporateInquiry } from '../../services/emailService'
 import { Logo } from '../../components/Logo'
+import { toDisplayError } from '../../aws/errors'
 import './Register.css'
 
 const TEAM_SIZE_OPTIONS = ['1-10', '11-50', '51-200', '200+']
@@ -51,7 +52,7 @@ export const Register: React.FC = () => {
       })
       setIsSubmitted(true)
     } catch (err: any) {
-      setError(err.message || 'Failed to submit inquiry. Please try again.')
+      setError(toDisplayError(err).message)
     } finally {
       setIsLoading(false)
     }

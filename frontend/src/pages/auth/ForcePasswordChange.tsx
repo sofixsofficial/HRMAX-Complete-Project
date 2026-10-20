@@ -4,6 +4,7 @@ import { Lock, Eye, EyeOff, Loader2, Shield, CheckCircle, AlertCircle } from 'lu
 import { Logo } from '../../components/Logo';
 import { updateUserPassword, reauthenticateUser } from '../../services/authService';
 import { useAuth } from '../../context/AuthContext';
+import { toDisplayError } from '../../aws/errors';
 import '../../pages/Login.css';
 
 function getPasswordStrength(pw: string): { score: number; label: string; color: string } {
@@ -86,7 +87,7 @@ export function ForcePasswordChange() {
         navigate(target, { replace: true });
       }, 2000);
     } catch (err: any) {
-      setError(err.message || 'Failed to change password. Please try again.');
+      setError(toDisplayError(err).message)
     } finally {
       setIsLoading(false);
     }

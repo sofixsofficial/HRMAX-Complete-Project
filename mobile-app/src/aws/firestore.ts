@@ -6,6 +6,7 @@
 
 import { getIdToken } from './auth';
 import { AWS_CONFIG } from './config';
+import { FriendlyError, ERROR_CODES, ERROR_MESSAGES, markSessionExpired, networkError, toFriendlyError } from './errors';
 
 /**
  * Matches the real SDK where `DocumentData` is `{ [field: string]: any }` —
@@ -350,11 +351,22 @@ function endpointFor(path: string): string {
 }
 
 async function apiFetch(path: string, init?: RequestInit): Promise<Response> {
-  const token = await getIdToken();
-  return fetch(`${API()}${path}`, {
-    ...init,
-    headers: { 'content-type': 'application/json', authorization: `Bearer ${token}`, ...(init?.headers ?? {}) },
-  });
+  let token: string;
+  try {
+    token = await getIdToken();
+  } catch (err) {
+    if (err instanceof FriendlyError) throw err; // already normalized (session expired)
+    markSessionExpired();
+    throw new FriendlyError(ERROR_CODES.sessionExpired, ERROR_MESSAGES.sessionExpired);
+  }
+  try {
+    return await fetch(`${API()}${path}`, {
+      ...init,
+      headers: { 'content-type': 'application/json', authorization: `Bearer ${token}`, ...(init?.headers ?? {}) },
+    });
+  } catch {
+    throw networkError(); // offline / DNS / TLS — never surface raw fetch errors
+  }
 }
 
 async function fetchCollection(q: Query): Promise<DocumentData[]> {
@@ -376,8 +388,9 @@ async function fetchCollection(q: Query): Promise<DocumentData[]> {
   const qs = params.toString();
   const res = await apiFetch(`${endpoint}${qs ? `?${qs}` : ''}`);
   if (!res.ok) {
-    const body = (await res.json().catch(() => null)) as { error?: { code?: string; message?: string } } | null;
-    throw new FirestoreError(body?.error?.code ?? 'unknown', body?.error?.message ?? `Request failed (${res.status})`);
+    const body = await res.json().catch(() => null);
+    const friendly = toFriendlyError(res.status, body);
+    throw new FirestoreError(friendly.code, friendly.message);
   }
   const body = (await res.json()) as Record<string, unknown[]>;
   const key = Object.keys(body).find((k) => Array.isArray(body[k])) ?? Object.keys(body)[0];
@@ -443,8 +456,9 @@ export async function getDoc(ref: DocumentReference): Promise<DocumentSnapshot> 
   const res = await apiFetch(`${endpoint}/${ref.id}?companyId=${encodeURIComponent(companyId)}`);
   if (res.status === 404) return makeDocumentSnapshot(ref, undefined);
   if (!res.ok) {
-    const body = (await res.json().catch(() => null)) as { error?: { code?: string; message?: string } } | null;
-    throw new FirestoreError(body?.error?.code ?? 'unknown', body?.error?.message ?? `Request failed (${res.status})`);
+    const body = await res.json().catch(() => null);
+    const friendly = toFriendlyError(res.status, body);
+    throw new FirestoreError(friendly.code, friendly.message);
   }
   const body = (await res.json()) as Record<string, DocumentData>;
   const entityKey = Object.keys(body).find((k) => k !== 'success') ?? Object.keys(body)[0];
@@ -592,8 +606,9 @@ function prepareData(data: DocumentData): DocumentData {
 export async function addDoc(collRef: CollectionReference, data: DocumentData): Promise<DocumentReference> {
   const res = await apiFetch(endpointFor(collRef._path), { method: 'POST', body: JSON.stringify(prepareData(data)) });
   if (!res.ok) {
-    const body = (await res.json().catch(() => null)) as { error?: { code?: string; message?: string } } | null;
-    throw new FirestoreError(body?.error?.code ?? 'unknown', body?.error?.message ?? `Write failed (${res.status})`);
+    const body = await res.json().catch(() => null);
+    const friendly = toFriendlyError(res.status, body);
+    throw new FirestoreError(friendly.code, friendly.message);
   }
   const body = (await res.json()) as { id?: string };
   const id = body.id ?? generateId();
@@ -607,8 +622,9 @@ export async function setDoc(ref: DocumentReference, data: DocumentData, opts?: 
   const url = companyId ? `${endpoint}/${ref.id}?companyId=${encodeURIComponent(companyId)}` : `${endpoint}/${ref.id}`;
   const res = await apiFetch(url, { method: opts?.merge ? 'PATCH' : 'PUT', body: JSON.stringify({ ...prepared, id: ref.id, companyId }) });
   if (!res.ok) {
-    const body = (await res.json().catch(() => null)) as { error?: { code?: string; message?: string } } | null;
-    throw new FirestoreError(body?.error?.code ?? 'unknown', body?.error?.message ?? `Write failed (${res.status})`);
+    const body = await res.json().catch(() => null);
+    const friendly = toFriendlyError(res.status, body);
+    throw new FirestoreError(friendly.code, friendly.message);
   }
 }
 
@@ -619,8 +635,9 @@ export async function updateDoc(ref: DocumentReference, data: DocumentData): Pro
   const res = await apiFetch(url, { method: 'PATCH', body: JSON.stringify(prepareData(data)) });
   if (res.status === 404) throw new FirestoreError('not-found', 'No document to update');
   if (!res.ok) {
-    const body = (await res.json().catch(() => null)) as { error?: { code?: string; message?: string } } | null;
-    throw new FirestoreError(body?.error?.code ?? 'unknown', body?.error?.message ?? `Update failed (${res.status})`);
+    const body = await res.json().catch(() => null);
+    const friendly = toFriendlyError(res.status, body);
+    throw new FirestoreError(friendly.code, friendly.message);
   }
 }
 
@@ -628,8 +645,9 @@ export async function deleteDoc(ref: DocumentReference): Promise<void> {
   const companyId = ref._path.split('/')[1] ?? '';
   const res = await apiFetch(`${endpointFor(ref._path)}/${ref.id}?companyId=${encodeURIComponent(companyId)}`, { method: 'DELETE' });
   if (!res.ok && res.status !== 404) {
-    const body = (await res.json().catch(() => null)) as { error?: { code?: string; message?: string } } | null;
-    throw new FirestoreError(body?.error?.code ?? 'unknown', body?.error?.message ?? `Delete failed (${res.status})`);
+    const body = await res.json().catch(() => null);
+    const friendly = toFriendlyError(res.status, body);
+    throw new FirestoreError(friendly.code, friendly.message);
   }
 }
 

@@ -3,6 +3,7 @@ import { useSearchParams, useNavigate, Link } from 'react-router-dom';
 import { acceptInvitation, getInvitationByToken } from '../../services/authService';
 import { User, Mail, Lock, Eye, EyeOff, Loader2, CheckCircle, AlertCircle } from 'lucide-react';
 import { Logo } from '../../components/Logo';
+import { toDisplayError } from '../../aws/errors';
 import type { UserRole } from '../../types/user';
 import '../Login.css';
 
@@ -54,7 +55,7 @@ export const AcceptInvite: React.FC = () => {
           setFormData(prev => ({ ...prev, name: data.name }));
         }
       } catch (err: any) {
-        setError(err.message || 'Invalid or expired invitation');
+        setError(toDisplayError(err).message)
       } finally {
         setIsValidating(false);
       }
@@ -111,7 +112,7 @@ export const AcceptInvite: React.FC = () => {
         navigate('/');
       }, 2000);
     } catch (err: any) {
-      setError(err.message || 'Failed to create account');
+      setError(toDisplayError(err).message)
     } finally {
       setIsLoading(false);
     }

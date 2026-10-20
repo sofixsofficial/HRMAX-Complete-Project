@@ -10,6 +10,7 @@ import type { AuthError } from 'firebase/auth';
 import { doc, getDoc } from 'firebase/firestore';
 import { auth, db } from '../config/firebase';
 import { httpsCallable } from 'firebase/functions';
+import { ERROR_MESSAGES } from '../aws/errors';
 import { functions } from '../config/firebase';
 import type { User, UserRole } from '../types/user';
 
@@ -22,13 +23,16 @@ interface CustomClaims {
 const handleAuthError = (error: AuthError): void => {
   const errorMessages: Record<string, string> = {
     'auth/user-not-found': 'No account found with this email.',
-    'auth/wrong-password': 'Incorrect password. Try again or use Forgot Password.',
-    'auth/invalid-email': 'Invalid email address format.',
+    'auth/wrong-password': ERROR_MESSAGES.invalidCredentials,
+    'auth/invalid-email': ERROR_MESSAGES.invalidEmail,
     'auth/user-disabled': 'This account has been disabled.',
-    'auth/invalid-credential': 'Invalid email or password.',
+    'auth/invalid-credential': ERROR_MESSAGES.invalidCredentials,
     'auth/too-many-requests': 'Too many failed attempts. Try again later.',
+    'auth/network-error': ERROR_MESSAGES.network,
+    'auth/session-expired': ERROR_MESSAGES.sessionExpired,
+    'auth/access-denied': ERROR_MESSAGES.accessDenied,
   };
-  const message = errorMessages[error.code] || error.message || 'An unexpected error occurred';
+  const message = errorMessages[error.code] || error.message || ERROR_MESSAGES.generic;
   throw new Error(message);
 };
 

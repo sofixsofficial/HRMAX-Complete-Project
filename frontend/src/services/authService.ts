@@ -32,6 +32,7 @@ import {
 } from 'firebase/firestore';
 import { httpsCallable } from 'firebase/functions';
 import { auth, db, functions } from '../firebase/config';
+import { ERROR_MESSAGES } from '../aws/errors';
 import type { User, UserRole } from '../types/user';
 
 // Extended User interface for auth service
@@ -95,17 +96,20 @@ export const getPermissionArray = (role: UserRole): string[] => {
 const handleAuthError = (error: AuthError): void => {
   const errorMessages: Record<string, string> = {
     'auth/user-not-found': 'No account found with this email. Please verify your email or contact your admin.',
-    'auth/wrong-password': 'Incorrect password. Please try again or use "Forgot Password".',
-    'auth/invalid-email': 'Invalid email address format.',
+    'auth/wrong-password': ERROR_MESSAGES.invalidCredentials,
+    'auth/invalid-email': ERROR_MESSAGES.invalidEmail,
     'auth/user-disabled': 'This account has been disabled. Contact your admin.',
     'auth/email-already-in-use': 'An account already exists with this email.',
     'auth/weak-password': 'Password is too weak (min 6 characters).',
-    'auth/invalid-credential': 'Invalid email or password. If you were recently added as an employee, the system may have failed to create your login. Contact your admin to verify your Firebase Auth account exists.',
-    'auth/requires-recent-login': 'Please sign in again to complete this action.',
+    'auth/invalid-credential': ERROR_MESSAGES.invalidCredentials,
+    'auth/requires-recent-login': ERROR_MESSAGES.sessionExpired,
     'auth/too-many-requests': 'Too many failed attempts. Please try again later.',
+    'auth/network-error': ERROR_MESSAGES.network,
+    'auth/session-expired': ERROR_MESSAGES.sessionExpired,
+    'auth/access-denied': ERROR_MESSAGES.accessDenied,
   };
   
-  const message = errorMessages[error.code] || error.message || 'An unexpected error occurred';
+  const message = errorMessages[error.code] || error.message || ERROR_MESSAGES.generic;
   throw new Error(message);
 };
 

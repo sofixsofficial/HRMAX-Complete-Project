@@ -178,7 +178,7 @@ export const UnauthorizedPage: React.FC = () => {
         <div className="text-6xl mb-4">🚫</div>
         <h1 className="text-3xl font-bold text-gray-900 mb-2">Access Denied</h1>
         <p className="text-gray-600 mb-6">
-          You don't have permission to access this page.
+          You do not have permission to access this section.
         </p>
         <a 
           href="/" 
