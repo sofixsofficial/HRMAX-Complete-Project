@@ -83,6 +83,13 @@ export interface Company {
   parentCompanyName?: string
   attendanceSettings?: CompanyAttendanceSettings
   payrollSettings?: CompanyPayrollSettings
+  /** Profile page display preferences (working days/hours, time zone, currency) */
+  settings?: {
+    workingDays: string
+    workHours: string
+    timeZone: string
+    currency: string
+  }
   /** Annual leave allowance (in days) per leave type, e.g. { Casual: 12, Sick: 6, Earned: 15 } */
   leaveAllowances?: Record<string, number>
   createdBy?: string

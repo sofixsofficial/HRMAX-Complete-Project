@@ -631,7 +631,7 @@ const resolveTLForCompany = async (companyId: string): Promise<string> => {
         try {
           const eDoc = await getDoc(doc(db, 'users', eid)).catch(() => null)
           if (eDoc?.exists) {
-            const assigned = eDoc.data().assignedTeamLeaderIds
+            const assigned = eDoc.data()?.assignedTeamLeaderIds
             if (Array.isArray(assigned) && assigned.length > 0) return String(assigned[0])
           }
         } catch {}
@@ -1173,7 +1173,7 @@ export const deleteAttendance = async (id: string): Promise<void> => {
 };
 
 export const getAttendanceStats = async (companyId?: string, date?: Date) => {
-  if (!companyId) return { total: 0, approved: 0, present: 0, late: 0, onLeave: 0, missPunch: 0 };
+  if (!companyId) return { total: 0, approved: 0, present: 0, late: 0, onLeave: 0, missPunch: 0, absent: 0 };
   let records: AttendanceRecord[];
   
   if (date) {
@@ -1189,6 +1189,7 @@ export const getAttendanceStats = async (companyId?: string, date?: Date) => {
     late: records.filter(r => r.status === 'Late').length,
     onLeave: records.filter(r => r.status === 'On Leave').length,
     missPunch: records.filter(r => r.status === 'Miss Punch').length,
+    absent: records.filter(r => r.status === 'Absent').length,
   };
 };
 

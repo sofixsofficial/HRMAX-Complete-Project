@@ -50,6 +50,10 @@ const statusColor = (status: string) => {
   }
 }
 
+// What the leave-table lookup map actually reads from a company record —
+// both full Company docs and scoped AssignedCompany summaries satisfy it.
+type CompanyLookup = { name: string; domain?: string; assignedExecutiveId?: string }
+
 const MA_TIER_LABEL = 'Master Admin'
 
 const isMasterAdminPending = (l: LeaveRequest) =>
@@ -109,7 +113,7 @@ export function LeaveManagement() {
   const [employees, setEmployees] = useState<Employee[]>([])
   const [allUsers, setAllUsers] = useState<User[]>([])
   const [companies, setCompanies] = useState<Company[]>([])
-  const [companiesById, setCompaniesById] = useState<Record<string, Company>>({})
+  const [companiesById, setCompaniesById] = useState<Record<string, CompanyLookup>>({})
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [searchTerm, setSearchTerm] = useState('')
@@ -237,7 +241,7 @@ export function LeaveManagement() {
   // resolves to its readable name (plus the already-loaded scope companies).
   useEffect(() => {
     const ids = [...new Set(leaves.map(l => l.companyId).filter(Boolean))]
-    const scopeMap: Record<string, Company> = {}
+    const scopeMap: Record<string, CompanyLookup> = {}
     availableCompanies.forEach(c => { scopeMap[c.id] = c })
     setCompaniesById(scopeMap)
     if (ids.length === 0) return
@@ -403,7 +407,7 @@ export function LeaveManagement() {
         emp = employees.find(e => e.id === applyData.employeeId)
       }
 
-      const leavePayload: Omit<LeaveRequest, 'id' | 'appliedOn' | 'status'> = {
+      const leavePayload: Omit<LeaveRequest, 'id' | 'appliedOn' | 'status' | 'approvalStatus' | 'approvalLog' | 'approverIds'> = {
         userId: (!isApprover || applyMode === 'self') ? currentUid : (emp?.userId || currentUid),
         employeeName: emp?.name || user?.name || 'Unknown',
         employeeId: emp?.employeeId || '',
@@ -886,7 +890,7 @@ export function LeaveManagement() {
                       }}>
                         {entry.status === 'Approved' ? '✓' : '✗'}
                       </span>
-                      <span><strong>{TIER_LABELS[entry.tier] || entry.tier}</strong> by {entry.approvedByName}</span>
+                      <span><strong>{TIER_LABELS[entry.tier as ApprovalTier] || entry.tier}</strong> by {entry.approvedByName}</span>
                       {entry.note && <span style={{ fontStyle: 'italic' }}>({entry.note})</span>}
                     </div>
                   ))}
@@ -928,7 +932,7 @@ export function LeaveManagement() {
               <p style={{ color: '#6b7280', fontSize: '14px' }}>{fmtDate(detailsTarget.startDate)} → {fmtDate(detailsTarget.endDate)} ({detailsTarget.totalDays} days)</p>
               <p style={{ fontSize: '14px', marginTop: '6px' }}>{detailsTarget.reason}</p>
               <div style={{ marginTop: '8px' }}>
-                <span className="status-badge-table" style={statusColor(detailsTarget.status)}>{detailsTarget.status}</span>
+                <span className="status-badge-table" style={{ background: statusColor(detailsTarget.status).bg, color: statusColor(detailsTarget.status).text }}>{detailsTarget.status}</span>
               </div>
             </div>
 
@@ -980,7 +984,7 @@ export function LeaveManagement() {
                     }}>
                       {entry.status === 'Approved' ? '✓' : '✗'}
                     </span>
-                    <span><strong>{TIER_LABELS[entry.tier] || entry.tier}</strong> by {entry.approvedByName}</span>
+                    <span><strong>{TIER_LABELS[entry.tier as ApprovalTier] || entry.tier}</strong> by {entry.approvedByName}</span>
                     {entry.note && <span style={{ fontStyle: 'italic' }}>({entry.note})</span>}
                   </div>
                 ))}

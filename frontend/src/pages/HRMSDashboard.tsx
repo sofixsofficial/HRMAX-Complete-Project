@@ -3,7 +3,7 @@ import {
   LayoutDashboard, User, Clock, CalendarDays, Wallet, ListChecks, Umbrella,
   Sun, Cake, BookOpen, Mail, Megaphone, Calendar, LifeBuoy, LogOut,
   Menu, Bell, Search, ChevronRight, ChevronLeft,
-  ArrowUpRight,
+  ArrowUpRight, Lock,
   Building2, Users, Shield, Briefcase, BarChart3, TrendingUp, FileText, Loader2
 } from 'lucide-react'
 import { useAuth } from '../context/AuthContext'
@@ -417,10 +417,10 @@ export function HRMSDashboard() {
           </div>
           <div className="p-5 grid grid-cols-2 md:grid-cols-4 gap-4">
             {[
-              { label: 'Present', value: s.presentToday, color: '#10b981', bg: '#ecfdf5' },
-              { label: 'Absent', value: s.absentToday, color: '#ef4444', bg: '#fef2f2' },
-              { label: 'Late', value: s.lateToday, color: '#f59e0b', bg: '#fffbeb' },
-              { label: 'On Leave', value: s.onLeave, color: '#8b5cf6', bg: '#f5f3ff' },
+              { label: 'Present', value: dashData.presentToday, color: '#10b981', bg: '#ecfdf5' },
+              { label: 'Absent', value: dashData.absentToday, color: '#ef4444', bg: '#fef2f2' },
+              { label: 'Late', value: dashData.lateToday, color: '#f59e0b', bg: '#fffbeb' },
+              { label: 'On Leave', value: dashData.onLeaveToday, color: '#8b5cf6', bg: '#f5f3ff' },
             ].map((item, i) => (
               <div key={i} className="text-center p-4 rounded-lg" style={{ background: item.bg }}>
                 <p className="text-2xl font-bold" style={{ color: item.color }}>{item.value}</p>

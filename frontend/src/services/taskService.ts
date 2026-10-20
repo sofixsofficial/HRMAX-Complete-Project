@@ -55,7 +55,9 @@ export const getTasksByUser = async (userId: string): Promise<Task[]> => {
 };
 
 // Create task
-export const createTask = async (task: Omit<Task, 'id' | 'createdAt' | 'updatedAt'>): Promise<Task> => {
+// avatar/dueDate are optional on create: the TL quick-create modal has no
+// avatar or due-date inputs, and every reader guards for their absence.
+export const createTask = async (task: Omit<Task, 'id' | 'createdAt' | 'updatedAt' | 'avatar' | 'dueDate'> & { avatar?: string; dueDate?: Date }): Promise<Task> => {
   const docRef = await addDoc(tasksRef, {
     ...task,
     createdAt: serverTimestamp(),

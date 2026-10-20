@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef, useMemo } from 'react'
 import { Crown, Search, Plus, Eye, Pencil, Trash2, Loader2, ChevronLeft, ChevronRight, Mail, Phone, Briefcase, X, User as UserIcon, Shield, Building2, Lock, Users, Check, CheckSquare, ChevronDown, Upload, DollarSign, CalendarDays, MapPin, Phone as PhoneIcon, FileText, CreditCard, BadgeAlert, KeyRound, Crosshair, Wifi, Camera, Smartphone } from 'lucide-react'
 import { useForm } from 'react-hook-form'
+import type { Resolver } from 'react-hook-form'
 import { useNavigate } from 'react-router-dom'
 import { z } from 'zod'
 import { zodResolver } from '@hookform/resolvers/zod'
@@ -514,7 +515,8 @@ export function Executives() {
   const [editPermissions, setEditPermissions] = useState<string[]>([])
 
   const form = useForm<ExecutiveFormValues>({
-    resolver: zodResolver(executiveSchema),
+    // Cast: known @hookform/resolvers/zod inference mismatch (runtime identical).
+    resolver: zodResolver(executiveSchema) as Resolver<ExecutiveFormValues>,
     defaultValues: {
       name: '', email: '', username: '', password: '', phone: '',
       executiveTitle: '', companyId: '', departmentId: '', departmentName: '',

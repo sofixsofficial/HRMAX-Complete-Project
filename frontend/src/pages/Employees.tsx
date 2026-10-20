@@ -9,7 +9,7 @@ import {
   XCircle
 } from 'lucide-react'
 import { useForm, Controller } from 'react-hook-form'
-import type { UseFormReturn } from 'react-hook-form'
+import type { UseFormReturn, Resolver } from 'react-hook-form'
 import { z } from 'zod'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { collection, onSnapshot, query, doc, updateDoc, serverTimestamp, getDocs } from 'firebase/firestore'
@@ -33,6 +33,7 @@ import { scopedCompanyIds, companyIdWhere, chunkCompanyIds } from '../utils/comp
 import { SearchableSelect } from '../components/SearchableSelect'
 import { LeaveBalanceCard } from '../components/LeaveBalanceCard'
 import { DEFAULT_LEAVE_ALLOWANCES, LEAVE_TYPES, computeLeaveBalance, resolveEmployeeLeaveEntitlements } from '../services/leaveService'
+import type { LeaveBalanceConfig } from '../services/leaveService'
 import { getLeavePoliciesByCompany } from '../services/leavePolicyService'
 import type { Employee, User as UserType, UserRole, Company, Department, LeaveRequest, LeavePolicy } from '../types/user'
 import './Employees.css'
@@ -134,7 +135,7 @@ interface EmployeeFormContentProps {
   fetchManagers: (companyId: string) => void
   users: UserType[]
   excludeEmployeeId?: string
-  scopedCompanies?: Company[]
+  scopedCompanies?: Array<Pick<Company, 'id' | 'name'>>
 }
 
 export interface EmployeeFormRef {
@@ -704,7 +705,8 @@ export function Employees() {
   const editFormRef = useRef<EmployeeFormRef>(null)
 
   const addForm = useForm<EmployeeFormValues>({
-    resolver: zodResolver(employeeSchema),
+    // Cast: known @hookform/resolvers/zod inference mismatch (runtime identical).
+    resolver: zodResolver(employeeSchema) as Resolver<EmployeeFormValues>,
     defaultValues: {
       name: '', email: '', username: '', password: '', phone: '', employeeId: '',
       department: '', departmentId: '', departmentColor: '#f97316',
@@ -722,7 +724,8 @@ export function Employees() {
   })
 
   const editForm = useForm<EmployeeFormValues>({
-    resolver: zodResolver(employeeSchema),
+    // Cast: known @hookform/resolvers/zod inference mismatch (runtime identical).
+    resolver: zodResolver(employeeSchema) as Resolver<EmployeeFormValues>,
     defaultValues: {
       name: '', email: '', username: '', password: '', phone: '', employeeId: '',
       department: '', departmentId: '', departmentColor: '#f97316',
@@ -858,7 +861,7 @@ export function Employees() {
           const companyLeaveAllowances = companies.find(c => c.id === emp.companyId)?.leaveAllowances || {}
           if (list.length === 0) {
             // No policy and no per-employee entitlements → no hardcoded defaults.
-            return { allowances: { ...companyLeaveAllowances }, config: undefined as { encashable: string[]; paid: string[] } | undefined, skipJoinProration: false }
+            return { allowances: { ...companyLeaveAllowances }, config: undefined as LeaveBalanceConfig | undefined, skipJoinProration: false }
           }
           const pol = list.find(p => p.id === emp.leavePolicyId) || list.find(p => p.isDefault) || list[0]
           const effective: Record<string, { days: number; paid: boolean; encashable: boolean }> = {}

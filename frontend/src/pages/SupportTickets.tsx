@@ -421,8 +421,8 @@ export function SupportTickets() {
             <div className="st-detail-header">
               <div className="st-detail-title-row">
                 <h4>{selectedTicket.title}</h4>
-                <span className="st-pill" style={statusColor(selectedTicket.status)}>{selectedTicket.status}</span>
-                <span className="st-pill" style={priorityColor(selectedTicket.priority)}>{selectedTicket.priority}</span>
+                <span className="st-pill" style={{ background: statusColor(selectedTicket.status).bg, color: statusColor(selectedTicket.status).text }}>{selectedTicket.status}</span>
+                <span className="st-pill" style={{ background: priorityColor(selectedTicket.priority).bg, color: priorityColor(selectedTicket.priority).text }}>{selectedTicket.priority}</span>
               </div>
               <div className="st-detail-meta">
                 <span>Raised by <strong>{selectedTicket.createdBy}</strong> · {selectedTicket.createdAt && isDate(selectedTicket.createdAt) ? selectedTicket.createdAt.toLocaleString() : ''}</span>

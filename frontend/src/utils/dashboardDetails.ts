@@ -92,8 +92,8 @@ export function getCardDetailConfig(key: string, ctx: DetailCtx): CardDetailConf
 
   const companyMap = new Map(records.companies.map((c: any) => [c.id, c.name || '—']))
   const companyNameOf = (cid: any) => (cid && companyMap.get(cid)) || '—'
-  const employeeByUserId = new Map(
-    records.employees.map((e: any) => [e.userId || e.id, e]).filter(([uid]) => !!uid)
+  const employeeByUserId = new Map<string, any>(
+    records.employees.map((e: any): [string, any] => [e.userId || e.id, e]).filter(([uid]) => !!uid)
   )
   const employeeNameOf = (userId?: string) =>
     records.employees.find((e: any) => e.userId === userId)?.name || ''

@@ -21,7 +21,8 @@ export const getDocuments = async (employeeId: string): Promise<EmployeeDocument
   return snapshot.docs.map(d => mapDoc(d.id, d.data()))
 }
 
-export const addDocument = async (employeeId: string, data: Omit<EmployeeDocument, 'id' | 'employeeId' | 'uploadedAt'>, uploadedBy: string): Promise<string> => {
+// uploadedBy comes from the third argument (written below), not from `data`.
+export const addDocument = async (employeeId: string, data: Omit<EmployeeDocument, 'id' | 'employeeId' | 'uploadedAt' | 'uploadedBy'>, uploadedBy: string): Promise<string> => {
   const docRef = await addDoc(getCol(employeeId), {
     ...data,
     employeeId,

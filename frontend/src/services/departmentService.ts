@@ -53,7 +53,9 @@ export const getDepartmentsByCompany = async (companyId: string): Promise<Depart
 };
 
 // Create department
-export const createDepartment = async (department: Omit<Department, 'id' | 'createdAt' | 'code'> & { code?: string }): Promise<Department> => {
+// code is generated when omitted; color may be omitted (readers fall back to
+// their own palette) — both defaulted/stripped inside before writing the doc.
+export const createDepartment = async (department: Omit<Department, 'id' | 'createdAt' | 'code' | 'color'> & { code?: string; color?: string }): Promise<Department> => {
   const code = department.code || await generateUniqueCode('departments', 'DEPT', 'code', department.companyId);
   const docRef = await addDoc(departmentsRef, {
     ...stripUndefined({ ...department, code } as any),

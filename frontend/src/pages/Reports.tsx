@@ -62,7 +62,7 @@ export function Reports() {
   
   // Stats states
   const [employeeStats, setEmployeeStats] = useState({ total: 0, active: 0, inactive: 0, onLeave: 0 })
-  const [companyStats, setCompanyStats] = useState({ total: 0, active: 0, pending: 0, suspended: 0, totalEmployees: 0 })
+  const [companyStats, setCompanyStats] = useState({ total: 0, active: 0, totalEmployees: 0 })
   const [ticketStats, setTicketStats] = useState({ total: 0, open: 0, inProgress: 0, resolved: 0, closed: 0 })
   const [salaryStats, setSalaryStats] = useState({ total: 0, paid: 0, pending: 0, processing: 0, totalAmount: 0 })
   const [attendanceStats, setAttendanceStats] = useState({ total: 0, present: 0, absent: 0, late: 0, onLeave: 0 })
@@ -105,8 +105,8 @@ export function Reports() {
       }, [], 'employees'),
       safeFetch(async () => canViewAllStats ? await getAllCompanies() : [], [], 'companies'),
       safeFetch(async () => canViewAllStats ? await getCompanyStats() : {
-        total: 0, active: 0, pending: 0, suspended: 0, totalEmployees: 0
-      }, { total: 0, active: 0, pending: 0, suspended: 0, totalEmployees: 0 }, 'company stats'),
+        total: 0, active: 0, totalEmployees: 0
+      }, { total: 0, active: 0, totalEmployees: 0 }, 'company stats'),
       safeFetch(async () => {
         if (companyId) {
           const snap = await getDocs(query(collection(db, 'supportTickets'), where('companyId', '==', companyId)))
@@ -133,17 +133,19 @@ export function Reports() {
       safeFetch(async () => await getTicketStats(companyId || undefined),
         { total: 0, open: 0, inProgress: 0, resolved: 0, closed: 0 }, 'ticket stats'),
       safeFetch(async () => await getSalaryStats(companyId || undefined),
-        { total: 0, paid: 0, pending: 0, processing: 0, totalAmount: 0 }, 'salary stats'),
+        { total: 0, paid: 0, pending: 0, processing: 0, emailed: 0, totalAmount: 0 }, 'salary stats'),
       safeFetch(async () => await getAttendanceStats(companyId || undefined),
-        { total: 0, present: 0, absent: 0, late: 0, onLeave: 0 }, 'attendance stats'),
+        { total: 0, approved: 0, present: 0, late: 0, onLeave: 0, missPunch: 0, absent: 0 }, 'attendance stats'),
     ])
 
     setEmployees(empData)
     setCompanies(compData)
     setCompanyStats(compStats)
-    setTickets(tixData)
-    setSalarySlips(salaryData)
-    setAttendance(attData)
+    // Snapshot reads above are untyped (d.data() is DocumentData) — the runtime
+    // documents are full records; narrow once here where the data enters state.
+    setTickets(tixData as SupportTicket[])
+    setSalarySlips(salaryData as SalarySlip[])
+    setAttendance(attData as AttendanceRecord[])
     setEmployeeStats(empStats)
     setTicketStats(tixStats)
     setSalaryStats(salStats)

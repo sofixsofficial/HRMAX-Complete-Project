@@ -102,9 +102,10 @@ export const generatePayslip = (slip: SalarySlip, options: PayslipOptions = {}) 
 
   let tableRowsHtml = ''
   const maxRows = Math.max(earnings.length, hasDeductions ? deductionsList.length : 0)
+  const emptyRow: [string, number] = ['', 0]
   for (let i = 0; i < maxRows; i++) {
-    const earn = earnings[i] || ['', 0]
-    const ded = hasDeductions ? deductionsList[i] || ['', 0] : ['', 0]
+    const earn = earnings[i] || emptyRow
+    const ded = hasDeductions ? deductionsList[i] || emptyRow : emptyRow
     if (hasDeductions) {
       tableRowsHtml += `
         <tr>

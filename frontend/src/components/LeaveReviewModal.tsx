@@ -121,7 +121,7 @@ export function LeaveReviewModal({ draft, submitting, onClose, onConfirm, readOn
                   }}>
                     {entry.status === 'Approved' ? '✓' : '✗'}
                   </span>
-                  <span><strong>{TIER_LABELS[entry.tier] || entry.tier}</strong> by {entry.approvedByName}</span>
+                  <span><strong>{TIER_LABELS[entry.tier as ApprovalTier] || entry.tier}</strong> by {entry.approvedByName}</span>
                   {entry.note && <span style={{ fontStyle: 'italic' }}>({entry.note})</span>}
                 </div>
               ))}

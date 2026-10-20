@@ -381,7 +381,7 @@ export function CompanyProfile() {
                               <Upload size={12} />{d.status === 'Uploading' ? 'Uploading' : 'Upload'}
                             </button>
                             <input
-                              ref={el => docRefs.current[i] = el}
+                              ref={el => { docRefs.current[i] = el }}
                               type="file"
                               accept=".pdf"
                               style={{ display: 'none' }}

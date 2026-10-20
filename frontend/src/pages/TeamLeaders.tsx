@@ -15,6 +15,7 @@ import { db, storage, functions } from '../config/firebase'
 import { logAudit } from '../services/auditLogService'
 import { isDate } from '../utils/dateUtils'
 import { useForm } from 'react-hook-form'
+import type { Resolver } from 'react-hook-form'
 import { z } from 'zod'
 import { zodResolver } from '@hookform/resolvers/zod'
 import type { User, Company, Department } from '../types/user'
@@ -305,7 +306,8 @@ export function TeamLeaders() {
   const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' } | null>(null)
 
   const form = useForm<TeamLeaderFormValues>({
-    resolver: zodResolver(teamLeaderSchema),
+    // Cast: known @hookform/resolvers/zod inference mismatch (runtime identical).
+    resolver: zodResolver(teamLeaderSchema) as Resolver<TeamLeaderFormValues>,
     defaultValues: {
       name: '', email: '', username: '', password: '', phone: '', companyId: '', executiveIds: [],
       designation: '', departmentId: '', departmentName: '',

@@ -134,12 +134,13 @@ export function TransferManagement() {
           }))
         setTeamLeaders(tls)
 
-        const logs: TransferLog[] = logsSnap.docs
+        // Snapshot data is untyped DocumentData — the docs are transfer logs at runtime.
+        const logs: TransferLog[] = (logsSnap.docs
           .map(d => ({
             id: d.id,
             ...d.data(),
             timestamp: (d.data() as any).timestamp?.toDate ? (d.data() as any).timestamp.toDate() : new Date(),
-          }))
+          })) as TransferLog[])
           .filter((l: any) => l.type === 'executive_transfer')
           .sort((a: any, b: any) => b.timestamp.getTime() - a.timestamp.getTime())
         setTransferLogs(logs)

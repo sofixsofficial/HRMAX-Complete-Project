@@ -12,6 +12,8 @@ import {
 } from 'firebase/firestore';
 import { db } from '../config/firebase';
 import type { LeaveRequest, LeaveStatus, LeaveType, ApprovalTier, ApprovalLevel, ApprovalFlags } from '../types/user';
+// Re-exported so consumers (LeaveBalanceCard, leavePolicyService) can import the type from here.
+export type { LeaveType } from '../types/user';
 import { notifyLeaveEvent, notifyLeaveTierApproved, notifyLeaveRejectedByTier, notifyLeaveFullyApproved, notifyMasterAdmins, notifyLeaveSubmittedToTier } from './notificationService';
 
 const COLLECTION_NAME = 'leaveRequests';

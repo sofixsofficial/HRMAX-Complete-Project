@@ -289,7 +289,7 @@ export const isSameSet = (a: string[], b: string[]): boolean => {
 export type PermissionScope = 'all' | 'assigned'
 export type PermissionScopeMap = Record<string, PermissionScope>
 
-export const PERMISSION_SCOPE_OPTIONS: { key: PermissionScope; label: string }[] = [
+export const PERMISSION_SCOPE_OPTIONS: { key: PermissionScope; label: string; hint?: string }[] = [
   { key: 'all', label: 'All', hint: 'Every authorized company' },
   { key: 'assigned', label: 'Assigned only', hint: 'Only companies this user belongs to' },
 ]

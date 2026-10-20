@@ -1,4 +1,4 @@
-import jsPDF from 'jspdf'
+import jsPDF, { GState } from 'jspdf'
 import type { SalarySlip } from '../types/user'
 import type { PayslipOptions } from './payslipOptions'
 
@@ -220,9 +220,9 @@ export const downloadPayslipPdf = async (slip: SalarySlip, options: PayslipOptio
   doc.setLineWidth(0.5)
   doc.roundedRect(mg, summaryY, cw, summaryH, 1.5, 1.5, 'S')
   doc.setFillColor(...C.primaryLight)
-  doc.setAlpha(0.15)
+  doc.setGState(new GState({ opacity: 0.15 }))
   doc.rect(mg, summaryY, cw, summaryH, 'F')
-  doc.setAlpha(1)
+  doc.setGState(new GState({ opacity: 1 }))
 
   // Left fields
   setFont(8, 'normal', C.mutedText)

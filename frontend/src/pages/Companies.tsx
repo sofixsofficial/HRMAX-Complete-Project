@@ -8,6 +8,7 @@ import {
   UserX
 } from 'lucide-react'
 import { useForm } from 'react-hook-form'
+import type { Resolver } from 'react-hook-form'
 import { z } from 'zod'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { httpsCallable } from 'firebase/functions'
@@ -163,7 +164,7 @@ interface CompanyFormProps {
   submitLabel: string;
   onCancel: () => void;
   isSubmitting: boolean;
-  defaultValues?: CompanyFormValues;
+  defaultValues?: Partial<CompanyFormValues>;
   showCredentials?: boolean;
 }
 
@@ -235,7 +236,9 @@ const SearchableSelect = ({ label, options, value, onChange, placeholder, disabl
 
 const CompanyForm = ({ onSubmit, submitLabel, onCancel, isSubmitting, defaultValues, showCredentials }: CompanyFormProps) => {
   const { register, handleSubmit, setValue, watch, formState: { errors } } = useForm<CompanyFormValues>({
-    resolver: zodResolver(companySchema),
+    // Cast: @hookform/resolvers' zod inference doesn't line up with z.infer
+    // for this schema (known ecosystem typing limitation — runtime identical).
+    resolver: zodResolver(companySchema) as Resolver<CompanyFormValues>,
     defaultValues: defaultValues || {
       name: '',
       code: '',
@@ -387,7 +390,7 @@ const CompanyForm = ({ onSubmit, submitLabel, onCancel, isSubmitting, defaultVal
       <SearchableSelect
         label="Country"
         options={COUNTRIES}
-        value={countryVal}
+        value={countryVal ?? ''}
         onChange={v => { setValue('country', v); if (v !== 'India') { setValue('state', ''); setValue('city', '') } }}
         placeholder="Search country..."
         required
@@ -395,7 +398,7 @@ const CompanyForm = ({ onSubmit, submitLabel, onCancel, isSubmitting, defaultVal
       <SearchableSelect
         label="State"
         options={isIndia ? INDIAN_STATES : []}
-        value={stateVal}
+        value={stateVal ?? ''}
         onChange={v => { setValue('state', v); setValue('city', '') }}
         placeholder={isIndia ? 'Search state...' : 'Select India first'}
         disabled={!isIndia}
@@ -407,7 +410,7 @@ const CompanyForm = ({ onSubmit, submitLabel, onCancel, isSubmitting, defaultVal
       <SearchableSelect
         label="City"
         options={availableCities}
-        value={cityVal}
+        value={cityVal ?? ''}
         onChange={v => setValue('city', v)}
         placeholder={isIndia && stateVal ? 'Search city...' : 'Select a state first'}
         disabled={!isIndia || !stateVal}
@@ -772,7 +775,7 @@ export function Companies() {
   const [isDeleteStaffModalOpen, setIsDeleteStaffModalOpen] = useState(false)
   const [deletingStaff, setDeletingStaff] = useState(false)
   const [selectedCompany, setSelectedCompany] = useState<Company | null>(null)
-  const [editDefaultValues, setEditDefaultValues] = useState<CompanyFormValues | undefined>(undefined)
+  const [editDefaultValues, setEditDefaultValues] = useState<Partial<CompanyFormValues> | undefined>(undefined)
   const [isSubmitting, setIsSubmitting] = useState(false)
   
   const { user, hasPermission } = useAuth()
@@ -994,6 +997,7 @@ export function Companies() {
         { 
           icon: Building2, 
           label: 'My Company', 
+          filterKey: 'All',
           value: '1', 
           subtext: myCompany?.name || 'Not Assigned',
           color: '#f97316',
@@ -1002,6 +1006,7 @@ export function Companies() {
         { 
           icon: Users, 
           label: 'Colleagues', 
+          filterKey: 'All',
           value: String(myCompany ? (employeeCounts[myCompany.id] || 0) : 0), 
           subtext: 'In my company',
           color: '#10b981',
@@ -1136,7 +1141,7 @@ export function Companies() {
       const result = await deleteCompanyData(selectedCompany.id)
       setIsDeleteModalOpen(false)
       setSelectedCompany(null)
-      showToast(`Deleted ${result?.companyName || selectedCompany.name} and its data`, 'success')
+      showToast(`Deleted ${result?.companyName || selectedCompany.name} and its data`)
     } catch (err: any) {
       setFormError(err?.message && !err?.message.includes('permission')
         ? `Failed to delete company data (${err.message})`
@@ -1156,13 +1161,13 @@ export function Companies() {
       const result = await deleteAllCompanyStaff(selectedCompany.id)
       setIsDeleteStaffModalOpen(false)
       setSelectedCompany(null)
-      showToast(`Deleted ${result?.usersDeleted ?? 0} user(s), ${result?.employeesDeleted ?? 0} employee(s) from ${selectedCompany.name}`, 'success')
+      showToast(`Deleted ${result?.usersDeleted ?? 0} user(s), ${result?.employeesDeleted ?? 0} employee(s) from ${selectedCompany.name}`)
     } catch (err: any) {
       setIsDeleteStaffModalOpen(false)
       setSelectedCompany(null)
       showToast(err?.message && !err?.message.includes('permission')
         ? `Failed to delete staff (${err.message})`
-        : 'Only Master Admin can delete company staff', 'error')
+        : 'Only Master Admin can delete company staff')
     } finally {
       setDeletingStaff(false)
     }

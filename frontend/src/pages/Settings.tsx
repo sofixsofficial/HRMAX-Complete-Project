@@ -200,6 +200,7 @@ export function Settings() {
   }
 
   const handleSaveSecurity = async () => {
+    if (!user) return
     if (!securitySettings.currentPassword) {
       setError('Please enter your current password'); return
     }
@@ -229,6 +230,7 @@ export function Settings() {
   }
 
   const handleSaveSecurityProtocols = async () => {
+    if (!user) return
     setSaving(true); setError(null); setSuccess(null)
     try {
       logAudit({ userId: user.id, userName: user.name, userRole: user.role, action: 'Updated security protocols', actionType: 'update', module: 'Settings', targetEntity: 'System Security', companyId: effectiveCompanyId || undefined, status: 'success', details: JSON.stringify(securityProtocols) })

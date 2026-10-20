@@ -100,11 +100,12 @@ export function AuditLogs() {
         constraints.push(limit(5000))
         const q = query(baseRef, ...constraints)
         const snap = await getDocs(q)
+        // Snapshot data is untyped DocumentData — the docs are audit logs at runtime.
         let allLogs: AuditLog[] = snap.docs.map(d => ({
           id: d.id,
           ...d.data(),
           timestamp: (d.data() as any).timestamp?.toDate ? (d.data() as any).timestamp.toDate() : null,
-        }))
+        })) as AuditLog[]
         if (effectiveCompanyId) allLogs.reverse()
 
         const compSnap = await getDocs(collection(db, 'companies'))
