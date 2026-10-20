@@ -3,11 +3,10 @@
   "private": true,
   "version": "1.0.0",
   "scripts": {
-    "build": "npm run build --prefix functions",
-    "build:watch": "npm run build:watch --prefix functions",
-    "serve": "npm run serve --prefix functions",
-    "shell": "npm run shell --prefix functions",
-    "deploy": "npm run build --prefix functions && firebase deploy --only functions",
-    "logs": "npm run logs --prefix functions"
+    "build": "npm run build --prefix aws",
+    "typecheck": "npm run typecheck --prefix aws",
+    "deploy": "npm run deploy --prefix aws",
+    "logs": "npm run logs --prefix aws",
+    "local": "npm run local --prefix aws"
   }
 }

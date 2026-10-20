@@ -1,47 +1,62 @@
-name: Deploy to Firebase
+name: Deploy to AWS
+
+# Replaces the old Firebase Hosting/Functions deploy.
+# Requires one-time setup (see docs/deployment.md):
+#   1. GitHub repo secret AWS_DEPLOY_ROLE_ARN  — IAM role trusted by this repo's OIDC provider
+#   2. GitHub repo secrets for the frontend build: VITE_AWS_REGION, VITE_COGNITO_USER_POOL_ID,
+#      VITE_COGNITO_CLIENT_ID, VITE_API_URL, VITE_FILES_BUCKET_URL (values = sam deploy outputs)
 
 on:
   push:
     branches: [main]
-  pull_request:
-    branches: [main]
   workflow_dispatch:
+
+permissions:
+  id-token: write # OIDC federation to AWS — no long-lived AWS keys in GitHub
+  contents: read
 
 jobs:
   deploy:
     runs-on: ubuntu-latest
+
     steps:
       - uses: actions/checkout@v4
 
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
+      - uses: actions/setup-node@v4
         with:
           node-version: 22
           cache: npm
+          cache-dependency-path: |
+            package-lock.json
+            backend/aws/package-lock.json
 
-      - name: Install Dependencies
+      - name: Configure AWS credentials (OIDC)
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.AWS_DEPLOY_ROLE_ARN }}
+          aws-region: ap-southeast-2
+
+      - name: Install dependencies
         run: |
           npm ci
-          npm ci --prefix backend/functions
+          npm ci --prefix backend/aws
 
-      - name: Build Frontend
+      - name: Build frontend
         run: npm run build
         env:
-          VITE_FIREBASE_API_KEY: ${{ secrets.VITE_FIREBASE_API_KEY }}
-          VITE_FIREBASE_AUTH_DOMAIN: ${{ secrets.VITE_FIREBASE_AUTH_DOMAIN }}
-          VITE_FIREBASE_PROJECT_ID: ${{ secrets.VITE_FIREBASE_PROJECT_ID }}
-          VITE_FIREBASE_STORAGE_BUCKET: ${{ secrets.VITE_FIREBASE_STORAGE_BUCKET }}
-          VITE_FIREBASE_MESSAGING_SENDER_ID: ${{ secrets.VITE_FIREBASE_MESSAGING_SENDER_ID }}
-          VITE_FIREBASE_APP_ID: ${{ secrets.VITE_FIREBASE_APP_ID }}
+          VITE_AWS_REGION: ${{ secrets.VITE_AWS_REGION }}
+          VITE_COGNITO_USER_POOL_ID: ${{ secrets.VITE_COGNITO_USER_POOL_ID }}
+          VITE_COGNITO_CLIENT_ID: ${{ secrets.VITE_COGNITO_CLIENT_ID }}
+          VITE_API_URL: ${{ secrets.VITE_API_URL }}
+          VITE_FILES_BUCKET_URL: ${{ secrets.VITE_FILES_BUCKET_URL }}
 
-      - name: Build Functions
-        run: npm run build -w backend
+      - name: Build backend (tsc → dist/)
+        run: npm run build:backend
 
-      - name: Deploy to Firebase
-        env:
-          GOOGLE_APPLICATION_CREDENTIALS: ${{ runner.temp }}/firebase-sa.json
-        run: |
-          echo '${{ secrets.FIREBASE_SERVICE_ACCOUNT }}' > "$GOOGLE_APPLICATION_CREDENTIALS"
-          npx firebase-tools deploy --only hosting,functions,firestore,storage \
-            --project "${{ secrets.VITE_FIREBASE_PROJECT_ID }}" \
-            --non-interactive
+      - uses: aws-actions/setup-sam@v2
+
+      - name: Deploy API (SAM → CloudFormation, stack hrmax-api)
+        run: sam build -t backend/aws/template.yaml && sam deploy
+
+      - name: Publish hosting (S3 sync + CloudFront invalidation)
+        run: node scripts/deploy-hosting.mjs

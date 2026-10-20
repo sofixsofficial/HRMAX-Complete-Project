@@ -9,7 +9,7 @@ A production-oriented HR Management System built by **Sofixs** as a multi-tenant
 ### Applications
 - **Web app** (`frontend/`) — React 19, TypeScript, Vite, Tailwind CSS 4, Zustand, react-hook-form + Zod validation.
 - **Mobile app** (`mobile-app/`) — Expo SDK 54 / React Native 0.81, with camera (QR + selfie check-in), push notifications, geolocation, offline storage, and PDF print/share.
-- **Backend** (`backend/aws/`) — AWS serverless (Cognito auth, DynamoDB, API Gateway + Lambda, S3/CloudFront hosting, SES email, EventBridge schedules). The original Firebase functions are kept in `backend/functions/` for reference only.
+- **Backend** (`backend/aws/`) - AWS serverless (Cognito auth, DynamoDB, API Gateway + Lambda, S3/CloudFront hosting, SES email, EventBridge schedules).
 
 ### Core modules
 - **Multi-tenant company isolation** — every record is scoped by `companyId`; API-side authorization blocks cross-company access.
@@ -81,15 +81,15 @@ code changes were needed.
 frontend/        Web application (React + Vite) — AWS shims in src/aws/
 mobile-app/      Expo / React Native application — AWS shims in src/aws/
 backend/aws/     AWS SAM backend (Lambda + API Gateway + template.yaml)
-backend/functions/  Original Firebase functions (reference only)
 scripts/         deploy-hosting.mjs (S3 sync + CloudFront invalidation)
-firestore.rules  Original Firestore security rules (reference only)
+tools/migrate/   Firebase→AWS data migration tooling (export/import/verify)
 docs/            AWS migration guide + Firebase inventories
 ```
 
 ## Documentation
 
 - `docs/AWS_MIGRATION.md` — full AWS deploy guide (this repo's backend).
+- `docs/migration/MIGRATION_VERIFICATION.md` — data migration verification report.
 - `docs/migration/` — Firebase inventories produced during the migration.
 - `ROLE_SYSTEM_EXPLAINED.md` — how roles and permissions work in practice.
 - `HRMS_AUTH_README.md` — authentication & authorization architecture.

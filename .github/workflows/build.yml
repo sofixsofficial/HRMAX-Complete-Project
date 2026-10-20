@@ -2,9 +2,9 @@ name: Build and Test
 
 on:
   push:
-    branches: [ main, develop ]
+    branches: [main, develop]
   pull_request:
-    branches: [ main ]
+    branches: [main]
 
 jobs:
   build:
@@ -12,40 +12,47 @@ jobs:
 
     strategy:
       matrix:
-        node-version: [18.x, 20.x]
+        # Node 18 is EOL; SAM Lambda runs Node 22.
+        node-version: [20.x, 22.x]
 
     steps:
-    - name: Checkout code
-      uses: actions/checkout@v4
+      - name: Checkout code
+        uses: actions/checkout@v4
 
-    - name: Use Node.js ${{ matrix.node-version }}
-      uses: actions/setup-node@v4
-      with:
-        node-version: ${{ matrix.node-version }}
-        cache: 'npm'
+      - name: Use Node.js ${{ matrix.node-version }}
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ matrix.node-version }}
+          cache: npm
+          cache-dependency-path: |
+            package-lock.json
+            backend/aws/package-lock.json
 
-    - name: Install dependencies
-      run: npm ci
+      - name: Install dependencies
+        run: |
+          npm ci
+          npm ci --prefix backend/aws
 
-    - name: Run TypeScript compiler
-      run: npm run build
-      env:
-        # Use dummy Firebase config for build
-        VITE_FIREBASE_API_KEY: dummy-api-key-for-ci
-        VITE_FIREBASE_AUTH_DOMAIN: dummy-project.firebaseapp.com
-        VITE_FIREBASE_PROJECT_ID: dummy-project
-        VITE_FIREBASE_STORAGE_BUCKET: dummy-project.appspot.com
-        VITE_FIREBASE_MESSAGING_SENDER_ID: 123456789
-        VITE_FIREBASE_APP_ID: 1:123456789:web:dummy
-        VITE_FIREBASE_MEASUREMENT_ID: G-DUMMY123
+      - name: Typecheck backend (Lambda code)
+        run: npm run typecheck --prefix backend/aws
 
-    - name: Run linter
-      run: npm run lint
-      continue-on-error: true
+      - name: Build frontend
+        run: npm run build
+        env:
+          # Dummy AWS config for compile-time only (values are read at runtime).
+          VITE_AWS_REGION: ap-southeast-2
+          VITE_COGNITO_USER_POOL_ID: ap-southeast-2_CIDUMMY0000
+          VITE_COGNITO_CLIENT_ID: dummyclientid000000000000000
+          VITE_API_URL: https://dummy.execute-api.ap-southeast-2.amazonaws.com
+          VITE_FILES_BUCKET_URL: https://dummy.s3.ap-southeast-2.amazonaws.com
 
-    - name: Upload build artifacts
-      uses: actions/upload-artifact@v4
-      with:
-        name: dist-files-${{ matrix.node-version }}
-        path: dist/
-        retention-days: 5
+      - name: Run linter
+        run: npm run lint
+        continue-on-error: true
+
+      - name: Upload build artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: dist-files-${{ matrix.node-version }}
+          path: frontend/dist/
+          retention-days: 5

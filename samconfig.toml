@@ -10,7 +10,6 @@ template = "backend/aws/template.yaml"
 [default.deploy.parameters]
 stack_name = "hrmax-api"
 region = "ap-southeast-2"
-profile = "default"
 resolve_s3 = true
 capabilities = "CAPABILITY_IAM CAPABILITY_NAMED_IAM CAPABILITY_AUTO_EXPAND"
 confirm_changeset = false

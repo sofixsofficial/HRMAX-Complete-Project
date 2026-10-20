@@ -13,7 +13,11 @@ import { dirname, join } from 'node:path';
 import admin from 'firebase-admin';
 
 const here = dirname(fileURLToPath(import.meta.url));
-const SA = process.env.FIREBASE_SERVICE_ACCOUNT ?? join(here, '..', '..', 'backend', 'scripts', 'service-account.json');
+const SA = process.env.FIREBASE_SERVICE_ACCOUNT;
+if (!SA) {
+  console.error('FIREBASE_SERVICE_ACCOUNT must point to the hrm-sofisx service-account key — it is stored OUTSIDE the repo (never committed).');
+  process.exit(1);
+}
 
 const cred = JSON.parse(readFileSync(SA, 'utf8'));
 admin.initializeApp({ credential: admin.credential.cert(cred), storageBucket: cred.project_id + '.appspot.com' });
