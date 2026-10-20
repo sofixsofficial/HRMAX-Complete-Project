@@ -43,6 +43,9 @@ samconfig.toml.bak
 *.apk
 *.aab
 apk-download/
+
+# Migration tooling output (contains employee PII — never commit)
+tools/migrate/export/
 artifacts/
 
 # Secrets — never commit (AWS & Firebase)

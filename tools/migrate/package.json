@@ -1,0 +1,22 @@
+{
+  "name": "hrmax-migrate",
+  "private": true,
+  "version": "1.0.0",
+  "type": "module",
+  "description": "Migration-only tooling: Firebase (project hrm-sofisx) -> AWS. NOT part of the production app. Delete when migration is accepted and rollback is no longer required.",
+  "scripts": {
+    "probe": "node probe.mjs",
+    "export": "node export.mjs",
+    "import:dynamodb": "node import-dynamodb.mjs",
+    "import:cognito": "node import-cognito.mjs",
+    "import:s3": "node import-s3.mjs",
+    "verify": "node verify.mjs"
+  },
+  "dependencies": {
+    "@aws-sdk/client-cognito-identity-provider": "^3.1153.0",
+    "@aws-sdk/client-dynamodb": "^3.1153.0",
+    "@aws-sdk/lib-dynamodb": "^3.1153.0",
+    "@aws-sdk/util-dynamodb": "^3.996.9",
+    "firebase-admin": "^12.0.0"
+  }
+}
