@@ -11,6 +11,7 @@
     "build": "npm run build -w frontend",
     "build:backend": "npm run build --prefix backend/aws",
     "lint": "npm run lint -w frontend",
+    "test": "npm run build:backend && npm test --prefix backend/aws",
     "preview": "npm run preview -w frontend",
     "mobile": "cd mobile-app && npx expo start",
     "mobile:android": "cd mobile-app && npx expo start --android",

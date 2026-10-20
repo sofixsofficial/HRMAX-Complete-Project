@@ -36,6 +36,9 @@ jobs:
       - name: Typecheck backend (Lambda code)
         run: npm run typecheck --prefix backend/aws
 
+      - name: Backend smoke tests (node:test against dist/)
+        run: npm test
+
       - name: Build frontend
         run: npm run build
         env:
