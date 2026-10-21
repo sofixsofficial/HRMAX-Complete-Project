@@ -180,7 +180,7 @@ export function hasPermission(caller: Caller, perm: string): boolean {
 
   // employee: hard-coded subset
   if (caller.role === 'employee') {
-    if (['leave.apply', 'leave.create', 'leave.view', 'attendance.view', 'attendance.create'].includes(perm)) return true;
+    if (['leave.apply', 'leave.create', 'leave.view', 'attendance.view', 'attendance.create', 'holidays.view'].includes(perm)) return true;
     return caller.permissions.includes(perm);
   }
 

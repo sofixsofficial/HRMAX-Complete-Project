@@ -251,6 +251,10 @@ export const EMPLOYEE_PERMISSIONS: string[] = [
   'company.view', 'companies.view',
   'tasks.view',
   'settings.view',
+  // Read-only company holiday calendar. Employees need this to render the
+  // dashboard hero's HOLIDAY character mode (and the Holidays page) from the
+  // real calendar rather than inferring a holiday from the weekday.
+  'holidays.view',
 ];
 
 /** Role → default permission set (applied when permissionsConfigured is false). */
