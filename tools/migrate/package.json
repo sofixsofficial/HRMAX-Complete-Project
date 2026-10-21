@@ -9,6 +9,7 @@
     "export": "node export.mjs",
     "import:dynamodb": "node import-dynamodb.mjs",
     "import:cognito": "node import-cognito.mjs",
+    "bootstrap:permanent": "node permanent-passwords.mjs",
     "import:s3": "node import-s3.mjs",
     "verify": "node verify.mjs"
   },

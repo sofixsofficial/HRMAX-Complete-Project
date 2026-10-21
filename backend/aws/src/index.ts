@@ -7,7 +7,7 @@ import { makeRouter } from './lib/http.js';
 import { authRoutes } from './handlers/auth.js';
 import { leaveRoutes } from './handlers/leave.js';
 import { attendanceRoutes } from './handlers/attendance.js';
-import { coreCrudRoutes, companyRoutes, notificationRoutes } from './handlers/crud.js';
+import { coreCrudRoutes, companyRoutes, notificationRoutes, adminAlertRoutes, roleRoutes } from './handlers/crud.js';
 import { payrollRoutes } from './handlers/payroll.js';
 import { emailRoutes } from './handlers/email.js';
 import { broadcastRoutes } from './handlers/broadcast.js';
@@ -24,6 +24,8 @@ export const handler = makeRouter([
   ...coreCrudRoutes,
   ...companyRoutes,
   ...notificationRoutes,
+  ...adminAlertRoutes,
+  ...roleRoutes,
   ...payrollRoutes,
   ...emailRoutes,
   ...broadcastRoutes,

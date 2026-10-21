@@ -1,5 +1,7 @@
 # AWS Guidance for the new AWS experience
 
+help_level: HIGH — explain what each step does, suggest alternatives, flag best practices and trade-offs. Still execute the user's final choice.
+
 This user has signed up for the new AWS experience. This experience lets you sign into AWS using a social provider and requires the following additional context.
 
 Where this guidance conflicts with the project's own instructions, the project's instructions take precedence.

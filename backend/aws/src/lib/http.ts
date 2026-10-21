@@ -55,6 +55,33 @@ const json = (status: number, body: unknown): APIGatewayProxyStructuredResultV2 
   body: JSON.stringify(body),
 });
 
+/**
+ * Query params consumed by handlers as controls rather than document filters.
+ * The frontend shim translates every `where(field, '==', <string>)` into a
+ * `?field=value` query param and relies on the SERVER to apply those — so any
+ * param not in this set must become an equality filter on the documents.
+ */
+const CONTROL_PARAMS = new Set(['companyId', 'userId', 'orderBy', 'desc', 'limit', 'all', 'from', 'to']);
+
+export function equalityFilters(query: Record<string, string>): Record<string, unknown> | undefined {
+  let filters: Record<string, unknown> | undefined;
+  for (const [k, v] of Object.entries(query)) {
+    if (CONTROL_PARAMS.has(k) || typeof v !== 'string' || v === '') continue;
+    filters = { ...filters, [k]: v };
+  }
+  return filters;
+}
+
+/** Honour the shim's `?orderBy=`/`?desc=` params, falling back to the handler default. */
+export function parseOrderBy(
+  query: Record<string, string>,
+  defaultField: string,
+  defaultDesc = true,
+): { field: string; desc: boolean } {
+  if (query.orderBy) return { field: query.orderBy, desc: query.desc === 'true' };
+  return { field: defaultField, desc: defaultDesc };
+}
+
 export function makeRouter(routes: Route[]) {
   return async (event: APIGatewayProxyEventV2, _ctx: Context): Promise<APIGatewayProxyResultV2> => {
     const method = event.requestContext.http.method.toUpperCase();

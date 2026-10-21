@@ -33,7 +33,10 @@ export async function createNotification(input: CreateNotificationInput): Promis
       priority: input.priority ?? 'normal',
       createdAt: isoNow(),
     },
-    { entity: 'notification', userIdField: 'userId' },
+    // Always in the shared partition — the read/mark-read/delete routes patch
+    // at 'global', so runtime-created notifications must live there with the
+    // migrated ones (userId access goes through GSI1 either way).
+    { entity: 'notification', userIdField: 'userId', keyCompanyId: 'global' },
   );
   // Fire-and-forget push
   void sendExpoPushToUser(input.userId, input);

@@ -393,6 +393,10 @@ export async function reauthenticateWithCredential(user: AwsUser, credential: { 
   } catch (err) {
     throw mapError(err as Error & { code?: string });
   }
+  // Cognito's ChangePassword requires PreviousPassword; stash the password we
+  // just verified so the subsequent updateUserPassword() call can supply it
+  // (call sites always reauthenticate first — Settings & ForcePasswordChange).
+  (user as unknown as { _pw?: string })._pw = credential.password;
 }
 
 export const EmailAuthProvider = {

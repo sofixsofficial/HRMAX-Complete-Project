@@ -69,6 +69,32 @@ export class Timestamp {
   }
 }
 
+/**
+ * Timestamp bridge. The API returns dates as ISO strings (JSON wire format),
+ * but the app's services were written against Firestore Timestamps and call
+ * `.toDate()` on them (and format via `typeof v.toDate === 'function'`
+ * guards). Giving strings a non-enumerable toDate() keeps full string
+ * semantics (equality, sorting, range filters, raw display — no
+ * "[object Object]" regressions) while restoring the Timestamp-style access
+ * the original code expects. Applied once at module load.
+ */
+declare global {
+  interface String {
+    toDate(): Date;
+  }
+}
+
+if (!('toDate' in String.prototype)) {
+  Object.defineProperty(String.prototype, 'toDate', {
+    value: function toDate(this: string): Date {
+      return new Date(this);
+    },
+    writable: true,
+    configurable: true,
+    enumerable: false,
+  });
+}
+
 export function serverTimestamp(): FieldValue {
   return { _serverTimestamp: true };
 }
@@ -572,8 +598,26 @@ export function onSnapshot(
 
   let stopped = false;
   let lastJson = '';
+  let timer: ReturnType<typeof setTimeout> | undefined;
 
-  const tick = async () => {
+  // Transient transport / 5xx failures: Firestore keeps listeners alive through
+  // these (offline and server hiccups don't kill a snapshot listener), so retry
+  // silently instead of erroring the observer. Also essential while the account
+  // runs its reduced (10) concurrency quota — bursts of 503s are expected there
+  // and must not surface as screen errors.
+  const isTransient = (err: unknown): boolean => {
+    if (err instanceof FriendlyError) return err.code === ERROR_CODES.network;
+    if (err instanceof FirestoreError) return err.code === 'internal';
+    return false;
+  };
+
+  const schedule = (delayMs: number, fn: () => void) => {
+    if (stopped) return;
+    if (timer) clearTimeout(timer);
+    timer = setTimeout(fn, delayMs);
+  };
+
+  const tick = async (): Promise<void> => {
     if (stopped) return;
     try {
       if (target instanceof DocumentReference) {
@@ -591,22 +635,32 @@ export function onSnapshot(
           emit(snap as never);
         }
       }
+      // Jittered chained cycle (not setInterval) so sibling subscriptions don't
+      // fire in lockstep every 20 s — a synchronized herd trips concurrency
+      // caps; each listener now drifts 17–26 s around the poll interval.
+      schedule(pollMs * (0.85 + Math.random() * 0.3), () => void tick());
     } catch (err) {
+      if (isTransient(err)) {
+        // short jittered retry, observer untouched
+        schedule(3000 + Math.random() * 2000, () => void tick());
+        return;
+      }
       // Firestore-compatible error emission for rules-like denials
       fail(
         err instanceof FirestoreError
           ? err
           : new FirestoreError('unknown', (err as Error)?.message ?? String(err)),
       );
+      // keep polling after a denial, as before
+      schedule(pollMs * (0.85 + Math.random() * 0.3), () => void tick());
     }
   };
 
-  void tick();
-  const timer = setInterval(tick, pollMs);
+  schedule(0, () => void tick());
 
   return () => {
     stopped = true;
-    clearInterval(timer);
+    if (timer) clearTimeout(timer);
   };
 }
 

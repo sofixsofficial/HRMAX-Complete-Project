@@ -8,7 +8,7 @@
 
 import { createRemoteJWKSet, jwtVerify, type JWTPayload } from 'jose';
 import { ApiError, type Caller, type UserRole, VALID_ROLES } from './types.js';
-import { getUserDoc } from './db.js';
+import { getUserDoc, allPartitions } from './db.js';
 
 const POOL_ID = process.env.COGNITO_USER_POOL_ID ?? '';
 const REGION = process.env.AWS_REGION ?? 'us-east-1';
@@ -144,6 +144,22 @@ export function assertCompanyScope(caller: Caller, companyId: string): void {
   if (scope.length === 0 && caller.role !== 'team-leader') {
     throw new ApiError('permission-denied', 'No company scope');
   }
+}
+
+/**
+ * Company partitions this caller may read from, in dedupe-preferred order.
+ * - super-admin → every partition (unfiltered Firestore reads)
+ * - executive → assigned companies (falls back to own company)
+ * - team-leader → dynamic scope: stored assignments, else all (matches
+ *   assertCompanyScope's TL allowance)
+ * - everyone else → their single company (denied entirely when unset)
+ */
+export async function readPartitions(caller: Caller): Promise<string[]> {
+  if (isSuperAdmin(caller)) return allPartitions();
+  const scope = scopedCompanyIds(caller);
+  if (scope.length > 0) return scope;
+  if (caller.role === 'team-leader') return allPartitions();
+  throw new ApiError('permission-denied', 'No company scope');
 }
 
 /**

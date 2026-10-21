@@ -5,9 +5,9 @@
  */
 
 import type { Route } from '../lib/http.js';
-import { must } from '../lib/http.js';
-import { assertCompanyScope, hasPermission } from '../lib/auth.js';
-import { putEntity, patchEntity, queryEntities } from '../lib/db.js';
+import { must, equalityFilters, parseOrderBy } from '../lib/http.js';
+import { assertCompanyScope, hasPermission, isSuperAdmin, readPartitions } from '../lib/auth.js';
+import { putEntity, patchEntity, deleteEntity, queryEntities, queryEntitiesAcross, locateEntityAcross, allPartitions } from '../lib/db.js';
 import { resolveStakeholders } from '../lib/stakeholders.js';
 import { createNotification, fanOutNotifications } from '../lib/notify.js';
 import { ApiError, newId, isoNow, TIER_ORDER, type AttendanceDoc, type AttendanceStatus, type LeaveTier, type UserRole } from '../lib/types.js';
@@ -179,11 +179,29 @@ export const attendanceRoutes: Route[] = [
     path: '/api/attendance',
     handler: async (req) => {
       const caller = must(req);
-      const companyId = req.query.companyId ?? caller.companyId;
-      const q: Parameters<typeof queryEntities>[0] = { entity: 'attendance', companyId, orderBy: { field: 'date', desc: req.query.desc === 'true' } };
-      if (req.query.userId) q.userId = req.query.userId;
-      if (req.query.from) q.filters = { ...q.filters };
-      let docs = await queryEntities<AttendanceDoc>(q);
+      const orderBy = parseOrderBy(req.query, 'date', false);
+      const filters = equalityFilters(req.query);
+      const base: Omit<Parameters<typeof queryEntities>[0], 'companyId'> = {
+        entity: 'attendance',
+        orderBy,
+        ...(filters ? { filters } : {}),
+      };
+      if (req.query.userId) base.userId = req.query.userId;
+
+      let docs: AttendanceDoc[];
+      if (base.userId) {
+        docs = await queryEntities<AttendanceDoc>(base as Parameters<typeof queryEntities>[0]);
+      } else if (req.query.companyId) {
+        if (!isSuperAdmin(caller)) assertCompanyScope(caller, req.query.companyId);
+        docs = await queryEntities<AttendanceDoc>({ ...base, companyId: req.query.companyId });
+      } else if (isSuperAdmin(caller)) {
+        docs = await queryEntitiesAcross<AttendanceDoc>(base, await allPartitions());
+      } else {
+        const partitions = await readPartitions(caller);
+        docs = partitions.length === 1
+          ? await queryEntities<AttendanceDoc>({ ...base, companyId: partitions[0] })
+          : await queryEntitiesAcross<AttendanceDoc>(base, partitions);
+      }
       if (req.query.from) docs = docs.filter((d) => d.date >= req.query.from);
       if (req.query.to) docs = docs.filter((d) => d.date <= req.query.to);
       if (['employee', 'reporting-manager'].includes(caller.role) && req.query.userId !== caller.uid) {
@@ -203,8 +221,8 @@ export const attendanceRoutes: Route[] = [
       const { correctedCheckOut, kind } = req.body as { correctedCheckOut: string; kind?: 'checkin' | 'checkout' };
       if (!correctedCheckOut) throw new ApiError('bad-request', 'correctedCheckOut required');
 
-      const list = await queryEntities<AttendanceDoc>({ entity: 'attendance', companyId: caller.companyId, filters: { id: req.params.id }, limit: 1 });
-      const rec = list[0];
+      const found = await locateEntityAcross<AttendanceDoc>('attendance', req.params.id, await readPartitions(caller));
+      const rec = found?.doc;
       if (!rec) throw new ApiError('not-found', 'Attendance record not found');
       if (rec.userId !== caller.uid && caller.role !== 'master-admin') throw new ApiError('permission-denied', 'Can only request for your own record');
 
@@ -267,8 +285,8 @@ export const attendanceRoutes: Route[] = [
     handler: async (req) => {
       const caller = must(req);
       const { tier, decision, note } = req.body as { tier: LeaveTier | 'masterAdmin'; decision: 'Approved' | 'Rejected'; note?: string };
-      const list = await queryEntities<AttendanceDoc>({ entity: 'attendance', companyId: caller.companyId, filters: { id: req.params.id }, limit: 1 });
-      const rec = list[0];
+      const found = await locateEntityAcross<AttendanceDoc>('attendance', req.params.id, await readPartitions(caller));
+      const rec = found?.doc;
       if (!rec?.missedPunchRectification) throw new ApiError('not-found', 'No rectification on this record');
       const rect = rec.missedPunchRectification;
 
@@ -351,6 +369,81 @@ export const attendanceRoutes: Route[] = [
       });
 
       return { attendance: updated };
+    },
+  },
+
+  // ------------------------------------------------------------ read by id
+  {
+    method: 'GET',
+    path: '/api/attendance/:id',
+    handler: async (req) => {
+      const caller = must(req);
+      const found = await locateEntityAcross<AttendanceDoc>('attendance', req.params.id, await readPartitions(caller));
+      if (!found) throw new ApiError('not-found', 'Attendance record not found');
+      const rec = found.doc;
+      const canRead =
+        isSuperAdmin(caller) ||
+        rec.userId === caller.uid ||
+        hasPermission(caller, 'attendance.view') ||
+        hasPermission(caller, 'attendance.manage');
+      if (!canRead) throw new ApiError('permission-denied', 'Cannot view this attendance record');
+      return { attendance: rec };
+    },
+  },
+
+  // ------------------------------------------------------- partial update
+  {
+    method: 'PATCH',
+    path: '/api/attendance/:id',
+    handler: async (req) => {
+      const caller = must(req);
+      const found = await locateEntityAcross<AttendanceDoc>('attendance', req.params.id, await readPartitions(caller));
+      if (!found) throw new ApiError('not-found', 'Attendance record not found');
+      const rec = found.doc;
+
+      const patch = { ...req.body } as Record<string, unknown>;
+      delete patch.id;
+      delete patch.companyId;
+
+      if (!isSuperAdmin(caller)) {
+        // Firestore attendance update rule: manage permission, a stamped
+        // missed-punch tier approver, or the owner touching only punch fields.
+        const isOwn = rec.userId === caller.uid;
+        const stampedApprover = Object.values(rec.missedPunchRectification?.approverIds ?? {}).includes(caller.uid);
+        const canManage = hasPermission(caller, 'attendance.manage');
+        const ownAllowed = ['checkOut', 'workHours', 'overtimeHours', 'isAutoApproved', 'approved', 'approvedOn', 'approvedByName', 'missedPunchRectification'];
+        const ownPatch = isOwn && Object.keys(patch).every((k) => ownAllowed.includes(k));
+        if (!canManage && !stampedApprover && !ownPatch) {
+          throw new ApiError('permission-denied', 'Cannot update this attendance record');
+        }
+        if (!isOwn) assertCompanyScope(caller, String(rec.companyId ?? ''));
+      }
+
+      const updated = await patchEntity<AttendanceDoc>('attendance', found.companyId, rec.id, patch, {
+        entity: 'attendance', userIdField: 'userId', tsField: 'date',
+      });
+      if (!updated) throw new ApiError('not-found', 'Attendance record not found');
+      return { attendance: updated };
+    },
+  },
+
+  // --------------------------------------------------------------- delete
+  {
+    method: 'DELETE',
+    path: '/api/attendance/:id',
+    handler: async (req) => {
+      const caller = must(req);
+      const found = await locateEntityAcross<AttendanceDoc>('attendance', req.params.id, await readPartitions(caller));
+      if (found) {
+        if (!isSuperAdmin(caller)) {
+          assertCompanyScope(caller, String(found.doc.companyId ?? ''));
+          if (!hasPermission(caller, 'attendance.manage')) {
+            throw new ApiError('permission-denied', 'Cannot delete attendance records');
+          }
+        }
+        await deleteEntity('attendance', found.companyId, found.doc.id);
+      }
+      return { success: true };
     },
   },
 ];

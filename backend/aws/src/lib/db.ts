@@ -331,3 +331,74 @@ export async function listCompanies(limit = 1000): Promise<Record<string, unknow
   );
   return items.map((i) => i.data as Record<string, unknown>);
 }
+
+/**
+ * Every company partition that exists, ordered so real-company copies win
+ * over the synthetic 'global' duplicates writeUserDoc creates for platform
+ * users (dedupe keeps the first occurrence per id).
+ */
+export async function allPartitions(): Promise<string[]> {
+  const companies = await listCompanies();
+  const ids = companies.map((c) => String(c.id ?? '')).filter(Boolean);
+  return [...new Set([...ids, 'master-admin', 'global'])];
+}
+
+/**
+ * Run the same entity query across several company partitions and merge the
+ * results: id-deduped (dual-written user docs appear in two partitions) and
+ * re-sorted with the same comparator queryEntities uses per partition.
+ * Mirrors Firestore's collection-group reads for super-admins / multi-scope
+ * roles that previously listed across every company.
+ */
+export async function queryEntitiesAcross<T>(
+  q: Omit<EntityQuery, 'companyId'>,
+  partitions: string[],
+): Promise<T[]> {
+  const batches = await Promise.all(
+    partitions.map((companyId) => queryEntities<T>({ ...q, companyId })),
+  );
+  const seen = new Set<string>();
+  let merged: T[] = [];
+  for (const batch of batches) {
+    for (const d of batch) {
+      const id = String((d as unknown as Record<string, unknown>).id ?? '');
+      if (id) {
+        if (seen.has(id)) continue;
+        seen.add(id);
+      }
+      merged.push(d);
+    }
+  }
+  if (q.orderBy) {
+    const { field, desc } = q.orderBy;
+    merged = merged.sort((a, b) => {
+      const av = (a as unknown as Record<string, unknown>)[field];
+      const bv = (b as unknown as Record<string, unknown>)[field];
+      if (av === bv) return 0;
+      if (av === undefined || av === null) return 1;
+      if (bv === undefined || bv === null) return -1;
+      const cmp = av < bv ? -1 : 1;
+      return desc ? -cmp : cmp;
+    });
+  }
+  if (q.limit && merged.length > q.limit) merged = merged.slice(0, q.limit);
+  return merged;
+}
+
+/**
+ * Locate one document by id across partitions (first hit wins, in partition
+ * order). Needed because the shim derives `?companyId=` from the document
+ * path — a doc id for every flat collection — so by-id handlers can never
+ * trust that param and must find the record inside the caller's scope.
+ */
+export async function locateEntityAcross<T>(
+  entity: string,
+  id: string,
+  partitions: string[],
+): Promise<{ doc: T; companyId: string } | null> {
+  for (const companyId of partitions) {
+    const found = await getEntity<T>(entity, companyId, id);
+    if (found) return { doc: found, companyId };
+  }
+  return null;
+}

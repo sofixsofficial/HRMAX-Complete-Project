@@ -6,9 +6,9 @@
  */
 
 import type { Route } from '../lib/http.js';
-import { must } from '../lib/http.js';
-import { assertCompanyScope, hasPermission } from '../lib/auth.js';
-import { putEntity, getEntity, patchEntity, queryEntities } from '../lib/db.js';
+import { must, equalityFilters, parseOrderBy } from '../lib/http.js';
+import { assertCompanyScope, hasPermission, isSuperAdmin, readPartitions } from '../lib/auth.js';
+import { putEntity, getEntity, patchEntity, queryEntities, queryEntitiesAcross, locateEntityAcross, allPartitions } from '../lib/db.js';
 import { resolveStakeholders } from '../lib/stakeholders.js';
 import { createNotification, fanOutNotifications } from '../lib/notify.js';
 import { ApiError, newId, isoNow, TIER_ORDER, type LeaveRequestDoc, type LeaveTier, type UserRole } from '../lib/types.js';
@@ -188,21 +188,35 @@ export const leaveRoutes: Route[] = [
     path: '/api/leave-requests',
     handler: async (req) => {
       const caller = must(req);
-      const companyId = req.query.companyId ?? caller.companyId;
-      const userId = req.query.userId;
+      const orderBy = parseOrderBy(req.query, 'appliedOn');
+      const filters = equalityFilters(req.query);
+      const base: Omit<Parameters<typeof queryEntities>[0], 'companyId'> = {
+        entity: 'leaveRequest',
+        orderBy,
+        ...(filters ? { filters } : {}),
+      };
+      if (req.query.userId) base.userId = req.query.userId;
 
-      const q: Parameters<typeof queryEntities>[0] = { entity: 'leaveRequest', companyId };
-      if (userId) q.userId = userId;
-      if (req.query.departmentId) q.filters = { ...q.filters, departmentId: req.query.departmentId };
-      if (req.query.status) q.filters = { ...q.filters, status: req.query.status };
-
-      let docs = await queryEntities<LeaveRequestDoc>({ ...q, orderBy: { field: 'appliedOn', desc: true } });
+      let docs: LeaveRequestDoc[];
+      if (base.userId) {
+        docs = await queryEntities<LeaveRequestDoc>(base as Parameters<typeof queryEntities>[0]);
+      } else if (req.query.companyId) {
+        if (!isSuperAdmin(caller)) assertCompanyScope(caller, req.query.companyId);
+        docs = await queryEntities<LeaveRequestDoc>({ ...base, companyId: req.query.companyId });
+      } else if (isSuperAdmin(caller)) {
+        // Master-admin previously defaulted to COMPANY#master-admin (empty);
+        // the requests live under the real companies → union them all.
+        docs = await queryEntitiesAcross<LeaveRequestDoc>(base, await allPartitions());
+      } else {
+        const partitions = await readPartitions(caller);
+        docs = partitions.length === 1
+          ? await queryEntities<LeaveRequestDoc>({ ...base, companyId: partitions[0] })
+          : await queryEntitiesAcross<LeaveRequestDoc>(base, partitions);
+      }
 
       // Scope enforcement: employee/RM see only their own
       if (['employee', 'reporting-manager'].includes(caller.role)) {
         docs = docs.filter((d) => d.userId === caller.uid || (caller.role === 'reporting-manager' && hasPermission(caller, 'leave.approve')));
-      } else if (caller.role !== 'master-admin') {
-        assertCompanyScope(caller, companyId);
       }
       return { leaveRequests: docs };
     },
@@ -213,10 +227,39 @@ export const leaveRoutes: Route[] = [
     path: '/api/leave-requests/:id',
     handler: async (req) => {
       const caller = must(req);
-      const list = await queryEntities<LeaveRequestDoc>({ entity: 'leaveRequest', companyId: caller.companyId, filters: { id: req.params.id }, limit: 1 });
-      const doc_ = list[0] ?? null;
-      if (!doc_) throw new ApiError('not-found', 'Leave request not found');
-      return { leaveRequest: doc_ };
+      // ?companyId carries the doc id on flat paths — locate within scope.
+      const found = await locateEntityAcross<LeaveRequestDoc>('leaveRequest', req.params.id, await readPartitions(caller));
+      if (!found) throw new ApiError('not-found', 'Leave request not found');
+      return { leaveRequest: found.doc };
+    },
+  },
+
+  // -------------------------------------------- direct update (Firestore shim)
+  {
+    method: 'PATCH',
+    path: '/api/leave-requests/:id',
+    handler: async (req) => {
+      const caller = must(req);
+      const found = await locateEntityAcross<LeaveRequestDoc>('leaveRequest', req.params.id, await readPartitions(caller));
+      if (!found) throw new ApiError('not-found', 'Leave request not found');
+      const doc_ = found.doc;
+      if (!isSuperAdmin(caller)) {
+        // Firestore update rule (leaveRequests, camelCase): owner, approver
+        // permission, or a stamped tier approver — inside company scope.
+        const isStampedApprover = Object.values(doc_.approverIds ?? {}).includes(caller.uid);
+        if (doc_.userId !== caller.uid && !hasPermission(caller, 'leave.approve') && !isStampedApprover) {
+          throw new ApiError('permission-denied', 'Cannot update this leave request');
+        }
+        assertCompanyScope(caller, String(doc_.companyId ?? ''));
+      }
+      const patch = { ...req.body } as Record<string, unknown>;
+      delete patch.id;
+      delete patch.companyId;
+      const updated = await patchEntity<LeaveRequestDoc>('leaveRequest', found.companyId, doc_.id, patch, {
+        entity: 'leaveRequest', userIdField: 'userId',
+      });
+      if (!updated) throw new ApiError('not-found', 'Leave request not found');
+      return { leaveRequest: updated };
     },
   },
 
@@ -231,8 +274,8 @@ export const leaveRoutes: Route[] = [
       if (!['Approved', 'Rejected'].includes(decision)) throw new ApiError('bad-request', 'decision must be Approved or Rejected');
       if (decision === 'Rejected' && !note?.trim()) throw new ApiError('bad-request', 'A review note is required for rejection');
 
-      const list = await queryEntities<LeaveRequestDoc>({ entity: 'leaveRequest', companyId: caller.companyId, filters: { id: req.params.id }, limit: 1 });
-      const doc_ = list[0];
+      const found = await locateEntityAcross<LeaveRequestDoc>('leaveRequest', req.params.id, await readPartitions(caller));
+      const doc_ = found?.doc;
       if (!doc_) throw new ApiError('not-found', 'Leave request not found');
       if (doc_.status !== 'Pending') throw new ApiError('failed-precondition', `Request already ${doc_.status}`);
 
@@ -304,8 +347,8 @@ export const leaveRoutes: Route[] = [
       const caller = must(req);
       if (caller.role !== 'master-admin') throw new ApiError('permission-denied', 'Master admin only');
       const { decision, note } = req.body as { decision: 'Approved' | 'Rejected'; note?: string };
-      const list = await queryEntities<LeaveRequestDoc>({ entity: 'leaveRequest', companyId: req.query.companyId ?? caller.companyId, filters: { id: req.params.id }, limit: 1 });
-      const doc_ = list[0];
+      const found = await locateEntityAcross<LeaveRequestDoc>('leaveRequest', req.params.id, await readPartitions(caller));
+      const doc_ = found?.doc;
       if (!doc_) throw new ApiError('not-found', 'Leave request not found');
       if (!doc_.masterAdminRequired) throw new ApiError('failed-precondition', 'This request does not require master-admin review');
       if (doc_.masterAdminApproveStatus !== 'Pending') throw new ApiError('failed-precondition', 'Already decided');
@@ -344,14 +387,14 @@ export const leaveRoutes: Route[] = [
     path: '/api/leave-requests/:id',
     handler: async (req) => {
       const caller = must(req);
-      const list = await queryEntities<LeaveRequestDoc>({ entity: 'leaveRequest', companyId: caller.companyId, filters: { id: req.params.id }, limit: 1 });
-      const doc_ = list[0];
+      const found = await locateEntityAcross<LeaveRequestDoc>('leaveRequest', req.params.id, await readPartitions(caller));
+      const doc_ = found?.doc;
       if (!doc_) throw new ApiError('not-found', 'Leave request not found');
       if (doc_.userId !== caller.uid && caller.role !== 'master-admin' && !hasPermission(caller, 'leave.cancel')) {
         throw new ApiError('permission-denied', 'Cannot delete this request');
       }
       const { deleteEntity } = await import('../lib/db.js');
-      await deleteEntity('leaveRequest', doc_.companyId, doc_.id);
+      await deleteEntity('leaveRequest', found!.companyId, doc_.id);
       return { success: true };
     },
   },
