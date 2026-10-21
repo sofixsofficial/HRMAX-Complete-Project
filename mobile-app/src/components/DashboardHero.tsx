@@ -1,21 +1,27 @@
-import React, { useCallback, useEffect, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { View, Text, StyleSheet, Animated, AccessibilityInfo, Pressable, ActivityIndicator } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import Svg, { Circle, Ellipse, Path, Rect } from 'react-native-svg';
+import { collection, getDocs, query, where } from 'firebase/firestore';
+import { db } from '../config/firebase';
 import { useAuth } from '../context/AuthContext';
 import { useCompany } from '../context/CompanyContext';
 import { useTodayAttendance } from '../hooks/useTodayAttendance';
 import { useAttendanceGate } from '../hooks/useAttendanceGate';
 import { markCheckIn, markCheckOut } from '../services/attendanceApi';
+import type { Holiday, LeaveRequest } from '../types/user';
 import {
   effectiveTimezone,
   formatElapsed,
   formatInZone,
   getHeroScene,
   resolveCompanyTimezone,
+  resolveCompanyWeekends,
   toDate,
   type DayPeriod,
 } from '../utils/heroScene';
+import { resolveCharacterMode, type CharacterMode } from '../utils/characterMode';
+import { parseWeekendDays, toDateKey } from '../utils/workingDays';
 import { Icon } from '../utils/icons';
 
 /**
@@ -63,7 +69,6 @@ type PunchUiState =
   | 'on_leave';
 
 /* ── Scene gradients (one per local-time period) ───────────────────── */
-
 const SCENE_COLORS = {
   morning: ['#1c5fb0', '#3a86d4', '#7cc0ee', '#ffe6a8'],
   afternoon: ['#0d47a1', '#1f6fd0', '#5fa8e8'],
@@ -134,124 +139,160 @@ const SceneDecor: React.FC<{ period: DayPeriod }> = ({ period }) => {
   );
 };
 
-/* ── Working person (visible ONLY on server-confirmed check-in) ────── */
+/* ── Employee character — one identity, five poses (SECTION 5B) ────── */
 
-const WorkingPerson: React.FC<{ animate: boolean }> = ({ animate }) => {
-  const glow = useRef(new Animated.Value(0.85)).current;
+const SKIN = '#f0c09a';
+const HAIR = '#2b2b3a';
+
+const Character: React.FC<{ mode: CharacterMode; animate: boolean }> = ({ mode, animate }) => {
+  const casual = mode === 'on_leave' || mode === 'holiday';
+  const shirt = casual ? '#3f7d5a' : '#33507e';
+  const shirtDark = casual ? '#356a4d' : '#2b4470';
+  const working = mode === 'working';
+
+  const pulse = useRef(new Animated.Value(0)).current;
 
   useEffect(() => {
     if (!animate) {
-      glow.setValue(1);
+      pulse.setValue(working ? 1 : 0);
       return;
     }
+    // Working = subtle screen-glow pulse; every other mode = gentle breathing.
+    const hi = 1;
+    const lo = working ? 0.82 : 0;
+    const dur = working ? 1600 : 2500;
     const loop = Animated.loop(
       Animated.sequence([
-        Animated.timing(glow, { toValue: 1, duration: 1600, useNativeDriver: true }),
-        Animated.timing(glow, { toValue: 0.82, duration: 1600, useNativeDriver: true }),
+        Animated.timing(pulse, { toValue: hi, duration: dur, useNativeDriver: true }),
+        Animated.timing(pulse, { toValue: lo, duration: dur, useNativeDriver: true }),
       ]),
     );
     loop.start();
     return () => loop.stop();
-  }, [animate, glow]);
+  }, [animate, mode, pulse, working]);
 
-  return (
-    <Animated.View style={{ opacity: glow }} pointerEvents="none">
-      <Svg width="100%" height={132} viewBox="0 0 240 150">
-      {/* Desk */}
-      <Rect x="38" y="92" width="172" height="7" rx="3.5" fill="#ffffff" opacity={0.9} />
-      <Rect x="50" y="99" width="6" height="34" rx="3" fill="#ffffff" opacity={0.6} />
-      <Rect x="192" y="99" width="6" height="34" rx="3" fill="#ffffff" opacity={0.6} />
+  const animStyle = working
+    ? { opacity: pulse.interpolate({ inputRange: [0, 1], outputRange: [0.82, 1] }) }
+    : { transform: [{ translateY: pulse.interpolate({ inputRange: [0, 1], outputRange: [0, -2] }) }] };
 
-      {/* Chair */}
-      <Path d="M86 46 q-10 8 -10 26 l0 20 h10 l0 -20 q0 -18 10 -26 z" fill="#0f172a" opacity={0.8} />
-      <Rect x="86" y="88" width="48" height="6" rx="3" fill="#0f172a" opacity={0.8} />
-      <Rect x="104" y="94" width="6" height="30" rx="3" fill="#0f172a" opacity={0.7} />
-
-      {/* Person (seated, facing the laptop) */}
-      <Circle cx="120" cy="42" r="11" fill="#0f172a" opacity={0.9} />
-      <Path d="M110 54 q10 -6 21 0 l6 32 h-33 z" fill="#0f172a" opacity={0.9} />
-      <Rect x="103" y="76" width="38" height="15" rx="7.5" fill="#0f172a" opacity={0.88} />
-      <Rect x="132" y="86" width="11" height="34" rx="5" fill="#0f172a" opacity={0.85} />
-      <Rect x="134" y="116" width="24" height="8" rx="4" fill="#0f172a" opacity={0.85} />
-      <Path d="M127 62 L152 84" stroke="#0f172a" strokeWidth="7" strokeLinecap="round" opacity={0.9} />
-
-      {/* Laptop */}
-      <Rect x="150" y="86" width="40" height="5" rx="2.5" fill="#0f172a" opacity={0.9} />
-      <Rect x="155" y="62" width="31" height="24" rx="2.5" fill="#0f172a" opacity={0.9} />
-      <Rect x="158.5" y="65.5" width="24" height="17" rx="1.5" fill="#7dd3fc" opacity={0.85} />
-
-      {/* Coffee mug */}
-      <Rect x="200" y="82" width="11" height="10" rx="2" fill="#ffffff" opacity={0.9} />
-      <Path d="M211 84 q5 3 0 6" stroke="#ffffff" strokeWidth="2" fill="none" opacity={0.7} />
-
-      {/* Desk plant */}
-      <Path d="M42 82 l3 10 h12 l3 -10 z" fill="#ffffff" opacity={0.85} />
-      <Ellipse cx="51" cy="72" rx="7" ry="11" fill="#bbf7d0" opacity={0.85} />
-      <Ellipse cx="44" cy="76" rx="5" ry="8" fill="#86efac" opacity={0.8} />
-      <Ellipse cx="58" cy="76" rx="5" ry="8" fill="#86efac" opacity={0.8} />
-      </Svg>
-    </Animated.View>
+  const head = (cx: number, cy: number) => (
+    <>
+      <Circle cx={cx} cy={cy} r={12} fill={SKIN} />
+      <Path d={`M${cx - 12} ${cy - 2} q2 -14 12 -14 q12 0 13 14 q-6 -6 -13 -5 q-8 1 -12 5 z`} fill={HAIR} />
+    </>
   );
-};
 
-/* ── Resting person — Rest Mode (before check-in / after check-out) ── */
-
-const RestingPerson: React.FC<{ animate: boolean }> = ({ animate }) => {
-  const breathe = useRef(new Animated.Value(0)).current;
-
-  useEffect(() => {
-    if (!animate) {
-      breathe.setValue(0);
-      return;
-    }
-    const loop = Animated.loop(
-      Animated.sequence([
-        Animated.timing(breathe, { toValue: 1, duration: 2500, useNativeDriver: true }),
-        Animated.timing(breathe, { toValue: 0, duration: 2500, useNativeDriver: true }),
-      ]),
-    );
-    loop.start();
-    return () => loop.stop();
-  }, [animate, breathe]);
-
-  const translateY = breathe.interpolate({ inputRange: [0, 1], outputRange: [0, -2] });
+  const eyes = (cx: number, cy: number) => (
+    <>
+      <Circle cx={cx - 3} cy={cy + 1} r={1.2} fill={HAIR} />
+      <Circle cx={cx + 3} cy={cy + 1} r={1.2} fill={HAIR} />
+    </>
+  );
 
   return (
-    <Animated.View style={{ transform: [{ translateY }] }} pointerEvents="none">
+    <Animated.View style={animStyle} pointerEvents="none">
       <Svg width="100%" height={132} viewBox="0 0 240 150">
         {/* Desk */}
         <Rect x="38" y="92" width="172" height="7" rx="3.5" fill="#ffffff" opacity={0.9} />
         <Rect x="50" y="99" width="6" height="34" rx="3" fill="#ffffff" opacity={0.6} />
         <Rect x="192" y="99" width="6" height="34" rx="3" fill="#ffffff" opacity={0.6} />
 
-        {/* Chair — reclined back */}
-        <Path d="M78 42 q-12 8 -12 30 l0 20 h12 l0 -20 q0 -22 12 -30 z" fill="#0f172a" opacity={0.8} />
-        <Rect x="80" y="88" width="52" height="6" rx="3" fill="#0f172a" opacity={0.8} />
-        <Rect x="100" y="94" width="6" height="30" rx="3" fill="#0f172a" opacity={0.7} />
-
-        {/* Person — leaning back, relaxed */}
-        <Circle cx="112" cy="40" r="11" fill="#0f172a" opacity={0.9} />
-        <Path d="M104 52 q10 -4 20 2 l4 30 h-30 z" fill="#0f172a" opacity={0.9} />
-        <Rect x="98" y="76" width="40" height="15" rx="7.5" fill="#0f172a" opacity={0.88} />
-        <Rect x="120" y="86" width="11" height="34" rx="5" fill="#0f172a" opacity={0.85} />
-        <Rect x="112" y="116" width="24" height="8" rx="4" fill="#0f172a" opacity={0.85} />
-        <Path d="M110 56 q-8 -10 2 -16" stroke="#0f172a" strokeWidth={6} strokeLinecap="round" fill="none" opacity={0.9} />
-
-        {/* Laptop — screen on standby */}
-        <Rect x="150" y="86" width="40" height="5" rx="2.5" fill="#0f172a" opacity={0.9} />
-        <Rect x="155" y="62" width="31" height="24" rx="2.5" fill="#0f172a" opacity={0.9} />
-        <Rect x="158.5" y="65.5" width="24" height="17" rx="1.5" fill="#1e293b" opacity={0.95} />
-        <Circle cx="170.5" cy="74" r={2.2} fill="#f59e0b" opacity={0.75} />
-
-        {/* Coffee mug */}
-        <Rect x="200" y="82" width="11" height="10" rx="2" fill="#ffffff" opacity={0.9} />
-        <Path d="M211 84 q5 3 0 6" stroke="#ffffff" strokeWidth={2} fill="none" opacity={0.7} />
+        {/* Chair */}
+        <Path d="M80 40 q-12 8 -12 30 l0 22 h12 l0 -22 q0 -22 12 -30 z" fill="#0f172a" opacity={0.8} />
+        <Rect x="82" y="90" width="50" height="6" rx="3" fill="#0f172a" opacity={0.8} />
 
         {/* Desk plant */}
         <Path d="M42 82 l3 10 h12 l3 -10 z" fill="#ffffff" opacity={0.85} />
         <Ellipse cx="51" cy="72" rx={7} ry={11} fill="#bbf7d0" opacity={0.85} />
         <Ellipse cx="44" cy="76" rx={5} ry={8} fill="#86efac" opacity={0.8} />
         <Ellipse cx="58" cy="76" rx={5} ry={8} fill="#86efac" opacity={0.8} />
+
+        {/* Person — pose varies by mode; same desk, chair, identity */}
+        {mode === 'working' && (
+          <>
+            <Path d="M108 54 q10 -4 22 0 l3 38 h-30 z" fill={shirt} />
+            {head(118, 40)}
+            <Path d="M126 62 L150 82" stroke={shirtDark} strokeWidth={6} strokeLinecap="round" />
+            <Path d="M122 64 L148 84" stroke={shirt} strokeWidth={6} strokeLinecap="round" />
+            <Circle cx={152} cy={83} r={4} fill={SKIN} />
+            <Circle cx={150} cy={85} r={4} fill={SKIN} />
+            {eyes(118, 40)}
+            <Path d="M117 45 h4" stroke={HAIR} strokeWidth={1} strokeLinecap="round" />
+          </>
+        )}
+        {mode === 'complete' && (
+          <>
+            <Path d="M106 54 q10 -5 22 0 l3 38 h-31 z" fill={shirt} />
+            {head(116, 40)}
+            <Path d="M126 62 q10 0 8 -12" stroke={shirt} strokeWidth={6} strokeLinecap="round" fill="none" />
+            <Circle cx={133} cy={48} r={5} fill={SKIN} />
+            <Rect x="132" y="41" width="3.4" height="8" rx="1.7" fill={SKIN} />
+            {eyes(116, 40)}
+            <Path d="M113 45 q3 3.5 6 0" stroke={HAIR} strokeWidth={1.2} fill="none" strokeLinecap="round" />
+          </>
+        )}
+        {mode === 'on_leave' && (
+          <>
+            <Path d="M102 54 q12 -4 24 0 l4 38 h-34 z" fill={shirt} />
+            {head(112, 40)}
+            <Path d="M124 60 q9 2 7 -8" stroke={shirt} strokeWidth={6} strokeLinecap="round" fill="none" />
+            <Circle cx={130} cy={50} r={4} fill={SKIN} />
+            {eyes(112, 40)}
+            <Path d="M109 45 q3 2.5 6 0" stroke={HAIR} strokeWidth={1.1} fill="none" strokeLinecap="round" />
+          </>
+        )}
+        {mode === 'holiday' && (
+          <>
+            <Path d="M104 54 q12 -4 24 0 l3 38 h-32 z" fill={shirt} />
+            {head(114, 40)}
+            <Path d="M104 58 q-6 -14 8 -18" stroke={shirtDark} strokeWidth={6} strokeLinecap="round" fill="none" />
+            <Path d="M128 58 q6 -14 -8 -18" stroke={shirtDark} strokeWidth={6} strokeLinecap="round" fill="none" />
+            {eyes(114, 40)}
+            <Path d="M111 45 q3 3.5 6 0" stroke={HAIR} strokeWidth={1.2} fill="none" strokeLinecap="round" />
+          </>
+        )}
+        {mode === 'resting' && (
+          <>
+            <Path d="M104 54 q10 -6 22 0 l4 38 h-32 z" fill={shirt} />
+            {head(112, 40)}
+            <Path d="M124 60 q10 2 8 -8" stroke={shirt} strokeWidth={6} strokeLinecap="round" fill="none" />
+            <Circle cx={132} cy={50} r={4} fill={SKIN} />
+            {eyes(112, 40)}
+            <Path d="M110 45 q2 1.5 4 0" stroke={HAIR} strokeWidth={1} fill="none" strokeLinecap="round" />
+          </>
+        )}
+
+        {/* Mug — held for rest / leave */}
+        {(mode === 'resting' || mode === 'on_leave') && (
+          <>
+            <Rect x="126" y="44" width="9" height="8" rx="1.5" fill="#ffffff" opacity={0.95} />
+            <Path d="M130 42 q3 -4 0 -8" stroke="#ffffff" strokeWidth={1.4} fill="none" opacity={0.6} strokeLinecap="round" />
+          </>
+        )}
+
+        {/* Laptop — state per mode */}
+        {mode === 'working' ? (
+          <>
+            <Rect x="150" y="86" width="40" height="5" rx="2.5" fill="#0f172a" opacity={0.9} />
+            <Rect x="152" y="62" width="34" height="24" rx="2" fill="#0f172a" opacity={0.9} />
+            <Rect x="155" y="65" width="28" height="18" rx="1.5" fill="#7dd3fc" opacity={0.9} />
+            <Rect x="158" y="68" width="12" height="3" rx="1.5" fill="#0b3a6b" />
+            <Rect x="158" y="73" width="20" height="2" rx="1" fill="#0b3a6b" opacity={0.6} />
+          </>
+        ) : mode === 'resting' ? (
+          <>
+            <Rect x="152" y="86" width="40" height="5" rx="2.5" fill="#0f172a" opacity={0.9} />
+            <Rect x="155" y="64" width="31" height="22" rx="2" fill="#0f172a" opacity={0.9} />
+            <Rect x="158" y="67" width="25" height="16" rx="1.5" fill="#1e293b" />
+            <Circle cx={170} cy={75} r={1.6} fill="#f59e0b" opacity={0.7} />
+          </>
+        ) : (
+          /* complete / on_leave / holiday — laptop closed */
+          <>
+            <Rect x="152" y="88" width="40" height="5" rx="2" fill="#0f172a" opacity={0.9} />
+            <Rect x="155" y="83" width="34" height="5" rx="2" fill="#334155" opacity={0.9} />
+          </>
+        )}
       </Svg>
     </Animated.View>
   );
@@ -295,12 +336,106 @@ const STATUS_STYLES: Record<string, StatusStyle> = {
   working: { color: '#6ee7b7', borderColor: 'rgba(16,185,129,0.55)', backgroundColor: 'rgba(6,78,59,0.5)' },
   done: { color: '#93c5fd', borderColor: 'rgba(59,130,246,0.55)', backgroundColor: 'rgba(23,47,94,0.5)' },
   leave: { color: '#bfdbfe', borderColor: 'rgba(96,165,250,0.5)', backgroundColor: 'rgba(30,58,110,0.5)' },
+  holiday: { color: '#fcd34d', borderColor: 'rgba(245,158,11,0.55)', backgroundColor: 'rgba(69,44,12,0.5)' },
   idle: { color: '#fde68a', borderColor: 'rgba(245,158,11,0.5)', backgroundColor: 'rgba(2,6,23,0.42)' },
   pending: { color: '#fdba74', borderColor: 'rgba(249,115,22,0.5)', backgroundColor: 'rgba(2,6,23,0.42)' },
   loading: { color: '#cbd5e1', borderColor: 'rgba(255,255,255,0.2)', backgroundColor: 'rgba(2,6,23,0.42)' },
 };
 
 /* ── Hero ──────────────────────────────────────────────────────────── */
+
+/* ── Day context — approved leave + holiday + weekly-off (backend data) ── */
+
+interface DayContext {
+  onApprovedLeave: boolean;
+  halfDayLeave: boolean;
+  isHoliday: boolean;
+  holidayLabel?: string;
+  isWeeklyOff: boolean;
+  weekendLabel?: string;
+}
+
+const EMPTY_DAY: DayContext = { onApprovedLeave: false, halfDayLeave: false, isHoliday: false, isWeeklyOff: false };
+
+const toDateValue = (v: unknown): Date | null => {
+  const any = v as { toDate?: () => Date } | Date | string | number | null;
+  if (!any) return null;
+  if (typeof any === 'object' && 'toDate' in any && typeof any.toDate === 'function') return any.toDate();
+  const d = new Date(any as string | number | Date);
+  return Number.isNaN(d.getTime()) ? null : d;
+};
+
+/**
+ * Loads the non-attendance facts the character resolver needs: an APPROVED
+ * leave covering today (pending/rejected never count), the company holiday
+ * for today, and the assigned weekly-off day. All reads are best-effort — if a
+ * source is unavailable the flag stays false and the mode falls back to the
+ * attendance flow, so the app never breaks or invents a state.
+ */
+const useDayContext = (userId?: string, companyId?: string): DayContext => {
+  const [ctx, setCtx] = useState<DayContext>(EMPTY_DAY);
+
+  useEffect(() => {
+    let dead = false;
+    if (!userId) return;
+
+    // Approved leave covering today.
+    getDocs(query(collection(db, 'leaveRequests'), where('userId', '==', userId)))
+      .then((snap) => {
+        if (dead) return;
+        const key = new Date().toDateString();
+        const covering = snap.docs
+          .map((d) => d.data() as Partial<LeaveRequest>)
+          .filter((l) => {
+            if (String(l.status ?? '') !== 'Approved') return false;
+            const s = toDateValue(l.startDate);
+            const e = toDateValue(l.endDate);
+            if (!s || !e) return false;
+            return s.toDateString() <= key && e.toDateString() >= key;
+          });
+        const full = covering.some((l) => (l.totalDays ?? 1) >= 1);
+        const half = covering.some((l) => (l.totalDays ?? 1) < 1);
+        setCtx((p) => ({ ...p, onApprovedLeave: full, halfDayLeave: half }));
+      })
+      .catch(() => {});
+
+    if (companyId) {
+      // Company holiday for today (holidays.view is granted to every employee).
+      getDocs(query(collection(db, 'holidays'), where('companyId', '==', companyId)))
+        .then((snap) => {
+          if (dead) return;
+          const todayKey = toDateKey(new Date());
+          const hit = snap.docs
+            .map((d) => d.data() as Partial<Holiday>)
+            .find((h) => {
+              const dt = toDateValue(h.date);
+              return dt ? toDateKey(dt) === todayKey : false;
+            });
+          setCtx((p) => ({ ...p, isHoliday: !!hit, holidayLabel: hit?.name }));
+        })
+        .catch(() => {});
+
+      // Weekly off — company schedule (readable via company.view). Never infer
+      // a non-working day from the weekday alone (SECTION 5B).
+      resolveCompanyWeekends(companyId)
+        .then((weekends) => {
+          if (dead || !weekends || weekends.length === 0) return;
+          const idxs = parseWeekendDays(weekends);
+          const isOff = idxs.includes(new Date().getDay());
+          setCtx((p) => ({
+            ...p,
+            isWeeklyOff: isOff,
+            weekendLabel: isOff ? new Date().toLocaleDateString(undefined, { weekday: 'long' }) : undefined,
+          }));
+        })
+        .catch(() => {});
+    }
+
+    return () => { dead = true; };
+  }, [userId, companyId]);
+
+  return ctx;
+};
 
 /**
  * Personal attendance slice of the mobile hero — status chip, check-in/out
@@ -322,6 +457,8 @@ const HeroAttendance: React.FC<{
   const [busy, setBusy] = useState<'in' | 'out' | null>(null);
   const [punchMsg, setPunchMsg] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
   const [reduceMotion, setReduceMotion] = useState(false);
+  const { user } = useAuth();
+  const day = useDayContext(user?.id, companyId);
 
   useEffect(() => {
     AccessibilityInfo.isReduceMotionEnabled()
@@ -333,48 +470,42 @@ const HeroAttendance: React.FC<{
 
   const hasIn = !!todayRecord?.checkIn;
   const hasOut = !!todayRecord?.checkOut;
-  const onLeave = todayRecord?.status === 'On Leave';
-  // Working Mode — derived ONLY from the server-confirmed attendance record.
-  const working = hasIn && !hasOut && !onLeave;
+  // The record's own 'On Leave' status is a server signal alongside approved
+  // leave records — either way it must come from the backend, never the UI.
+  const onApprovedLeave = day.onApprovedLeave || todayRecord?.status === 'On Leave';
 
-  const uiState: PunchUiState = loading
+  // Single authoritative mode — resolved from backend records only (SECTION 5B).
+  const resolved = useMemo(
+    () =>
+      resolveCharacterMode({
+        hasCheckIn: hasIn,
+        hasCheckOut: hasOut,
+        onApprovedLeave,
+        halfDayLeave: day.halfDayLeave,
+        isHoliday: day.isHoliday,
+        holidayLabel: day.holidayLabel,
+        isWeeklyOff: day.isWeeklyOff,
+        weekendLabel: day.weekendLabel,
+      }),
+    [hasIn, hasOut, onApprovedLeave, day],
+  );
+
+  const mode = resolved.mode;
+  const working = mode === 'working';
+
+  const statusText = loading
+    ? 'Loading attendance…'
+    : busy === 'in'
+      ? 'Checking in…'
+      : busy === 'out'
+        ? 'Checking out…'
+        : resolved.pill;
+
+  const statusKey = loading
     ? 'loading'
-    : onLeave
-      ? 'on_leave'
-      : busy === 'in'
-        ? 'checking_in'
-        : busy === 'out'
-          ? 'checking_out'
-          : working
-            ? 'working'
-            : hasIn && hasOut
-              ? 'checked_out'
-              : 'not_checked_in';
-
-  const statusText = (() => {
-    switch (uiState) {
-      case 'loading': return 'Loading attendance…';
-      case 'on_leave': return 'On Leave';
-      case 'checking_in': return 'Checking in…';
-      case 'checking_out': return 'Checking out…';
-      case 'working': return 'Working';
-      case 'checked_out': return 'Checked Out';
-      default: return 'Not Checked In';
-    }
-  })();
-
-  const statusKey =
-    uiState === 'checking_in' || uiState === 'checking_out'
+    : busy === 'in' || busy === 'out'
       ? 'pending'
-      : uiState === 'working'
-        ? 'working'
-        : uiState === 'checked_out'
-          ? 'done'
-          : uiState === 'on_leave'
-            ? 'leave'
-            : uiState === 'loading'
-              ? 'loading'
-              : 'idle';
+      : resolved.pillState;
 
   const elapsedMs =
     working && toDate(todayRecord?.checkIn)
@@ -386,8 +517,8 @@ const HeroAttendance: React.FC<{
       ? toDate(todayRecord!.checkOut)!.getTime() - toDate(todayRecord!.checkIn)!.getTime()
       : 0;
 
-  const showCheckIn = showPunchActions && !loading && !hasIn && !onLeave && !hasOut;
-  const showCheckOut = showPunchActions && !loading && working;
+  const showCheckIn = showPunchActions && !loading && resolved.canCheckIn;
+  const showCheckOut = showPunchActions && !loading && resolved.canCheckOut;
 
   const handleCheckIn = useCallback(async () => {
     if (busy) return;
@@ -466,7 +597,7 @@ const HeroAttendance: React.FC<{
             <Text style={styles.detailElapsed}>{formatElapsed(elapsedMs)} elapsed</Text>
           </>
         )}
-        {uiState === 'checked_out' && (
+        {mode === 'complete' && (
           <>
             <Text style={styles.detailText}>In {fmtPunchTime(todayRecord?.checkIn, tz)}</Text>
             <Text style={styles.detailText}>·</Text>
@@ -475,7 +606,12 @@ const HeroAttendance: React.FC<{
             <Text style={styles.detailText}>{formatElapsed(workedMs)} worked</Text>
           </>
         )}
-        {onLeave && <Text style={styles.detailText}>Approved leave today</Text>}
+        {mode === 'on_leave' && <Text style={styles.detailText}>Approved leave today</Text>}
+        {mode === 'holiday' && (
+          <Text style={styles.detailText}>
+            {resolved.pill} · {formatInZone(now, tz, { weekday: 'short', month: 'short', day: 'numeric' })}
+          </Text>
+        )}
         {working && todayRecord?.status === 'Late' && (
           <Text style={styles.detailLate}>{todayRecord.lateMinutes ?? 0} min late (auto-approved)</Text>
         )}
@@ -523,14 +659,10 @@ const HeroAttendance: React.FC<{
         </View>
       )}
 
-      {/* Illustration: Working ONLY on server-confirmed check-in; Rest otherwise. */}
+      {/* Illustration — one character, five backend-resolved poses. */}
       {!loading && (
         <View style={styles.worker} pointerEvents="none">
-          {working ? (
-            <WorkingPerson animate={!reduceMotion} />
-          ) : (
-            <RestingPerson animate={!reduceMotion} />
-          )}
+          <Character mode={mode} animate={!reduceMotion} />
         </View>
       )}
     </>

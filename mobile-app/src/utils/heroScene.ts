@@ -102,8 +102,9 @@ export function isValidTimezone(tz: string): boolean {
   }
 }
 
-// Module-level cache so we do at most one company read per session per company.
+// Module-level caches so we do at most one company read per session per company.
 const companyTzCache = new Map<string, string | null>();
+const companyWeekendCache = new Map<string, string[]>();
 
 /** Reads `companies/{id}` once for its configured timezone (settings.timeZone | timezone). */
 export async function resolveCompanyTimezone(companyId?: string | null): Promise<string | null> {
@@ -122,6 +123,32 @@ export async function resolveCompanyTimezone(companyId?: string | null): Promise
   } catch {
     companyTzCache.set(companyId, null);
     return null;
+  }
+}
+
+/**
+ * Reads `companies/{id}` once for the configured weekly-off schedule
+ * (`payrollSettings.weekends`, e.g. ['Sunday','Friday']).
+ *
+ * Employees hold `company.view`, so this doc is readable by every role — unlike
+ * the `holidays` collection, which needs `holidays.view`. Returns [] when the
+ * schedule is absent so callers never infer a non-working day from the weekday
+ * alone (SECTION 5B).
+ */
+export async function resolveCompanyWeekends(companyId?: string | null): Promise<string[]> {
+  if (!companyId) return [];
+  const cached = companyWeekendCache.get(companyId);
+  if (cached !== undefined) return cached;
+  try {
+    const snap = await getDoc(doc(db, 'companies', companyId));
+    const data = snap.data() as { payrollSettings?: { weekends?: unknown } } | undefined;
+    const raw = data?.payrollSettings?.weekends;
+    const weekends = Array.isArray(raw) ? raw.filter((d): d is string => typeof d === 'string') : [];
+    companyWeekendCache.set(companyId, weekends);
+    return weekends;
+  } catch {
+    companyWeekendCache.set(companyId, []);
+    return [];
   }
 }
 
