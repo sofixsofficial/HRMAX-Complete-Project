@@ -103,14 +103,23 @@ documented parity 404s.
   (last records September 2026).
 - Firebase data is **untouched** and remains the rollback source of truth.
 
+## Completed (2026-10-21)
+
+- **`git push`**: all local commits pushed to `main`
+  (`github.com/sofixscompany-code/HR-MAX`, `de8cee3..5857e9c`).
+- **Leaked Firebase service-account key revoked**: GCP Console → IAM →
+  `firebase-adminsdk-fbsvc@hrm-sofisx.iam.gserviceaccount.com` → key
+  `4a96325073ae39c55402cd05f16801bcb0322d50` deleted (confirmed post-reload;
+  3 older keys remain — revoke those too if unused).
+
 ## Pending actions (require the user)
 
 1. **SES**: identity `no-reply@hrmax.in` is PENDING — click the confirmation
    link in that mailbox. Outbound email stays blocked until then.
-2. **GCP Console (mandatory)**: revoke the leaked Firebase service-account key
-   — it still exists at Google; only the repo copy was deleted.
-3. `git push` — local commits await your review/approval.
-4. Optional: GitHub secrets + OIDC role for CI deploys (`docs/deployment.md` §4);
+2. Optional: revoke the 3 remaining (older) firebase-adminsdk keys in GCP
+   Console; delete local key copies in `~/Downloads` and
+   `~/Documents/HRM-AWS/firebase-migration-credentials` (dead post-revocation).
+3. Optional: GitHub secrets + OIDC role for CI deploys (`docs/deployment.md` §4);
    optional git-history purge of the leaked key.
 
 ## Reference docs

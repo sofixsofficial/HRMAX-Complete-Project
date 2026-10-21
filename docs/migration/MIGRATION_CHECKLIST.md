@@ -96,16 +96,18 @@ external step · ⬜ = not done / deliberately deferred.
 - ✅ `docs/deployment.md` (manual deploy + rollback + OIDC/CI setup)
 - ✅ This checklist + `FINAL_REPORT.md`
 - ✅ Updated package manifests / CI rewritten for AWS (`0129415`, `648969d`)
-- ⬜ Push local commits (main ahead: `dfacf5e`, `472105f`, `648969d`,
-  `0129415` + this session's commit) — **awaiting user approval**
+- ✅ Push local commits to GitHub (`de8cee3..5857e9c`, pushed 2026-10-21)
 
 ## Pending **your** action
 
 1. 🟡 **SES identity** `no-reply@hrmax.in` is PENDING — click the confirmation
    link in that mailbox; emails stay blocked until then.
-2. ⬜ **Revoke the leaked Firebase service-account key in GCP Console**
-   (mandatory — the key still exists there; the repo copy was deleted).
-3. ⬜ Optional: GitHub repo secrets + OIDC role (only when CI is wanted —
+2. ✅ **Leaked Firebase service-account key revoked** in GCP Console
+   (2026-10-21: key `4a963250…` deleted from
+   `firebase-adminsdk-fbsvc@hrm-sofisx.iam.gserviceaccount.com`).
+3. ⬜ Optional: revoke the 3 remaining older firebase-adminsdk keys (same SA)
+   and delete the local key copies in `~/Downloads` +
+   `~/Documents/HRM-AWS/firebase-migration-credentials` (dead post-revocation).
+4. ⬜ Optional: GitHub repo secrets + OIDC role (only when CI is wanted —
    manual deploy works today; see `docs/deployment.md` §4).
-4. ⬜ Optional: force-push history purge of the leaked key — user decision.
-5. ⬜ `git push` when you've reviewed the commits.
+5. ⬜ Optional: force-push history purge of the leaked key — user decision.
