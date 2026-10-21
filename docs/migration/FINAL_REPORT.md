@@ -112,15 +112,25 @@ documented parity 404s.
   `4a96325073ae39c55402cd05f16801bcb0322d50` deleted (confirmed post-reload;
   3 older keys remain — revoke those too if unused).
 
+## Security wrap-up (2026-10-21)
+
+- **All 4 firebase-adminsdk keys revoked**: the leaked migration key
+  `4a963250…` plus all 3 older keys (`2fb3c761…`, `aa8881e07a…`,
+  `9188abf2…`). SA `firebase-adminsdk-fbsvc@hrm-sofisx` now has **zero keys**
+  (verified: empty keys table in GCP Console). Local JSON copies are
+  cryptographically dead.
+- **Git-history purge: verified UNNECESSARY** — the private key material was
+  never committed. Evidence: `git log --all -S"private_key_id"` → 0 commits;
+  `-S"BEGIN PRIVATE KEY"` → 0 commits; every JSON file ever added to the repo
+  is a package/tsconfig/firebase config (no service-account JSON). The key
+  ID strings in this report are public identifiers, not secrets. No
+  force-push performed (nothing to purge; it would only break clones).
+
 ## Pending actions (require the user)
 
 1. **SES**: identity `no-reply@hrmax.in` is PENDING — click the confirmation
    link in that mailbox. Outbound email stays blocked until then.
-2. Optional: revoke the 3 remaining (older) firebase-adminsdk keys in GCP
-   Console; delete local key copies in `~/Downloads` and
-   `~/Documents/HRM-AWS/firebase-migration-credentials` (dead post-revocation).
-3. Optional: GitHub secrets + OIDC role for CI deploys (`docs/deployment.md` §4);
-   optional git-history purge of the leaked key.
+2. Optional: GitHub secrets + OIDC role for CI deploys (`docs/deployment.md` §4).
 
 ## Reference docs
 

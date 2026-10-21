@@ -102,12 +102,11 @@ external step · ⬜ = not done / deliberately deferred.
 
 1. 🟡 **SES identity** `no-reply@hrmax.in` is PENDING — click the confirmation
    link in that mailbox; emails stay blocked until then.
-2. ✅ **Leaked Firebase service-account key revoked** in GCP Console
-   (2026-10-21: key `4a963250…` deleted from
-   `firebase-adminsdk-fbsvc@hrm-sofisx.iam.gserviceaccount.com`).
-3. ⬜ Optional: revoke the 3 remaining older firebase-adminsdk keys (same SA)
-   and delete the local key copies in `~/Downloads` +
-   `~/Documents/HRM-AWS/firebase-migration-credentials` (dead post-revocation).
+2. ✅ **All 4 firebase-adminsdk keys revoked** in GCP Console
+   (2026-10-21: leaked `4a963250…` + older `2fb3c761…`, `aa8881e07a…`,
+   `9188abf2…` — SA now has zero keys; local copies dead).
+3. ✅ **Git-history purge verified unnecessary** — private key material was
+   never committed (`-S"private_key_id"` / `-S"BEGIN PRIVATE KEY"` → 0 hits;
+   no service-account JSON in any commit). No force-push needed.
 4. ⬜ Optional: GitHub repo secrets + OIDC role (only when CI is wanted —
    manual deploy works today; see `docs/deployment.md` §4).
-5. ⬜ Optional: force-push history purge of the leaked key — user decision.
