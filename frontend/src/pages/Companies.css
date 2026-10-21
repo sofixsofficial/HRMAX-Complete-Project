@@ -15,10 +15,11 @@
   padding: 24px;
 }
 
-/* Stats Row */
+/* Stats Row — auto-fit so the cards always fill 100% of the row regardless of
+   how many stat cards are rendered (2 for admin/exec), with no empty tracks. */
 .stats-row {
   display: grid;
-  grid-template-columns: repeat(6, 1fr);
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
   gap: 16px;
   margin-bottom: 24px;
 }
@@ -498,18 +499,8 @@
   cursor: pointer;
 }
 
-/* Responsive */
-@media (max-width: 1400px) {
-  .stats-row {
-    grid-template-columns: repeat(3, 1fr);
-  }
-}
-
+/* Responsive — .stats-row auto-fit (base) already fills 100% at every width */
 @media (max-width: 1024px) {
-  .stats-row {
-    grid-template-columns: repeat(2, 1fr);
-  }
-  
   .filters-row {
     flex-wrap: wrap;
   }

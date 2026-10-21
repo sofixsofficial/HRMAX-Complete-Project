@@ -35,8 +35,8 @@
 }
 .dh[data-period='evening'] .dh-scene {
   background:
-    radial-gradient(circle at 16% 88%, rgba(255, 179, 71, 0.24), transparent 46%),
-    linear-gradient(165deg, #14264a 0%, #274a7c 55%, #3f6b9c 100%);
+    radial-gradient(circle at 16% 90%, rgba(255, 179, 71, 0.2), transparent 40%),
+    linear-gradient(165deg, #16244c 0%, #3a4d84 55%, #8f6076 100%);
 }
 .dh[data-period='night'] .dh-scene {
   background:
@@ -51,8 +51,10 @@
   height: 100%;
 }
 
-/* Slow, unobtrusive cloud drift — disabled under reduced motion */
+/* Slow, unobtrusive cloud drift — blurred so they read as soft haze rather
+   than hard-edged ellipses; disabled under reduced motion */
 .dh-cloud {
+  filter: blur(3px);
   animation: dh-cloud-drift 60s ease-in-out infinite alternate;
 }
 .dh-cloud-b {
@@ -87,14 +89,24 @@
   padding: 26px 30px 0;
 }
 
-.dh-main { grid-area: main; min-width: 0; position: static; padding-bottom: 20px; }
+/* Left column — content is vertically centered so the row never leaves a
+   lopsided dead gap above the stats strip. */
+.dh-main {
+  grid-area: main;
+  min-width: 0;
+  position: static;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  padding-bottom: 0;
+}
 .dh-side {
   grid-area: clock;
   display: flex;
   flex-direction: column;
   align-items: flex-end;
-  gap: 6px;
-  padding-bottom: 20px;
+  gap: 4px;
+  padding-bottom: 12px;
   min-width: 0;
 }
 
@@ -292,7 +304,7 @@
   display: inline-flex;
   align-items: center;
   gap: 6px;
-  margin-top: 14px;
+  margin-top: 8px;
   font-size: 15.5px;
   font-weight: 700;
   color: #fff;
@@ -306,7 +318,7 @@
   display: flex;
   align-items: stretch;
   border-top: 1px solid rgba(255, 255, 255, 0.16);
-  background: rgba(2, 6, 23, 0.36);
+  background: rgba(2, 6, 23, 0.55);
   backdrop-filter: blur(8px);
   /* full-bleed inside .dh-inner padding */
   margin: 0 -30px;
@@ -348,50 +360,81 @@
   color: rgba(148, 163, 184, 0.95);
 }
 
-/* ── Character — its own column under the clock (never overlaps text) ── */
-.dh-worker {
-  width: 150px;
+/* ── Weather-aware sky (live conditions via Open-Meteo) ───────────── */
+/* Time-of-day stays the base scene; precipitation tints it and adds a
+   lightweight animated layer. `unknown`/`clear`/`clouds` add no layer —
+   only the decor clouds thicken. */
+.dh[data-weather='rain'] .dh-scene::after,
+.dh[data-weather='storm'] .dh-scene::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(165deg, rgba(30, 41, 59, 0.66), rgba(15, 23, 42, 0.74));
+}
+.dh[data-weather='snow'] .dh-scene::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  /* Cold still daylight — desaturated slate that keeps white text readable. */
+  background: linear-gradient(165deg, rgba(51, 65, 85, 0.44), rgba(100, 116, 139, 0.54));
+}
+
+/* Rain — thin wind-slanted streaks, subtle and unobtrusive. The tile is
+   64×128 and the keyframe shifts exactly one tile, so it never seams. */
+.dh-rain {
+  position: absolute;
+  inset: -8% -4%;
+  z-index: 0;
   pointer-events: none;
-  opacity: 0;
-  animation: dh-worker-in 0.5s ease forwards;
+  opacity: 0.7;
+  background-image: url("data:image/svg+xml,%3Csvg%20xmlns='http://www.w3.org/2000/svg'%20width='64'%20height='128'%3E%3Cg%20stroke='%23dfeaff'%20stroke-opacity='0.55'%20stroke-width='1.1'%20stroke-linecap='round'%3E%3Cpath%20d='M46%204%20L30%2036'/%3E%3Cpath%20d='M64%2044%20L40%2092'/%3E%3Cpath%20d='M20%2020%20L4%2052'/%3E%3Cpath%20d='M12%2070%20L0%2094'/%3E%3Cpath%20d='M54%2096%20L42%20120'/%3E%3Cpath%20d='M36%2096%20L20%20128'/%3E%3Cpath%20d='M8%2044%20L0%2060'/%3E%3Cpath%20d='M60%200%20L52%2016'/%3E%3C/g%3E%3C/svg%3E");
+  background-size: 64px 128px;
+  animation: dh-rain-fall 0.7s linear infinite;
 }
-.dh-person-svg {
-  display: block;
-  width: 100%;
-  height: auto;
-  filter: drop-shadow(0 4px 10px rgba(2, 6, 23, 0.28));
+@keyframes dh-rain-fall {
+  from { background-position: 0 0; }
+  to { background-position: -64px 128px; }
 }
-/* Rest Mode — gentle idle breathing; no active/typing motion. */
-.dh-worker[data-mode='rest'] .dh-person-svg {
-  animation: dh-rest-idle 5s ease-in-out infinite;
-  transform-origin: center bottom;
+
+/* Snow — two drifting flake layers (near/far) for gentle depth. */
+.dh-snow {
+  position: absolute;
+  inset: -6% -3%;
+  z-index: 0;
+  pointer-events: none;
+  background-image: url("data:image/svg+xml,%3Csvg%20xmlns='http://www.w3.org/2000/svg'%20width='80'%20height='80'%3E%3Cg%20fill='white'%3E%3Ccircle%20cx='14'%20cy='18'%20r='2.2'%20opacity='0.85'/%3E%3Ccircle%20cx='52'%20cy='10'%20r='1.6'%20opacity='0.6'/%3E%3Ccircle%20cx='66'%20cy='44'%20r='2.6'%20opacity='0.75'/%3E%3Ccircle%20cx='30'%20cy='56'%20r='1.4'%20opacity='0.5'/%3E%3Ccircle%20cx='8'%20cy='72'%20r='1.8'%20opacity='0.7'/%3E%3Ccircle%20cx='44'%20cy='78'%20r='1.2'%20opacity='0.55'/%3E%3Ccircle%20cx='74'%20cy='76'%20r='1.4'%20opacity='0.5'/%3E%3Ccircle%20cx='24'%20cy='34'%20r='1'%20opacity='0.5'/%3E%3C/g%3E%3C/svg%3E");
+  background-size: 80px 80px;
+  animation: dh-snow-fall 9s linear infinite;
 }
-@keyframes dh-rest-idle {
-  0%, 100% { transform: translateY(0); }
-  50% { transform: translateY(-2px); }
+.dh-snow::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background-image: inherit;
+  background-size: 132px 132px;
+  opacity: 0.55;
+  animation: dh-snow-fall-slow 15s linear infinite;
 }
-.dh-screen-glow {
-  animation: dh-glow 3s ease-in-out infinite;
+@keyframes dh-snow-fall {
+  from { background-position: 0 0; }
+  to { background-position: -20px 80px; }
 }
-.dh-steam {
-  animation: dh-steam 2.6s ease-in-out infinite;
+@keyframes dh-snow-fall-slow {
+  from { background-position: 0 0; }
+  to { background-position: 26px 132px; }
 }
-@keyframes dh-worker-in {
-  from { opacity: 0; transform: translateY(8px); }
-  to { opacity: 1; transform: translateY(0); }
+
+/* Night twinkle — sparse stars, clear nights only (see Landscape). */
+.dh-star {
+  animation: dh-twinkle 3.4s ease-in-out infinite;
 }
-@keyframes dh-glow {
-  0%, 100% { opacity: 0.55; }
-  50% { opacity: 1; }
-}
-@keyframes dh-steam {
-  0%, 100% { opacity: 0.25; transform: translateY(0); }
-  50% { opacity: 0.7; transform: translateY(-2px); }
+@keyframes dh-twinkle {
+  0%, 100% { opacity: 0.25; }
+  50% { opacity: 0.95; }
 }
 
 /* ── Responsive ────────────────────────────────────────────────────── */
 @media (max-width: 1120px) {
-  .dh-worker { width: 132px; }
   .dh-clock-time { font-size: 26px; }
   .dh-name { font-size: 30px; }
 }
@@ -413,9 +456,6 @@
   .dh-name { font-size: 26px; }
   .dh-greeting { font-size: 17px; }
   .dh-stats { margin: 0 -20px; }
-  /* Character stays in the side column (right-aligned under the clock) — no
-     absolute positioning, so it can never overlap the text above it. */
-  .dh-worker { width: 150px; animation-duration: 0.4s; }
 }
 
 @media (max-width: 560px) {
@@ -428,20 +468,19 @@
   .dh-stat-value { font-size: 23px; }
   .dh-stat-label { font-size: 9.5px; letter-spacing: 0.5px; gap: 5px; }
   .dh-stat-label svg { display: none; }
-  .dh-worker { width: 132px; }
   .dh-btn { padding: 8px 15px; font-size: 13px; }
 }
 
 /* Accessibility — respect reduced motion everywhere */
 @media (prefers-reduced-motion: reduce) {
   .dh-cloud,
+  .dh-star,
+  .dh-rain,
+  .dh-snow,
   .dh-status-dot,
-  .dh-screen-glow,
-  .dh-steam,
   .dh-spin {
     animation: none !important;
   }
-  .dh-worker { animation: none; opacity: 1; }
   .dh-scene { transition: none; }
   .dh-btn { transition: none; }
 }

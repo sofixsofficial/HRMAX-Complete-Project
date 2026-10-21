@@ -29,7 +29,9 @@ import { useAttendancePunch } from '../hooks/useAttendancePunch'
 import { getLeaveRequestsByUser } from '../services/leaveService'
 import { roleDepartmentLabel } from '../utils/roleLabels'
 import { parseWeekendDays, toDateKey } from '../utils/workingDays'
-import { resolveCharacterMode, type CharacterMode } from '../utils/characterMode'
+import { resolveCharacterMode } from '../utils/characterMode'
+import { useHeroSky } from '../hooks/useHeroSky'
+import type { SkyWeather } from '../utils/weather'
 import {
   effectiveTimezone,
   formatElapsed,
@@ -56,181 +58,99 @@ interface DashboardHeroProps {
   /**
    * Show the personal attendance section (status pill, check-in/out actions,
    * live Working Mode). Master Admin and Company Admin do not punch in from the
-   * dashboard, so they pass false — they render a resting illustration and a
-   * static "Not Checked In" pill.
+   * dashboard, so they pass false — they render a static "Not Checked In" pill.
    */
   showAttendance?: boolean
 }
 
 /* ------------------------------------------------------------------ */
-/* Time-based decorative sky (independent of attendance state)         */
+/* Time + weather based decorative sky (independent of attendance)     */
 /* ------------------------------------------------------------------ */
 
-const Landscape = memo(function Landscape({ period }: { period: DayPeriod }) {
+/** Sparse night stars — only shown on a clear night (never under clouds). */
+const NIGHT_STARS: Array<[number, number, number]> = [
+  [28, 34, 1.3],
+  [74, 16, 1],
+  [118, 52, 1.5],
+  [158, 28, 1],
+  [196, 64, 1.2],
+  [236, 22, 1.4],
+  [272, 46, 1],
+  [306, 92, 1.1],
+  [352, 116, 1.3],
+  [384, 68, 1],
+  [46, 124, 1],
+  [214, 104, 1.2],
+  [96, 96, 0.9],
+  [140, 12, 1],
+]
+
+const Landscape = memo(function Landscape({ period, weather }: { period: DayPeriod; weather: SkyWeather }) {
   const night = period === 'night'
+  // Precipitation implies cloud cover: hide sun/moon glow, thicken the clouds.
+  const overcast = weather === 'rain' || weather === 'storm' || weather === 'snow'
+  // Twinkling stars only on a clear night — clouds and snowfall hide them.
+  const stars = night && !overcast
 
   if (night) {
     return (
       <svg className="dh-decor" viewBox="0 0 400 200" preserveAspectRatio="xMidYMax slice" aria-hidden="true" focusable="false">
         {/* Moon — subtle crescent */}
-        <circle cx="336" cy="40" r="15" fill="#f5f3d8" opacity="0.85" />
-        <circle cx="329" cy="36" r="12" fill="#0d1430" opacity="0.9" />
+        <circle cx="336" cy="40" r="15" fill="#f5f3d8" opacity={overcast ? 0.25 : 0.85} />
+        <circle cx="329" cy="36" r="12" fill="#0d1430" opacity={overcast ? 0.95 : 0.9} />
+        {stars &&
+          NIGHT_STARS.map(([x, y, r], i) => (
+            <circle
+              key={i}
+              className="dh-star"
+              cx={x}
+              cy={y}
+              r={r}
+              fill="#eaf0ff"
+              style={{ animationDelay: `${(i % 5) * 0.75}s`, animationDuration: `${3 + (i % 4) * 0.6}s` }}
+            />
+          ))}
         {/* Very faint, slow-drifting clouds */}
-        <ellipse className="dh-cloud dh-cloud-a" cx="120" cy="76" rx="44" ry="9" fill="#ffffff" opacity="0.05" />
-        <ellipse className="dh-cloud dh-cloud-b" cx="256" cy="120" rx="34" ry="7" fill="#ffffff" opacity="0.04" />
+        <ellipse className="dh-cloud dh-cloud-a" cx="120" cy="76" rx="44" ry="9" fill="#ffffff" opacity={overcast ? 0.1 : 0.05} />
+        <ellipse className="dh-cloud dh-cloud-b" cx="256" cy="120" rx="34" ry="7" fill="#ffffff" opacity={overcast ? 0.08 : 0.04} />
       </svg>
     )
   }
 
   // Day / evening — soft sun + slow, unobtrusive clouds (position follows the
-  // scene gradient's glow so the light source feels coherent).
+  // scene gradient's glow so the light source feels coherent). No sun while it
+  // is raining or snowing — it sits behind the cloud deck.
   const sunX = period === 'evening' ? 64 : period === 'afternoon' ? 344 : 328
   const sunY = period === 'evening' ? 172 : period === 'afternoon' ? 20 : 32
   return (
     <svg className="dh-decor" viewBox="0 0 400 200" preserveAspectRatio="xMidYMax slice" aria-hidden="true" focusable="false">
-      <circle cx={sunX} cy={sunY} r="42" fill="#fff6c8" opacity="0.2" />
-      <circle cx={sunX} cy={sunY} r="18" fill="#fffbe8" opacity="0.85" />
-      <ellipse className="dh-cloud dh-cloud-a" cx="112" cy="74" rx="46" ry="10" fill="#ffffff" opacity="0.5" />
-      <ellipse className="dh-cloud dh-cloud-b" cx="252" cy="116" rx="36" ry="8" fill="#ffffff" opacity="0.38" />
-    </svg>
-  )
-})
-
-/* ------------------------------------------------------------------ */
-/* Employee character — one identity, five poses (SECTION 5B)          */
-/* ------------------------------------------------------------------ */
-
-const Character = memo(function Character({ mode }: { mode: CharacterMode }) {
-  const skin = '#f0c09a'
-  const hair = '#2b2b3a'
-  const casual = mode === 'on_leave' || mode === 'holiday'
-  const shirt = casual ? '#3f7d5a' : '#33507e'
-  const shirtDark = casual ? '#356a4d' : '#2b4470'
-
-  // Small head + longer torso = natural seated proportions (reads as a
-  // realistic office illustration, not a cartoon). Same identity in all poses.
-  const head = (cx: number, cy: number) => (
-    <>
-      <circle cx={cx} cy={cy} r={7.5} fill={skin} />
-      <path
-        d={`M${cx - 7.5} ${cy - 1.5} q0.5 -8 7.5 -8 q7.5 0 7.5 8 q-3.5 -4.2 -7.5 -3.8 q-4.5 0.4 -7.5 3.8 z`}
-        fill={hair}
-      />
-    </>
-  )
-  const eyes = (cx: number, cy: number) => (
-    <>
-      <circle cx={cx - 2.5} cy={cy + 0.6} r={0.9} fill={hair} />
-      <circle cx={cx + 2.5} cy={cy + 0.6} r={0.9} fill={hair} />
-    </>
-  )
-
-  // Arm pose differs by mode; the body/head stay identical so the character is
-  // unmistakably one person across all five states.
-  const armPose = () => {
-    if (mode === 'working') {
-      return (
+      {!overcast && (
         <>
-          <path d="M123 66 L140 82 L154 90" stroke={shirtDark} strokeWidth={5} strokeLinecap="round" strokeLinejoin="round" fill="none" />
-          <circle cx={155} cy={90} r={3.4} fill={skin} />
+          <circle cx={sunX} cy={sunY} r="42" fill="#fff6c8" opacity="0.2" />
+          <circle cx={sunX} cy={sunY} r="18" fill="#fffbe8" opacity="0.85" />
         </>
-      )
-    }
-    if (mode === 'complete') {
-      // Thumbs-up — day complete.
-      return (
-        <>
-          <path d="M123 66 q9 3 5 -13" stroke={shirt} strokeWidth={5} strokeLinecap="round" fill="none" />
-          <circle cx={127} cy={51} r={4} fill={skin} />
-          <rect x={126} y={43.5} width={3} height={7} rx={1.5} fill={skin} />
-        </>
-      )
-    }
-    if (mode === 'holiday') {
-      return <path d="M123 66 q10 7 6 18" stroke={shirtDark} strokeWidth={5} strokeLinecap="round" fill="none" />
-    }
-    // resting + on_leave — holding a warm mug.
-    return (
-      <>
-        <path d="M123 66 q8 3 4 13" stroke={shirtDark} strokeWidth={5} strokeLinecap="round" fill="none" />
-        <circle cx={126} cy={80} r={3.4} fill={skin} />
-        <rect x={122.5} y={71} width={7} height={6} rx={1.5} fill="#ffffff" opacity={0.95} />
-        <path className="dh-steam" d="M126 69 q2.5 -3 0 -6" stroke="#ffffff" strokeWidth={1.2} fill="none" opacity={0.55} strokeLinecap="round" />
-      </>
-    )
-  }
-
-  return (
-    <svg className="dh-person-svg" viewBox="0 0 240 150" aria-hidden="true" focusable="false">
-      {/* ── Chair (behind the person) ───────────────────────────── */}
-      <rect x="88" y="58" width="9" height="44" rx="4" fill="#0f172a" opacity="0.68" />
-      <rect x="92" y="95" width="48" height="6" rx="3" fill="#0f172a" opacity="0.68" />
-
-      {/* ── Desk ────────────────────────────────────────────────── */}
-      <rect x="40" y="98" width="160" height="6" rx="3" fill="#ffffff" opacity="0.9" />
-      <rect x="52" y="104" width="5" height="32" rx="2.5" fill="#ffffff" opacity="0.5" />
-      <rect x="183" y="104" width="5" height="32" rx="2.5" fill="#ffffff" opacity="0.5" />
-
-      {/* ── Desk plant ──────────────────────────────────────────── */}
-      <path d="M46 90 l3 8 h11 l3 -8 z" fill="#ffffff" opacity={0.8} />
-      <ellipse cx="54" cy="82" rx="6" ry="9" fill="#bbf7d0" opacity={0.8} />
-      <ellipse cx="48" cy="85" rx="4" ry="6" fill="#86efac" opacity={0.75} />
-      <ellipse cx="60" cy="85" rx="4" ry="6" fill="#86efac" opacity={0.75} />
-
-      {/* ── Person (seated, facing the laptop) ──────────────────── */}
-      {(() => {
-        const torso =
-          mode === 'working' ? 'M106 60 q10 -4 20 0 l3 38 h-26 z' : 'M105 60 q11 -4 21 0 l4 38 h-29 z'
-        const cx = mode === 'working' ? 117 : mode === 'complete' ? 116 : 114
-        return (
-          <g>
-            <path d={torso} fill={shirt} />
-            <rect x={cx - 2.5} y={55} width={5} height={6} fill={skin} />
-            {head(cx, 50)}
-            {eyes(cx, 50)}
-            {armPose()}
-          </g>
-        )
-      })()}
-
-      {/* ── Laptop (state per mode) ─────────────────────────────── */}
-      {mode === 'working' ? (
-        <g>
-          <rect x="154" y="94" width="40" height="4" rx="2" fill="#0f172a" opacity={0.9} />
-          <rect x="156" y="72" width="34" height="22" rx="2" fill="#0f172a" opacity={0.9} />
-          <rect className="dh-screen-glow" x="158" y="74" width="30" height="18" rx="1.5" fill="#7dd3fc" opacity={0.9} />
-          <rect x="161" y="77" width="12" height="3" rx="1.5" fill="#0b3a6b" />
-          <rect x="161" y="82" width="20" height="2" rx="1" fill="#0b3a6b" opacity={0.6} />
-        </g>
-      ) : mode === 'resting' ? (
-        <g>
-          <rect x="154" y="94" width="40" height="4" rx="2" fill="#0f172a" opacity={0.9} />
-          <rect x="156" y="72" width="34" height="22" rx="2" fill="#0f172a" opacity={0.9} />
-          <rect x="158" y="74" width="30" height="18" rx="1.5" fill="#1e293b" />
-          <circle cx={173} cy={83} r={1.4} fill="#f59e0b" opacity={0.7} />
-        </g>
-      ) : (
-        // complete / on_leave / holiday — laptop closed.
-        <g>
-          <rect x="154" y="94" width="40" height="4" rx="2" fill="#0f172a" opacity={0.9} />
-          <rect x="157" y="89" width="34" height="5" rx="2" fill="#334155" opacity={0.9} />
-        </g>
       )}
+      <ellipse
+        className="dh-cloud dh-cloud-a"
+        cx="112"
+        cy="74"
+        rx="46"
+        ry="10"
+        fill={overcast ? '#cbd5e1' : '#ffffff'}
+        opacity={overcast ? 0.2 : 0.12}
+      />
+      <ellipse
+        className="dh-cloud dh-cloud-b"
+        cx="252"
+        cy="116"
+        rx="36"
+        ry="8"
+        fill={overcast ? '#cbd5e1' : '#ffffff'}
+        opacity={overcast ? 0.16 : 0.09}
+      />
     </svg>
   )
 })
-
-/* ------------------------------------------------------------------ */
-/* Status pill metadata (SECTION 5B — five modes)                      */
-/* ------------------------------------------------------------------ */
-
-const MODE_PILL: Record<CharacterMode, string> = {
-  resting: 'Not Checked In',
-  working: 'Working',
-  complete: 'Checked Out',
-  on_leave: 'On Leave',
-  holiday: 'Off',
-}
 
 /* ------------------------------------------------------------------ */
 /* Helpers                                                             */
@@ -374,14 +294,15 @@ function useDayContext(): DayContext {
 /* Attendance slice (employees) — resolves the mode and renders it     */
 /* ------------------------------------------------------------------ */
 
-function HeroAttendance({ badge, tz, now, onModeChange }: { badge: string; tz: string | null; now: Date; onModeChange?: (m: CharacterMode) => void }) {
+function HeroAttendance({ badge, tz, now }: { badge: string; tz: string | null; now: Date }) {
   const { todayRecord, loading, checkingIn, checkingOut, checkIn, checkOut, msg } = useAttendancePunch()
   const day = useDayContext()
 
   const hasIn = !!todayRecord?.checkIn
   const hasOut = !!todayRecord?.checkOut
 
-  // Single authoritative mode — resolved from backend records only.
+  // Single authoritative mode — resolved from backend records only (drives the
+  // status pill and the detail line).
   const resolved = resolveCharacterMode({
     hasCheckIn: hasIn,
     hasCheckOut: hasOut,
@@ -394,13 +315,6 @@ function HeroAttendance({ badge, tz, now, onModeChange }: { badge: string; tz: s
   })
   const mode = resolved.mode
   const working = mode === 'working'
-
-  // Report the resolved mode up so the hero can place the character in its own
-  // dedicated column (it can't live inside this slice's DOM flow without
-  // overlapping the clock). setMode is stable, so this won't loop.
-  useEffect(() => {
-    onModeChange?.(mode)
-  }, [mode, onModeChange])
 
   const elapsedMs = working && toDate(todayRecord?.checkIn)
     ? now.getTime() - toDate(todayRecord!.checkIn)!.getTime()
@@ -503,14 +417,22 @@ function HeroAttendance({ badge, tz, now, onModeChange }: { badge: string; tz: s
 /* Hero                                                                */
 /* ------------------------------------------------------------------ */
 
+/* Dev-only scene preview for QA: `?sky=rain|storm|snow|clouds|clear`.
+   `import.meta.env.DEV` compiles to `false` in production builds, so this
+   constant — and the query parameter it reads — are stripped from the shipped
+   bundle; production always renders live conditions. */
+const DEV_SKY: SkyWeather | null = import.meta.env.DEV
+  ? (new URLSearchParams(window.location.search).get('sky') as SkyWeather | null)
+  : null
+
 export function DashboardHero({ stats, badge, showAttendance = true }: DashboardHeroProps) {
   const { user } = useAuth()
   const { effectiveCompanyId } = useCompany()
   const [companyTz, setCompanyTz] = useState<string | null>(null)
   const [now, setNow] = useState<Date>(() => new Date())
-  // The character pose, reported up by HeroAttendance (defaults to resting so
-  // admins without an attendance slice, and the pre-load state, show resting).
-  const [heroMode, setHeroMode] = useState<CharacterMode>('resting')
+  // Live sky conditions for the background (Open-Meteo + location; silently
+  // falls back to time-of-day-only scenes when unavailable).
+  const sky = useHeroSky()
 
   useEffect(() => {
     let dead = false
@@ -539,11 +461,14 @@ export function DashboardHero({ stats, badge, showAttendance = true }: Dashboard
   const tz = effectiveTimezone(companyTz)
   const { period, greeting } = getHeroScene(now, tz)
   const roleBadge = badge || roleDepartmentLabel(user)
+  const weather = DEV_SKY ?? sky.weather
 
   return (
-    <section className="dh" data-period={period} aria-label="Welcome summary">
+    <section className="dh" data-period={period} data-weather={weather} aria-label="Welcome summary">
       <div className="dh-scene" aria-hidden="true" />
-      <Landscape period={period} />
+      <Landscape period={period} weather={weather} />
+      {(weather === 'rain' || weather === 'storm') && <div className="dh-rain" aria-hidden="true" />}
+      {weather === 'snow' && <div className="dh-snow" aria-hidden="true" />}
       <div className="dh-scrim" aria-hidden="true" />
 
       <div className="dh-inner">
@@ -552,10 +477,9 @@ export function DashboardHero({ stats, badge, showAttendance = true }: Dashboard
           <h2 className="dh-name">{user?.name || 'User'}</h2>
 
           {showAttendance ? (
-            <HeroAttendance badge={roleBadge} tz={tz} now={now} onModeChange={setHeroMode} />
+            <HeroAttendance badge={roleBadge} tz={tz} now={now} />
           ) : (
-            /* Company Admin: static pill; the resting character lives in the
-               side column below the clock. */
+            /* Company Admin — static pill (no attendance slice on the hero). */
             <div className="dh-badges">
               <span className="dh-role">
                 <Users size={13} aria-hidden="true" /> {roleBadge}
@@ -579,12 +503,6 @@ export function DashboardHero({ stats, badge, showAttendance = true }: Dashboard
             <span className="dh-clock-greeting">
               <MapPin size={14} aria-hidden="true" /> {greeting}
             </span>
-          </div>
-
-          {/* Character — its own dedicated area under the clock, never
-              overlapping the time, date, greeting, or status badges. */}
-          <div className="dh-worker" data-mode={heroMode === 'working' ? 'work' : 'rest'} aria-hidden="true">
-            <Character mode={heroMode} />
           </div>
         </div>
 

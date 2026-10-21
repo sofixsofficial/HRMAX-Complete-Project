@@ -23,6 +23,11 @@ html, body {
 /* Page Container */
 .page-container {
   flex: 1;
+  /* min-width: 0 — as a flex item its auto minimum would be min-content, which
+     lets a wide table push the whole page past the viewport (horizontal page
+     scroll). With 0 it shrinks to the available width and the table scrolls
+     inside its own .table-container instead. */
+  min-width: 0;
   margin-left: 260px;
   background: #f9fafb;
   min-height: 100vh;
