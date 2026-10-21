@@ -430,8 +430,9 @@ export function DashboardHero({ stats, badge, showAttendance = true }: Dashboard
   const { effectiveCompanyId } = useCompany()
   const [companyTz, setCompanyTz] = useState<string | null>(null)
   const [now, setNow] = useState<Date>(() => new Date())
-  // Live sky conditions for the background (Open-Meteo + location; silently
-  // falls back to time-of-day-only scenes when unavailable).
+  // Live sky conditions for the background (Open-Meteo). Phase 1 is the real
+  // New Delhi weather + Asia/Kolkata timezone (no permission needed); phase 2
+  // upgrades to the user's actual place when location is shared.
   const sky = useHeroSky()
 
   useEffect(() => {
@@ -459,12 +460,23 @@ export function DashboardHero({ stats, badge, showAttendance = true }: Dashboard
   }, [])
 
   const tz = effectiveTimezone(companyTz)
-  const { period, greeting } = getHeroScene(now, tz)
+  // The hero clock, date, greeting and SCENE follow the timezone of the place
+  // whose weather is displayed (the user's real location, or the India
+  // default) — "jahan ka time, wahi ka mausam". Punch times keep the
+  // business/company timezone so attendance display stays authoritative.
+  const heroTz = sky.timezone ?? tz
+  const { period, greeting } = getHeroScene(now, heroTz)
   const roleBadge = badge || roleDepartmentLabel(user)
   const weather = DEV_SKY ?? sky.weather
 
   return (
-    <section className="dh" data-period={period} data-weather={weather} aria-label="Welcome summary">
+    <section
+      className="dh"
+      data-period={period}
+      data-weather={weather}
+      data-sky-source={sky.source}
+      aria-label="Welcome summary"
+    >
       <div className="dh-scene" aria-hidden="true" />
       <Landscape period={period} weather={weather} />
       {(weather === 'rain' || weather === 'storm') && <div className="dh-rain" aria-hidden="true" />}
@@ -495,14 +507,16 @@ export function DashboardHero({ stats, badge, showAttendance = true }: Dashboard
           <div className="dh-clock">
             <div className="dh-clock-time-row">
               {periodIcon(period)}
-              <span className="dh-clock-time">{fmtClockTime(now, tz)}</span>
+              <span className="dh-clock-time">{fmtClockTime(now, heroTz)}</span>
             </div>
             <span className="dh-clock-date">
-              <Calendar size={14} aria-hidden="true" /> {fmtClockDate(now, tz)}
+              <Calendar size={14} aria-hidden="true" /> {fmtClockDate(now, heroTz)}
             </span>
-            <span className="dh-clock-greeting">
-              <MapPin size={14} aria-hidden="true" /> {greeting}
+            <span className="dh-clock-loc">
+              <MapPin size={13} aria-hidden="true" /> {sky.locationLabel ?? 'New Delhi, India'}
+              {sky.tempC != null && <span className="dh-clock-temp">· {Math.round(sky.tempC)}°C</span>}
             </span>
+            <span className="dh-clock-greeting">{greeting}</span>
           </div>
         </div>
 

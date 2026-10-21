@@ -1,31 +1,61 @@
 /**
- * Live sky conditions for the dashboard hero background (SECTION 5B — visual
- * layer only).
+ * Live sky conditions + place context for the dashboard hero background
+ * (visual layer only).
  *
- * Reads the browser location (the same permission the attendance punch already
- * asks for) and fetches current conditions from the free Open-Meteo API — no
- * API key, no backend call, no personal data stored anywhere. Every failure
- * path (permission denied, offline, timeout, API error) degrades to
- * `unknown`, which simply means the hero keeps its time-of-day scene. This
+ * Two-phase resolution so the hero always has a place:
+ *
+ *   1. DEFAULT PLACE (New Delhi, India) — fetched immediately, no permission
+ *      needed: real current weather + the Asia/Kolkata timezone. This is the
+ *      "by default India" behaviour.
+ *   2. USER'S LOCATION — if the browser geolocation permission is granted (the
+ *      same permission the attendance punch already asks for), conditions and
+ *      IANA timezone upgrade to the user's actual place, so the hero clock and
+ *      the background always belong to ONE location ("jahan ka time, wahi ka
+ *      mausam").
+ *
+ * Weather comes from the free Open-Meteo API (no key, no backend call); the
+ * city label from the free BigDataCloud reverse-geocode endpoint. Every failure
+ * path degrades gracefully to the India baseline (time-of-day scene). This
  * never touches attendance, payroll, or any backend record.
  */
 
 export type SkyWeather = 'unknown' | 'clear' | 'clouds' | 'rain' | 'storm' | 'snow'
+
+/** Where the hero's place came from. */
+export type SkySource = 'device' | 'default' | 'none'
 
 export interface SkyConditions {
   /** Simplified condition used to pick the hero scene. */
   weather: SkyWeather
   /** Current temperature in °C when available (drives the winter scene). */
   tempC: number | null
+  /** Human place label, e.g. "New Delhi, India" — populated once loaded. */
+  locationLabel: string | null
+  /** IANA timezone of the place (Open-Meteo `timezone`) — drives the hero clock. */
+  timezone: string | null
+  /** Whether the place is the user's real location or the India default. */
+  source: SkySource
 }
 
-const UNKNOWN: SkyConditions = { weather: 'unknown', tempC: null }
+export interface SkyPlace {
+  lat: number
+  lon: number
+  /** Known label up front (default place); user place is reverse-geocoded. */
+  label: string | null
+  /** Known IANA timezone up front; user place gets it from Open-Meteo. */
+  timezone: string | null
+}
+
+/** India baseline — used instantly, and whenever location/API is unavailable. */
+export const DEFAULT_PLACE: SkyPlace = {
+  lat: 28.6139,
+  lon: 77.209,
+  label: 'New Delhi, India',
+  timezone: 'Asia/Kolkata',
+}
+
 const REFRESH_MS = 30 * 60 * 1000 // re-check the sky every 30 minutes
 const FETCH_TIMEOUT_MS = 8000
-
-let cached: SkyConditions | null = null
-let cachedAt = 0
-let inflight: Promise<SkyConditions> | null = null
 
 /**
  * WMO weather interpretation codes (what Open-Meteo returns) → sky scene.
@@ -77,44 +107,111 @@ function withTimeout<T>(promise: Promise<T>, ms: number): Promise<T> {
   })
 }
 
-async function load(): Promise<SkyConditions> {
-  const coords = await getPosition()
+/** "New Delhi, India" for the given coords; null on any failure (keyless API). */
+async function reverseLabel(lat: number, lon: number): Promise<string | null> {
   const url =
-    `https://api.open-meteo.com/v1/forecast?latitude=${coords.latitude.toFixed(4)}` +
-    `&longitude=${coords.longitude.toFixed(4)}&current=temperature_2m,weather_code`
-  const res = await withTimeout(fetch(url), FETCH_TIMEOUT_MS)
-  if (!res.ok) return UNKNOWN
-  const data = (await res.json()) as {
-    current?: { temperature_2m?: number; weather_code?: number }
+    `https://api.bigdatacloud.net/data/reverse-geocode-client?latitude=${lat.toFixed(4)}` +
+    `&longitude=${lon.toFixed(4)}&localityLanguage=en`
+  try {
+    const res = await withTimeout(fetch(url), FETCH_TIMEOUT_MS)
+    if (!res.ok) return null
+    const data = (await res.json()) as {
+      city?: string
+      locality?: string
+      principalSubdivision?: string
+      countryName?: string
+    }
+    const city = data.city || data.locality || data.principalSubdivision
+    if (!city) return null
+    return data.countryName && data.countryName !== city ? `${city}, ${data.countryName}` : city
+  } catch {
+    return null
   }
-  const tempC = typeof data.current?.temperature_2m === 'number' ? data.current.temperature_2m : null
-  const code = typeof data.current?.weather_code === 'number' ? data.current.weather_code : 0
-  return { weather: toCondition(code, tempC), tempC }
+}
+
+/** Current conditions + timezone for a place. Never throws — a miss returns the baseline shape. */
+async function fetchPlaceWeather(place: SkyPlace, source: SkySource): Promise<SkyConditions> {
+  const base: SkyConditions = {
+    weather: 'unknown',
+    tempC: null,
+    locationLabel: place.label,
+    timezone: place.timezone,
+    source,
+  }
+  const url =
+    `https://api.open-meteo.com/v1/forecast?latitude=${place.lat.toFixed(4)}` +
+    `&longitude=${place.lon.toFixed(4)}&current=temperature_2m,weather_code&timezone=auto`
+  try {
+    const res = await withTimeout(fetch(url), FETCH_TIMEOUT_MS)
+    if (!res.ok) return base
+    const data = (await res.json()) as {
+      timezone?: string
+      current?: { temperature_2m?: number; weather_code?: number }
+    }
+    const tempC = typeof data.current?.temperature_2m === 'number' ? data.current.temperature_2m : null
+    const code = typeof data.current?.weather_code === 'number' ? data.current.weather_code : 0
+    return {
+      weather: toCondition(code, tempC),
+      tempC,
+      locationLabel: place.label,
+      timezone: data.timezone || place.timezone,
+      source,
+    }
+  } catch {
+    return base
+  }
+}
+
+// Per-place weather cache so navigations and the 30-minute refresh do not
+// hammer the API.
+const weatherCache = new Map<string, { at: number; conditions: SkyConditions }>()
+const placeKey = (place: SkyPlace, source: SkySource) => `${source}:${place.lat.toFixed(3)},${place.lon.toFixed(3)}`
+
+async function cachedWeather(place: SkyPlace, source: SkySource): Promise<SkyConditions> {
+  const key = placeKey(place, source)
+  const hit = weatherCache.get(key)
+  if (hit && Date.now() - hit.at < REFRESH_MS) return hit.conditions
+  const conditions = await fetchPlaceWeather(place, source)
+  weatherCache.set(key, { at: Date.now(), conditions })
+  return conditions
+}
+
+// The user's actual place — resolved at most once per session so we never
+// re-prompt in a loop. `undefined` = not tried yet, `null` = unavailable.
+let userPlace: SkyPlace | null | undefined
+
+async function getUserPlace(): Promise<SkyPlace | null> {
+  if (userPlace !== undefined) return userPlace
+  try {
+    const coords = await getPosition()
+    userPlace = { lat: coords.latitude, lon: coords.longitude, label: null, timezone: null }
+  } catch {
+    userPlace = null
+  }
+  return userPlace
+}
+
+/** Phase 1 — India baseline: real New Delhi weather + Asia/Kolkata, no permission needed. */
+export function fetchDefaultSky(): Promise<SkyConditions> {
+  return cachedWeather(DEFAULT_PLACE, 'default')
 }
 
 /**
- * Current sky conditions, cached for REFRESH_MS so the dashboard neither hits
- * the API nor re-requests location on every navigation. Never throws — a miss
- * is remembered briefly so we don't re-prompt in a loop, then retried later.
+ * Phase 2 — the user's real place (weather + IANA timezone + city label).
+ * Returns null when location is unavailable so the caller keeps the baseline.
  */
-export function fetchSkyConditions(): Promise<SkyConditions> {
-  if (cached && Date.now() - cachedAt < REFRESH_MS) return Promise.resolve(cached)
-  if (inflight) return inflight
-
-  inflight = load()
-    .then((conditions) => {
-      cached = conditions
-      cachedAt = Date.now()
-      return conditions
-    })
-    .catch(() => {
-      cached = UNKNOWN
-      cachedAt = Date.now()
-      return UNKNOWN
-    })
-    .finally(() => {
-      inflight = null
-    })
-
-  return inflight
+export async function fetchUserSky(): Promise<SkyConditions | null> {
+  const place = await getUserPlace()
+  if (!place) return null
+  const key = placeKey(place, 'device')
+  const [conditions, label] = await Promise.all([
+    cachedWeather(place, 'device'),
+    place.label ? Promise.resolve(place.label) : reverseLabel(place.lat, place.lon),
+  ])
+  if (!label) return conditions
+  // Label resolved lazily so the weather never waits on the geocode.
+  const merged: SkyConditions = { ...conditions, locationLabel: label }
+  place.label = label
+  weatherCache.set(key, { at: Date.now(), conditions: merged })
+  return merged
 }
