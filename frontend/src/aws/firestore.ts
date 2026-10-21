@@ -448,8 +448,39 @@ async function fetchCollection(q: Query): Promise<DocumentData[]> {
       docs = docs.filter((d) => d[w.field!] !== w.value);
     } else if (['<', '<=', '>', '>='].includes(w.op!)) {
       const rhs = w.value as any;
+      // Date range queries (e.g. where('date','>=',today)). The REST layer
+      // stores dates as ISO strings, so comparing a raw string against the
+      // Date operand would coerce to NaN (always false) and drop every record.
+      // When the query operand is a Date, coerce both sides to timestamps.
+      const rhsIsDate = rhs instanceof Date;
+      const toMs = (val: unknown): number => {
+        if (val instanceof Date) return val.getTime();
+        if (typeof val === 'number') return val;
+        if (typeof val === 'string') {
+          const t = new Date(val).getTime();
+          return Number.isNaN(t) ? NaN : t;
+        }
+        const td = (val as { toDate?: () => unknown })?.toDate;
+        if (typeof td === 'function') {
+          const d = td.call(val);
+          if (d instanceof Date) return d.getTime();
+        }
+        return NaN;
+      };
       docs = docs.filter((d) => {
         const v = d[w.field!];
+        if (rhsIsDate) {
+          const vt = toMs(v);
+          if (Number.isNaN(vt)) return false;
+          const rt = rhs.getTime();
+          switch (w.op) {
+            case '<': return vt < rt;
+            case '<=': return vt <= rt;
+            case '>': return vt > rt;
+            case '>=': return vt >= rt;
+            default: return true;
+          }
+        }
         switch (w.op) {
           case '<': return v < rhs;
           case '<=': return v <= rhs;
@@ -515,6 +546,23 @@ export async function getDoc(ref: DocumentReference): Promise<DocumentSnapshot> 
 const DEFAULT_POLL_MS = 20_000;
 
 export type Unsubscribe = () => void;
+
+// Active polling listeners, exposed so write paths (check-in / check-out) can
+// force an immediate refetch instead of waiting out the 17–26 s jitter — the
+// server-confirmed attendance record then lands in the UI within a second of
+// the successful write. Handlers are re-registered on every subscribe.
+const activeForceTicks = new Set<() => void>();
+
+/** Force every active onSnapshot listener to refetch right now. */
+export function invalidateSnapshots(): void {
+  for (const tick of [...activeForceTicks]) {
+    try {
+      tick()
+    } catch {
+      /* a broken listener must not block the refresh of the others */
+    }
+  }
+}
 
 export interface SnapshotListenOptions {
   includeMetadataChanges?: boolean;
@@ -656,10 +704,14 @@ export function onSnapshot(
     }
   };
 
+  const forceTick = () => void tick();
+  activeForceTicks.add(forceTick);
+
   schedule(0, () => void tick());
 
   return () => {
     stopped = true;
+    activeForceTicks.delete(forceTick);
     if (timer) clearTimeout(timer);
   };
 }

@@ -13,6 +13,7 @@ export {
   getDocs,
   getDoc,
   onSnapshot,
+  invalidateSnapshots,
   addDoc,
   setDoc,
   updateDoc,

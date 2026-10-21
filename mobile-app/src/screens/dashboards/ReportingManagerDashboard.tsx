@@ -14,7 +14,7 @@ import { StatCard } from '../../components/StatCard';
 import { StatsGrid } from '../../components/StatsGrid';
 import { MissedPunchAlertCard } from '../../components/MissedPunchAlertCard';
 import { LeaveApprovalsPanel } from '../../components/LeaveApprovalsPanel';
-import { DashboardHeader } from '../../components/DashboardHeader';
+import { DashboardHero } from '../../components/DashboardHero';
 import { createLeaveRequest, calcLeaveDays, isLeaveTypePaid } from '../../services/leaveService';
 import type { LeaveType } from '../../types/user';
 
@@ -130,7 +130,7 @@ export const ReportingManagerDashboard: React.FC<{ navigation: any }> = ({ navig
 
   return (
     <ScrollView style={s.container} refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor="#FF6600" />}>
-      <DashboardHeader
+      <DashboardHero
         name={user?.name || 'Manager'}
         roleLabel={(user as any)?.department || 'Reporting Manager'}
         subtitle={`Managing ${team.directReports} direct report${team.directReports === 1 ? '' : 's'}`}

@@ -8,7 +8,7 @@ import { DashboardSkeleton } from '../../components/SkeletonLoader';
 import { Icon } from '../../utils/icons';
 import { StatCard } from '../../components/StatCard';
 import { StatsGrid } from '../../components/StatsGrid';
-import { DashboardHeader } from '../../components/DashboardHeader';
+import { DashboardHero } from '../../components/DashboardHero';
 import { LeaveApprovalsPanel } from '../../components/LeaveApprovalsPanel';
 
 const QUICK_ACTIONS = [
@@ -52,10 +52,11 @@ export const CompanyDashboard: React.FC<{ navigation: any }> = ({ navigation }) 
 
   return (
     <ScrollView style={s.container} refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor="#FF6600" />}>
-      <DashboardHeader
+      <DashboardHero
         name={user?.name || 'Admin'}
         roleLabel={selectedCompanyName || 'Company Admin'}
         subtitle={selectedCompanyName ? 'Internal Head · Managing your company operations' : "Here's your company's overview today."}
+        showAttendance={false}
         stats={[
           { label: 'Present', value: stats.presentToday, color: '#10b981' },
           { label: 'Absent', value: stats.absentToday, color: '#ef4444' },

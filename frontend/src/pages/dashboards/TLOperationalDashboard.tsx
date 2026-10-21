@@ -8,6 +8,7 @@ import {
 import { collection, query, where, orderBy, limit, onSnapshot } from 'firebase/firestore'
 import { db } from '../../config/firebase'
 import { Header } from '../../components/Header'
+import { DashboardHero } from '../../components/DashboardHero'
 import { Modal } from '../../components/Modal'
 import { TLFilterBar } from '../../components/TLFilterBar'
 import { MissedPunchAlertCard } from '../../components/MissedPunchAlertCard'
@@ -25,7 +26,6 @@ import { createTask } from '../../services/taskService'
 import { logAudit } from '../../services/auditLogService'
 import { getNextPendingTier, TIER_LABELS, reviewTierLeaveRequest } from '../../services/leaveService'
 import type { Task, LeaveRequest } from '../../types/user'
-import { roleDepartmentLabel } from '../../utils/roleLabels'
 import './TLOperationalDashboard.css'
 import './../Dashboard.css'
 
@@ -394,26 +394,14 @@ export function TLOperationalDashboard() {
 
       <div className="page-content">
         {/* ===== Welcome Hero (top of content, mirrors other role dashboards) ===== */}
-        <div className="dash-hero">
-          <div className="dash-hero-content">
-            <span className="dash-hero-greeting">Welcome back,</span>
-            <h2 className="dash-hero-name">{authUser?.name || 'User'}</h2>
-            <span className="dash-hero-role">{roleDepartmentLabel(authUser)}</span>
-          </div>
-          <div className="dash-hero-stats">
-            {[
-              { label: 'Present', value: teamStats.presentToday, color: '#10b981' },
-              { label: 'Pending Tasks', value: teamStats.pendingTasks, color: '#ec4899' },
-              { label: 'Leaves', value: teamStats.pendingLeaves, color: '#3b82f6' },
-              { label: 'Approved', value: teamStats.approvedLeaves, color: '#10b981' },
-            ].map((s) => (
-              <div key={s.label} className="dash-hero-stat">
-                <span className="dash-hero-stat-value" style={{ color: s.color }}>{s.value}</span>
-                <span className="dash-hero-stat-label">{s.label}</span>
-              </div>
-            ))}
-          </div>
-        </div>
+        <DashboardHero
+          stats={[
+            { label: 'Present', value: teamStats.presentToday, color: '#10b981' },
+            { label: 'Pending Tasks', value: teamStats.pendingTasks, color: '#ec4899' },
+            { label: 'Leaves', value: teamStats.pendingLeaves, color: '#3b82f6' },
+            { label: 'Approved', value: teamStats.approvedLeaves, color: '#10b981' },
+          ]}
+        />
 
         {/* ===== Missed Punch + Leave Approvals (immediate reviewer attention) ===== */}
         {scopedCompanyIds.length > 0 && (

@@ -9,6 +9,7 @@ import {
 import { collection, query, where, onSnapshot } from 'firebase/firestore'
 import { db } from '../../config/firebase'
 import { Header } from '../../components/Header'
+import { DashboardHero } from '../../components/DashboardHero'
 import { MissedPunchAlertCard } from '../../components/MissedPunchAlertCard'
 import { LeaveApprovalsPanel } from '../../components/LeaveApprovalsPanel'
 import { LeaveApplyModal } from '../../components/LeaveApplyModal'
@@ -18,7 +19,6 @@ import { useCompany } from '../../context/CompanyContext'
 import { usePermissionScope } from '../../hooks/usePermissionScope'
 import { useDashboardStats } from '../../hooks/useDashboardStats'
 import { logAudit } from '../../services/auditLogService'
-import { roleDepartmentLabel } from '../../utils/roleLabels'
 import './../Dashboard.css'
 
 interface CardDef {
@@ -248,27 +248,15 @@ export function ExecutiveDashboard() {
 
         {hasCompanyContext && (
           <>
-            {/* Welcome Hero */}
-            <div className="dash-hero">
-              <div className="dash-hero-content">
-                <span className="dash-hero-greeting">Welcome back,</span>
-                <h2 className="dash-hero-name">{user?.name || 'User'}</h2>
-                <span className="dash-hero-role">{roleDepartmentLabel(user)}</span>
-              </div>
-              <div className="dash-hero-stats">
-                {[
-                  { label: 'Present', value: stats.presentToday, color: '#10b981' },
-                  { label: 'Absent', value: stats.absentToday, color: '#ef4444' },
-                  { label: 'On Leave', value: stats.onLeaveToday, color: '#3b82f6' },
-                  { label: 'Tasks', value: stats.pendingTasks, color: '#ec4899' },
-                ].map((s) => (
-                  <div key={s.label} className="dash-hero-stat">
-                    <span className="dash-hero-stat-value" style={{ color: s.color }}>{s.value}</span>
-                    <span className="dash-hero-stat-label">{s.label}</span>
-                  </div>
-                ))}
-              </div>
-            </div>
+            {/* Welcome Hero — time-based scene, live clock, server-confirmed working mode */}
+            <DashboardHero
+              stats={[
+                { label: 'Present', value: stats.presentToday, color: '#10b981' },
+                { label: 'Absent', value: stats.absentToday, color: '#ef4444' },
+                { label: 'On Leave', value: stats.onLeaveToday, color: '#3b82f6' },
+                { label: 'Tasks', value: stats.pendingTasks, color: '#ec4899' },
+              ]}
+            />
 
             {/* Missed Punch Alert */}
             <MissedPunchAlertCard count={stats.missPunchApprovals} badge={stats.missPunchApprovals} />

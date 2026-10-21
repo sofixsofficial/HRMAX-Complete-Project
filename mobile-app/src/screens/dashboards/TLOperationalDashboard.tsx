@@ -13,7 +13,7 @@ import { DashboardSkeleton } from '../../components/SkeletonLoader';
 import { Icon } from '../../utils/icons';
 import { StatCard } from '../../components/StatCard';
 import { StatsGrid } from '../../components/StatsGrid';
-import { DashboardHeader } from '../../components/DashboardHeader';
+import { DashboardHero } from '../../components/DashboardHero';
 import { LeaveApprovalsPanel } from '../../components/LeaveApprovalsPanel';
 import { createTask } from '../../services/taskService';
 import { reviewTierLeaveRequest, getActionableLeaveTier } from '../../services/leaveService';
@@ -380,7 +380,7 @@ export const TLOperationalDashboard: React.FC<{ navigation: any }> = ({ navigati
   if (availableCompanies.length === 0) {
     return (
       <ScrollView style={s.container} refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor="#FF6600" />}>
-        <DashboardHeader
+        <DashboardHero
           name={user?.name || 'Team Leader'}
           roleLabel="Team Leader"
           subtitle="You don't have any companies assigned to your account."
@@ -416,7 +416,7 @@ export const TLOperationalDashboard: React.FC<{ navigation: any }> = ({ navigati
 
   return (
     <ScrollView style={s.container} refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor="#FF6600" />}>
-      <DashboardHeader
+      <DashboardHero
         name={user?.name || 'Team Leader'}
         roleLabel="Team Leader"
         subtitle="Here's your team's activity for today."

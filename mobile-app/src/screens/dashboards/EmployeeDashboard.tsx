@@ -17,7 +17,7 @@ import { StatCard } from '../../components/StatCard';
 import { StatsGrid } from '../../components/StatsGrid';
 import { MissedPunchAlertCard } from '../../components/MissedPunchAlertCard';
 import { PremiumCard } from '../../components/PremiumComponents';
-import { DashboardHeader } from '../../components/DashboardHeader';
+import { DashboardHero } from '../../components/DashboardHero';
 import type { AttendanceRecord } from '../../types/user';
 
 const QUICK_ACTIONS = [
@@ -205,10 +205,11 @@ export const EmployeeDashboard: React.FC<{ navigation: any }> = ({ navigation })
 
   return (
     <ScrollView style={s.container} refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor="#FF6600" />}>
-      <DashboardHeader
+      <DashboardHero
         name={user?.name || 'Employee'}
         roleLabel={designation || 'Employee'}
         subtitle="Here's your personal summary for today."
+        showPunchActions={false}
         stats={[
           { label: 'Month %', value: attendanceRate === null ? '—' : `${attendanceRate}%`, color: '#10b981' },
           { label: 'Leaves', value: pendingLeaves, color: '#f59e0b' },

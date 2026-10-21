@@ -9,7 +9,7 @@ import { useCompany } from '../../context/CompanyContext';
 import { Icon } from '../../utils/icons';
 import { StatCard } from '../../components/StatCard';
 import { StatsGrid } from '../../components/StatsGrid';
-import { DashboardHeader } from '../../components/DashboardHeader';
+import { DashboardHero } from '../../components/DashboardHero';
 import { LeaveApprovalsPanel } from '../../components/LeaveApprovalsPanel';
 
 const QUICK_ACTIONS = [
@@ -93,7 +93,7 @@ export const ExecutiveDashboard: React.FC<{ navigation: any }> = ({ navigation }
 
   return (
     <ScrollView style={s.container} refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor="#FF6600" />}>
-      <DashboardHeader
+      <DashboardHero
         name={user?.name || 'Executive'}
         roleLabel="Executive"
         subtitle={noCompanies

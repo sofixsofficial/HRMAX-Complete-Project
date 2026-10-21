@@ -1,0 +1,449 @@
+/* ------------------------------------------------------------------ */
+/* DashboardHero — time-based premium hero with live working mode      */
+/* Layout follows the reference: left greeting/badge/status, right     */
+/* clock + contextual greeting, full-width stats strip along the       */
+/* bottom with vertical dividers.                                      */
+/* ------------------------------------------------------------------ */
+
+.dh {
+  position: relative;
+  overflow: hidden;
+  margin-bottom: 24px;
+  border-radius: 18px;
+  min-height: 210px;
+  color: #fff;
+  box-shadow: 0 12px 32px rgba(2, 6, 23, 0.28);
+  isolation: isolate;
+}
+
+/* ── Scenes (lightweight CSS gradients, one per local-time period) ─── */
+.dh-scene {
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  transition: opacity 0.6s ease;
+}
+.dh[data-period='morning'] .dh-scene {
+  background:
+    radial-gradient(circle at 82% 16%, rgba(255, 236, 170, 0.6), transparent 40%),
+    radial-gradient(circle at 82% 16%, rgba(255, 214, 138, 0.45), transparent 24%),
+    linear-gradient(165deg, #1c5fb0 0%, #3a86d4 42%, #7cc0ee 78%, #ffe6a8 100%);
+}
+.dh[data-period='afternoon'] .dh-scene {
+  background:
+    radial-gradient(circle at 86% 10%, rgba(255, 248, 214, 0.55), transparent 36%),
+    linear-gradient(165deg, #0d47a1 0%, #1f6fd0 50%, #5fa8e8 100%);
+}
+.dh[data-period='evening'] .dh-scene {
+  background:
+    radial-gradient(circle at 16% 86%, rgba(255, 179, 71, 0.5), transparent 44%),
+    linear-gradient(165deg, #221a4d 0%, #5b2a68 38%, #b34a4e 70%, #f08a3c 95%);
+}
+.dh[data-period='night'] .dh-scene {
+  background:
+    radial-gradient(circle at 84% 20%, rgba(120, 150, 255, 0.16), transparent 40%),
+    linear-gradient(165deg, #070d1f 0%, #101a38 55%, #1b2752 100%);
+}
+
+.dh-decor {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+}
+
+/* Stars twinkle — disabled under reduced motion */
+.dh-star {
+  animation: dh-twinkle 4s ease-in-out infinite;
+}
+@keyframes dh-twinkle {
+  0%, 100% { opacity: 0.35; }
+  50% { opacity: 1; }
+}
+
+/* Scrim keeps white text readable on bright scenes (WCAG contrast) */
+.dh-scrim {
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  background:
+    linear-gradient(90deg, rgba(2, 6, 23, 0.58) 0%, rgba(2, 6, 23, 0.32) 48%, rgba(2, 6, 23, 0.16) 100%),
+    linear-gradient(180deg, rgba(2, 6, 23, 0.32) 0%, rgba(2, 6, 23, 0.08) 42%, rgba(2, 6, 23, 0.2) 100%);
+  pointer-events: none;
+}
+
+/* ── Layout ────────────────────────────────────────────────────────── */
+.dh-inner {
+  position: relative;
+  z-index: 2;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  grid-template-areas:
+    'main clock'
+    'stats stats';
+  padding: 26px 30px 0;
+}
+
+.dh-main { grid-area: main; min-width: 0; position: static; padding-bottom: 20px; }
+.dh-side { grid-area: clock; padding-bottom: 20px; }
+
+.dh-greeting {
+  display: block;
+  font-size: 20px;
+  font-weight: 500;
+  letter-spacing: 0.3px;
+  color: rgba(148, 163, 184, 0.95);
+  text-shadow: 0 1px 2px rgba(2, 6, 23, 0.4);
+}
+
+.dh-name {
+  margin: 2px 0 0;
+  font-size: 34px;
+  font-weight: 800;
+  line-height: 1.15;
+  letter-spacing: -0.4px;
+  color: #fff;
+  text-shadow: 0 2px 4px rgba(2, 6, 23, 0.5);
+}
+
+.dh-badges {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+  margin-top: 14px;
+}
+
+/* Gold/amber role pill (reference: 👑 Master Admin) */
+.dh-role {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 16px;
+  border-radius: 100px;
+  background: rgba(17, 24, 39, 0.72);
+  border: 1.5px solid rgba(251, 191, 36, 0.75);
+  color: #fbbf24;
+  font-size: 13px;
+  font-weight: 700;
+  backdrop-filter: blur(6px);
+}
+
+/* Status chip — server-confirmed attendance state */
+.dh-status {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  padding: 5px 14px;
+  border-radius: 100px;
+  font-size: 12.5px;
+  font-weight: 600;
+  border: 1px solid transparent;
+  background: rgba(2, 6, 23, 0.42);
+  backdrop-filter: blur(6px);
+  color: #e2e8f0;
+}
+.dh-status-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: currentColor;
+}
+.dh-status[data-state='working'] {
+  color: #6ee7b7;
+  border-color: rgba(16, 185, 129, 0.55);
+  background: rgba(6, 78, 59, 0.5);
+}
+.dh-status[data-state='working'] .dh-status-dot {
+  animation: dh-pulse 1.6s ease-in-out infinite;
+}
+.dh-status[data-state='done'] {
+  color: #93c5fd;
+  border-color: rgba(59, 130, 246, 0.55);
+  background: rgba(23, 47, 94, 0.5);
+}
+.dh-status[data-state='leave'] {
+  color: #bfdbfe;
+  border-color: rgba(96, 165, 250, 0.5);
+  background: rgba(30, 58, 110, 0.5);
+}
+.dh-status[data-state='holiday'] {
+  color: #fcd34d;
+  border-color: rgba(245, 158, 11, 0.55);
+  background: rgba(69, 44, 12, 0.5);
+}
+.dh-status[data-state='idle'] { color: #fde68a; border-color: rgba(245, 158, 11, 0.5); }
+.dh-status[data-state='pending'] { color: #fdba74; border-color: rgba(249, 115, 22, 0.5); }
+.dh-status[data-state='loading'] { color: #cbd5e1; }
+
+@keyframes dh-pulse {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(110, 231, 183, 0.55); }
+  50% { box-shadow: 0 0 0 5px rgba(110, 231, 183, 0); }
+}
+
+/* Detail line (check-in time, elapsed, worked, late) */
+.dh-detail {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 10px;
+  font-size: 13px;
+  color: rgba(226, 232, 240, 0.92);
+  text-shadow: 0 1px 2px rgba(2, 6, 23, 0.4);
+}
+.dh-elapsed { color: #6ee7b7; font-weight: 600; }
+.dh-late { color: #fdba74; }
+
+/* Actions */
+.dh-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+  margin-top: 14px;
+}
+.dh-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  padding: 9px 20px;
+  border-radius: 10px;
+  border: 1px solid rgba(255, 255, 255, 0.42);
+  background: rgba(255, 255, 255, 0.16);
+  color: #fff;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  backdrop-filter: blur(8px);
+  transition: background 0.18s ease, transform 0.12s ease, border-color 0.18s ease;
+}
+.dh-btn:hover:not(:disabled) {
+  background: rgba(255, 255, 255, 0.28);
+  border-color: rgba(255, 255, 255, 0.68);
+}
+.dh-btn:active:not(:disabled) { transform: translateY(1px); }
+.dh-btn:focus-visible {
+  outline: 2px solid #93c5fd;
+  outline-offset: 2px;
+}
+.dh-btn:disabled { opacity: 0.65; cursor: not-allowed; }
+
+.dh-msg {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12.5px;
+  font-weight: 500;
+  max-width: 100%;
+}
+.dh-msg[data-type='success'] { color: #6ee7b7; }
+.dh-msg[data-type='error'] { color: #fca5a5; }
+
+.dh-spin { animation: dh-rotate 0.9s linear infinite; }
+@keyframes dh-rotate {
+  to { transform: rotate(360deg); }
+}
+
+/* ── Clock block (right, slightly below the top edge) ──────────────── */
+.dh-clock {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  margin-top: 4px;
+  text-align: right;
+}
+.dh-clock-time-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.dh-clock-icon {
+  color: #fde68a;
+  filter: drop-shadow(0 1px 3px rgba(2, 6, 23, 0.5));
+}
+.dh[data-period='night'] .dh-clock-icon { color: #dbe6ff; }
+.dh-clock-time {
+  font-size: 30px;
+  font-weight: 800;
+  letter-spacing: 0.5px;
+  font-variant-numeric: tabular-nums;
+  color: #fff;
+  text-shadow: 0 1px 3px rgba(2, 6, 23, 0.5);
+}
+.dh-clock-date {
+  margin-top: 3px;
+  font-size: 14px;
+  font-weight: 500;
+  color: rgba(226, 232, 240, 0.92);
+  text-shadow: 0 1px 2px rgba(2, 6, 23, 0.45);
+}
+.dh-clock-greeting {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 14px;
+  font-size: 15.5px;
+  font-weight: 700;
+  color: #fff;
+  text-shadow: 0 1px 3px rgba(2, 6, 23, 0.5);
+}
+.dh-clock-greeting svg { color: #93c5fd; }
+
+/* ── Stats strip (full-bleed bottom bar, divider-separated) ────────── */
+.dh-stats {
+  grid-area: stats;
+  display: flex;
+  align-items: stretch;
+  border-top: 1px solid rgba(255, 255, 255, 0.16);
+  background: rgba(2, 6, 23, 0.36);
+  backdrop-filter: blur(8px);
+  /* full-bleed inside .dh-inner padding */
+  margin: 0 -30px;
+  padding: 14px 12px 16px;
+}
+.dh-stat {
+  flex: 1 1 0;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  padding: 2px 8px;
+  text-align: center;
+}
+.dh-stat + .dh-stat {
+  border-left: 1px solid rgba(255, 255, 255, 0.14);
+}
+.dh-stat-value {
+  font-size: 30px;
+  font-weight: 800;
+  line-height: 1.1;
+  font-variant-numeric: tabular-nums;
+  text-shadow: 0 1px 3px rgba(2, 6, 23, 0.45);
+}
+.dh-stat-label {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.9px;
+  text-transform: uppercase;
+  color: rgba(203, 213, 225, 0.95);
+}
+.dh-stat-label svg {
+  flex: 0 0 auto;
+  color: rgba(148, 163, 184, 0.95);
+}
+
+/* ── Working person (server-confirmed check-in only) ───────────────── */
+.dh-worker {
+  position: absolute;
+  right: 30px;
+  bottom: 96px;
+  width: 224px;
+  z-index: 2;
+  pointer-events: none;
+  opacity: 0;
+  animation: dh-worker-in 0.5s ease forwards;
+}
+.dh-person-svg {
+  display: block;
+  width: 100%;
+  height: auto;
+  filter: drop-shadow(0 6px 14px rgba(2, 6, 23, 0.35));
+}
+/* Rest Mode — gentle idle breathing; no active/typing motion. */
+.dh-worker[data-mode='rest'] .dh-person-svg {
+  animation: dh-rest-idle 5s ease-in-out infinite;
+  transform-origin: center bottom;
+}
+@keyframes dh-rest-idle {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-2px); }
+}
+.dh-screen-glow {
+  animation: dh-glow 3s ease-in-out infinite;
+}
+.dh-steam {
+  animation: dh-steam 2.6s ease-in-out infinite;
+}
+@keyframes dh-worker-in {
+  from { opacity: 0; transform: translateY(8px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+@keyframes dh-glow {
+  0%, 100% { opacity: 0.55; }
+  50% { opacity: 1; }
+}
+@keyframes dh-steam {
+  0%, 100% { opacity: 0.25; transform: translateY(0); }
+  50% { opacity: 0.7; transform: translateY(-2px); }
+}
+
+/* ── Responsive ────────────────────────────────────────────────────── */
+@media (max-width: 1120px) {
+  .dh-worker { width: 180px; right: 16px; bottom: 94px; }
+  .dh-clock-time { font-size: 26px; }
+  .dh-name { font-size: 30px; }
+}
+
+@media (max-width: 900px) {
+  .dh-inner {
+    grid-template-columns: 1fr;
+    grid-template-areas:
+      'clock'
+      'main'
+      'stats';
+    padding: 20px 20px 0;
+  }
+  .dh-side {
+    display: flex;
+    justify-content: flex-end;
+    padding-bottom: 0;
+  }
+  .dh-clock { align-items: flex-end; margin-top: 0; }
+  .dh-clock-time { font-size: 24px; }
+  .dh-clock-greeting { margin-top: 6px; font-size: 14.5px; }
+  .dh-main { padding-top: 4px; padding-bottom: 16px; }
+  .dh-name { font-size: 26px; }
+  .dh-greeting { font-size: 17px; }
+  .dh-stats { margin: 0 -20px; }
+  /* Worker flows under the status/actions instead of overlaying */
+  .dh-worker {
+    position: static;
+    width: 176px;
+    margin: 8px 0 0 auto;
+    animation-duration: 0.4s;
+  }
+}
+
+@media (max-width: 560px) {
+  .dh-inner { padding: 16px 15px 0; }
+  .dh-main { padding-bottom: 13px; }
+  .dh-name { font-size: 23px; }
+  .dh-clock-time { font-size: 21px; }
+  .dh-clock-date { font-size: 12.5px; }
+  .dh-stats { margin: 0 -15px; padding: 11px 4px 13px; }
+  .dh-stat { padding: 2px 4px; }
+  .dh-stat-value { font-size: 23px; }
+  .dh-stat-label { font-size: 9.5px; letter-spacing: 0.5px; gap: 5px; }
+  .dh-stat-label svg { display: none; }
+  .dh-worker { width: 152px; }
+  .dh-btn { padding: 8px 15px; font-size: 13px; }
+}
+
+/* Accessibility — respect reduced motion everywhere */
+@media (prefers-reduced-motion: reduce) {
+  .dh-star,
+  .dh-status-dot,
+  .dh-screen-glow,
+  .dh-steam,
+  .dh-spin {
+    animation: none !important;
+  }
+  .dh-worker { animation: none; opacity: 1; }
+  .dh-scene { transition: none; }
+  .dh-btn { transition: none; }
+}

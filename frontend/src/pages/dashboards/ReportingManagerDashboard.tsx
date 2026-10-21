@@ -5,6 +5,7 @@ import {
   ArrowUpRight, Loader2, X, Check, FileText
 } from 'lucide-react'
 import { Header } from '../../components/Header'
+import { DashboardHero } from '../../components/DashboardHero'
 import { Modal } from '../../components/Modal'
 import { MissedPunchAlertCard } from '../../components/MissedPunchAlertCard'
 import { LeaveApprovalsPanel } from '../../components/LeaveApprovalsPanel'
@@ -18,7 +19,6 @@ import { createLeaveRequest, calcLeaveDays, isLeaveTypePaid, getActionableLeaveT
 import { getActionableMissedPunchTier } from '../../services/attendanceService'
 import { logAudit } from '../../services/auditLogService'
 import type { Employee, LeaveType, ApprovalTier, ApprovalLevel } from '../../types/user'
-import { roleDepartmentLabel } from '../../utils/roleLabels'
 import { isActiveMissedPunchRecord, recentMissPunchSinceDate } from '../../utils/attendanceStatus'
 import './../Dashboard.css'
 
@@ -208,27 +208,15 @@ export function ReportingManagerDashboard() {
       <Header title="Dashboard" />
 
       <div className="page-content">
-        {/* Welcome Hero */}
-        <div className="dash-hero">
-          <div className="dash-hero-content">
-            <span className="dash-hero-greeting">Welcome back,</span>
-            <h2 className="dash-hero-name">{user?.name || 'User'}</h2>
-            <span className="dash-hero-role">{roleDepartmentLabel(user)}</span>
-          </div>
-          <div className="dash-hero-stats">
-            {[
-              { label: 'Team', value: team.length, color: '#3b82f6' },
-              { label: 'Active', value: active, color: '#10b981' },
-              { label: 'On Leave', value: onLeave, color: '#f59e0b' },
-              { label: 'Inactive', value: inactive, color: '#ef4444' },
-            ].map((s) => (
-              <div key={s.label} className="dash-hero-stat">
-                <span className="dash-hero-stat-value" style={{ color: s.color }}>{s.value}</span>
-                <span className="dash-hero-stat-label">{s.label}</span>
-              </div>
-            ))}
-          </div>
-        </div>
+        {/* Welcome Hero — time-based scene, live clock, server-confirmed working mode */}
+        <DashboardHero
+          stats={[
+            { label: 'Team', value: team.length, color: '#3b82f6' },
+            { label: 'Active', value: active, color: '#10b981' },
+            { label: 'On Leave', value: onLeave, color: '#f59e0b' },
+            { label: 'Inactive', value: inactive, color: '#ef4444' },
+          ]}
+        />
 
         {/* Missed Punch + Leave Approvals — immediate reviewer attention */}
         <MissedPunchAlertCard count={missPunchCount} badge={missPunchCount} />

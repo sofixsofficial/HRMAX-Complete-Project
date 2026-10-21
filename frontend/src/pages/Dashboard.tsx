@@ -8,6 +8,7 @@ import {
   CheckCircle, XCircle, Ban, Activity, Search
 } from 'lucide-react'
 import { Header } from '../components/Header'
+import { DashboardHero } from '../components/DashboardHero'
 import { MissedPunchAlertCard } from '../components/MissedPunchAlertCard'
 import { MasterAdminApprovalsPanel } from '../components/MasterAdminApprovalsPanel'
 import { useAuth } from '../context/AuthContext'
@@ -17,7 +18,6 @@ import { getAllCompanies } from '../services/companyService'
 import { subscribeToAdminAlerts, markAdminAlertAsRead, markAllAdminAlertsAsRead } from '../services/notificationService'
 import type { AdminAlert } from '../services/notificationService'
 import type { User, Company } from '../types/user'
-import { roleDepartmentLabel } from '../utils/roleLabels'
 
 import './Dashboard.css'
 
@@ -183,27 +183,17 @@ export function Dashboard() {
       <Header title="Dashboard" />
       
       <div className="page-content">
-        {/* Welcome Hero */}
-        <div className="dash-hero">
-          <div className="dash-hero-content">
-            <span className="dash-hero-greeting">Welcome back,</span>
-            <h2 className="dash-hero-name">{user?.name || 'User'}</h2>
-            <span className="dash-hero-role">{roleDepartmentLabel(user)}</span>
-          </div>
-          <div className="dash-hero-stats">
-            {[
-              { label: 'Present', value: data.presentToday, color: '#10b981' },
-              { label: 'Absent', value: data.absentToday, color: '#ef4444' },
-              { label: 'On Leave', value: data.onLeaveToday, color: '#3b82f6' },
-              { label: 'Pending Tasks', value: data.pendingTasks, color: '#ec4899' },
-            ].map((s) => (
-              <div key={s.label} className="dash-hero-stat">
-                <span className="dash-hero-stat-value" style={{ color: s.color }}>{s.value}</span>
-                <span className="dash-hero-stat-label">{s.label}</span>
-              </div>
-            ))}
-          </div>
-        </div>
+        {/* Welcome Hero — time-based scene, live clock. Master Admin does not
+            check in/out from the dashboard, so no attendance slice here. */}
+        <DashboardHero
+          showAttendance={false}
+          stats={[
+            { label: 'Present', value: data.presentToday, color: '#10b981' },
+            { label: 'Absent', value: data.absentToday, color: '#ef4444' },
+            { label: 'On Leave', value: data.onLeaveToday, color: '#3b82f6' },
+            { label: 'Pending Tasks', value: data.pendingTasks, color: '#ec4899' },
+          ]}
+        />
 
         {/* Missed Punch Alert */}
         <MissedPunchAlertCard count={data.missPunchToday} badge={data.missPunchToday} />

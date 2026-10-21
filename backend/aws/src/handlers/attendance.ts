@@ -84,7 +84,10 @@ export const attendanceRoutes: Route[] = [
         companyId: string; type: 'check-in' | 'check-out'; selfieUrl?: string;
         latitude?: number; longitude?: number; networkType?: string; wifiSsid?: string;
       };
-      if (!companyId || !type) throw new ApiError('bad-request', 'companyId and type required');
+      // Clients (web/mobile callable shim) send `action`; older payloads send `type`.
+      // Accept both so the check-in/check-out contract is stable across platforms.
+      const markType = type ?? (req.body as { action?: 'check-in' | 'check-out' }).action;
+      if (!companyId || !markType) throw new ApiError('bad-request', 'companyId and type required');
       assertCompanyScope(caller, companyId);
 
       const policy = await getPolicy(companyId);
@@ -100,13 +103,13 @@ export const attendanceRoutes: Route[] = [
 
       const fail = async (reasonCode: string, message: string) => {
         await writeLog({
-          companyId, userId: caller.uid, action: type, status: 'failed',
+          companyId, userId: caller.uid, action: markType, status: 'failed',
           reasonCode, reason: message, date: today,
         });
         throw new ApiError('failed-precondition', message);
       };
 
-      if (type === 'check-in') {
+      if (markType === 'check-in') {
         if (existing?.checkIn) return fail('ALREADY_CHECKED_IN', 'Already checked in today');
 
         // Geofence
@@ -119,10 +122,11 @@ export const attendanceRoutes: Route[] = [
           }
         }
 
-        // Selfie
+        // Selfie — clients send `selfieUri`, older payloads send `selfieUrl`.
+        const selfie = selfieUrl ?? (req.body as { selfieUri?: string }).selfieUri;
         if (policy.requireSelfie) {
-          if (!selfieUrl) return fail('SELFIE_REQUIRED', 'Selfie is required for check-in');
-          const decoded = decodeURIComponent(selfieUrl);
+          if (!selfie) return fail('SELFIE_REQUIRED', 'Selfie is required for check-in');
+          const decoded = decodeURIComponent(selfie);
           if (!decoded.includes(`/selfies/${companyId}/${caller.uid}`)) {
             return fail('INVALID_SELFIE', 'Selfie does not match your identity');
           }

@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useState } from 'react'
+import { invalidateSnapshots } from 'firebase/firestore'
 import { useAuth } from '../context/AuthContext'
 import { useCompany } from '../context/CompanyContext'
 import { useEmployeePersonalStats } from './useEmployeePersonalStats'
@@ -190,6 +191,9 @@ export function useAttendancePunch() {
           action: 'Checked in via Smart Attendance', actionType: 'create',
           module: 'Attendance', targetEntity: user.name, status: 'success',
         }).catch(() => {})
+        // Server confirmed the write — refresh listeners now so Working Mode
+        // activates from the verified record instead of waiting out the poll.
+        invalidateSnapshots()
         return
       } catch (fnErr: unknown) {
         const ferr = fnErr as { code?: string; message?: string }
@@ -242,6 +246,7 @@ export function useAttendancePunch() {
         action: 'Checked in via Smart Attendance', actionType: 'create',
         module: 'Attendance', targetEntity: user.name, status: 'success',
       }).catch(() => {})
+      invalidateSnapshots()
     } catch (err) {
       setMsg({ type: 'error', text: err instanceof Error ? err.message : 'Check-in failed' })
     } finally {
@@ -274,6 +279,7 @@ export function useAttendancePunch() {
       }
       await checkOut(todayRecord.id)
       setMsg({ type: 'success', text: 'Checked out successfully! Your day is complete.' })
+      invalidateSnapshots()
       logAudit({
         userId: user.id, userName: user.name, userRole: user.role,
         action: 'Checked out for the day', actionType: 'update',
