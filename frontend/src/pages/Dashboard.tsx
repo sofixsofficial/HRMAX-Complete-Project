@@ -183,10 +183,12 @@ export function Dashboard() {
       <Header title="Dashboard" />
       
       <div className="page-content">
-        {/* Welcome Hero — time-based scene, live clock. Master Admin does not
-            check in/out from the dashboard, so no attendance slice here. */}
+        {/* Welcome Hero — time-based scene, live clock + the personal
+            attendance slice (status pill, Check In/Out, character states).
+            Attendance is derived only from backend records; admin punches are
+            auto-approved server-side. */}
         <DashboardHero
-          showAttendance={false}
+          showAttendance
           stats={[
             { label: 'Present', value: data.presentToday, color: '#10b981' },
             { label: 'Absent', value: data.absentToday, color: '#ef4444' },

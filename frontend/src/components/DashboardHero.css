@@ -25,24 +25,23 @@
 }
 .dh[data-period='morning'] .dh-scene {
   background:
-    radial-gradient(circle at 82% 16%, rgba(255, 236, 170, 0.6), transparent 40%),
-    radial-gradient(circle at 82% 16%, rgba(255, 214, 138, 0.45), transparent 24%),
-    linear-gradient(165deg, #1c5fb0 0%, #3a86d4 42%, #7cc0ee 78%, #ffe6a8 100%);
+    radial-gradient(circle at 82% 14%, rgba(255, 226, 160, 0.28), transparent 42%),
+    linear-gradient(165deg, #173a6b 0%, #215da3 52%, #2f81c6 100%);
 }
 .dh[data-period='afternoon'] .dh-scene {
   background:
-    radial-gradient(circle at 86% 10%, rgba(255, 248, 214, 0.55), transparent 36%),
-    linear-gradient(165deg, #0d47a1 0%, #1f6fd0 50%, #5fa8e8 100%);
+    radial-gradient(circle at 86% 10%, rgba(255, 248, 214, 0.22), transparent 38%),
+    linear-gradient(165deg, #12335f 0%, #1d5ca2 58%, #2b7cbe 100%);
 }
 .dh[data-period='evening'] .dh-scene {
   background:
-    radial-gradient(circle at 16% 86%, rgba(255, 179, 71, 0.5), transparent 44%),
-    linear-gradient(165deg, #221a4d 0%, #5b2a68 38%, #b34a4e 70%, #f08a3c 95%);
+    radial-gradient(circle at 16% 88%, rgba(255, 179, 71, 0.24), transparent 46%),
+    linear-gradient(165deg, #14264a 0%, #274a7c 55%, #3f6b9c 100%);
 }
 .dh[data-period='night'] .dh-scene {
   background:
-    radial-gradient(circle at 84% 20%, rgba(120, 150, 255, 0.16), transparent 40%),
-    linear-gradient(165deg, #070d1f 0%, #101a38 55%, #1b2752 100%);
+    radial-gradient(circle at 84% 18%, rgba(150, 175, 255, 0.12), transparent 40%),
+    linear-gradient(165deg, #080f24 0%, #101c3e 58%, #182754 100%);
 }
 
 .dh-decor {
@@ -52,13 +51,17 @@
   height: 100%;
 }
 
-/* Stars twinkle — disabled under reduced motion */
-.dh-star {
-  animation: dh-twinkle 4s ease-in-out infinite;
+/* Slow, unobtrusive cloud drift — disabled under reduced motion */
+.dh-cloud {
+  animation: dh-cloud-drift 60s ease-in-out infinite alternate;
 }
-@keyframes dh-twinkle {
-  0%, 100% { opacity: 0.35; }
-  50% { opacity: 1; }
+.dh-cloud-b {
+  animation-duration: 84s;
+  animation-delay: -24s;
+}
+@keyframes dh-cloud-drift {
+  from { transform: translateX(-14px); }
+  to { transform: translateX(14px); }
 }
 
 /* Scrim keeps white text readable on bright scenes (WCAG contrast) */
@@ -85,7 +88,15 @@
 }
 
 .dh-main { grid-area: main; min-width: 0; position: static; padding-bottom: 20px; }
-.dh-side { grid-area: clock; padding-bottom: 20px; }
+.dh-side {
+  grid-area: clock;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 6px;
+  padding-bottom: 20px;
+  min-width: 0;
+}
 
 .dh-greeting {
   display: block;
@@ -337,13 +348,9 @@
   color: rgba(148, 163, 184, 0.95);
 }
 
-/* ── Working person (server-confirmed check-in only) ───────────────── */
+/* ── Character — its own column under the clock (never overlaps text) ── */
 .dh-worker {
-  position: absolute;
-  right: 30px;
-  bottom: 96px;
-  width: 224px;
-  z-index: 2;
+  width: 150px;
   pointer-events: none;
   opacity: 0;
   animation: dh-worker-in 0.5s ease forwards;
@@ -352,7 +359,7 @@
   display: block;
   width: 100%;
   height: auto;
-  filter: drop-shadow(0 6px 14px rgba(2, 6, 23, 0.35));
+  filter: drop-shadow(0 4px 10px rgba(2, 6, 23, 0.28));
 }
 /* Rest Mode — gentle idle breathing; no active/typing motion. */
 .dh-worker[data-mode='rest'] .dh-person-svg {
@@ -384,7 +391,7 @@
 
 /* ── Responsive ────────────────────────────────────────────────────── */
 @media (max-width: 1120px) {
-  .dh-worker { width: 180px; right: 16px; bottom: 94px; }
+  .dh-worker { width: 132px; }
   .dh-clock-time { font-size: 26px; }
   .dh-name { font-size: 30px; }
 }
@@ -393,35 +400,26 @@
   .dh-inner {
     grid-template-columns: 1fr;
     grid-template-areas:
-      'clock'
       'main'
+      'clock'
       'stats';
     padding: 20px 20px 0;
   }
-  .dh-side {
-    display: flex;
-    justify-content: flex-end;
-    padding-bottom: 0;
-  }
-  .dh-clock { align-items: flex-end; margin-top: 0; }
+  .dh-side { padding-bottom: 4px; margin-top: 2px; }
+  .dh-clock { margin-top: 0; }
   .dh-clock-time { font-size: 24px; }
   .dh-clock-greeting { margin-top: 6px; font-size: 14.5px; }
-  .dh-main { padding-top: 4px; padding-bottom: 16px; }
+  .dh-main { padding-top: 4px; padding-bottom: 4px; }
   .dh-name { font-size: 26px; }
   .dh-greeting { font-size: 17px; }
   .dh-stats { margin: 0 -20px; }
-  /* Worker flows under the status/actions instead of overlaying */
-  .dh-worker {
-    position: static;
-    width: 176px;
-    margin: 8px 0 0 auto;
-    animation-duration: 0.4s;
-  }
+  /* Character stays in the side column (right-aligned under the clock) — no
+     absolute positioning, so it can never overlap the text above it. */
+  .dh-worker { width: 150px; animation-duration: 0.4s; }
 }
 
 @media (max-width: 560px) {
   .dh-inner { padding: 16px 15px 0; }
-  .dh-main { padding-bottom: 13px; }
   .dh-name { font-size: 23px; }
   .dh-clock-time { font-size: 21px; }
   .dh-clock-date { font-size: 12.5px; }
@@ -430,13 +428,13 @@
   .dh-stat-value { font-size: 23px; }
   .dh-stat-label { font-size: 9.5px; letter-spacing: 0.5px; gap: 5px; }
   .dh-stat-label svg { display: none; }
-  .dh-worker { width: 152px; }
+  .dh-worker { width: 132px; }
   .dh-btn { padding: 8px 15px; font-size: 13px; }
 }
 
 /* Accessibility — respect reduced motion everywhere */
 @media (prefers-reduced-motion: reduce) {
-  .dh-star,
+  .dh-cloud,
   .dh-status-dot,
   .dh-screen-glow,
   .dh-steam,
