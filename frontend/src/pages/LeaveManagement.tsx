@@ -673,8 +673,8 @@ export function LeaveManagement() {
                       <td>{execName ? <span className="company-code">{execName}</span> : <span style={{ color: '#9ca3af' }}>—</span>}</td>
                       <td>{tlNames.length > 0 ? tlNames.map((tn: string, i: number) => <span key={i} className="company-code" style={{ marginRight: 4 }}>{tn}</span>) : <span style={{ color: '#9ca3af' }}>—</span>}</td>
                       <td><span className="company-code">{l.leaveType}</span></td>
-                      <td>{fmtDate(l.startDate)}</td>
-                      <td>{fmtDate(l.endDate)}</td>
+                      <td style={{ whiteSpace: 'nowrap' }}>{fmtDate(l.startDate)}</td>
+                      <td style={{ whiteSpace: 'nowrap' }}>{fmtDate(l.endDate)}</td>
                       <td><span className="employees-count">{l.totalDays}</span></td>
                       <td style={{ fontSize: 12, color: '#6b7280', whiteSpace: 'nowrap' }}>{l.appliedOn ? fmtDate(l.appliedOn) : '—'}</td>
                       <td>

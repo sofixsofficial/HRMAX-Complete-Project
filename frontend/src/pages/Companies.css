@@ -341,11 +341,13 @@
   font-size: 13px;
   font-weight: 500;
   color: #1f2937;
+  white-space: nowrap; /* keep rows compact — the table scrolls horizontally instead of wrapping */
 }
 
 .admin-email {
   font-size: 11px;
   color: #6b7280;
+  white-space: nowrap;
 }
 
 /* Executive Cell */
@@ -768,6 +770,13 @@
   }
   .company-profile-header {
     flex-wrap: wrap;
+  }
+  /* Denser table rows on mobile — status/progress cell is the tallest,
+     tighter padding keeps rows compact without hiding any data */
+  .companies-table td,
+  .companies-table th {
+    padding-top: 8px;
+    padding-bottom: 8px;
   }
 }
 
