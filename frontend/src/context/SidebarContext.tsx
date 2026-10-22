@@ -11,10 +11,10 @@ const SidebarContext = createContext<SidebarContextType>({
 })
 
 export function SidebarProvider({ children }: { children: ReactNode }) {
-  // Mobile (≤768px): the sidebar is a slide-in drawer — start CLOSED so page
-  // content is visible on first paint. Desktop: expanded, as before.
+  // Tablet/mobile (≤1024px): the sidebar is a slide-in drawer — start CLOSED so
+  // page content is visible on first paint. Desktop: expanded, as before.
   const [collapsed, setCollapsed] = useState(() =>
-    typeof window !== 'undefined' ? window.innerWidth <= 768 : false,
+    typeof window !== 'undefined' ? window.innerWidth <= 1024 : false,
   )
   return (
     <SidebarContext.Provider value={{ collapsed, toggle: () => setCollapsed(prev => !prev) }}>

@@ -501,6 +501,15 @@
   cursor: pointer;
 }
 
+/* Tablet (≤1024px): sidebar is a drawer so content is full-width, but the wide
+   table would still squeeze 11 columns into ~1000px. Pin a min-width so columns
+   stay readable and .table-container (overflow-x:auto) scrolls instead. */
+@media (max-width: 1024px) {
+  .companies-table {
+    min-width: 1200px;
+  }
+}
+
 /* Responsive — .stats-row auto-fit (base) already fills 100% at every width */
 @media (max-width: 1024px) {
   .filters-row {

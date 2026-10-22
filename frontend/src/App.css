@@ -38,6 +38,20 @@ html, body {
   margin-left: 64px;
 }
 
+/* Tablet/mobile (≤1024px): the sidebar is a slide-in drawer
+   (translateX(-100%) when closed). The content must sit flush at the left edge
+   — no gutter. `.hrm-container.sidebar-collapsed .page-container` (0,3,0)
+   beats the per-page `.sidebar-collapsed .page-container { margin-left: 64px }`
+   rules that page CSS files duplicate, regardless of load order. `.hrm-container
+   .page-container` (0,2,0) handles the open-drawer state where the base 260px
+   margin would otherwise shift content behind the overlay. */
+@media (max-width: 1024px) {
+  .hrm-container .page-container,
+  .hrm-container.sidebar-collapsed .page-container {
+    margin-left: 0;
+  }
+}
+
 .page-content {
   padding: 24px;
 }

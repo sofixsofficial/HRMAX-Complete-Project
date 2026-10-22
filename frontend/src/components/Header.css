@@ -454,12 +454,25 @@
   .search-box {
     width: 120px;
   }
+  .header-left {
+    flex: 1;
+    min-width: 0;
+    gap: 10px;
+  }
+  .header-title {
+    min-width: 0;
+  }
   .header-title h2 {
     font-size: 16px;
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
-    max-width: 120px;
+    max-width: none;
+  }
+  /* Breadcrumb is redundant with the title on small screens and wraps to two
+     lines, cramping the header — hide it so the title gets full width. */
+  .breadcrumbs {
+    display: none;
   }
   .header-right {
     gap: 8px;
@@ -512,7 +525,6 @@
   }
   .header-title h2 {
     font-size: 14px;
-    max-width: 80px;
   }
   .menu-btn {
     width: 30px;
