@@ -12,7 +12,7 @@ Parameters:
     Description: Custom domain for CloudFront (empty = default *.cloudfront.net)
   EmailFrom:
     Type: String
-    Default: no-reply@hrmax.in
+    Default: info@hrmax.in
     Description: SES verified sender address
 
 Globals:

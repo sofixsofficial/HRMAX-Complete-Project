@@ -73,7 +73,7 @@ export interface EmailLogDoc extends BaseEntity {
 export async function getEmailConfig(): Promise<EmailConfig> {
   return {
     enabled: process.env.EMAIL_ENABLED !== 'false',
-    fromEmail: process.env.EMAIL_FROM ?? 'no-reply@hrmax.in',
+    fromEmail: process.env.EMAIL_FROM ?? 'info@hrmax.in',
     fromName: process.env.EMAIL_FROM_NAME ?? 'HR MAX',
     replyTo: process.env.EMAIL_REPLY_TO || undefined,
     configurationSet: process.env.EMAIL_CONFIG_SET || undefined,
