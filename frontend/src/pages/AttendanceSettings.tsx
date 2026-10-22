@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback, useMemo } from 'react'
+import { errText } from '../aws/errors';
 import { Save, MapPin, Wifi, Shield, Camera, Clock, AlertCircle, Globe, Loader2, Plus, Trash2, Crosshair, Calendar, RefreshCw } from 'lucide-react'
 import { Header } from '../components/Header'
 import { Toast } from '../components/Toast'
@@ -234,7 +235,7 @@ function AttendanceSettingsForm() {
           : `You are ${distance.toFixed(0)}m from office — exceeds ${radiusMeters}m limit`,
       })
     } catch (err: any) {
-      setTestGeoMsg({ type: 'error', text: err.message || 'GPS unavailable' })
+      setTestGeoMsg({ type: 'error', text: errText(err, 'GPS unavailable') })
     } finally {
       setTestingGeo(false)
     }

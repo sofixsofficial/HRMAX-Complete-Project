@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react'
+import { errText } from '../../aws/errors';
 import { useNavigate } from 'react-router-dom'
 import {
   Clock, Calendar, Wallet, CheckSquare, Megaphone, Loader2, Edit3, AlertCircle,
@@ -102,7 +103,7 @@ export function EmployeeDashboard() {
       setRectifyModal(null)
       setRectifyTime('')
     } catch (err: any) {
-      setActionMsg({ type: 'error', text: err.message || 'Failed to submit rectification' })
+      setActionMsg({ type: 'error', text: errText(err, 'Failed to submit rectification') })
     } finally {
       setSubmittingRectify(false)
     }

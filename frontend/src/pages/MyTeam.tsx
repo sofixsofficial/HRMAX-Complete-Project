@@ -3,6 +3,8 @@ import { useNavigate } from 'react-router-dom'
 import { UserCog, Search, Eye, Loader2, ChevronLeft, ChevronRight, Mail, Phone, Calendar, CheckSquare, Clock, Plus, Check, X } from 'lucide-react'
 import { Header } from '../components/Header'
 import { Modal } from '../components/Modal'
+import { ActionErrorBanner } from '../components/ActionErrorBanner'
+import { errText } from '../aws/errors'
 import { subscribeToTeamByManager } from '../services/employeeService'
 import { createLeaveRequest, calcLeaveDays, isLeaveTypePaid } from '../services/leaveService'
 import { logAudit } from '../services/auditLogService'
@@ -42,6 +44,7 @@ export function MyTeam() {
   const [leaveEnd, setLeaveEnd] = useState(todayStr)
   const [leaveReason, setLeaveReason] = useState('')
   const [isSubmitting, setIsSubmitting] = useState(false)
+  const [leaveError, setLeaveError] = useState<string | null>(null)
 
   const unsubRef = useRef<(() => void) | null>(null)
 
@@ -75,16 +78,18 @@ export function MyTeam() {
     setLeaveStart(todayStr)
     setLeaveEnd(todayStr)
     setLeaveReason('')
+    setLeaveError(null)
     setIsLeaveOpen(true)
   }
 
   const handleSubmitLeave = async (e: React.FormEvent) => {
     e.preventDefault()
     if (!leaveTarget || !user) return
+    setLeaveError(null)
     const start = new Date(leaveStart)
     const end = new Date(leaveEnd)
     const totalDays = calcLeaveDays(start, end)
-    if (totalDays <= 0) { alert('End date must be on or after start date'); return }
+    if (totalDays <= 0) { setLeaveError('End date must be on or after start date'); return }
     setIsSubmitting(true)
     try {
       const tierOverrides: Partial<Record<ApprovalTier, ApprovalLevel>> = {
@@ -122,7 +127,7 @@ export function MyTeam() {
       setLeaveTarget(null)
     } catch (err) {
       console.error('Error submitting manual leave:', err)
-      alert('Failed to submit leave request')
+      setLeaveError(errText(err, 'Failed to submit leave request. Please try again.'))
     } finally {
       setIsSubmitting(false)
     }
@@ -270,6 +275,8 @@ export function MyTeam() {
             <label>Reason *</label>
             <textarea value={leaveReason} onChange={e => setLeaveReason(e.target.value)} rows={3} placeholder="Reason for leave..." required />
           </div>
+
+          <ActionErrorBanner message={leaveError} onDismiss={() => setLeaveError(null)} marginBottom={8} />
 
           <div className="modal-footer">
             <button type="button" className="btn-secondary" onClick={() => setIsLeaveOpen(false)}>

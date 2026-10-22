@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react'
+import { errText } from '../aws/errors';
 import { useParams, useNavigate } from 'react-router-dom'
 import { Building2, MapPin, Wifi, Smartphone, Camera, DollarSign, Calendar, Clock, ArrowLeft, Pencil, Trash2, Globe, Phone, Mail, Map, Loader2, BookOpen } from 'lucide-react'
 import { getCompanyById } from '../services/companyService'
@@ -24,7 +25,7 @@ export function CompanyDetailsView() {
           setCompany(data)
         }
       })
-      .catch(err => setError(err?.message || 'Failed to load company'))
+      .catch(err => setError(errText(err, 'Failed to load company')))
       .finally(() => setLoading(false))
   }, [companyId])
 

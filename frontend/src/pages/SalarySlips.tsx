@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react'
 import { useSearchParams } from 'react-router-dom'
-import { FileText, DollarSign, Search, Download, Eye, ChevronLeft, ChevronRight, Loader2, Mail } from 'lucide-react'
+import { FileText, DollarSign, Search, Download, Eye, ChevronLeft, ChevronRight, Loader2, Mail, AlertTriangle, X } from 'lucide-react'
+import { errText, safeDisplayText } from '../aws/errors'
 import { Header } from '../components/Header'
 import { Modal } from '../components/Modal'
 import { useAuth } from '../context/AuthContext'
@@ -34,6 +35,7 @@ export function SalarySlips() {
   const [isViewModalOpen, setIsViewModalOpen] = useState(false)
   const [selectedSlip, setSelectedSlip] = useState<SalarySlip | null>(null)
   const [retryingEmails, setRetryingEmails] = useState(false)
+  const [retryMsg, setRetryMsg] = useState<{ type: 'success' | 'error'; text: string } | null>(null)
 
   // Filters
   const [monthFilter, setMonthFilter] = useState('All')
@@ -142,14 +144,19 @@ export function SalarySlips() {
 
   const handleRetryFailedEmails = async () => {
     if (!companyId) return
+    setRetryMsg(null)
     setRetryingEmails(true)
     try {
       const res = await retryFailedPayslips({ companyId })
-      alert(res.success ? (res.message || 'Retry finished.') : (res.error || 'Failed to retry salary-slip emails.'))
+      if (res.success) {
+        setRetryMsg({ type: 'success', text: res.message || 'Retry finished.' })
+      } else {
+        setRetryMsg({ type: 'error', text: safeDisplayText(res.error) || 'Failed to retry salary-slip emails. Please try again.' })
+      }
       await fetchSalarySlips()
     } catch (err) {
       console.error('Error retrying salary-slip emails:', err)
-      alert('Failed to retry salary-slip emails.')
+      setRetryMsg({ type: 'error', text: errText(err, 'Failed to retry salary-slip emails. Please try again.') })
     } finally {
       setRetryingEmails(false)
     }
@@ -230,6 +237,13 @@ export function SalarySlips() {
       
       <div className="page-content">
         <ScopeIndicator />
+        {retryMsg && (
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '12px 16px', borderRadius: 8, marginBottom: 16, fontSize: 13, background: retryMsg.type === 'error' ? '#fef2f2' : '#ecfdf5', border: retryMsg.type === 'error' ? '1px solid #fecaca' : '1px solid #a7f3d0', color: retryMsg.type === 'error' ? '#b91c1c' : '#047857' }}>
+            {retryMsg.type === 'error' ? <AlertTriangle size={16} style={{ flexShrink: 0 }} /> : <Mail size={16} style={{ flexShrink: 0 }} />}
+            <span style={{ flex: 1 }}>{retryMsg.text}</span>
+            <button onClick={() => setRetryMsg(null)} style={{ background: 'none', border: 'none', color: 'inherit', cursor: 'pointer', padding: 0, display: 'inline-flex' }}><X size={16} /></button>
+          </div>
+        )}
         {/* Stats Cards */}
         <div className="stats-row salary-stats">
           {getStatsCards().map((stat, idx) => (

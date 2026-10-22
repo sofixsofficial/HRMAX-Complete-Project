@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { History as HistoryIcon, Users, Loader2, Mail, Download } from 'lucide-react'
+import { History as HistoryIcon, Users, Loader2, Mail, Download, AlertTriangle, X } from 'lucide-react'
 import { Header } from '../components/Header'
 import { ErrorBoundary } from '../components/ErrorBoundary'
 import { useAuth } from '../context/AuthContext'
@@ -10,6 +10,7 @@ import { getPayrollRunsByCompany, getAllPayrollRuns } from '../services/payrollS
 import { dispatchPayslips } from '../services/salaryService'
 import { Pagination } from '../components/Pagination'
 import { scopedCompanyIds } from '../utils/companyScope'
+import { errText, safeDisplayText } from '../aws/errors'
 import type { PayrollRun, PayrollItem } from '../types/user'
 import './Companies.css'
 
@@ -63,6 +64,7 @@ function PayrollHistoryContent() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [emailingId, setEmailingId] = useState<string | null>(null)
+  const [actionError, setActionError] = useState<string | null>(null)
   const [page, setPage] = useState(1)
   const [pageSize, setPageSize] = useState(10)
 
@@ -109,15 +111,16 @@ function PayrollHistoryContent() {
   }, [companyId])
 
   const handleEmailRun = async (run: PayrollRun) => {
+    setActionError(null)
     setEmailingId(run.id)
     try {
       const res = await dispatchPayslips({ companyId: run.companyId, runId: run.id, monthIndex: run.monthIndex, year: run.year, payStatus: 'all' })
       if (!res.success) {
-        alert(res.error || 'Failed to send salary-slip emails.')
+        setActionError(safeDisplayText(res.error) || 'Failed to send salary-slip emails. Please try again.')
         return
       }
       if ((res.dispatched ?? 0) === 0 && !res.failed) {
-        alert('No salary slips were emailed. Check that slips exist for this payroll (configure SMTP if needed).')
+        setActionError('No salary slips were emailed. Check that slips exist for this payroll (configure SMTP if needed).')
         return
       }
       const parts = [`${res.dispatched ?? 0} individual salary slips sent to employees`]
@@ -127,7 +130,7 @@ function PayrollHistoryContent() {
       await fetchRuns()
     } catch (err: any) {
       console.error('Error emailing payroll:', err)
-      alert(err?.message || 'Failed to send salary-slip emails.')
+      setActionError(errText(err, 'Failed to send salary-slip emails. Please try again.'))
     } finally {
       setEmailingId(null)
     }
@@ -161,6 +164,14 @@ function PayrollHistoryContent() {
 
       <div className="page-content">
         <ScopeIndicator />
+
+        {actionError && (
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '12px 16px', background: '#fef2f2', border: '1px solid #fecaca', borderRadius: 8, marginBottom: 16, color: '#b91c1c', fontSize: 13 }}>
+            <AlertTriangle size={16} style={{ flexShrink: 0 }} />
+            <span style={{ flex: 1 }}>{actionError}</span>
+            <button onClick={() => setActionError(null)} style={{ background: 'none', border: 'none', color: '#b91c1c', cursor: 'pointer', padding: 0, display: 'inline-flex' }}><X size={16} /></button>
+          </div>
+        )}
 
         <div className="companies-section">
           <div className="section-header-companies">

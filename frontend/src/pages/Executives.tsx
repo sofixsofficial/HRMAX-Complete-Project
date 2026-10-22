@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef, useMemo } from 'react'
+import { errText } from '../aws/errors';
 import { Crown, Search, Plus, Eye, Pencil, Trash2, Loader2, ChevronLeft, ChevronRight, Mail, Phone, Briefcase, X, User as UserIcon, Shield, Building2, Lock, Users, Check, CheckSquare, ChevronDown, Upload, DollarSign, CalendarDays, MapPin, Phone as PhoneIcon, FileText, CreditCard, BadgeAlert, KeyRound, Crosshair, Wifi, Camera, Smartphone } from 'lucide-react'
 import { useForm } from 'react-hook-form'
 import type { Resolver } from 'react-hook-form'
@@ -61,7 +62,7 @@ const executiveSchema = z.object({
   companyId: z.string().optional().default(''),
   departmentId: z.string().optional().default(''),
   departmentName: z.string().optional().default(''),
-  assignedCompanyIds: z.array(z.string()).default([]),
+  assignedCompanyIds: z.array(z.string()).min(1, 'Assign at least one company — an executive with no company will not be visible in the list'),
   assignedTeamLeaderIds: z.array(z.string()).default([]),
 
   // Employment & Compliance
@@ -679,7 +680,7 @@ export function Executives() {
     const file = e.target.files?.[0]
     if (!file) return
     if (file.size > 5 * 1024 * 1024) {
-      alert('File size exceeds 5MB limit')
+      setToast({ message: 'File size exceeds 5MB limit. Please choose a smaller file.', type: 'error' })
       e.target.value = ''
       return
     }
@@ -822,7 +823,7 @@ export function Executives() {
       setToast({ message: `Executive created! Username: ${values.username}, Password: ${values.password}`, type: 'success' })
     } catch (err: any) {
       const friendly = authErrorMessage(err?.code || err?.message || '')
-      setToast({ message: friendly || err?.message || 'Failed to create executive. Please try again.', type: 'error' })
+      setToast({ message: friendly || errText(err, 'Failed to create executive. Please try again.'), type: 'error' })
     } finally {
       setIsSubmitting(false)
     }
@@ -1654,6 +1655,7 @@ export function Executives() {
                 placeholder="Select companies this executive will manage..."
                 searchPlaceholder="Search companies..."
               />
+              {form.formState.errors.assignedCompanyIds && <span className="field-error">{form.formState.errors.assignedCompanyIds.message}</span>}
               <MultiSelect
                 label="Assign Team Leaders"
                 options={teamLeaderOptions}
@@ -2005,6 +2007,7 @@ export function Executives() {
                 placeholder="Select companies this executive will manage..."
                 searchPlaceholder="Search companies..."
               />
+              {form.formState.errors.assignedCompanyIds && <span className="field-error">{form.formState.errors.assignedCompanyIds.message}</span>}
               <MultiSelect
                 label="Assign Team Leaders"
                 options={teamLeaderOptions}

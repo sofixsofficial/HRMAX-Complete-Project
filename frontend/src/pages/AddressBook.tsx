@@ -2,6 +2,8 @@ import { useState, useEffect } from 'react'
 import { BookOpen, Users, Building2, MapPin, Phone, Search, Download, Plus, ChevronDown, Eye, Pencil, Trash2, Filter, LayoutGrid, List, ChevronLeft, ChevronRight, Loader2, X, AlertCircle } from 'lucide-react'
 import { Header } from '../components/Header'
 import { Modal } from '../components/Modal'
+import { ActionErrorBanner } from '../components/ActionErrorBanner'
+import { errText } from '../aws/errors'
 import { useAuth } from '../context/AuthContext'
 import { useCompany } from '../context/CompanyContext'
 import { usePermissionScope } from '../hooks/usePermissionScope'
@@ -128,6 +130,7 @@ export function AddressBook() {
   const [selectedEmployee, setSelectedEmployee] = useState<Employee | null>(null)
   const [formData, setFormData] = useState(INITIAL_FORM_DATA)
   const [isSubmitting, setIsSubmitting] = useState(false)
+  const [actionError, setActionError] = useState<string | null>(null)
   
   // Filters
   const [departmentFilter, setDepartmentFilter] = useState('All')
@@ -247,7 +250,7 @@ export function AddressBook() {
       setFormData(INITIAL_FORM_DATA)
     } catch (err) {
       console.error('Error updating employee:', err)
-      alert('Failed to update contact information')
+      setActionError(errText(err, 'Failed to update contact information. Please try again.'))
     } finally {
       setIsSubmitting(false)
     }
@@ -314,6 +317,7 @@ export function AddressBook() {
       <Header title="Address Book" breadcrumbs={['Dashboard', 'Address Book']} />
       
       <div className="page-content">
+        <ActionErrorBanner message={actionError} onDismiss={() => setActionError(null)} />
         {/* Stats Cards */}
         <div className="stats-row address-stats">
           {getStatsCards().map((stat, idx) => (

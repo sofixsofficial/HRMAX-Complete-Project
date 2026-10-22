@@ -1,4 +1,5 @@
 import { useState, useEffect, useMemo } from 'react'
+import { errText } from '../aws/errors';
 import {
   CalendarDays, CalendarClock, Clock, Edit3, AlertCircle, Info,
   Wallet, ArrowRight, CheckCircle2, Loader2, Eye,
@@ -371,7 +372,7 @@ export function MyLeavesAttendance() {
       setRectifyTime('')
       setRectifyRemark('')
     } catch (err: any) {
-      setActionMsg({ type: 'error', text: err.message || 'Failed to submit rectification' })
+      setActionMsg({ type: 'error', text: errText(err, 'Failed to submit rectification') })
     } finally {
       setSubmittingRectify(false)
     }

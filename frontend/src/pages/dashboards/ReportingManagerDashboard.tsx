@@ -6,6 +6,8 @@ import {
 } from 'lucide-react'
 import { Header } from '../../components/Header'
 import { DashboardHero } from '../../components/DashboardHero'
+import { ActionErrorBanner } from '../../components/ActionErrorBanner'
+import { errText } from '../../aws/errors'
 import { Modal } from '../../components/Modal'
 import { Pagination } from '../../components/Pagination'
 import { MissedPunchAlertCard } from '../../components/MissedPunchAlertCard'
@@ -49,6 +51,7 @@ export function ReportingManagerDashboard() {
   const [leaveEnd, setLeaveEnd] = useState(todayStr)
   const [leaveReason, setLeaveReason] = useState('')
   const [isSubmitting, setIsSubmitting] = useState(false)
+  const [leaveError, setLeaveError] = useState<string | null>(null)
   const [missPunchCount, setMissPunchCount] = useState(0)
   const [pendingLeaves, setPendingLeaves] = useState(0)
   const [showLeaveApply, setShowLeaveApply] = useState(false)
@@ -144,16 +147,18 @@ export function ReportingManagerDashboard() {
     setLeaveStart(todayStr)
     setLeaveEnd(todayStr)
     setLeaveReason('')
+    setLeaveError(null)
     setIsLeaveOpen(true)
   }
 
   const handleSubmitLeave = async (e: React.FormEvent) => {
     e.preventDefault()
     if (!leaveTarget || !user) return
+    setLeaveError(null)
     const start = new Date(leaveStart)
     const end = new Date(leaveEnd)
     const totalDays = calcLeaveDays(start, end)
-    if (totalDays <= 0) { alert('End date must be on or after start date'); return }
+    if (totalDays <= 0) { setLeaveError('End date must be on or after start date'); return }
     setIsSubmitting(true)
     try {
       const tierOverrides: Partial<Record<ApprovalTier, ApprovalLevel>> = {
@@ -191,7 +196,7 @@ export function ReportingManagerDashboard() {
       setLeaveTarget(null)
     } catch (err) {
       console.error('Error submitting manual leave:', err)
-      alert('Failed to submit leave request')
+      setLeaveError(errText(err, 'Failed to submit leave request. Please try again.'))
     } finally {
       setIsSubmitting(false)
     }
@@ -415,6 +420,8 @@ export function ReportingManagerDashboard() {
             <label>Reason *</label>
             <textarea value={leaveReason} onChange={e => setLeaveReason(e.target.value)} rows={3} placeholder="Reason for leave..." required />
           </div>
+
+          <ActionErrorBanner message={leaveError} onDismiss={() => setLeaveError(null)} marginBottom={8} />
 
           <div className="modal-footer">
             <button type="button" className="btn-secondary" onClick={() => setIsLeaveOpen(false)}>

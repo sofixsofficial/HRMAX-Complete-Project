@@ -1,7 +1,8 @@
 import { useState, useEffect } from 'react'
-import { Shield, CheckCircle, XCircle, Ban, RotateCcw, Trash2, Search, Loader2, AlertCircle, UserCheck, Clock, UserX, Users, ArrowUpRight } from 'lucide-react'
+import { Shield, CheckCircle, XCircle, Ban, RotateCcw, Trash2, Search, Loader2, AlertCircle, UserCheck, Clock, UserX, Users, ArrowUpRight, X } from 'lucide-react'
 import type { User, CompanyAdminStatus } from '../types/user'
 import { subscribeCompanyAdmins, approveCompanyAdmin, rejectCompanyAdmin, suspendCompanyAdmin, reactivateCompanyAdmin, deleteCompanyAdmin } from '../services/companyAdminApprovalService'
+import { errText } from '../aws/errors'
 import { Pagination } from '../components/Pagination'
 import './CompanyAdminApprovals.css'
 
@@ -13,6 +14,7 @@ export function CompanyAdminApprovals() {
   const [page, setPage] = useState(1)
   const [pageSize, setPageSize] = useState(10)
   const [actionLoading, setActionLoading] = useState<string | null>(null)
+  const [actionError, setActionError] = useState<string | null>(null)
   const [rejectModal, setRejectModal] = useState<{ admin: User } | null>(null)
   const [rejectionReason, setRejectionReason] = useState('')
 
@@ -72,11 +74,12 @@ export function CompanyAdminApprovals() {
   const pagedRows = filtered.slice((safePage - 1) * pageSize, safePage * pageSize)
 
   const handleApprove = async (adminId: string) => {
+    setActionError(null)
     setActionLoading(adminId)
     try {
       await approveCompanyAdmin(adminId)
     } catch (err: any) {
-      alert(err.message)
+      setActionError(errText(err, 'Failed to approve this Company Admin. Please try again.'))
     } finally {
       setActionLoading(null)
     }
@@ -84,13 +87,14 @@ export function CompanyAdminApprovals() {
 
   const handleReject = async () => {
     if (!rejectModal || !rejectionReason.trim()) return
+    setActionError(null)
     setActionLoading(rejectModal.admin.id)
     try {
       await rejectCompanyAdmin(rejectModal.admin.id, rejectionReason.trim())
       setRejectModal(null)
       setRejectionReason('')
     } catch (err: any) {
-      alert(err.message)
+      setActionError(errText(err, 'Failed to reject this Company Admin. Please try again.'))
     } finally {
       setActionLoading(null)
     }
@@ -98,22 +102,24 @@ export function CompanyAdminApprovals() {
 
   const handleSuspend = async (adminId: string) => {
     if (!window.confirm('Are you sure you want to suspend this Company Admin?')) return
+    setActionError(null)
     setActionLoading(adminId)
     try {
       await suspendCompanyAdmin(adminId)
     } catch (err: any) {
-      alert(err.message)
+      setActionError(errText(err, 'Failed to suspend this Company Admin. Please try again.'))
     } finally {
       setActionLoading(null)
     }
   }
 
   const handleReactivate = async (adminId: string) => {
+    setActionError(null)
     setActionLoading(adminId)
     try {
       await reactivateCompanyAdmin(adminId)
     } catch (err: any) {
-      alert(err.message)
+      setActionError(errText(err, 'Failed to reactivate this Company Admin. Please try again.'))
     } finally {
       setActionLoading(null)
     }
@@ -121,11 +127,12 @@ export function CompanyAdminApprovals() {
 
   const handleDelete = async (adminId: string) => {
     if (!window.confirm('Are you sure you want to permanently delete this Company Admin account? This action cannot be undone.')) return
+    setActionError(null)
     setActionLoading(adminId)
     try {
       await deleteCompanyAdmin(adminId)
     } catch (err: any) {
-      alert(err.message)
+      setActionError(errText(err, 'Failed to delete this Company Admin. Please try again.'))
     } finally {
       setActionLoading(null)
     }
@@ -151,6 +158,14 @@ export function CompanyAdminApprovals() {
           <h2 style={{ fontSize: 20, fontWeight: 700, color: '#111827', margin: '0 0 4px' }}>Company Admin Approval Management</h2>
           <p style={{ fontSize: 13, color: '#6b7280', margin: 0 }}>Manage Company Admin registrations — approve, reject, suspend, or reactivate accounts</p>
         </div>
+
+        {actionError && (
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '12px 16px', background: '#fef2f2', border: '1px solid #fecaca', borderRadius: 8, marginBottom: 16, color: '#b91c1c', fontSize: 13 }}>
+            <AlertCircle size={16} style={{ flexShrink: 0 }} />
+            <span style={{ flex: 1 }}>{actionError}</span>
+            <button onClick={() => setActionError(null)} style={{ background: 'none', border: 'none', color: '#b91c1c', cursor: 'pointer', padding: 0, display: 'inline-flex' }}><X size={16} /></button>
+          </div>
+        )}
 
         {/* Stats Cards */}
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: 12, marginBottom: 24 }}>

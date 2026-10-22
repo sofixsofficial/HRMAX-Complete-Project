@@ -1,4 +1,5 @@
 import { useState, useEffect, useMemo } from 'react'
+import { errText } from '../aws/errors';
 import { User, Bell, Shield, Settings as SettingsIcon, Building2, FileText, Users, Save, ChevronRight, Loader2, AlertCircle, CheckCircle, X, Globe, Activity, Clock, Eye, EyeOff } from 'lucide-react'
 import { Header } from '../components/Header'
 import { useAuth } from '../context/AuthContext'
@@ -225,7 +226,7 @@ export function Settings() {
       setSuccess('Password updated successfully!')
       setSecuritySettings(prev => ({ ...prev, currentPassword: '', newPassword: '', confirmPassword: '' }))
     } catch (err: any) {
-      setError(err.message || 'Failed to update password. Please try again.')
+      setError(errText(err, 'Failed to update password. Please try again.'))
     } finally { setSaving(false) }
   }
 
@@ -653,7 +654,7 @@ function AttendanceSettingsForm({ settings, companyId, onSaved }: {
       await saveCompanySettings({ companyId, ...form })
       onSaved()
     } catch (err: any) {
-      setError(err.message || 'Failed to save settings')
+      setError(errText(err, 'Failed to save settings'))
     } finally {
       setSaving(false)
     }

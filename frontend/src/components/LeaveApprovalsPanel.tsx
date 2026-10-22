@@ -1,7 +1,8 @@
 import { useEffect, useState } from 'react'
-import { Loader2, Check, X, Eye } from 'lucide-react'
+import { Loader2, Check, X, Eye, AlertCircle } from 'lucide-react'
 import { collection, query, where, onSnapshot } from 'firebase/firestore'
 import { db } from '../config/firebase'
+import { errText } from '../aws/errors'
 import { TIER_LABELS, getEffectiveTiers, reviewTierLeaveRequest, getActionableLeaveTier } from '../services/leaveService'
 import { logAudit } from '../services/auditLogService'
 import { LeaveReviewModal } from './LeaveReviewModal'
@@ -67,6 +68,7 @@ export function LeaveApprovalsPanel({ companyIds, userId, userName, role, title 
   const [draft, setDraft] = useState<LeaveReviewDraft | null>(null)
   const [viewLeave, setViewLeave] = useState<LeaveRequest | null>(null)
   const [submitting, setSubmitting] = useState(false)
+  const [actionError, setActionError] = useState<string | null>(null)
   const [closed, setClosed] = useState(false)
 
   const companyKey = companyIds.filter(Boolean).join(',')
@@ -100,6 +102,7 @@ export function LeaveApprovalsPanel({ companyIds, userId, userName, role, title 
     .sort((a, b) => b.appliedOn.getTime() - a.appliedOn.getTime())
 
   const handleConfirmReview = async (d: LeaveReviewDraft, note: string) => {
+    setActionError(null)
     setSubmitting(true)
     try {
       await reviewTierLeaveRequest(d.leave.id, d.tier, d.action, userId, userName || 'User', note)
@@ -116,7 +119,7 @@ export function LeaveApprovalsPanel({ companyIds, userId, userName, role, title 
       setDraft(null)
     } catch (err) {
       console.error('Leave review failed:', err)
-      alert(err instanceof Error ? err.message : 'Failed to update leave request')
+      setActionError(errText(err, 'Failed to update leave request. Please try again.'))
     } finally {
       setSubmitting(false)
     }
@@ -143,6 +146,13 @@ export function LeaveApprovalsPanel({ companyIds, userId, userName, role, title 
 
       {!closed && (
         <div style={{ padding: 0 }}>
+          {actionError && (
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '10px 20px', background: '#fef2f2', borderBottom: '1px solid #fecaca', color: '#b91c1c', fontSize: 13 }}>
+              <AlertCircle size={15} style={{ flexShrink: 0 }} />
+              <span style={{ flex: 1 }}>{actionError}</span>
+              <button onClick={() => setActionError(null)} style={{ background: 'none', border: 'none', color: '#b91c1c', cursor: 'pointer', padding: 0, display: 'inline-flex' }}><X size={15} /></button>
+            </div>
+          )}
           {loading ? (
             <div className="lap-loading-inline" style={{ padding: 20 }}><Loader2 className="animate-spin" size={20} /> Loading leave requests...</div>
           ) : actionable.length === 0 ? (

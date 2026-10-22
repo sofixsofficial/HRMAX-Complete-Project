@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef, useCallback } from 'react'
+import { errText } from '../aws/errors';
 import { Header } from '../components/Header'
 import { useAuth } from '../context/AuthContext'
 import { useCompany } from '../context/CompanyContext'
@@ -185,7 +186,7 @@ export function Support() {
       setFiles([])
     } catch (err: any) {
       console.error('Error submitting ticket:', err)
-      setError(err?.message || 'Failed to submit your request. Please try again.')
+      setError(errText(err, 'Failed to submit your request. Please try again.'))
     } finally {
       setSubmitting(false)
     }

@@ -2,6 +2,8 @@ import { useState, useEffect } from 'react'
 import { Gift, Calendar, Users, Cake, Search, Download, ChevronRight, Mail, Pencil, Trash2, Filter, LayoutGrid, List, ChevronLeft, Loader2, X, AlertCircle, Send, Eye } from 'lucide-react'
 import { Header } from '../components/Header'
 import { Modal } from '../components/Modal'
+import { ActionErrorBanner } from '../components/ActionErrorBanner'
+import { errText } from '../aws/errors'
 import { useAuth } from '../context/AuthContext'
 import { useCompany } from '../context/CompanyContext'
 import { usePermissionScope } from '../hooks/usePermissionScope'
@@ -44,6 +46,7 @@ export function Birthdays() {
   const [wishMessage, setWishMessage] = useState('')
   const [isSending, setIsSending] = useState(false)
   const [isSaving, setIsSaving] = useState(false)
+  const [actionError, setActionError] = useState<string | null>(null)
   
   // Edit form state
   const [editForm, setEditForm] = useState({
@@ -245,6 +248,7 @@ export function Birthdays() {
     e.preventDefault()
     if (!selectedEmployee || !editForm.birthDate) return
     
+    setActionError(null)
     setIsSaving(true)
     try {
       await updateEmployee(selectedEmployee.id, {
@@ -259,7 +263,7 @@ export function Birthdays() {
       setEditForm({ birthDate: '' })
     } catch (err) {
       console.error('Error saving birth date:', err)
-      alert('Failed to save birth date')
+      setActionError(errText(err, 'Failed to save birth date. Please try again.'))
     } finally {
       setIsSaving(false)
     }
@@ -330,6 +334,7 @@ export function Birthdays() {
       <Header title="Birthdays" breadcrumbs={['Dashboard', 'Birthdays']} />
       
       <div className="page-content">
+        <ActionErrorBanner message={actionError} onDismiss={() => setActionError(null)} />
         {/* Stats Cards */}
         <div className="stats-row birthday-stats">
           {getStatsCards().map((stat, idx) => (

@@ -1,6 +1,8 @@
 import { useState, useEffect } from 'react'
+import { errText } from '../aws/errors';
+import { ActionErrorBanner } from '../components/ActionErrorBanner';
 import { useSearchParams } from 'react-router-dom'
-import { Plane, Clock, CheckCircle, XCircle, Plus, Search, Check, X, Ban, Loader2, Crown, Eye } from 'lucide-react'
+import { Plane, Clock, CheckCircle, XCircle, Plus, Search, Check, X, Ban, Loader2, Crown, Eye, AlertCircle } from 'lucide-react'
 
 import { auth, db } from '../config/firebase'
 import { Header } from '../components/Header'
@@ -145,6 +147,9 @@ export function LeaveManagement() {
   const [reviewTier, setReviewTier] = useState<ApprovalTier>('reportingManager')
   const [reviewAction, setReviewAction] = useState<'Approved' | 'Rejected'>('Approved')
   const [reviewNote, setReviewNote] = useState('')
+  const [reviewError, setReviewError] = useState<string | null>(null)
+  const [applyError, setApplyError] = useState<string | null>(null)
+  const [cancelError, setCancelError] = useState<string | null>(null)
   const [reviewIsMasterAdmin, setReviewIsMasterAdmin] = useState(false)
 
   const [isDetailsOpen, setIsDetailsOpen] = useState(false)
@@ -388,8 +393,9 @@ export function LeaveManagement() {
 
   const handleApply = async (e: React.FormEvent) => {
     e.preventDefault()
+    setApplyError(null)
     if (isApprover && applyMode === 'behalf' && !applyData.employeeId) {
-      alert('Select an employee to apply on their behalf')
+      setApplyError('Select an employee to apply on their behalf')
       setIsSubmitting(false)
       return
     }
@@ -399,7 +405,7 @@ export function LeaveManagement() {
       const end = new Date(applyData.endDate)
       const totalDays = calcLeaveDays(start, end)
       if (totalDays <= 0) {
-        alert('End date must be on or after start date')
+        setApplyError('End date must be on or after start date')
         setIsSubmitting(false)
         return
       }
@@ -458,7 +464,7 @@ export function LeaveManagement() {
           module: 'Leave Management', targetEntity: user.name, status: 'failure',
         })
       }
-      alert('Failed to submit leave request')
+      setApplyError(errText(err, 'Failed to submit leave request. Please try again.'))
     } finally {
       setIsSubmitting(false)
     }
@@ -469,6 +475,7 @@ export function LeaveManagement() {
     setReviewTier(tier)
     setReviewAction(action)
     setReviewNote('')
+    setReviewError(null)
     setReviewIsMasterAdmin(false)
     setIsReviewOpen(true)
   }
@@ -477,6 +484,7 @@ export function LeaveManagement() {
     setReviewTarget(leave)
     setReviewAction(action)
     setReviewNote('')
+    setReviewError(null)
     setReviewIsMasterAdmin(true)
     setIsReviewOpen(true)
   }
@@ -484,9 +492,10 @@ export function LeaveManagement() {
   const handleReview = async () => {
     if (!reviewTarget || !user) return
     if (!reviewNote.trim()) {
-      alert('A remark is required to complete this approval step')
+      setReviewError('A remark is required to complete this approval step')
       return
     }
+    setReviewError(null)
     setIsSubmitting(true)
     try {
       if (reviewIsMasterAdmin) {
@@ -518,7 +527,7 @@ export function LeaveManagement() {
       setReviewTarget(null)
     } catch (err) {
       console.error('Error reviewing leave:', err)
-      alert(err instanceof Error ? err.message : 'Failed to update leave request')
+      setReviewError(errText(err, 'Failed to update leave request. Please try again.'))
     } finally {
       setIsSubmitting(false)
     }
@@ -526,6 +535,7 @@ export function LeaveManagement() {
 
   const handleCancel = async (id: string) => {
     if (!confirm('Cancel this leave request?')) return
+    setCancelError(null)
     try {
       await cancelLeaveRequest(id)
       if (user) {
@@ -546,7 +556,7 @@ export function LeaveManagement() {
           module: 'Leave Management', targetEntity: 'Leave Request', status: 'failure',
         })
       }
-      alert('Failed to cancel leave request')
+      setCancelError(errText(err, 'Failed to cancel leave request. Please try again.'))
     }
   }
 
@@ -574,6 +584,7 @@ export function LeaveManagement() {
 
       <div className="page-content">
         <ScopeIndicator />
+        <ActionErrorBanner message={cancelError} onDismiss={() => setCancelError(null)} />
         <div className="stats-row">
           <div className="stat-card-companies" onClick={() => handleCardFilter('Pending')} style={{ cursor: 'pointer', transition: 'all 0.15s', border: statusFilter === 'Pending' ? '2px solid #f59e0b' : '2px solid transparent', boxShadow: statusFilter === 'Pending' ? '0 0 0 3px rgba(245,158,11,0.15)' : 'none' }}>
             <div className="stat-card-content">
@@ -600,7 +611,7 @@ export function LeaveManagement() {
             <h3>{isExecutive ? 'My Leave Requests' : 'Leave Requests'}</h3>
             <div className="section-actions">
               {user?.role !== 'company-admin' && canPerform('create', 'leave') && (
-                <button className="btn-primary" onClick={() => { setApplyData(INITIAL_APPLY); setApplyMode('self'); setIsApplyOpen(true) }}>
+                <button className="btn-primary" onClick={() => { setApplyData(INITIAL_APPLY); setApplyMode('self'); setApplyError(null); setIsApplyOpen(true) }}>
                   <Plus size={16} />Apply for Leave
                 </button>
               )}
@@ -833,6 +844,8 @@ export function LeaveManagement() {
             <textarea value={applyData.reason} onChange={(e) => setApplyData(prev => ({ ...prev, reason: e.target.value }))} rows={3} placeholder="Reason for leave..." required />
           </div>
 
+          <ActionErrorBanner message={applyError} onDismiss={() => setApplyError(null)} marginBottom={8} />
+
           <div className="modal-footer">
             <button type="button" className="btn-secondary" onClick={() => setIsApplyOpen(false)}>Cancel</button>
             <button type="submit" className="btn-primary" disabled={isSubmitting}>{isSubmitting ? 'Submitting...' : 'Submit Request'}</button>
@@ -917,6 +930,12 @@ export function LeaveManagement() {
               <label>Remark / Reason *</label>
               <textarea value={reviewNote} onChange={(e) => setReviewNote(e.target.value)} rows={2} placeholder="Write a mandatory remark for this approval decision..." />
             </div>
+            {reviewError && (
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '10px 12px', background: '#fef2f2', border: '1px solid #fecaca', borderRadius: 8, marginBottom: 12, color: '#b91c1c', fontSize: 13 }}>
+                <AlertCircle size={15} style={{ flexShrink: 0 }} />
+                <span style={{ flex: 1 }}>{reviewError}</span>
+              </div>
+            )}
             <div className="modal-footer">
               <button type="button" className="btn-secondary" onClick={() => setIsReviewOpen(false)}>Cancel</button>
               <button

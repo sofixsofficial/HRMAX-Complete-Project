@@ -10,6 +10,8 @@ import {
 } from 'lucide-react'
 import { Header } from '../components/Header'
 import { Modal } from '../components/Modal'
+import { ActionErrorBanner } from '../components/ActionErrorBanner'
+import { errText } from '../aws/errors'
 import { useAuth } from '../context/AuthContext'
 import { useAccessControl } from '../context/AccessControlContext'
 import { useCompany } from '../context/CompanyContext'
@@ -157,6 +159,7 @@ export function Assets() {
   const [selectedAsset, setSelectedAsset] = useState<Asset | null>(null)
   const [formData, setFormData] = useState(INITIAL_FORM_DATA())
   const [isSubmitting, setIsSubmitting] = useState(false)
+  const [actionError, setActionError] = useState<string | null>(null)
 
   useEffect(() => {
     const status = searchParams.get('status')
@@ -302,6 +305,7 @@ export function Assets() {
 
   const handleAdd = async (e: React.FormEvent) => {
     e.preventDefault()
+    setActionError(null)
     setIsSubmitting(true)
     try {
       const id = formData.assetTag || generateAssetTag(assets)
@@ -313,7 +317,7 @@ export function Assets() {
       setIsAddModalOpen(false)
     } catch (err) {
       console.error(err)
-      alert('Failed to add asset.')
+      setActionError(errText(err, 'Failed to add asset. Please try again.'))
     } finally {
       setIsSubmitting(false)
     }
@@ -332,7 +336,7 @@ export function Assets() {
       setSelectedAsset(null)
     } catch (err) {
       console.error(err)
-      alert('Failed to update asset.')
+      setActionError(errText(err, 'Failed to update asset. Please try again.'))
     } finally {
       setIsSubmitting(false)
     }
@@ -345,7 +349,7 @@ export function Assets() {
       await fetchAssets()
     } catch (err) {
       console.error(err)
-      alert('Failed to delete asset.')
+      setActionError(errText(err, 'Failed to delete asset. Please try again.'))
     }
   }
 
@@ -383,6 +387,7 @@ export function Assets() {
       <Header title="Assets" breadcrumbs={['Dashboard', 'Assets']} />
 
       <div className="page-content">
+        <ActionErrorBanner message={actionError} onDismiss={() => setActionError(null)} />
         {/* Stats Cards */}
         <div className="emp-stats-row asset-stats-row">
           <div className="emp-mini-stat asset-stat-card" onClick={() => handleStatClick('status', 'Assigned')} style={{ cursor: 'pointer' }}>

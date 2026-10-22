@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import { errText } from '../aws/errors';
 import { Loader2 } from 'lucide-react'
 import { Modal } from './Modal'
 import { useAuth } from '../context/AuthContext'
@@ -82,7 +83,7 @@ export function LeaveApplyModal({ isOpen, onClose, companyId, resubmitting }: Le
       onClose()
     } catch (err) {
       console.error('Self leave application failed:', err)
-      setError(err instanceof Error ? err.message : 'Failed to submit leave request')
+      setError(errText(err, 'Failed to submit leave request'))
     } finally {
       setSubmitting(false)
     }

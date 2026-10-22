@@ -2,6 +2,8 @@ import { useState, useEffect } from 'react'
 import { Calendar, CalendarDays, Users, Clock, Building, Search, Download, Plus, ChevronDown, ChevronLeft, ChevronRight, Pencil, Trash2, List, LayoutGrid, Eye, Loader2, Briefcase, Crown } from 'lucide-react'
 import { Header } from '../components/Header'
 import { Modal } from '../components/Modal'
+import { ActionErrorBanner } from '../components/ActionErrorBanner'
+import { errText } from '../aws/errors'
 import { collection, getDocs, query } from 'firebase/firestore'
 import { db } from '../config/firebase'
 import { useAuth } from '../context/AuthContext'
@@ -108,6 +110,7 @@ export function HolidayCalendar() {
   const [selectedHoliday, setSelectedHoliday] = useState<Holiday | null>(null)
   const [formData, setFormData] = useState(INITIAL_FORM_DATA)
   const [isSubmitting, setIsSubmitting] = useState(false)
+  const [actionError, setActionError] = useState<string | null>(null)
   
   // Filters
   const [searchTerm, setSearchTerm] = useState('')
@@ -276,6 +279,7 @@ export function HolidayCalendar() {
 
   const handleAddHoliday = async (e: React.FormEvent) => {
     e.preventDefault()
+    setActionError(null)
     setIsSubmitting(true)
     try {
       const cid = effectiveCompanyId || user?.companyId || ''
@@ -295,7 +299,7 @@ export function HolidayCalendar() {
       setFormData(INITIAL_FORM_DATA)
     } catch (err) {
       console.error('Error adding holiday:', err)
-      alert('Failed to add holiday')
+      setActionError(errText(err, 'Failed to add holiday. Please try again.'))
     } finally {
       setIsSubmitting(false)
     }
@@ -305,6 +309,7 @@ export function HolidayCalendar() {
     e.preventDefault()
     if (!selectedHoliday) return
     
+    setActionError(null)
     setIsSubmitting(true)
     try {
       await updateHoliday(selectedHoliday.id, formData)
@@ -320,7 +325,7 @@ export function HolidayCalendar() {
       setSelectedHoliday(null)
     } catch (err) {
       console.error('Error updating holiday:', err)
-      alert('Failed to update holiday')
+      setActionError(errText(err, 'Failed to update holiday. Please try again.'))
     } finally {
       setIsSubmitting(false)
     }
@@ -329,6 +334,7 @@ export function HolidayCalendar() {
   const handleDelete = async (id: string) => {
     if (!confirm('Are you sure you want to delete this holiday?')) return
     
+    setActionError(null)
     try {
       const h = holidays.find(x => x.id === id)
       await deleteHoliday(id)
@@ -342,7 +348,7 @@ export function HolidayCalendar() {
       await fetchHolidays()
     } catch (err) {
       console.error('Error deleting holiday:', err)
-      alert('Failed to delete holiday')
+      setActionError(errText(err, 'Failed to delete holiday. Please try again.'))
     }
   }
 
@@ -442,6 +448,7 @@ export function HolidayCalendar() {
       <Header title={pageTitle} breadcrumbs={['Dashboard', pageTitle]} />
       
       <div className="page-content">
+        <ActionErrorBanner message={actionError} onDismiss={() => setActionError(null)} />
         {/* Stats Cards */}
         <div className="stats-row holiday-stats">
           {getStatsCards().map((stat, idx) => (

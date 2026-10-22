@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback } from 'react'
+import { errText } from '../aws/errors';
 import { useSearchParams } from 'react-router-dom'
 import { Users, UserPlus, Search, Copy, Check, X, Loader2, Shield, ShieldCheck, Mail, Clock, Link as LinkIcon, AlertCircle, Crown } from 'lucide-react'
 import { useAuth } from '../context/AuthContext'
@@ -54,6 +55,7 @@ export function AccessManagement() {
   const [inviteForm, setInviteForm] = useState({ email: '', name: '', role: 'executive' as UserRole, departmentId: '', employeeId: '' })
   const [inviteError, setInviteError] = useState('')
   const [inviteSuccess, setInviteSuccess] = useState('')
+  const [actionError, setActionError] = useState('')
   const [inviteLink, setInviteLink] = useState('')
   const [isInviting, setIsInviting] = useState(false)
 
@@ -175,7 +177,7 @@ export function AccessManagement() {
       setInviteForm({ email: '', name: '', role: 'executive', departmentId: '', employeeId: '' })
       await fetchData()
     } catch (err: any) {
-      setInviteError(err.message || 'Failed to send invitation')
+      setInviteError(errText(err, 'Failed to send invitation'))
     } finally {
       setIsInviting(false)
     }
@@ -191,29 +193,32 @@ export function AccessManagement() {
 
   const handleCancelInvite = async (inviteId: string) => {
     if (!window.confirm('Are you sure you want to cancel this invitation?')) return
+    setActionError('')
     try {
       await cancelInvitation(inviteId)
       await fetchData()
     } catch (err: any) {
-      alert(err.message || 'Failed to cancel invitation')
+      setActionError(errText(err, 'Failed to cancel invitation. Please try again.'))
     }
   }
 
   const openRoleModal = (u: User) => {
     setSelectedUser(u)
     setNewRole(u.role)
+    setActionError('')
     setIsRoleModalOpen(true)
   }
 
   const handleUpdateRole = async () => {
     if (!selectedUser) return
+    setActionError('')
     setIsUpdatingRole(true)
     try {
       await updateUserRole(selectedUser.id, newRole)
       setIsRoleModalOpen(false)
       await fetchData()
     } catch (err: any) {
-      alert(err.message || 'Failed to update role')
+      setActionError(errText(err, 'Failed to update role. Please try again.'))
     } finally {
       setIsUpdatingRole(false)
     }
@@ -312,7 +317,7 @@ export function AccessManagement() {
       await fetchData()
       return true
     } catch (err: any) {
-      setPermError(err.message || 'Failed to save permissions')
+      setPermError(errText(err, 'Failed to save permissions'))
       return false
     } finally {
       if (!silent) setIsSavingPerms(false)
@@ -386,6 +391,14 @@ export function AccessManagement() {
     <div className="page-container">
       <Header title="User Access Management" breadcrumbs={['Dashboard', 'Access Management']} />
       <div className="page-content">
+
+      {actionError && !isRoleModalOpen && (
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '12px 16px', background: '#fef2f2', border: '1px solid #fecaca', borderRadius: 8, marginBottom: 16, color: '#b91c1c', fontSize: 13 }}>
+          <AlertCircle size={16} style={{ flexShrink: 0 }} />
+          <span style={{ flex: 1 }}>{actionError}</span>
+          <button onClick={() => setActionError('')} style={{ background: 'none', border: 'none', color: '#b91c1c', cursor: 'pointer', padding: 0, display: 'inline-flex' }}><X size={16} /></button>
+        </div>
+      )}
 
       {/* Stats */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
@@ -839,6 +852,13 @@ export function AccessManagement() {
                 ))}
               </select>
             </div>
+
+            {actionError && (
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '10px 12px', background: '#fef2f2', border: '1px solid #fecaca', borderRadius: 8, marginBottom: 16, color: '#b91c1c', fontSize: 13 }}>
+                <AlertCircle size={15} style={{ flexShrink: 0 }} />
+                <span style={{ flex: 1 }}>{actionError}</span>
+              </div>
+            )}
 
             <div className="access-modal-footer">
               <button type="button" className="btn-secondary" onClick={() => setIsRoleModalOpen(false)}>

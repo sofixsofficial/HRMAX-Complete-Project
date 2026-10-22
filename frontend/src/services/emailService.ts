@@ -120,6 +120,7 @@ export const sendEmailViaSMTP = async (params: {
   bcc?: string
   companyId?: string
   emailId?: string
+  attachments?: Array<{ filename: string; content: string; contentType?: string }>
 }): Promise<{ success: boolean; delivered: boolean }> => {
   const functions = getFunctions()
   const sendEmailFn = httpsCallable(functions, 'sendEmail')

@@ -141,3 +141,21 @@ export function validateEmail(email: string): string | null {
 export function safeDisplayText(msg: unknown): string {
   return isSafeDisplayMessage(msg) ? msg : ERROR_MESSAGES.generic;
 }
+
+/**
+ * Normalize any thrown value to a display-safe message for catch blocks.
+ *
+ * Use this INSTEAD of raw `err.message` so backend/provider details (tokens,
+ * stack traces, Firebase internals) are never surfaced. It routes through
+ * `toDisplayError`, so network / session-expired / access-denied errors get
+ * their exact taxonomy message, and unsafe backend text falls back to `fallback`
+ * (a contextual hint like 'Failed to send email') rather than a raw leak.
+ *
+ *   catch (err) { setToast({ message: errText(err, 'Failed to send email'), type: 'error' }) }
+ */
+export function errText(err: unknown, fallback: string = ERROR_MESSAGES.generic): string {
+  const e = toDisplayError(err);
+  // toDisplayError resolves unsafe/unknown errors to the generic message — in
+  // that case prefer the caller's contextual fallback for a clearer hint.
+  return e.message === ERROR_MESSAGES.generic ? fallback : e.message;
+}

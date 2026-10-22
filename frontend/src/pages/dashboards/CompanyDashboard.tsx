@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react'
+import { errText } from '../../aws/errors';
 import { useNavigate } from 'react-router-dom'
 import {
   Users, Clock, Calendar, Wallet, CheckSquare, Megaphone,
@@ -167,7 +168,7 @@ export function CompanyDashboard() {
       setIsBroadcastOpen(false)
       listBroadcastJobs(companyId).then(setJobs).catch(() => {})
     } catch (err: any) {
-      setToast({ message: err?.message || 'Broadcast failed.', type: 'error' })
+      setToast({ message: errText(err, 'Broadcast failed.'), type: 'error' })
     } finally {
       setSending(false)
     }

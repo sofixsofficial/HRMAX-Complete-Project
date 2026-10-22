@@ -1,7 +1,8 @@
 import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
+import { errText, safeDisplayText } from '../aws/errors';
 import { doc, deleteDoc } from 'firebase/firestore'
-import { Calculator, Loader2, Eye, AlertTriangle, CheckSquare, Square } from 'lucide-react'
+import { Calculator, Loader2, Eye, AlertTriangle, CheckSquare, Square, X } from 'lucide-react'
 import { Header } from '../components/Header'
 import { ErrorBoundary } from '../components/ErrorBoundary'
 import { Modal } from '../components/Modal'
@@ -53,6 +54,7 @@ function PayrollContent() {
   const [loading, setLoading] = useState(true)
   const [previewing, setPreviewing] = useState(false)
   const [generating, setGenerating] = useState(false)
+  const [actionError, setActionError] = useState<string | null>(null)
 
   const [employees, setEmployees] = useState<Employee[]>([])
   const [selectedEmployeeIds, setSelectedEmployeeIds] = useState<Set<string>>(new Set())
@@ -139,29 +141,30 @@ function PayrollContent() {
 
   // STEP 1 — MANDATORY preview. No writes happen here.
   const handlePreview = async () => {
+    setActionError(null)
     if (!companyId) {
-      alert('No company selected. Please select a company.')
+      setActionError('No company selected. Please select a company.')
       return
     }
     if (selectedCount === 0) {
-      alert('Please select at least one employee to include in the payroll.')
+      setActionError('Please select at least one employee to include in the payroll.')
       return
     }
     if (existingRun && EMAILED_OR_LOCKED_STATUSES.includes(existingRun.status)) {
-      alert(`Payroll for ${MONTHS[monthIndex]} ${year} has already been finalized (status: ${existingRun.status}). Check Payroll History, or correct slips with the salary-slip flow.`)
+      setActionError(`Payroll for ${MONTHS[monthIndex]} ${year} has already been finalized (status: ${existingRun.status}). Check Payroll History, or correct slips with the salary-slip flow.`)
       return
     }
     setPreviewing(true)
     try {
       const result = await previewBulkPayroll({ companyId, monthIndex, year, selectedEmployeeIds: Array.from(selectedEmployeeIds) })
       if (!result.success) {
-        alert(result.error || 'Failed to preview payroll.')
+        setActionError(safeDisplayText(result.error) || 'Failed to preview payroll. Please try again.')
         return
       }
       setPreview({ items: result.items ?? [], workingDays: result.workingDays ?? 0, totalNet: result.totalNet ?? 0, employeeCount: result.employeeCount ?? 0 })
     } catch (err: any) {
       console.error('Error previewing payroll:', err)
-      alert(err?.message || 'Failed to preview payroll. Check console for details.')
+      setActionError(errText(err, 'Failed to preview payroll. Please try again.'))
     } finally {
       setPreviewing(false)
     }
@@ -170,13 +173,15 @@ function PayrollContent() {
   // STEP 2 — confirm the preview, then write the salary slips. Mandatory.
   const handleConfirmGenerate = async () => {
     if (!preview) return
+    setActionError(null)
     if (selectedCount === 0) {
-      alert('Please select at least one employee to include in the payroll.')
+      setActionError('Please select at least one employee to include in the payroll.')
+      setPreview(null)
       return
     }
     const existing = runs.find(r => r.monthIndex === monthIndex && r.year === year)
     if (existing && EMAILED_OR_LOCKED_STATUSES.includes(existing.status)) {
-      alert(`Payroll for ${MONTHS[monthIndex]} ${year} has already been finalized (status: ${existing.status}).`)
+      setActionError(`Payroll for ${MONTHS[monthIndex]} ${year} has already been finalized (status: ${existing.status}).`)
       setPreview(null)
       return
     }
@@ -202,7 +207,7 @@ function PayrollContent() {
         selectedEmployeeIds: Array.from(selectedEmployeeIds),
       })
       if (!result.success) {
-        alert(result.error || 'Payroll generation failed.')
+        setActionError(safeDisplayText(result.error) || 'Payroll generation failed. Please try again.')
         return
       }
       if (user) {
@@ -228,7 +233,7 @@ function PayrollContent() {
           targetEntity: `${MONTHS[monthIndex]} ${year}`, status: 'failure',
         })
       }
-      alert(err?.message || 'Failed to generate payroll. Check console for details.')
+      setActionError(errText(err, 'Failed to generate payroll. Please try again.'))
     } finally {
       setGenerating(false)
     }
@@ -255,6 +260,14 @@ function PayrollContent() {
 
       <div className="page-content">
         <ScopeIndicator />
+
+        {actionError && !preview && (
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '12px 16px', background: '#fef2f2', border: '1px solid #fecaca', borderRadius: 8, marginBottom: 16, color: '#b91c1c', fontSize: 13 }}>
+            <AlertTriangle size={16} style={{ flexShrink: 0 }} />
+            <span style={{ flex: 1 }}>{actionError}</span>
+            <button onClick={() => setActionError(null)} style={{ background: 'none', border: 'none', color: '#b91c1c', cursor: 'pointer', padding: 0, display: 'inline-flex' }}><X size={16} /></button>
+          </div>
+        )}
 
         {/* Run Payroll */}
         <div className="companies-section">
@@ -356,6 +369,12 @@ function PayrollContent() {
           </div>
         }
       >
+        {actionError && (
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '10px 12px', background: '#fef2f2', border: '1px solid #fecaca', borderRadius: 8, marginBottom: 12, color: '#b91c1c', fontSize: 13 }}>
+            <AlertTriangle size={15} style={{ flexShrink: 0 }} />
+            <span style={{ flex: 1 }}>{actionError}</span>
+          </div>
+        )}
         <div style={{ fontSize: 13, color: '#6b7280', marginBottom: 12 }}>
           Reviewing this preview is <b>mandatory</b> — nothing is saved until you confirm. Check the line items and
           totals below, then confirm. Salary slips are saved as drafts into Payroll History and you will be taken to the

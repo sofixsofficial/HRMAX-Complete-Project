@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { errText } from '../../aws/errors';
 import { Link } from 'react-router-dom'
 import { CheckCircle, ArrowLeft, Loader2, Send, ArrowRight, Mail, Phone, MapPin } from 'lucide-react'
 import { sendSupportTicket } from '../../services/emailService'
@@ -59,7 +60,7 @@ export function Contact() {
       })
       setIsSubmitted(true)
     } catch (err: any) {
-      setError(err.message || 'Failed to send message. Please try again.')
+      setError(errText(err, 'Failed to send message. Please try again.'))
     } finally {
       setIsLoading(false)
     }

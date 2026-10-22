@@ -1,4 +1,5 @@
 ﻿import { useState, useEffect, useCallback, useRef } from 'react'
+import { errText } from '../aws/errors';
 import { useNavigate, useSearchParams } from 'react-router-dom'
 import { Clock, CheckCircle, XCircle, Search, Loader2, User, LogIn, LogOut, Filter, Building2, ThumbsUp, ThumbsDown, Ban, AlertCircle, RefreshCw, ChevronLeft, ChevronRight, Activity, Edit3, MapPin, Wifi, Shield, Camera, Globe, Smartphone, Crown, Eye } from 'lucide-react'
 import { collection, query, where, onSnapshot, orderBy } from 'firebase/firestore'
@@ -356,7 +357,7 @@ const [submittingRectify, setSubmittingRectify] = useState(false)
         setGpsError(null)
       })
       .catch(err => {
-        setGpsError(err.message || 'Unable to get GPS location')
+        setGpsError(errText(err, 'Unable to get GPS location'))
       })
       .finally(() => setIsGpsLoading(false))
   }, [isEmployee])
@@ -603,7 +604,7 @@ const [submittingRectify, setSubmittingRectify] = useState(false)
         setActionMsg({ type: 'success', text: 'Checked in successfully! Attendance is being processed.' })
       }
     } catch (err: any) {
-      setActionMsg({ type: 'error', text: err.message || 'Check-in failed' })
+      setActionMsg({ type: 'error', text: errText(err, 'Check-in failed') })
     } finally {
       setCheckingIn(false)
     }
@@ -658,7 +659,7 @@ const [submittingRectify, setSubmittingRectify] = useState(false)
       if (updated) setTodayRecord(updated)
       setActionMsg({ type: 'success', text: 'Checked out successfully! Your day is complete.' })
     } catch (err: any) {
-      setActionMsg({ type: 'error', text: err.message || 'Check-out failed' })
+      setActionMsg({ type: 'error', text: errText(err, 'Check-out failed') })
     } finally {
       setCheckingOut(false)
     }
@@ -687,7 +688,7 @@ const [submittingRectify, setSubmittingRectify] = useState(false)
         action: `Failed to approve attendance for ${name}${actingContext}`, actionType: 'approve',
         module: 'Attendance', targetEntity: name, status: 'failure',
       })
-      setActionMsg({ type: 'error', text: err.message || 'Approval failed' })
+      setActionMsg({ type: 'error', text: errText(err, 'Approval failed') })
     }
   }
 
@@ -726,7 +727,7 @@ const [submittingRectify, setSubmittingRectify] = useState(false)
       setMissPunchModal(null)
       setMissPunchRemark('')
     } catch (err: any) {
-      setActionMsg({ type: 'error', text: err.message || 'Failed to mark Miss Punch' })
+      setActionMsg({ type: 'error', text: errText(err, 'Failed to mark Miss Punch') })
     } finally {
       setSubmittingMissPunch(false)
     }
@@ -762,7 +763,7 @@ const [submittingRectify, setSubmittingRectify] = useState(false)
       setRectifyTime('')
       setRectifyRemark('')
     } catch (err: any) {
-      setActionMsg({ type: 'error', text: err.message || 'Failed to submit rectification' })
+      setActionMsg({ type: 'error', text: errText(err, 'Failed to submit rectification') })
     } finally {
       setSubmittingRectify(false)
      }
@@ -800,7 +801,7 @@ const [submittingRectify, setSubmittingRectify] = useState(false)
         targetEntity: rectifyModal?.name || '', status: 'success',
       })
     } catch (err: any) {
-      setActionMsg({ type: 'error', text: err.message || 'Failed to resolve rectification' })
+      setActionMsg({ type: 'error', text: errText(err, 'Failed to resolve rectification') })
     } finally {
       setSubmittingRectify(false)
     }
@@ -869,7 +870,7 @@ const [submittingRectify, setSubmittingRectify] = useState(false)
         actionType: 'update', module: 'Attendance', targetEntity: rectifyModal?.name || '', status: 'success',
       })
     } catch (err: any) {
-      setActionMsg({ type: 'error', text: err.message || 'Failed to review missed punch' })
+      setActionMsg({ type: 'error', text: errText(err, 'Failed to review missed punch') })
     } finally {
       setSubmittingRectify(false)
     }
@@ -907,7 +908,7 @@ const [submittingRectify, setSubmittingRectify] = useState(false)
         actionType: 'update', module: 'Attendance', targetEntity: rectifyModal?.name || '', status: 'success',
       })
     } catch (err: any) {
-      setActionMsg({ type: 'error', text: err.message || 'Failed to review missed punch' })
+      setActionMsg({ type: 'error', text: errText(err, 'Failed to review missed punch') })
     } finally {
       setSubmittingRectify(false)
     }

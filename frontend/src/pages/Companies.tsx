@@ -292,6 +292,7 @@ const CompanyForm = ({ onSubmit, submitLabel, onCancel, isSubmitting, defaultVal
   const [panFileName, setPanFileName] = useState('')
   const [gstFileName, setGstFileName] = useState('')
   const [agreementFileName, setAgreementFileName] = useState('')
+  const [fileError, setFileError] = useState<string | null>(null)
   const [locating, setLocating] = useState(false)
 
   const getLocation = () => {
@@ -312,9 +313,11 @@ const CompanyForm = ({ onSubmit, submitLabel, onCancel, isSubmitting, defaultVal
     const file = e.target.files?.[0]
     if (!file) return
     if (file.size > 5 * 1024 * 1024) {
-      alert('File size exceeds 5MB limit')
+      setFileError('File size exceeds 5MB limit. Please choose a smaller file.')
+      e.target.value = ''
       return
     }
+    setFileError(null)
     const reader = new FileReader()
     reader.onloadend = () => {
       setValue(field, reader.result as string)
@@ -529,6 +532,14 @@ const CompanyForm = ({ onSubmit, submitLabel, onCancel, isSubmitting, defaultVal
         />
       </div>
     </div>
+
+    {fileError && (
+      <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '10px 12px', background: '#fef2f2', border: '1px solid #fecaca', borderRadius: 8, marginBottom: 12, color: '#b91c1c', fontSize: 13 }}>
+        <AlertCircle size={15} style={{ flexShrink: 0 }} />
+        <span style={{ flex: 1 }}>{fileError}</span>
+        <button type="button" onClick={() => setFileError(null)} style={{ background: 'none', border: 'none', color: '#b91c1c', cursor: 'pointer', padding: 0, display: 'inline-flex' }}><X size={15} /></button>
+      </div>
+    )}
 
     <div className="form-row">
       <div className="form-group">

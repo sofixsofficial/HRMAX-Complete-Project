@@ -32,11 +32,15 @@ export function Logo({ variant = 'compact', size = 'md', onLight = false }: Logo
   }
 
   const dim = stackedDims[size] || stackedDims.md
+  // Stacked mark: "HR" in an orange rounded box, "MAX" centred below it.
+  // The box occupies y=0..50; "MAX" (fontSize 36, baseline y=90) has a cap-top
+  // near y=64 — a ~14px clear gap below the box — and the viewBox is 98 tall so
+  // neither the box nor the "MAX" glyphs are clipped or overlapping.
   return (
-    <svg width={dim} height={dim * 84 / 120} viewBox="0 0 120 84" fill="none" xmlns="http://www.w3.org/2000/svg">
+    <svg width={dim} height={dim * 98 / 120} viewBox="0 0 120 98" fill="none" xmlns="http://www.w3.org/2000/svg">
       <rect x="35" y="0" width="50" height="50" rx="12" fill="#f97316"/>
-      <text x="60" y="35" textAnchor="middle" fontFamily="Inter, Arial, sans-serif" fontWeight="800" fontSize="24" fill="white">HR</text>
-      <text x="60" y="72" textAnchor="middle" fontFamily="Inter, Arial, sans-serif" fontWeight="800" fontSize="38" fill="#FFFFFF">MAX</text>
+      <text x="60" y="34" textAnchor="middle" fontFamily="Inter, Arial, sans-serif" fontWeight="800" fontSize="23" fill="white">HR</text>
+      <text x="60" y="90" textAnchor="middle" fontFamily="Inter, Arial, sans-serif" fontWeight="800" fontSize="36" fill="#FFFFFF">MAX</text>
     </svg>
   )
 }

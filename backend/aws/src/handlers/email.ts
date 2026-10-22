@@ -8,6 +8,7 @@ import { must } from '../lib/http.js';
 import { assertRole } from '../lib/auth.js';
 import { queryEntities, patchEntity } from '../lib/db.js';
 import { sendEmailCentral, getEmailConfig } from '../lib/email.js';
+import type { EmailAttachment } from '../lib/email.js';
 import { ApiError } from '../lib/types.js';
 
 export const emailRoutes: Route[] = [
@@ -44,14 +45,31 @@ export const emailRoutes: Route[] = [
     path: '/api/email/send',
     handler: async (req) => {
       const caller = must(req);
-      const { to, subject, html, text, companyId, body, cc, bcc, emailId } = req.body as {
+      const { to, subject, html, text, companyId, body, cc, bcc, emailId, attachments } = req.body as {
         to: string; subject: string; html?: string; text?: string; companyId?: string;
         body?: string; cc?: string; bcc?: string; emailId?: string;
+        attachments?: Array<{ filename: string; content: string; contentType?: string }>;
       };
       // The web client sends the HTML under `body`; accept `html` too (parity).
       const content = html ?? body;
       if (!to || !subject || !content) throw new ApiError('bad-request', 'to, subject, html required');
-      return sendEmailCentral({ to, subject, html: content, text, cc: cc ? [cc] : undefined, bcc: bcc ? [bcc] : undefined, emailId, companyId: companyId ?? caller.companyId, type: 'manual', triggeredBy: caller.uid });
+
+      // Decode any client-uploaded attachments (base64) into Buffers for the MIME
+      // Raw send. Guard total size so we stay under the API Gateway 10 MB payload
+      // cap (base64 inflates ~33%) and SES's per-message limits.
+      let decodedAttachments: EmailAttachment[] | undefined;
+      if (Array.isArray(attachments) && attachments.length > 0) {
+        const MAX_TOTAL_BYTES = 5 * 1024 * 1024; // 5 MB across all attachments
+        let total = 0;
+        decodedAttachments = attachments.map((att) => {
+          const buf = Buffer.from(String(att.content ?? ''), 'base64');
+          total += buf.length;
+          return { filename: String(att.filename ?? 'attachment'), content: buf, contentType: att.contentType };
+        });
+        if (total > MAX_TOTAL_BYTES) throw new ApiError('bad-request', 'Attachments exceed the 5 MB total limit');
+      }
+
+      return sendEmailCentral({ to, subject, html: content, text, cc: cc ? [cc] : undefined, bcc: bcc ? [bcc] : undefined, emailId, attachments: decodedAttachments, companyId: companyId ?? caller.companyId, type: 'manual', triggeredBy: caller.uid });
     },
   },
 

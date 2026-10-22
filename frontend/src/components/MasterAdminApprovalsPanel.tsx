@@ -1,7 +1,8 @@
 import { useEffect, useState } from 'react'
-import { Loader2, Check, X, ShieldAlert, Eye } from 'lucide-react'
+import { Loader2, Check, X, ShieldAlert, Eye, AlertCircle } from 'lucide-react'
 import { collection, query, where, onSnapshot } from 'firebase/firestore'
 import { db } from '../config/firebase'
+import { errText } from '../aws/errors'
 import { getEffectiveTiers, TIER_LABELS, reviewMasterAdminLeaveRequest } from '../services/leaveService'
 import { reviewMasterAdminMissedPunch, getEffectiveMissedPunchTiers, getRecordEffectiveMissedPunchTiers, MISSED_PUNCH_TIER_LABELS } from '../services/attendanceService'
 import { logAudit } from '../services/auditLogService'
@@ -54,6 +55,7 @@ export function MasterAdminApprovalsPanel({ scopedCompanyIds, userId, userName }
   const [reviewAction, setReviewAction] = useState<'Approved' | 'Rejected'>('Approved')
   const [note, setNote] = useState('')
   const [submitting, setSubmitting] = useState(false)
+  const [actionError, setActionError] = useState<string | null>(null)
   const [closed, setClosed] = useState(false)
 
   const scopeKey = (scopedCompanyIds || []).filter(Boolean).join(',')
@@ -156,7 +158,8 @@ export function MasterAdminApprovalsPanel({ scopedCompanyIds, userId, userName }
 
   const confirmReview = async () => {
     if (!reviewItem) return
-    if (!note.trim()) { alert('A mandatory remark is required for Master Admin review.'); return }
+    if (!note.trim()) { setActionError('A mandatory remark is required for Master Admin review.'); return }
+    setActionError(null)
     setSubmitting(true)
     try {
       if (reviewItem.kind === 'leave') {
@@ -177,7 +180,7 @@ export function MasterAdminApprovalsPanel({ scopedCompanyIds, userId, userName }
       closeReview()
     } catch (err) {
       console.error('Master Admin review failed:', err)
-      alert(err instanceof Error ? err.message : 'Failed to update request')
+      setActionError(errText(err, 'Failed to update request. Please try again.'))
     } finally {
       setSubmitting(false)
     }
@@ -204,6 +207,13 @@ export function MasterAdminApprovalsPanel({ scopedCompanyIds, userId, userName }
 
       {!closed && (
         <div style={{ padding: 0 }}>
+          {actionError && (
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '10px 20px', background: '#fef2f2', borderBottom: '1px solid #fecaca', color: '#b91c1c', fontSize: 13 }}>
+              <AlertCircle size={15} style={{ flexShrink: 0 }} />
+              <span style={{ flex: 1 }}>{actionError}</span>
+              <button onClick={() => setActionError(null)} style={{ background: 'none', border: 'none', color: '#b91c1c', cursor: 'pointer', padding: 0, display: 'inline-flex' }}><X size={15} /></button>
+            </div>
+          )}
           {loading ? (
             <div className="lap-loading-inline" style={{ padding: 20 }}><Loader2 className="animate-spin" size={20} /> Loading final-verification queue...</div>
           ) : items.length === 0 ? (

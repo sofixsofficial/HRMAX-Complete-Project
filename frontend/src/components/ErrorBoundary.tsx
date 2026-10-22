@@ -1,5 +1,6 @@
 import { Component } from 'react'
 import { AlertTriangle, RefreshCw } from 'lucide-react'
+import { safeDisplayText } from '../aws/errors'
 
 interface Props {
   children: React.ReactNode
@@ -46,7 +47,7 @@ export class ErrorBoundary extends Component<Props, State> {
           <div>
             <h3 style={{ margin: '0 0 4px', fontSize: 18, fontWeight: 600, color: '#1f2937' }}>Something went wrong</h3>
             <p style={{ margin: 0, fontSize: 14, color: '#6b7280', maxWidth: 400 }}>
-              {this.state.error?.message || 'An unexpected error occurred.'}
+              {safeDisplayText(this.state.error?.message) || 'An unexpected error occurred.'}
             </p>
           </div>
           <button onClick={this.handleRetry} style={{

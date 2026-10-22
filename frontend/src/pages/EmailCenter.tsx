@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef, useCallback, useMemo } from 'react'
+import { errText } from '../aws/errors';
 import { useNavigate, useSearchParams } from 'react-router-dom'
 import {
   Mail, Search, Plus, Send, Inbox, FileText,
@@ -6,7 +7,7 @@ import {
   Users, Building2, User, X, Star, Clock, AlertCircle,
   CheckCircle, Archive, Reply, Forward, Bold, Italic,
   Underline, List, Link as LinkIcon,
-  Loader2, RefreshCw
+  Loader2, RefreshCw, Paperclip
 } from 'lucide-react'
 import { Header } from '../components/Header'
 import { Modal } from '../components/Modal'
@@ -76,6 +77,11 @@ export function EmailCenter() {
   const editorRef = useRef<HTMLDivElement>(null)
   const [resolvedRecipients, setResolvedRecipients] = useState<{ name: string; email: string }[]>([])
   const [showRecipientPicker, setShowRecipientPicker] = useState(false)
+  // External file attachments for the Compose modal (PDFs, docs, images).
+  // Stored as base64 so they can be sent through the JSON email API and decoded
+  // into MIME attachments on the backend.
+  const [attachments, setAttachments] = useState<Array<{ filename: string; content: string; contentType?: string; size: number }>>([])
+  const fileInputRef = useRef<HTMLInputElement>(null)
 
   // Pre-applied payroll filters (company + month + year) when navigated here
   // right after salary-slip generation.
@@ -142,7 +148,7 @@ export function EmailCenter() {
       await refreshPayrollSlips()
       await loadEmails()
     } catch (err: any) {
-      setToast({ message: err?.message || 'Failed to send payroll emails', type: 'error' })
+      setToast({ message: errText(err, 'Failed to send payroll emails'), type: 'error' })
     } finally {
       setPayrollSending(false)
     }
@@ -334,8 +340,40 @@ export function EmailCenter() {
     setEmployeeList([])
     setSelectedEmployeeIds(new Set())
     setSelectedExecId('')
+    setAttachments([])
     if (editorRef.current) editorRef.current.innerHTML = ''
   }, [])
+
+  // Read selected files as base64 and stage them as pending attachments.
+  const handleFilesSelected = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = Array.from(e.target.files ?? [])
+    if (!files.length) return
+    const MAX_PER_FILE = 3 * 1024 * 1024 // 3 MB per file
+    files.forEach((file) => {
+      if (file.size > MAX_PER_FILE) {
+        setToast({ message: `"${file.name}" is larger than 3 MB and was skipped.`, type: 'error' })
+        return
+      }
+      const reader = new FileReader()
+      reader.onload = () => {
+        const result = reader.result as string
+        // Strip the `data:...;base64,` prefix — send raw base64 to the API.
+        const base64 = result.split(',')[1] ?? ''
+        setAttachments(prev => [...prev, {
+          filename: file.name,
+          content: base64,
+          contentType: file.type || undefined,
+          size: file.size,
+        }])
+      }
+      reader.readAsDataURL(file)
+    })
+    e.target.value = '' // allow re-selecting the same file
+  }
+
+  const removeAttachment = (index: number) => {
+    setAttachments(prev => prev.filter((_, i) => i !== index))
+  }
 
   const openCompose = (initial?: Partial<ComposeState>) => {
     resetCompose()
@@ -528,6 +566,9 @@ export function EmailCenter() {
             bcc: composeData.bcc || undefined,
             companyId: sendCompanyId || undefined,
             emailId,
+            attachments: attachments.length
+              ? attachments.map(a => ({ filename: a.filename, content: a.content, contentType: a.contentType }))
+              : undefined,
           })
           if (!result.delivered) {
             setToast({ message: 'Email saved. Configure SMTP for actual delivery.', type: 'success' })
@@ -545,7 +586,7 @@ export function EmailCenter() {
       resetCompose()
       loadEmails()
     } catch (err: any) {
-      setToast({ message: err.message || 'Failed to send email', type: 'error' })
+      setToast({ message: errText(err, 'Failed to send email'), type: 'error' })
     } finally {
       setIsSending(false)
     }
@@ -587,7 +628,7 @@ export function EmailCenter() {
       resetCompose()
       loadEmails()
     } catch (err: any) {
-      setToast({ message: err.message || 'Failed to save draft', type: 'error' })
+      setToast({ message: errText(err, 'Failed to save draft'), type: 'error' })
     } finally {
       setIsSending(false)
     }
@@ -1205,6 +1246,23 @@ export function EmailCenter() {
           </div>
 
           <div className="compose-footer">
+            {/* Hidden file input + paperclip trigger for external attachments */}
+            <input
+              ref={fileInputRef}
+              type="file"
+              multiple
+              accept=".pdf,.doc,.docx,.xls,.xlsx,.png,.jpg,.jpeg,.gif,.txt,.csv,.zip"
+              style={{ display: 'none' }}
+              onChange={handleFilesSelected}
+            />
+            <button
+              type="button"
+              className="btn-secondary"
+              onClick={() => fileInputRef.current?.click()}
+              title="Attach files (PDF, docs, images)"
+            >
+              <Paperclip size={14} /> Attach
+            </button>
             <button className="btn-secondary" onClick={() => { setIsComposeOpen(false); resetCompose() }}>Cancel</button>
             <button className="btn-secondary" onClick={handleSaveDraft} disabled={isSending}>
               <FileText size={14} /> {isSending ? 'Saving...' : 'Save Draft'}
@@ -1213,6 +1271,32 @@ export function EmailCenter() {
               <Send size={14} /> {isSending ? 'Sending...' : composeData.scheduledFor ? 'Schedule' : 'Send'}
             </button>
           </div>
+          {/* Attachment chips — staged files shown above the footer actions */}
+          {attachments.length > 0 && (
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginTop: 12 }}>
+              {attachments.map((att, i) => (
+                <span
+                  key={`${att.filename}-${i}`}
+                  style={{
+                    display: 'inline-flex', alignItems: 'center', gap: 6,
+                    background: '#f5f3ff', color: '#6d28d9', border: '1px solid #ddd6fe',
+                    borderRadius: 6, padding: '4px 8px', fontSize: 12,
+                  }}
+                >
+                  <FileText size={12} />
+                  {att.filename}
+                  <button
+                    type="button"
+                    onClick={() => removeAttachment(i)}
+                    title="Remove attachment"
+                    style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#6d28d9', padding: 0, display: 'inline-flex' }}
+                  >
+                    <X size={12} />
+                  </button>
+                </span>
+              ))}
+            </div>
+          )}
         </div>
       </Modal>
 

@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { errText } from '../aws/errors';
 import { Clock, Edit3, AlertCircle, Loader2, Info } from 'lucide-react'
 import { useNavigate } from 'react-router-dom'
 import { useEmployeePersonalStats } from '../hooks/useEmployeePersonalStats'
@@ -82,7 +83,7 @@ export function SelfAttendanceCard({ role }: SelfAttendanceCardProps) {
       setRectifyTime('')
       setRectifyRemark('')
     } catch (err: any) {
-      setActionMsg({ type: 'error', text: err.message || 'Failed to submit rectification' })
+      setActionMsg({ type: 'error', text: errText(err, 'Failed to submit rectification') })
     } finally {
       setSubmittingRectify(false)
     }

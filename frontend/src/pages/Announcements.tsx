@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react'
+import { errText } from '../aws/errors';
 import { Megaphone, Search, Plus, Eye, Pencil, Trash2, Loader2, ChevronLeft, ChevronRight, Bell, Clock, Pin, PinOff } from 'lucide-react'
 import { Header } from '../components/Header'
 import { Modal } from '../components/Modal'
@@ -123,7 +124,7 @@ export function Announcements() {
       resetForm()
       setToast({ message: 'Announcement created successfully!', type: 'success' })
     } catch (err: any) {
-      setToast({ message: err.message || 'Failed to create announcement', type: 'error' })
+      setToast({ message: errText(err, 'Failed to create announcement'), type: 'error' })
     } finally {
       setIsSubmitting(false)
     }

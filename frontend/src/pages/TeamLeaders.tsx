@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef } from 'react'
+import { errText } from '../aws/errors';
 import { UserPlus, Search, Plus, Eye, Pencil, Trash2, Loader2, ChevronLeft, ChevronRight, Mail, Shield, User as UserIcon, Briefcase, Lock, Crown, Building2, Users, ChevronDown, Check, Activity, Bell, Upload, DollarSign, CalendarDays, MapPin, CreditCard, BadgeAlert, Filter, CheckSquare, Crosshair, Wifi, Camera, Smartphone } from 'lucide-react'
 import { useNavigate } from 'react-router-dom'
 import { Header } from '../components/Header'
@@ -351,7 +352,7 @@ export function TeamLeaders() {
     const file = e.target.files?.[0]
     if (!file) return
     if (file.size > 5 * 1024 * 1024) {
-      alert('File size exceeds 5MB limit')
+      setToast({ message: 'File size exceeds 5MB limit. Please choose a smaller file.', type: 'error' })
       e.target.value = ''
       return
     }
@@ -576,7 +577,7 @@ export function TeamLeaders() {
       setToast({ message: `Team Leader created! Username: ${values.username}, Password: ${values.password}`, type: 'success' })
     } catch (err: any) {
       const friendly = authErrorMessage(err?.code || err?.message || '')
-      setToast({ message: friendly || err?.message || 'Failed to create team leader. Please try again.', type: 'error' })
+      setToast({ message: friendly || errText(err, 'Failed to create team leader. Please try again.'), type: 'error' })
     } finally {
       setIsSubmitting(false)
     }

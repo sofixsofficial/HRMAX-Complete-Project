@@ -1,4 +1,5 @@
 import { useState, useEffect, useMemo } from 'react'
+import { errText } from '../../aws/errors';
 import { useNavigate } from 'react-router-dom'
 import {
   Clock, CheckSquare, Calendar,
@@ -280,7 +281,7 @@ export function TLOperationalDashboard() {
       setReviewDraft(null)
     } catch (err) {
       console.error(err)
-      showToast('error', err instanceof Error ? err.message : 'Failed to review leave')
+      showToast('error', errText(err, 'Failed to review leave'))
     } finally {
       setSubmitting(false)
     }

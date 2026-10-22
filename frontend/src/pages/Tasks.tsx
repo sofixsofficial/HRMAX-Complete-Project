@@ -3,6 +3,8 @@ import { useSearchParams } from 'react-router-dom'
 import { CheckSquare, CheckCircle, Clock, AlertCircle, CalendarDays, PlusCircle, Search, Download, Plus, ChevronDown, Eye, Pencil, Trash2, Filter, LayoutGrid, List, ChevronLeft, ChevronRight, Loader2, Building2, Briefcase, Crown } from 'lucide-react'
 import { Header } from '../components/Header'
 import { Modal } from '../components/Modal'
+import { ActionErrorBanner } from '../components/ActionErrorBanner'
+import { errText } from '../aws/errors'
 import { useAuth } from '../context/AuthContext'
 import { useCompany } from '../context/CompanyContext'
 import { usePermissionScope } from '../hooks/usePermissionScope'
@@ -177,6 +179,7 @@ export function Tasks() {
   const [selectedTask, setSelectedTask] = useState<Task | null>(null)
   const [formData, setFormData] = useState(INITIAL_FORM_DATA)
   const [isSubmitting, setIsSubmitting] = useState(false)
+  const [actionError, setActionError] = useState<string | null>(null)
 
   // Employees for dropdown
   const [employees, setEmployees] = useState<Employee[]>([])
@@ -455,6 +458,7 @@ export function Tasks() {
 
   const handleAddTask = async (e: React.FormEvent) => {
     e.preventDefault()
+    setActionError(null)
     setIsSubmitting(true)
     try {
       const cid = effectiveCompanyId || user?.companyId || ''
@@ -484,7 +488,7 @@ export function Tasks() {
       setFormData(INITIAL_FORM_DATA)
     } catch (err) {
       console.error('Error adding task:', err)
-      alert('Failed to add task')
+      setActionError(errText(err, 'Failed to add task. Please try again.'))
     } finally {
       setIsSubmitting(false)
     }
@@ -494,6 +498,7 @@ export function Tasks() {
     e.preventDefault()
     if (!selectedTask) return
     
+    setActionError(null)
     setIsSubmitting(true)
     try {
       await updateTask(selectedTask.id, formData)
@@ -510,7 +515,7 @@ export function Tasks() {
       setSelectedTask(null)
     } catch (err) {
       console.error('Error updating task:', err)
-      alert('Failed to update task')
+      setActionError(errText(err, 'Failed to update task. Please try again.'))
     } finally {
       setIsSubmitting(false)
     }
@@ -519,6 +524,7 @@ export function Tasks() {
   const handleDelete = async (id: string) => {
     if (!confirm('Are you sure you want to delete this task?')) return
     
+    setActionError(null)
     try {
       const t = tasks.find(x => x.id === id)
       await deleteTask(id)
@@ -533,7 +539,7 @@ export function Tasks() {
       await fetchStats()
     } catch (err) {
       console.error('Error deleting task:', err)
-      alert('Failed to delete task')
+      setActionError(errText(err, 'Failed to delete task. Please try again.'))
     }
   }
 
@@ -695,6 +701,7 @@ export function Tasks() {
       
       <div className="page-content">
         <ScopeIndicator />
+        <ActionErrorBanner message={actionError} onDismiss={() => setActionError(null)} />
         {/* Stats Cards */}
         <div className="stats-row holiday-stats">
           {getStatsCards().map((stat, idx) => {

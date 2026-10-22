@@ -3,6 +3,8 @@ import { useSearchParams } from 'react-router-dom'
 import { ReceiptText, Plus, Search, Pencil, Trash2, Loader2, Wallet, TrendingUp } from 'lucide-react'
 import { Header } from '../components/Header'
 import { Modal } from '../components/Modal'
+import { ActionErrorBanner } from '../components/ActionErrorBanner'
+import { errText } from '../aws/errors'
 import { Pagination } from '../components/Pagination'
 import { useAuth } from '../context/AuthContext'
 import { useCompany } from '../context/CompanyContext'
@@ -164,6 +166,7 @@ export function SalaryStructure() {
   const [selected, setSelected] = useState<SalaryStructure | null>(null)
   const [formData, setFormData] = useState<FormState>(INITIAL_FORM)
   const [isSubmitting, setIsSubmitting] = useState(false)
+  const [actionError, setActionError] = useState<string | null>(null)
 
   useEffect(() => {
     fetchData()
@@ -204,6 +207,7 @@ export function SalaryStructure() {
 
   const handleAdd = async (e: React.FormEvent) => {
     e.preventDefault()
+    setActionError(null)
     setIsSubmitting(true)
     try {
       await createSalaryStructure({
@@ -225,7 +229,7 @@ export function SalaryStructure() {
       setFormData(INITIAL_FORM)
     } catch (err) {
       console.error('Error adding structure:', err)
-      alert('Failed to add salary structure')
+      setActionError(errText(err, 'Failed to add salary structure. Please try again.'))
     } finally {
       setIsSubmitting(false)
     }
@@ -234,6 +238,7 @@ export function SalaryStructure() {
   const handleEdit = async (e: React.FormEvent) => {
     e.preventDefault()
     if (!selected) return
+    setActionError(null)
     setIsSubmitting(true)
     try {
       await updateSalaryStructure(selected.id, { ...formData })
@@ -242,7 +247,7 @@ export function SalaryStructure() {
       setSelected(null)
     } catch (err) {
       console.error('Error updating structure:', err)
-      alert('Failed to update salary structure')
+      setActionError(errText(err, 'Failed to update salary structure. Please try again.'))
     } finally {
       setIsSubmitting(false)
     }
@@ -250,12 +255,13 @@ export function SalaryStructure() {
 
   const handleDelete = async (id: string) => {
     if (!confirm('Delete this salary structure?')) return
+    setActionError(null)
     try {
       await deleteSalaryStructure(id)
       await fetchData()
     } catch (err) {
       console.error('Error deleting structure:', err)
-      alert('Failed to delete salary structure')
+      setActionError(errText(err, 'Failed to delete salary structure. Please try again.'))
     }
   }
 
@@ -303,6 +309,7 @@ export function SalaryStructure() {
       <Header title="Salary Structure" breadcrumbs={['Dashboard', 'Salary Structure']} />
 
       <div className="page-content">
+        <ActionErrorBanner message={actionError} onDismiss={() => setActionError(null)} />
         <div className="stats-row">
           <div className="stat-card-companies">
             <div className="stat-card-content">

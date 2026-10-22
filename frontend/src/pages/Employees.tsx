@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef, useCallback, forwardRef, useImperativeHandle } from 'react'
+import { errText } from '../aws/errors';
 import { useNavigate, useSearchParams, useLocation } from 'react-router-dom'
 import { 
   Users, UserCheck, UserX, UserPlus, Search, Download, Plus, 
@@ -216,7 +217,7 @@ const EmployeeFormContent = forwardRef<EmployeeFormRef, EmployeeFormContentProps
     const file = e.target.files?.[0]
     if (!file) return
     if (file.size > 5 * 1024 * 1024) {
-      alert('File size exceeds 5MB limit')
+      showToast('File size exceeds 5MB limit. Please choose a smaller file.', 'error')
       e.target.value = ''
       return
     }
@@ -1451,7 +1452,7 @@ export function Employees() {
       await updateUserRole(selectedEmployee.userId, selectedRole)
       setIsRoleModalOpen(false)
     } catch (err: any) {
-      setFormError(err.message || 'Failed to assign role')
+      setFormError(errText(err, 'Failed to assign role'))
     } finally {
       setIsAssigningRole(false)
     }
