@@ -77,7 +77,7 @@ export const CompanyDashboard: React.FC<{ navigation: any }> = ({ navigation }) 
         <StatCard label="Departments" value={stats.activeDepartments} icon="business-outline" color="#06b6d4" onClick={() => navigation?.navigate('Departments')} />
         <StatCard label="Today's Check-ins" value={stats.presentToday} icon="clipboard-outline" color="#10b981" onClick={() => navigation?.navigate('AttendanceOverview')} />
         <StatCard label="Pending Leaves" value={stats.pendingLeaves} icon="umbrella-outline" color="#eab308" onClick={() => navigation?.navigate('LeaveManagement')} />
-        <StatCard label="Pending Tasks" value={stats.pendingTasks} icon="checkmark-circle-outline" color="#ec4899" onClick={() => navigation?.navigate('TaskManagement')} />
+        <StatCard label="Pending Tasks" value={stats.pendingTasks} icon="checkmark-circle-outline" color="#ec4899" />
       </StatsGrid>
 
       <View style={s.sectionHeader}>
@@ -127,7 +127,7 @@ export const CompanyDashboard: React.FC<{ navigation: any }> = ({ navigation }) 
           { key: 'TaskManagement', label: 'Tasks', desc: `${stats.pendingTasks} pending · ${stats.completedTasks} completed · ${stats.inProgressTasks} in progress`, icon: 'checkmark-circle-outline', color: '#ec4899' },
           { key: 'RunPayroll', label: 'Payroll', desc: `${stats.salaryGenerated} salary record${stats.salaryGenerated === 1 ? '' : 's'} generated`, icon: 'wallet-outline', color: '#8b5cf6' },
         ].map((mod) => (
-          <TouchableOpacity key={mod.key} style={s.moduleCard} onPress={() => navigation?.navigate(mod.key)}>
+          <TouchableOpacity key={mod.key} style={s.moduleCard} onPress={() => mod.key === 'RunPayroll' && navigation?.navigate('SalarySlips')}>
             <View style={[s.moduleIconWrap, { backgroundColor: `${mod.color}15` }]}>
               <Icon name={mod.icon} size={20} color={mod.color} />
             </View>
@@ -184,7 +184,7 @@ export const CompanyDashboard: React.FC<{ navigation: any }> = ({ navigation }) 
       </View>
       <StatsGrid>
         <StatCard label="Salary Generated" value={stats.salaryGenerated} icon="wallet-outline" color="#8b5cf6" onClick={() => navigation?.navigate('PayrollHistory')} />
-        <StatCard label="Assets" value={stats.totalAssets} icon="laptop-outline" color="#10b981" onClick={() => navigation?.navigate('Assets')} />
+        <StatCard label="Assets" value={stats.totalAssets} icon="laptop-outline" color="#10b981" />
         <StatCard label="Announcements" value={stats.totalAnnouncements} icon="megaphone-outline" color="#8b5cf6" onClick={() => navigation?.navigate('Notifications')} />
       </StatsGrid>
       <View style={{ height: 24 }} />

@@ -316,6 +316,7 @@ export const PremiumModal: React.FC<{
 
   return (
     <View style={[bsStyles.overlay, { backgroundColor: colors.modalOverlay }]}>
+      <TouchableOpacity style={bsStyles.backdrop} activeOpacity={1} onPress={onClose} />
       <Animated.View style={[{ backgroundColor: colors.card, width: '100%', maxWidth: 480, borderRadius: 20, padding: 24, maxHeight: '80%', opacity: opacityAnim, transform: [{ scale: scaleAnim }] }]}>
         <View style={[bsStyles.header, { borderBottomColor: colors.borderLight, paddingBottom: 12, marginBottom: 16 }]}>
           <Text style={[bsStyles.title, { color: colors.text }]}>{title}</Text>

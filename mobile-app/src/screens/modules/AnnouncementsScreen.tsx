@@ -228,7 +228,7 @@ export const AnnouncementsScreen: React.FC<{ navigation: any }> = ({ navigation 
           ))}
         </View>
         <Text style={[s.fieldLabel, { color: colors.textSecondary }]}>Priority</Text>
-        <View style={{ flexDirection: 'row', gap: 8, marginBottom: 12 }}>
+        <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginBottom: 12 }}>
           {PRIORITIES.map((p) => (
             <TouchableOpacity key={p} style={[s.chip, form.priority === p && { backgroundColor: PRIORITY_COLORS[p] }]}
               onPress={() => setForm(f => ({ ...f, priority: p }))}>

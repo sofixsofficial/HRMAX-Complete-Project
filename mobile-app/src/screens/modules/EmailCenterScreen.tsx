@@ -861,7 +861,7 @@ export default function EmailCenterScreen() {
         ]}
       />
 
-      <View style={[styles.tabBar, { backgroundColor: colors.card }]}>
+      <ScrollView horizontal showsHorizontalScrollIndicator={false} style={[styles.tabBar, { backgroundColor: colors.card }]} contentContainerStyle={{ paddingHorizontal: 8 }}>
         {TABS.map(tab => (
           <TouchableOpacity
             key={tab.key}
@@ -879,7 +879,7 @@ export default function EmailCenterScreen() {
             )}
           </TouchableOpacity>
         ))}
-      </View>
+      </ScrollView>
 
       {activeTab === 'payroll' ? (
         renderPayrollTab()
@@ -1274,8 +1274,8 @@ const styles = StyleSheet.create({
   pageSizeText: { fontSize: 12, marginLeft: 8 },
   pageSizeBtn: { paddingHorizontal: 12, paddingVertical: 6, borderRadius: 6, borderWidth: 1 },
   pageSizeBtnText: { fontSize: 13, fontWeight: '600' },
-  tabBar: { flexDirection: 'row', paddingHorizontal: 8, elevation: 1 },
-  tab: { flex: 1, alignItems: 'center', paddingVertical: 10, flexDirection: 'row', justifyContent: 'center', gap: 4 },
+  tabBar: { elevation: 1 },
+  tab: { paddingHorizontal: 14, alignItems: 'center', paddingVertical: 10, flexDirection: 'row', justifyContent: 'center', gap: 4 },
   tabLabel: { fontSize: 11, fontWeight: '500' },
   tabBadge: { backgroundColor: '#3b82f6', borderRadius: 9, minWidth: 18, height: 18, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 4 },
   tabBadgeText: { color: '#fff', fontSize: 10, fontWeight: '700' },

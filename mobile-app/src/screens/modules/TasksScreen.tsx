@@ -138,7 +138,7 @@ export const TasksScreen: React.FC = () => {
 
   return (
     <View style={s.container}>
-      <ScreenHeader title="Tasks" onBack={() => navigation.goBack()} />
+      <ScreenHeader title="Tasks" />
       <ScrollView refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor="#FF6600" />}>
         <HeroBanner
           greeting="Tasks"

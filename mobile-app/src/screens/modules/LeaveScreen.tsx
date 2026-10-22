@@ -336,7 +336,6 @@ export const LeaveScreen: React.FC = () => {
     <View style={s.container}>
       <ScreenHeader
         title="Leaves"
-        onBack={() => navigation.goBack()}
         right={
           canApplyLeave ? (
             <TouchableOpacity

@@ -399,7 +399,7 @@ export const MyLeavesAttendanceScreen: React.FC<{ navigation: any }> = ({ naviga
 
   return (
     <View style={{ flex: 1, backgroundColor: colors.background }}>
-      <ScreenHeader title="My Leaves & Attendance" onBack={() => navigation.goBack()} />
+      <ScreenHeader title="My Leaves & Attendance" />
       <ScrollView
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor="#FF6600" />}
         contentContainerStyle={{ paddingBottom: 32 }}

@@ -197,10 +197,6 @@ const getSectionsByRole = (userRole?: UserRole): DrawerSection[] => {
           ],
         },
         {
-          title: 'Resources',
-          items: [{ label: 'Address Book', icon: 'book-outline', ...home('AddressBook') }],
-        },
-        {
           title: 'Communication',
           items: [
             { label: 'Emails', icon: 'mail-outline', ...home('EmailCenter') },

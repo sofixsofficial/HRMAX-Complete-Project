@@ -113,6 +113,12 @@ const GuardedSalaryStructure = guard(SETTINGS_ROLES)(SalaryStructureScreen);
 const GuardedMyTeam = guard(RM_ROLES)(MyTeamScreen);
 const GuardedPerformance = guard(RM_ROLES)(PerformanceScreen);
 const GuardedApplyLeave = guard(APPLY_LEAVE_ROLES)(ApplyLeaveScreen);
+// Web parity: Address Book is master-admin / executive / team-leader only —
+// Company Admin must not reach it. The next three are Master-Admin-only on web.
+const GuardedAddressBook = guard(['master-admin', 'executive', 'team-leader'])(AddressBookScreen);
+const GuardedCompanyDetailsView = guard(MA_ONLY)(CompanyDetailsViewScreen);
+const GuardedHRMSDashboard = guard(MA_ONLY)(HRMSDashboardScreen);
+const GuardedAttendanceDashboard = guard(MA_ONLY)(AttendanceDashboardScreen);
 
 const DashboardContent: React.FC<{ navigation: any }> = ({ navigation }) => {
   const { user } = useAuth();
@@ -175,24 +181,24 @@ export const DashboardRouter: React.FC = () => {
       <Stack.Screen name="EmailCenter" component={EmailCenterScreen} options={{ headerTitle: 'Email Center' }} />
       <Stack.Screen name="CalendarCenter" component={CalendarCenterScreen} options={{ headerTitle: 'Calendar Center' }} />
       <Stack.Screen name="MyTeam" component={GuardedMyTeam} options={{ headerTitle: 'My Team' }} />
-      <Stack.Screen name="AddressBook" component={AddressBookScreen} options={{ headerTitle: 'Address Book' }} />
+      <Stack.Screen name="AddressBook" component={GuardedAddressBook} options={{ headerTitle: 'Address Book' }} />
       <Stack.Screen name="Birthdays" component={BirthdaysScreen} options={{ headerTitle: 'Birthdays' }} />
       <Stack.Screen name="Reports" component={ReportsScreen} options={{ headerTitle: 'Reports' }} />
       <Stack.Screen name="Analytics" component={AnalyticsScreen} options={{ headerTitle: 'Analytics' }} />
       <Stack.Screen name="Support" component={SupportScreen} options={{ headerTitle: 'Support' }} />
       <Stack.Screen name="SupportTickets" component={GuardedSupportTickets} options={{ headerTitle: 'Support Tickets' }} />
-      <Stack.Screen name="CompanyDetailsView" component={CompanyDetailsViewScreen} options={{ headerTitle: 'Company Details' }} />
+      <Stack.Screen name="CompanyDetailsView" component={GuardedCompanyDetailsView} options={{ headerTitle: 'Company Details' }} />
       <Stack.Screen name="ExecutiveProfile" component={ExecutiveProfileScreen} options={{ headerTitle: 'Executive Profile' }} />
       <Stack.Screen name="TeamLeaderProfile" component={TeamLeaderProfileScreen} options={{ headerTitle: 'Team Leader Profile' }} />
       <Stack.Screen name="ExecutiveOversight" component={GuardedExecutiveOversight} options={{ headerTitle: 'Executive Oversight' }} />
       <Stack.Screen name="AccessManagement" component={GuardedAccessManagement} options={{ headerTitle: 'Access Management' }} />
       <Stack.Screen name="TransferManagement" component={GuardedTransferManagement} options={{ headerTitle: 'Transfer Management' }} />
       <Stack.Screen name="DocumentsManagement" component={GuardedDocumentsManagement} options={{ headerTitle: 'Document Management' }} />
-      <Stack.Screen name="HRMSDashboard" component={HRMSDashboardScreen} options={{ headerTitle: 'HRMS Dashboard' }} />
+      <Stack.Screen name="HRMSDashboard" component={GuardedHRMSDashboard} options={{ headerTitle: 'HRMS Dashboard' }} />
       <Stack.Screen name="CompanyProfile" component={CompanyProfileScreen} options={{ headerTitle: 'Company Profile' }} />
       <Stack.Screen name="Performance" component={GuardedPerformance} options={{ headerTitle: 'Performance' }} />
       <Stack.Screen name="Documents" component={DocumentsScreen} options={{ headerTitle: 'Documents' }} />
-      <Stack.Screen name="AttendanceDashboard" component={AttendanceDashboardScreen} options={{ headerTitle: 'Attendance Dashboard' }} />
+      <Stack.Screen name="AttendanceDashboard" component={GuardedAttendanceDashboard} options={{ headerTitle: 'Attendance Dashboard' }} />
       <Stack.Screen name="EmployeeViewDashboard" component={EmployeeViewDashboardScreen} options={{ headerTitle: 'Employee Dashboard' }} />
       <Stack.Screen name="ExecutiveCompanies" component={ExecutiveCompaniesScreen} options={{ headerTitle: 'Assigned Companies' }} />
       <Stack.Screen name="ExecutiveTeamLeaders" component={ExecutiveTeamLeadersScreen} options={{ headerTitle: 'My Team Leaders' }} />

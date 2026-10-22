@@ -334,7 +334,7 @@ const createStyles = (c: ThemeColors) => StyleSheet.create({
   pageSizeBtn: { paddingHorizontal: 12, paddingVertical: 6, borderRadius: 6, borderWidth: 1, borderColor: c.border, backgroundColor: c.card },
   pageSizeBtnText: { color: c.text, fontSize: 13, fontWeight: '600' },
   modalOverlay: { flex: 1, backgroundColor: c.modalOverlay, justifyContent: 'center', padding: 20 },
-  modal: { backgroundColor: c.card, borderRadius: 16, padding: 24 },
+  modal: { width: '100%', maxWidth: 480, alignSelf: 'center', backgroundColor: c.card, borderRadius: 16, padding: 24 },
   modalTitle: { fontSize: 20, fontWeight: 'bold', color: c.text, marginBottom: 4 },
   modalSubtitle: { color: c.textSecondary, fontSize: 14, marginBottom: 16 },
   modalInput: { backgroundColor: c.background, borderWidth: 1, borderColor: c.border, borderRadius: 10, paddingHorizontal: 16, paddingVertical: 12, color: c.text, fontSize: 15, marginBottom: 16, minHeight: 80, textAlignVertical: 'top' },

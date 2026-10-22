@@ -574,7 +574,7 @@ export const AttendanceScreen: React.FC<{ navigation: any }> = ({ navigation }) 
 
   return (
     <View style={{ flex: 1, backgroundColor: colors.background }}>
-      <ScreenHeader title="Attendance" onBack={() => navigation.goBack()} />
+      <ScreenHeader title="Attendance" />
       <ScrollView refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor="#FF6600" />}>
         {/* ── HERO PUNCH BANNER (matching web's AttendancePunchBanner) ──
             Web gates the punch hero with `canCheckInOut && isEmployee` — only

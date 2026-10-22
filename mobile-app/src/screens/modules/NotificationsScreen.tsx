@@ -75,7 +75,7 @@ export const NotificationsScreen: React.FC = () => {
 
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>
-      <ScreenHeader title="Notifications" onBack={() => navigation.goBack()} />
+      <ScreenHeader title="Notifications" />
       {loading ? (
         <View style={styles.center}>
           <ActivityIndicator color={colors.accent} />

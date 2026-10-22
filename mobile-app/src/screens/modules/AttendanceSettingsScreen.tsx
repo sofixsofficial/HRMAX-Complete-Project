@@ -107,7 +107,7 @@ export const AttendanceSettingsScreen: React.FC = () => {
 
       <PremiumCard style={{ marginHorizontal: 16, marginBottom: 12, padding: 16 }}>
         <Text style={{ fontSize: 14, fontWeight: '600', color: colors.text, marginBottom: 12 }}>Mode & Guard</Text>
-        <View style={{ flexDirection: 'row', gap: 8, marginBottom: 12 }}>
+        <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginBottom: 12 }}>
           {['gps-only', 'wifi-only', 'hybrid'].map(m => (
             <TouchableOpacity key={m} style={[s.chip, form.mode === m && { backgroundColor: colors.accent }]}
               onPress={() => setForm(f => ({ ...f, mode: m }))}>

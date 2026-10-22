@@ -1,6 +1,7 @@
 import React from 'react';
 import { View, Text, TouchableOpacity, StyleSheet } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useNavigation } from '@react-navigation/native';
 import { useTheme } from '../context/ThemeContext';
 import { Icon } from '../utils/icons';
 
@@ -32,6 +33,7 @@ export const ScreenHeader: React.FC<ScreenHeaderProps> = ({
 }) => {
   const { colors } = useTheme();
   const insets = useSafeAreaInsets();
+  const nav = useNavigation();
 
   return (
     <View
@@ -47,7 +49,7 @@ export const ScreenHeader: React.FC<ScreenHeaderProps> = ({
       <View style={styles.container}>
         {!hideBack ? (
           <TouchableOpacity
-            onPress={onBack || (() => {})}
+            onPress={onBack || defaultGoBack(nav)}
             style={[styles.backBtn, { backgroundColor: colors.background }]}
             hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
           >
@@ -74,12 +76,19 @@ export const ScreenHeader: React.FC<ScreenHeaderProps> = ({
 
 /**
  * Convenience helper: standard back handler used by most screens.
+ * Context-aware: pops the stack when there is history, otherwise (drawer-root
+ * screen) returns to the Home dashboard so the chevron is never a dead button.
  * Can be passed directly as `onBack={defaultGoBack(navigation)}`.
  */
 export const defaultGoBack = (navigation: any) => () => {
   try {
-    if (navigation?.canGoBack?.()) navigation.goBack();
-    else if (navigation?.pop) navigation.pop();
+    if (navigation?.canGoBack?.()) {
+      navigation.goBack();
+    } else if (navigation?.navigate) {
+      navigation.navigate('Home');
+    } else if (navigation?.pop) {
+      navigation.pop();
+    }
   } catch {
     /* no-op */
   }
@@ -102,12 +111,12 @@ const styles = StyleSheet.create({
     minHeight: 52,
   },
   backBtn: {
-    width: 40,
-    height: 40,
+    width: 44,
+    height: 44,
     borderRadius: 10,
     alignItems: 'center',
     justifyContent: 'center',
-    marginRight: 10,
+    marginRight: 8,
   },
   titleArea: {
     flex: 1,

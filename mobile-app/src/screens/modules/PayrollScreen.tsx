@@ -93,7 +93,7 @@ export const PayrollScreen: React.FC = () => {
 
   return (
     <View style={{ flex: 1, backgroundColor: colors.background }}>
-      <ScreenHeader title="Payroll" onBack={() => navigation.goBack()} />
+      <ScreenHeader title="Payroll" />
       <ScrollView
         style={s.container}
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor="#FF6600" />}>

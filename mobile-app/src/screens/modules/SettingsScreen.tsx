@@ -245,7 +245,7 @@ export const SettingsScreen: React.FC<{ navigation?: any }> = ({ navigation }) =
 
   return (
     <View style={{ flex: 1, backgroundColor: colors.background }}>
-      <ScreenHeader title="Settings" onBack={() => navigation?.goBack()} />
+      <ScreenHeader title="Settings" />
       <ScrollView style={s.container}>
       <View style={s.header}>
         <Text style={s.title}>Settings</Text>
