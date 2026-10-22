@@ -503,6 +503,7 @@ export function Executives() {
   const [companies, setCompanies] = useState<Company[]>([])
   const [loading, setLoading] = useState(true)
   const [searchTerm, setSearchTerm] = useState('')
+  const [showUnassignedOnly, setShowUnassignedOnly] = useState(false)
   const [currentPage, setCurrentPage] = useState(1)
   const [pageSize, setPageSize] = useState(10)
   const [selectedUser, setSelectedUser] = useState<User | null>(null)
@@ -1192,7 +1193,11 @@ export function Executives() {
     }
   }
 
+  const isUnassigned = (u: User) => (((u as any).assignedCompanyIds || []).length === 0)
+  const unassignedCount = users.filter(isUnassigned).length
+
   const filtered = users.filter(u => {
+    if (showUnassignedOnly && !isUnassigned(u)) return false
     const s = searchTerm.toLowerCase()
     return !s || u.name?.toLowerCase().includes(s) || u.email?.toLowerCase().includes(s)
   })
@@ -1220,6 +1225,15 @@ export function Executives() {
           <div className="emp-mini-stat"><Crown size={22} /><div><strong>{users.length}</strong><span>Total Executives</span></div></div>
           <div className="emp-mini-stat"><Building2 size={22} /><div><strong>{companies.filter(c => (c as any).assignedExecutiveId).length}</strong><span>Companies Assigned</span></div></div>
           <div className="emp-mini-stat"><Users size={22} /><div><strong>{allTeamLeaders.filter(tl => (tl as any).reportingExecutiveId).length}</strong><span>Team Leaders Reporting</span></div></div>
+          {isMaster && (
+            <div className="emp-mini-stat" style={{ background: unassignedCount > 0 ? '#fef3c7' : undefined }}>
+              <BadgeAlert size={22} style={{ color: unassignedCount > 0 ? '#d97706' : undefined }} />
+              <div>
+                <strong style={{ color: unassignedCount > 0 ? '#d97706' : undefined }}>{unassignedCount}</strong>
+                <span>Unassigned</span>
+              </div>
+            </div>
+          )}
         </div>
 
         <div className="emp-toolbar">
@@ -1228,6 +1242,15 @@ export function Executives() {
             <input type="text" placeholder="Search executives by name or email..." value={searchTerm} onChange={e => { setSearchTerm(e.target.value); setCurrentPage(1) }} />
           </div>
           <div className="emp-toolbar-actions">
+            {isMaster && unassignedCount > 0 && (
+              <button
+                className={`btn-unassigned${showUnassignedOnly ? ' active' : ''}`}
+                onClick={() => { setShowUnassignedOnly(v => !v); setCurrentPage(1) }}
+                title="Show executives with no assigned company (hidden from Company Admins until assigned)"
+              >
+                <BadgeAlert size={16} /> {showUnassignedOnly ? 'Showing unassigned' : `${unassignedCount} unassigned`}
+              </button>
+            )}
             {(authUser?.role === 'master-admin' || hasPermission('executives.create')) && (
               <button className="btn-primary btn-sm" onClick={openAdd}><Plus size={16} /> Add Executive</button>
             )}
@@ -1272,7 +1295,7 @@ export function Executives() {
                   </td>
                   <td><span className="exec-title-cell">{(u as any).executiveTitle || '-'}</span></td>
                   <td>
-                    {compNames.length === 0 ? <span className="exec-count-num muted">—</span> : (
+                    {compNames.length === 0 ? <span className="exec-chip exec-chip-warn" title="This executive has no assigned company and is hidden from Company Admins until one is assigned">No company</span> : (
                       <div className="exec-chip-list">
                         {compNames.slice(0, MAX_VISIBLE).map(n => <span key={n} className="exec-chip exec-chip-company">{n}</span>)}
                         {compNames.length > MAX_VISIBLE && <span className="exec-chip exec-chip-more">+{compNames.length - MAX_VISIBLE} more</span>}

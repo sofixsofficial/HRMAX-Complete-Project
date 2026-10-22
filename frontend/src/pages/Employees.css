@@ -1352,6 +1352,37 @@ button.perm-table-col-head.col-some::after {
   font-weight: 400;
 }
 
+.exec-chip-warn {
+  background: #fef3c7;
+  color: #b45309;
+  border: 1px solid #fcd34d;
+}
+
+.btn-unassigned {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 14px;
+  border-radius: 8px;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  background: #fffbeb;
+  color: #b45309;
+  border: 1px solid #fcd34d;
+  transition: all 0.15s ease;
+}
+
+.btn-unassigned:hover {
+  background: #fef3c7;
+}
+
+.btn-unassigned.active {
+  background: #d97706;
+  color: #ffffff;
+  border-color: #d97706;
+}
+
 /* ── Team Leaders Table (redesigned) ── */
 .tl-table.data-table th {
   text-align: left;
