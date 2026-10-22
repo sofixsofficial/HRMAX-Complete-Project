@@ -91,6 +91,7 @@
   padding: 12px 16px;
   border-bottom: 1px solid #e5e7eb;
   gap: 12px;
+  flex-wrap: wrap;
 }
 
 .email-search-box {
@@ -118,6 +119,7 @@
   display: flex;
   align-items: center;
   gap: 8px;
+  flex-wrap: wrap;
 }
 
 .email-actions select {

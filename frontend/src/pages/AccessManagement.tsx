@@ -7,6 +7,7 @@ import { getPendingInvitations, cancelInvitation, type Invitation } from '../ser
 import { getDepartmentsByCompany, getAllDepartments } from '../services/departmentService'
 import { getAllEmployees, getEmployeesByCompany } from '../services/employeeService'
 import { Header } from '../components/Header'
+import { Pagination } from '../components/Pagination'
 import { logAudit } from '../services/auditLogService'
 import {
   CORE_CRUD_ACTIONS, CORE_CRUD_CONFIG, coreModulesForRole, coreKeysForRole,
@@ -43,6 +44,10 @@ export function AccessManagement() {
   const [loading, setLoading] = useState(true)
   const [searchTerm, setSearchTerm] = useState('')
   const [filterRole, setFilterRole] = useState<UserRole | null>(searchParams.get('role') as UserRole | null)
+
+  // Users table pagination (client-side)
+  const [page, setPage] = useState(1)
+  const [pageSize, setPageSize] = useState(10)
 
   // Modal state
   const [isInviteModalOpen, setIsInviteModalOpen] = useState(false)
@@ -112,6 +117,11 @@ export function AccessManagement() {
     fetchData()
   }, [fetchData])
 
+  // Reset to the first page whenever the search term or role filter changes.
+  useEffect(() => {
+    setPage(1)
+  }, [searchTerm, filterRole])
+
   const teamLeaderCount = users.filter(u => u.role === 'team-leader').length
 
   const filteredUsers = users.filter(u => {
@@ -132,6 +142,9 @@ export function AccessManagement() {
       inv.role.toLowerCase().includes(term)
     )
   })
+
+  const safePage = Math.min(page, Math.max(1, Math.ceil(filteredUsers.length / pageSize)))
+  const pagedUsers = filteredUsers.slice((safePage - 1) * pageSize, safePage * pageSize)
 
   const handleInvite = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -479,6 +492,7 @@ export function AccessManagement() {
               <p>No users found</p>
             </div>
           ) : (
+            <>
             <table className="data-table">
               <thead>
                 <tr>
@@ -490,7 +504,7 @@ export function AccessManagement() {
                 </tr>
               </thead>
               <tbody>
-                {filteredUsers.map(u => {
+                {pagedUsers.map(u => {
                   const roleDisplay = ROLE_DISPLAY[u.role] || ROLE_DISPLAY.executive
                   return (
                     <tr key={u.id}>
@@ -549,6 +563,14 @@ export function AccessManagement() {
                 })}
               </tbody>
             </table>
+            <Pagination
+              page={safePage}
+              pageSize={pageSize}
+              total={filteredUsers.length}
+              onPageChange={setPage}
+              onPageSizeChange={(n) => { setPageSize(n); setPage(1) }}
+            />
+            </>
           )}
         </div>
       )}

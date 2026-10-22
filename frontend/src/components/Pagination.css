@@ -1,0 +1,86 @@
+/* Shared pagination bar — every paginated table uses this. */
+
+.pg {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 12px 4px 0;
+}
+
+.pg-info {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 13px;
+  color: #6b7280;
+}
+
+.pg-size {
+  padding: 6px 8px;
+  border: 1px solid #e5e7eb;
+  border-radius: 8px;
+  font-size: 13px;
+  color: #374151;
+  background: #fff;
+  outline: none;
+  cursor: pointer;
+}
+
+.pg-controls {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+.pg-btn {
+  min-width: 34px;
+  height: 34px;
+  padding: 0 10px;
+  border: 1px solid #e5e7eb;
+  border-radius: 8px;
+  background: #fff;
+  color: #374151;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.15s, border-color 0.15s;
+}
+
+.pg-btn:hover:not(:disabled):not([data-active]) {
+  background: #f9fafb;
+  border-color: #d1d5db;
+}
+
+.pg-btn:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.pg-btn[data-active] {
+  background: #f97316;
+  border-color: #f97316;
+  color: #fff;
+}
+
+.pg-gap {
+  padding: 0 2px;
+  color: #9ca3af;
+}
+
+@media (max-width: 480px) {
+  .pg {
+    justify-content: center;
+  }
+  .pg-info {
+    width: 100%;
+    justify-content: center;
+  }
+  .pg-btn {
+    min-width: 32px;
+    height: 32px;
+    padding: 0 8px;
+  }
+}

@@ -7,6 +7,7 @@ import {
 import { Header } from '../../components/Header'
 import { DashboardHero } from '../../components/DashboardHero'
 import { Modal } from '../../components/Modal'
+import { Pagination } from '../../components/Pagination'
 import { MissedPunchAlertCard } from '../../components/MissedPunchAlertCard'
 import { LeaveApprovalsPanel } from '../../components/LeaveApprovalsPanel'
 import { LeaveApplyModal } from '../../components/LeaveApplyModal'
@@ -37,6 +38,8 @@ export function ReportingManagerDashboard() {
   const [team, setTeam] = useState<Employee[]>([])
   const [loading, setLoading] = useState(true)
   const [searchTerm, setSearchTerm] = useState('')
+  const [page, setPage] = useState(1)
+  const [pageSize, setPageSize] = useState(5)
 
   // Leave modal state
   const [isLeaveOpen, setIsLeaveOpen] = useState(false)
@@ -126,6 +129,14 @@ export function ReportingManagerDashboard() {
     const s = searchTerm.toLowerCase()
     return !s || e.name.toLowerCase().includes(s) || e.email.toLowerCase().includes(s) || e.department.toLowerCase().includes(s)
   })
+
+  // Back to page 1 whenever the team search changes
+  useEffect(() => {
+    setPage(1)
+  }, [searchTerm])
+
+  const safePage = Math.min(page, Math.max(1, Math.ceil(filtered.length / pageSize)))
+  const pagedRows = filtered.slice((safePage - 1) * pageSize, safePage * pageSize)
 
   const openLeaveModal = (emp: Employee) => {
     setLeaveTarget(emp)
@@ -334,9 +345,9 @@ export function ReportingManagerDashboard() {
                   </tr>
                 </thead>
                 <tbody>
-                  {filtered.length === 0 ? (
+                  {pagedRows.length === 0 ? (
                     <tr><td colSpan={5} className="empty-cell">No team members found</td></tr>
-                  ) : filtered.map(emp => {
+                  ) : pagedRows.map(emp => {
                     const sc = statusColors[emp.status] || { bg: '#f3f4f6', text: '#6b7280' }
                     return (
                       <tr key={emp.id}>
@@ -359,6 +370,14 @@ export function ReportingManagerDashboard() {
                 </tbody>
               </table>
             </div>
+            <Pagination
+              page={safePage}
+              pageSize={pageSize}
+              total={filtered.length}
+              onPageChange={setPage}
+              onPageSizeChange={(n) => { setPageSize(n); setPage(1) }}
+              pageSizeOptions={[5, 10, 25]}
+            />
           </div>
         </div>
       </div>

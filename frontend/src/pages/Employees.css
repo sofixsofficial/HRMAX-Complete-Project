@@ -1588,3 +1588,13 @@ button.perm-table-col-head.col-some::after {
   color: #16a34a;
   border-color: #bbf7d0;
 }
+
+@media (max-width: 768px) {
+  .emp-actions-bar {
+    flex-wrap: wrap;
+    gap: 8px;
+  }
+  .emp-actions-right {
+    flex-wrap: wrap;
+  }
+}

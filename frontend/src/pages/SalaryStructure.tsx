@@ -3,6 +3,7 @@ import { useSearchParams } from 'react-router-dom'
 import { ReceiptText, Plus, Search, Pencil, Trash2, Loader2, Wallet, TrendingUp } from 'lucide-react'
 import { Header } from '../components/Header'
 import { Modal } from '../components/Modal'
+import { Pagination } from '../components/Pagination'
 import { useAuth } from '../context/AuthContext'
 import { useCompany } from '../context/CompanyContext'
 import { usePermissionScope } from '../hooks/usePermissionScope'
@@ -150,6 +151,13 @@ export function SalaryStructure() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [searchTerm, setSearchTerm] = useState('')
+  const [page, setPage] = useState(1)
+  const [pageSize, setPageSize] = useState(10)
+
+  // Search/company scope changes the result set — restart from page 1
+  useEffect(() => {
+    setPage(1)
+  }, [searchTerm, companyId])
 
   const [isAddModalOpen, setIsAddModalOpen] = useState(false)
   const [isEditModalOpen, setIsEditModalOpen] = useState(false)
@@ -189,6 +197,10 @@ export function SalaryStructure() {
   }
 
   const filtered = structures.filter(s => !searchTerm || s.name.toLowerCase().includes(searchTerm.toLowerCase()))
+
+  const pageCount = Math.max(1, Math.ceil(filtered.length / pageSize))
+  const safePage = Math.min(page, pageCount)
+  const pagedRows = filtered.slice((safePage - 1) * pageSize, safePage * pageSize)
 
   const handleAdd = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -351,7 +363,7 @@ export function SalaryStructure() {
                 </tr>
               </thead>
               <tbody>
-                {filtered.map(s => {
+                {pagedRows.map(s => {
                   const allowances = s.hra + s.da + s.conveyance + s.medical + s.specialAllowance
                   const deductions = s.pf + s.professionalTax
                   return (
@@ -387,9 +399,13 @@ export function SalaryStructure() {
             </table>
           </div>
 
-          <div className="pagination">
-            <span className="showing-text">Showing {filtered.length} of {structures.length} structures</span>
-          </div>
+          <Pagination
+            page={safePage}
+            pageSize={pageSize}
+            total={filtered.length}
+            onPageChange={setPage}
+            onPageSizeChange={(n) => { setPageSize(n); setPage(1) }}
+          />
         </div>
       </div>
 

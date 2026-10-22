@@ -5,6 +5,7 @@ import { Calculator, Loader2, Eye, AlertTriangle, CheckSquare, Square } from 'lu
 import { Header } from '../components/Header'
 import { ErrorBoundary } from '../components/ErrorBoundary'
 import { Modal } from '../components/Modal'
+import { Pagination } from '../components/Pagination'
 import { db } from '../config/firebase'
 import { useAuth } from '../context/AuthContext'
 import { usePermissionScope } from '../hooks/usePermissionScope'
@@ -58,6 +59,13 @@ function PayrollContent() {
 
   // Mandatory preview modal — generation is blocked until the user reviews + confirms.
   const [preview, setPreview] = useState<{ items: PayrollItem[]; workingDays: number; totalNet: number; employeeCount: number } | null>(null)
+
+  // Pagination for the preview line-items table — footer totals still span every item.
+  const [previewPage, setPreviewPage] = useState(1)
+  const [previewPageSize, setPreviewPageSize] = useState(10)
+
+  // Reset to the first page whenever a new preview opens (or is dismissed).
+  useEffect(() => { setPreviewPage(1) }, [preview])
 
   // After generation, land the admin in the dashboard Mail section (Email Center)
   // with company + month + year filters already applied.
@@ -226,6 +234,10 @@ function PayrollContent() {
     }
   }
 
+  const previewItems = preview?.items ?? []
+  const safePreviewPage = Math.min(previewPage, Math.max(1, Math.ceil(previewItems.length / previewPageSize)))
+  const pagedPreviewItems = previewItems.slice((safePreviewPage - 1) * previewPageSize, safePreviewPage * previewPageSize)
+
   const busy = previewing || generating
 
   if (loading) {
@@ -372,7 +384,7 @@ function PayrollContent() {
               </tr>
             </thead>
             <tbody>
-              {(preview?.items ?? []).map(it => {
+              {pagedPreviewItems.map(it => {
                 const allowances = (it.hra || 0) + (it.da || 0) + (it.conveyance || 0) + (it.medical || 0) + (it.specialAllowance || 0) + (it.overtimePay || 0) + (it.leaveEncashment || 0)
                 const pfpt = (it.pf || 0) + (it.professionalTax || 0)
                 return (
@@ -408,6 +420,13 @@ function PayrollContent() {
             )}
           </table>
         </div>
+        <Pagination
+          page={safePreviewPage}
+          pageSize={previewPageSize}
+          total={previewItems.length}
+          onPageChange={setPreviewPage}
+          onPageSizeChange={(n) => { setPreviewPageSize(n); setPreviewPage(1) }}
+        />
       </Modal>
     </div>
   )

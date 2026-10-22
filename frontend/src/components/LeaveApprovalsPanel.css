@@ -104,3 +104,19 @@
   border-color: #fca5a5;
   color: #ef4444;
 }
+
+@media (max-width: 768px) {
+  .lap-table thead th,
+  .lap-table tbody td {
+    padding: 10px 12px;
+    font-size: 13px;
+  }
+  .lap-row-actions {
+    flex-wrap: wrap;
+  }
+  .lap-row-btn {
+    height: 28px;
+    padding: 0 8px;
+    font-size: 12px;
+  }
+}

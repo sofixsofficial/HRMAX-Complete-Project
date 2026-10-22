@@ -780,7 +780,7 @@ export function EmailCenter() {
           </div>
         )}
 
-        <div className="stats-row" style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 16, marginBottom: 20 }}>
+        <div className="stats-row" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(130px, 1fr))', gap: 16, marginBottom: 20 }}>
           {statCards.slice(0, 4).map((s, i) => (
             <div
               key={i}

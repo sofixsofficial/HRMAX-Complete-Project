@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react'
 import { Shield, CheckCircle, XCircle, Ban, RotateCcw, Trash2, Search, Loader2, AlertCircle, UserCheck, Clock, UserX, Users, ArrowUpRight } from 'lucide-react'
 import type { User, CompanyAdminStatus } from '../types/user'
 import { subscribeCompanyAdmins, approveCompanyAdmin, rejectCompanyAdmin, suspendCompanyAdmin, reactivateCompanyAdmin, deleteCompanyAdmin } from '../services/companyAdminApprovalService'
+import { Pagination } from '../components/Pagination'
 import './CompanyAdminApprovals.css'
 
 export function CompanyAdminApprovals() {
@@ -9,6 +10,8 @@ export function CompanyAdminApprovals() {
   const [loading, setLoading] = useState(true)
   const [search, setSearch] = useState('')
   const [statusFilter, setStatusFilter] = useState<CompanyAdminStatus | 'All'>('All')
+  const [page, setPage] = useState(1)
+  const [pageSize, setPageSize] = useState(10)
   const [actionLoading, setActionLoading] = useState<string | null>(null)
   const [rejectModal, setRejectModal] = useState<{ admin: User } | null>(null)
   const [rejectionReason, setRejectionReason] = useState('')
@@ -59,6 +62,14 @@ export function CompanyAdminApprovals() {
     const matchesStatus = statusFilter === 'All' || (a.status || 'Pending') === statusFilter
     return matchesSearch && matchesStatus
   })
+
+  // Back to page 1 whenever the search / status filter changes
+  useEffect(() => {
+    setPage(1)
+  }, [search, statusFilter])
+
+  const safePage = Math.min(page, Math.max(1, Math.ceil(filtered.length / pageSize)))
+  const pagedRows = filtered.slice((safePage - 1) * pageSize, safePage * pageSize)
 
   const handleApprove = async (adminId: string) => {
     setActionLoading(adminId)
@@ -222,7 +233,7 @@ export function CompanyAdminApprovals() {
                     </td>
                   </tr>
                 ) : (
-                  filtered.map(admin => {
+                  pagedRows.map(admin => {
                     const st = admin.status || 'Pending'
                     return (
                       <tr key={admin.id} style={{ borderBottom: '1px solid #f9fafb', transition: 'background 0.15s' }}
@@ -323,6 +334,13 @@ export function CompanyAdminApprovals() {
               </tbody>
             </table>
           </div>
+          <Pagination
+            page={safePage}
+            pageSize={pageSize}
+            total={filtered.length}
+            onPageChange={setPage}
+            onPageSizeChange={(n) => { setPageSize(n); setPage(1) }}
+          />
         </div>
 
         {/* Rejection Reason Modal */}

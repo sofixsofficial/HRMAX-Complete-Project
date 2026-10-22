@@ -128,7 +128,7 @@
 /* Holiday Calendar Section */
 .holiday-calendar-section {
   display: grid;
-  grid-template-columns: 1fr 1fr;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
   gap: 24px;
 }
 
@@ -138,6 +138,7 @@
   border-radius: 12px;
   padding: 20px;
   box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
+  min-width: 0; /* let the card shrink below the calendar's min-content on narrow screens */
 }
 
 .calendar-header {
@@ -193,6 +194,8 @@
 /* Calendar Grid */
 .calendar-grid {
   margin-bottom: 20px;
+  overflow-x: auto; /* narrow screens: the grid scrolls inside the card, header stays put */
+  -webkit-overflow-scrolling: touch;
 }
 
 .calendar-weekdays {
@@ -535,7 +538,7 @@
   }
   
   .holiday-calendar-section {
-    grid-template-columns: 1fr;
+    grid-template-columns: minmax(0, 1fr);
   }
 }
 
@@ -570,5 +573,20 @@
   
   .holidays-table {
     min-width: 700px;
+  }
+
+  .calendar-view {
+    padding: 14px;
+  }
+
+  /* Fixed-width day tracks on phones: content can never widen the grid —
+     the grid scrolls horizontally inside the card instead. */
+  .calendar-weekdays,
+  .calendar-days {
+    grid-template-columns: repeat(7, 90px);
+  }
+
+  .calendar-day {
+    max-width: 90px;
   }
 }

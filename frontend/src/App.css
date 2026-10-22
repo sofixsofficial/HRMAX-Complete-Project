@@ -221,7 +221,8 @@ html, body {
 }
 
 /* Tables */
-.table-container {
+.table-container,
+.table-wrapper {
   background: #fff;
   border: 1px solid #f3f4f6;
   border-radius: 12px;

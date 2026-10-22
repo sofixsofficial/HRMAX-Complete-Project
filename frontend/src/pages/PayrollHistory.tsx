@@ -8,6 +8,7 @@ import { useAccessControl } from '../context/AccessControlContext'
 import { ScopeIndicator } from '../components/ScopeIndicator'
 import { getPayrollRunsByCompany, getAllPayrollRuns } from '../services/payrollService'
 import { dispatchPayslips } from '../services/salaryService'
+import { Pagination } from '../components/Pagination'
 import { scopedCompanyIds } from '../utils/companyScope'
 import type { PayrollRun, PayrollItem } from '../types/user'
 import './Companies.css'
@@ -62,6 +63,8 @@ function PayrollHistoryContent() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [emailingId, setEmailingId] = useState<string | null>(null)
+  const [page, setPage] = useState(1)
+  const [pageSize, setPageSize] = useState(10)
 
   const isExecOrTL = user?.role === 'executive' || user?.role === 'team-leader'
 
@@ -100,6 +103,11 @@ function PayrollHistoryContent() {
     fetchRuns()
   }, [companyId, user?.role, companyLoading, availableCompanies])
 
+  // Company scope change swaps the dataset — restart from page 1
+  useEffect(() => {
+    setPage(1)
+  }, [companyId])
+
   const handleEmailRun = async (run: PayrollRun) => {
     setEmailingId(run.id)
     try {
@@ -124,6 +132,10 @@ function PayrollHistoryContent() {
       setEmailingId(null)
     }
   }
+
+  const pageCount = Math.max(1, Math.ceil(runs.length / pageSize))
+  const safePage = Math.min(page, pageCount)
+  const pagedRows = runs.slice((safePage - 1) * pageSize, safePage * pageSize)
 
   if (loading) {
     return (
@@ -178,7 +190,7 @@ function PayrollHistoryContent() {
                 </tr>
               </thead>
               <tbody>
-                {runs.map(run => {
+                {pagedRows.map(run => {
                   const sc = statusColor(run.status)
                   return (
                     <tr key={run.id}>
@@ -214,6 +226,14 @@ function PayrollHistoryContent() {
               </tbody>
             </table>
           </div>
+
+          <Pagination
+            page={safePage}
+            pageSize={pageSize}
+            total={runs.length}
+            onPageChange={setPage}
+            onPageSizeChange={(n) => { setPageSize(n); setPage(1) }}
+          />
         </div>
       </div>
     </div>

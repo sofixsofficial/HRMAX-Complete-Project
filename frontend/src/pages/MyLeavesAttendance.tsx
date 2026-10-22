@@ -7,6 +7,7 @@ import { collection, query, where, onSnapshot } from 'firebase/firestore'
 import { db } from '../config/firebase'
 import { Header } from '../components/Header'
 import { Modal } from '../components/Modal'
+import { Pagination } from '../components/Pagination'
 import { LeaveApplyModal } from '../components/LeaveApplyModal'
 import { AttendancePunchBanner } from '../components/AttendancePunchBanner'
 import { useAuth } from '../context/AuthContext'
@@ -142,6 +143,10 @@ export function MyLeavesAttendance() {
 
   const [tab, setTab] = useState<TabKey>('leaves')
   const [leaveFilter, setLeaveFilter] = useState<LeaveFilter>('All')
+  const [leavesPage, setLeavesPage] = useState(1)
+  const [leavesPageSize, setLeavesPageSize] = useState(10)
+  const [attendancePage, setAttendancePage] = useState(1)
+  const [attendancePageSize, setAttendancePageSize] = useState(10)
   const [allowances, setAllowances] = useState<Record<string, number>>({})
   const [policyCfg, setPolicyCfg] = useState<LeaveBalanceConfig | undefined>(undefined)
   const [hasMonthlyEntitlements, setHasMonthlyEntitlements] = useState(false)
@@ -298,6 +303,17 @@ export function MyLeavesAttendance() {
     if (leaveFilter === 'All') return myLeaves
     return myLeaves.filter((l) => l.status === leaveFilter)
   }, [myLeaves, leaveFilter])
+
+  // Back to page 1 whenever the leave status filter changes
+  useEffect(() => {
+    setLeavesPage(1)
+  }, [leaveFilter])
+
+  const leavesSafePage = Math.min(leavesPage, Math.max(1, Math.ceil(filteredLeaves.length / leavesPageSize)))
+  const pagedLeaves = filteredLeaves.slice((leavesSafePage - 1) * leavesPageSize, leavesSafePage * leavesPageSize)
+
+  const attendanceSafePage = Math.min(attendancePage, Math.max(1, Math.ceil(sortedRecords.length / attendancePageSize)))
+  const pagedRecords = sortedRecords.slice((attendanceSafePage - 1) * attendancePageSize, attendanceSafePage * attendancePageSize)
 
   const getApprovalSteps = (leave: LeaveRequest): ApprovalStep[] => {
     const applicant = leave.applicantRole
@@ -580,7 +596,7 @@ export function MyLeavesAttendance() {
                     </tr>
                   </thead>
                   <tbody>
-                    {filteredLeaves.map((leave) => (
+                    {pagedLeaves.map((leave) => (
                       <tr key={leave.id}>
                         <td style={TD_TEXT}>
                           <div style={{ fontWeight: 600, fontSize: 13, color: '#111827' }}>{fmtShortDate(leave.startDate)} – {fmtShortDate(leave.endDate)}</div>
@@ -629,6 +645,15 @@ export function MyLeavesAttendance() {
                 </table>
               </div>
             )}
+            {filteredLeaves.length > 0 && (
+              <Pagination
+                page={leavesSafePage}
+                pageSize={leavesPageSize}
+                total={filteredLeaves.length}
+                onPageChange={setLeavesPage}
+                onPageSizeChange={(n) => { setLeavesPageSize(n); setLeavesPage(1) }}
+              />
+            )}
             {(isManagement || isRM) && (
               <div style={{ padding: '10px 16px', fontSize: 12, color: '#6b7280', borderTop: '1px solid #eef0f3', background: '#fafbfc', display: 'flex', alignItems: 'center', gap: 6 }}>
                 <Info size={13} style={{ flexShrink: 0 }} />
@@ -667,7 +692,7 @@ export function MyLeavesAttendance() {
                     </tr>
                   </thead>
                   <tbody>
-                    {sortedRecords.map((rec) => (
+                    {pagedRecords.map((rec) => (
                       <tr key={rec.id}>
                         <td style={{ ...TD_TEXT, fontWeight: 600 }}>{fmtDate(rec.date)}</td>
                         <td style={{ ...TD_TEXT, color: '#6b7280' }}>{weekday(rec.date)}</td>
@@ -706,6 +731,15 @@ export function MyLeavesAttendance() {
                   </tbody>
                 </table>
               </div>
+            )}
+            {sortedRecords.length > 0 && (
+              <Pagination
+                page={attendanceSafePage}
+                pageSize={attendancePageSize}
+                total={sortedRecords.length}
+                onPageChange={setAttendancePage}
+                onPageSizeChange={(n) => { setAttendancePageSize(n); setAttendancePage(1) }}
+              />
             )}
           </div>
         )}

@@ -10,6 +10,7 @@ import { useCompany } from '../context/CompanyContext'
 import { usePermissionScope } from '../hooks/usePermissionScope'
 import { useAccessControl } from '../context/AccessControlContext'
 import { ScopeIndicator } from '../components/ScopeIndicator'
+import { Pagination } from '../components/Pagination'
 import {
   getAllLeaveRequests,
   getLeaveRequestsByCompany,
@@ -120,6 +121,13 @@ export function LeaveManagement() {
   const [statusFilter, setStatusFilter] = useState('All')
   const [employeeFilter, setEmployeeFilter] = useState('all')
   const [companyFilter, setCompanyFilter] = useState('all')
+  const [page, setPage] = useState(1)
+  const [pageSize, setPageSize] = useState(10)
+
+  // Filters/search change the result set — restart from page 1
+  useEffect(() => {
+    setPage(1)
+  }, [searchTerm, statusFilter, employeeFilter, companyFilter])
 
   useEffect(() => {
     const status = searchParams.get('status')
@@ -359,6 +367,10 @@ export function LeaveManagement() {
     }
     return true
   })
+
+  const pageCount = Math.max(1, Math.ceil(filteredData.length / pageSize))
+  const safePage = Math.min(page, pageCount)
+  const pagedRows = filteredData.slice((safePage - 1) * pageSize, safePage * pageSize)
 
   // Pending badge = rows the CURRENT user can actually act on (exec / TL / RM)
   // within their visible scope, so it matches the dashboard approval cards.
@@ -639,7 +651,7 @@ export function LeaveManagement() {
                 </tr>
               </thead>
               <tbody>
-                {filteredData.map(l => {
+                {pagedRows.map(l => {
                   const sc = statusColor(l.status)
                   const companyName = getCompanyName(l.companyId)
                   const execName = getAssignedExecutive(l.companyId)
@@ -732,9 +744,13 @@ export function LeaveManagement() {
             </table>
           </div>
 
-          <div className="pagination">
-            <span className="showing-text">Showing {filteredData.length} of {leaves.length} requests</span>
-          </div>
+          <Pagination
+            page={safePage}
+            pageSize={pageSize}
+            total={filteredData.length}
+            onPageChange={setPage}
+            onPageSizeChange={(n) => { setPageSize(n); setPage(1) }}
+          />
         </div>
       </div>
 
