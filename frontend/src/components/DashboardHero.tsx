@@ -1,13 +1,23 @@
 import { useEffect, useMemo, useRef, useState, type CSSProperties } from 'react'
 import {
   AlertCircle,
+  BarChart3,
   Calendar,
   CheckCircle2,
+  ClipboardList,
   Clock3,
   Loader2,
   LogIn,
   LogOut,
+  Moon,
+  Percent,
+  Sun,
+  Sunset,
   Umbrella,
+  User,
+  UserCheck,
+  Users,
+  UserX,
 } from 'lucide-react'
 import { collection, getDocs, query, where } from 'firebase/firestore'
 import { db } from '../config/firebase'
@@ -24,6 +34,7 @@ import {
   formatInZone,
   resolveCompanyWeekends,
   toDate,
+  type DayPeriod,
 } from '../utils/heroScene'
 import './DashboardHero.css'
 
@@ -91,6 +102,124 @@ const PinIcon = (
     <circle cx="12" cy="10" r="3" />
   </svg>
 )
+
+/* ------------------------------------------------------------------ */
+/* Bottom scenery — 3 mountain ridges + conifer tree line + soft clouds */
+/* ------------------------------------------------------------------ */
+
+/* Layered mountain silhouettes (far → near), anchored to the bottom. */
+const RIDGE_FAR =
+  'M0 200 L0 128 L90 96 L200 122 L310 84 L430 118 L540 92 L660 124 L780 88 L900 120 L1020 94 L1120 118 L1200 100 L1200 200 Z'
+const RIDGE_MID =
+  'M0 200 L0 152 L120 124 L250 150 L380 118 L520 148 L650 122 L800 152 L930 126 L1070 150 L1200 130 L1200 200 Z'
+const RIDGE_NEAR =
+  'M0 200 L0 172 L140 150 L300 172 L460 146 L620 170 L790 148 L950 172 L1110 152 L1200 166 L1200 200 Z'
+
+/**
+ * Jagged conifer tree line along the very bottom — deterministic (fixed seed)
+ * so the silhouette never jumps between re-renders. Built once at module load.
+ */
+const TREE_LINE = (() => {
+  let seed = 13
+  const rnd = () => (seed = (seed * 16807) % 2147483647) / 2147483647
+  let d = 'M0 200 L0 184'
+  for (let x = 0; x < 1200; x += 7) {
+    const h = 6 + rnd() * 16
+    d += ` L${x + 3.5} ${(184 - h).toFixed(1)} L${x + 7} ${(185 - h * 0.3).toFixed(1)}`
+  }
+  return d + ' L1200 200 Z'
+})()
+
+/**
+ * Soft blurred cloud puffs — white and fluffy by day, dark wisps hugging the
+ * moon at night (matches the reference art). Slow drift, disabled under
+ * reduced motion.
+ */
+const Clouds = ({ theme }: { theme: DayPeriod }) => {
+  const day = theme === 'morning' || theme === 'afternoon'
+  const evening = theme === 'evening'
+  const fill = day ? '#ffffff' : evening ? '#2a2144' : '#0b1a38'
+  const puff = (
+    cx: number,
+    cy: number,
+    rx: number,
+    ry: number,
+    opacity: number,
+  ) => <ellipse cx={cx} cy={cy} rx={rx} ry={ry} opacity={opacity} />
+
+  return (
+    <svg className="clouds" viewBox="0 0 1200 200" preserveAspectRatio="none" aria-hidden="true" focusable="false">
+      <defs>
+        <filter id="dh-cloud-blur" x="-30%" y="-60%" width="160%" height="220%">
+          <feGaussianBlur stdDeviation="3.4" />
+        </filter>
+      </defs>
+      <g filter="url(#dh-cloud-blur)" fill={fill}>
+        <g className="cg-a">
+          {day ? (
+            <>
+              {puff(200, 44, 74, 13, 0.95)}
+              {puff(246, 36, 48, 11, 0.95)}
+              {puff(166, 40, 40, 9, 0.9)}
+            </>
+          ) : (
+            <>
+              {puff(300, 64, 140, 9, 0.35)}
+              {puff(210, 74, 90, 7, 0.28)}
+            </>
+          )}
+        </g>
+        <g className="cg-b">
+          {day ? (
+            <>
+              {puff(640, 30, 62, 11, 0.9)}
+              {puff(684, 24, 40, 9, 0.85)}
+            </>
+          ) : (
+            <>
+              {puff(1020, 66, 116, 10, 0.5)}
+              {puff(1140, 82, 92, 8, 0.42)}
+            </>
+          )}
+        </g>
+        <g className="cg-c">
+          {day ? (
+            <>
+              {puff(960, 118, 86, 12, 0.8)}
+              {puff(1010, 110, 52, 10, 0.75)}
+            </>
+          ) : (
+            <>
+              {puff(760, 96, 120, 8, 0.3)}
+              {puff(1080, 40, 70, 6, 0.25)}
+            </>
+          )}
+        </g>
+      </g>
+    </svg>
+  )
+}
+
+/** Period icon shown before the clock time (moon / sun / sunset). */
+const periodIcon = (theme: DayPeriod) => {
+  if (theme === 'night') return <Moon className="time-icon" aria-hidden="true" />
+  if (theme === 'evening') return <Sunset className="time-icon" aria-hidden="true" />
+  return <Sun className="time-icon" aria-hidden="true" />
+}
+
+/** Stat label icon — matches the reference strip (person, user-x, umbrella, …). */
+const statIcon = (label: string) => {
+  const l = label.toLowerCase()
+  if (l.includes('present')) return <User size={17} />
+  if (l.includes('absent') || l.includes('inactive')) return <UserX size={17} />
+  if (l.includes('leave')) return <Umbrella size={17} />
+  if (l.includes('task')) return <ClipboardList size={17} />
+  if (l.includes('rate') || l.includes('month')) return <Percent size={17} />
+  if (l.includes('active')) return <UserCheck size={17} />
+  if (l.includes('team')) return <Users size={17} />
+  if (l.includes('approved')) return <CheckCircle2 size={17} />
+  return <BarChart3 size={17} />
+}
 
 /* ------------------------------------------------------------------ */
 /* Helpers                                                             */
@@ -389,10 +518,14 @@ export function DashboardHero({ stats, badge, showAttendance = true }: Dashboard
         </div>
         <div className="orb sun" />
         <div className="orb moon" />
-        {/* Two soft hill layers — fills switch per theme in CSS */}
+        <Clouds theme={theme} />
+        {/* Layered scenery: 3 mountain ridges + conifer tree line — fills
+            switch per theme in CSS */}
         <svg className="hills" viewBox="0 0 1200 200" preserveAspectRatio="none" focusable="false">
-          <path className="h1" d="M0 140 L120 95 L240 130 L380 70 L520 125 L660 85 L800 135 L940 80 L1080 120 L1200 95 V200 H0Z" />
-          <path className="h2" d="M0 170 L150 135 L300 165 L470 120 L640 168 L820 130 L1000 170 L1200 140 V200 H0Z" />
+          <path className="h1" d={RIDGE_FAR} />
+          <path className="h2" d={RIDGE_MID} />
+          <path className="h3" d={RIDGE_NEAR} />
+          <path className="tree" d={TREE_LINE} />
         </svg>
       </div>
 
@@ -417,7 +550,10 @@ export function DashboardHero({ stats, badge, showAttendance = true }: Dashboard
         </div>
 
         <div className="when">
-          <div className="time">{time}</div>
+          <div className="time">
+            {periodIcon(theme)}
+            <span>{time}</span>
+          </div>
           <div className="row date">
             {CalendarIcon}
             <span>{dateLong}</span>
@@ -442,7 +578,10 @@ export function DashboardHero({ stats, badge, showAttendance = true }: Dashboard
             <div className="n" style={{ color: s.color }}>
               {s.value ?? '–'}
             </div>
-            <div className="l">{s.label}</div>
+            <div className="l">
+              {statIcon(s.label)}
+              <span>{s.label}</span>
+            </div>
           </div>
         ))}
       </div>

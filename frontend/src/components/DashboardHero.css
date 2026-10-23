@@ -1,6 +1,7 @@
 /* ------------------------------------------------------------------ */
-/* Dashboard hero — dynamic sticky hero, ported from the hrmax-hero    */
-/* reference (CSS sun/moon orbs, seeded DOM stars, 2-layer hills).     */
+/* Dashboard hero — cinematic sticky hero matched to the HRMAX design  */
+/* art (deep sky gradient, photoreal moon / glowing sun, drifting       */
+/* clouds, layered mountains + conifer tree line, divider stats).      */
 /*                                                                     */
 /* Sticky: pins directly below the global header while the page        */
 /* scrolls (compact on mobile, static in short landscape viewports).   */
@@ -13,14 +14,12 @@
 /* ------------------------------------------------------------------ */
 
 :root {
-  --hero-pad: 20px;
-  --hero-h: 200px; /* live value published by the hero */
-  --statbg: rgba(255, 255, 255, 0.1);
+  --hero-h: 420px; /* live value published by the hero */
 }
 
 /* Scroll offsets so anchor / focus scrolls land clear of the sticky stack */
 html {
-  scroll-padding-top: calc(var(--header-h, 68px) + var(--hero-h, 200px) + 16px);
+  scroll-padding-top: calc(var(--header-h, 68px) + var(--hero-h, 420px) + 16px);
 }
 
 /* ── Hero shell ───────────────────────────────────────────────────── */
@@ -29,32 +28,44 @@ html {
   top: var(--header-h, 68px);
   z-index: 40; /* below the header (z:100), above page content */
   overflow: hidden;
+  isolation: isolate;
   margin-bottom: 24px;
-  padding: var(--hero-pad);
+  display: flex;
+  flex-direction: column;
+  min-height: clamp(400px, 40vw, 580px);
   border-radius: 18px;
   color: #fff;
   background: var(--sky);
+  box-shadow: 0 12px 34px rgba(2, 6, 23, 0.16);
   transition: background 0.6s ease;
 }
 .hero * {
   box-sizing: border-box;
 }
 
-/* Sky gradient per day period — swaps with a soft fade */
+/* Sky gradient per day period — matches the day/night design art */
 .hero[data-theme='morning'] {
-  --sky: linear-gradient(160deg, #8fb5ff, #ffe3bd 58%, #ffd79b);
+  --sky: linear-gradient(180deg, #3b83c5 0%, #6faddd 48%, #a3d1ef 100%);
+  --scrim: linear-gradient(90deg, rgba(8, 28, 54, 0.42), rgba(8, 28, 54, 0.1) 55%, rgba(8, 28, 54, 0));
+  --statbg: rgba(9, 30, 58, 0.22);
 }
 .hero[data-theme='afternoon'] {
-  --sky: linear-gradient(160deg, #2f7ad6, #77b7ee 70%, #a9d3f5);
+  --sky: linear-gradient(180deg, #3682ca 0%, #69ade0 50%, #a9d8f0 100%);
+  --scrim: linear-gradient(90deg, rgba(8, 28, 54, 0.42), rgba(8, 28, 54, 0.1) 55%, rgba(8, 28, 54, 0));
+  --statbg: rgba(9, 30, 58, 0.22);
 }
 .hero[data-theme='evening'] {
-  --sky: linear-gradient(160deg, #26315f, #7b5aa6 52%, #f3a06a);
+  --sky: linear-gradient(160deg, #262a63 0%, #6b4a8e 42%, #c96a3e 80%, #f0a35c 100%);
+  --scrim: linear-gradient(90deg, rgba(28, 16, 40, 0.42), rgba(28, 16, 40, 0.08) 60%, rgba(28, 16, 40, 0));
+  --statbg: rgba(16, 10, 32, 0.28);
 }
 .hero[data-theme='night'] {
-  --sky: linear-gradient(160deg, #050b24, #101f4c 60%, #1b2f66);
+  --sky: linear-gradient(165deg, #050c1d 0%, #0a1730 48%, #12294f 100%);
+  --scrim: linear-gradient(90deg, rgba(3, 8, 20, 0.52), rgba(3, 8, 20, 0.18) 52%, rgba(3, 8, 20, 0.04));
+  --statbg: rgba(3, 9, 22, 0.32);
 }
 
-/* ── Sky layer: scrim + stars + orbs + hills ──────────────────────── */
+/* ── Sky layer: scrim + stars + orbs + clouds + landscape ─────────── */
 .hero .sky {
   position: absolute;
   inset: 0;
@@ -66,7 +77,7 @@ html {
   content: '';
   position: absolute;
   inset: 0;
-  background: linear-gradient(90deg, rgba(4, 10, 28, 0.5), rgba(4, 10, 28, 0.16) 48%, rgba(4, 10, 28, 0.06));
+  background: var(--scrim);
 }
 
 /* Deterministic DOM stars (top 60% of the sky) — night full, evening faint */
@@ -104,37 +115,44 @@ html {
   }
 }
 
-/* Sun/moon orbs — pure CSS (radial gradient + glow, moon craters via ::before) */
+/* ── Sun & moon orbs — pure CSS, sized/positioned like the design art ── */
 .hero .orb {
   position: absolute;
-  width: 110px;
-  height: 110px;
+  width: clamp(84px, 9vw, 132px);
+  aspect-ratio: 1;
   border-radius: 50%;
   z-index: 1;
   opacity: 0;
   transition: opacity 0.5s ease, background 0.6s ease, box-shadow 0.6s ease;
 }
+/* Sun: hot core → warm edge, big double glow */
 .hero .sun {
-  right: 8%;
-  top: -46px;
-  background: radial-gradient(circle at 34% 32%, #fffbe8 0 40%, #ffe066 62%, #ffbf3f 100%);
-  box-shadow: 0 0 64px 16px rgba(255, 214, 102, 0.55), 0 0 140px 40px rgba(255, 180, 80, 0.25);
+  top: clamp(14px, 9%, 58px);
+  right: clamp(16px, 11%, 140px);
+  background: radial-gradient(circle at 42% 36%, #fffdf0 0 18%, #ffeb97 40%, #ffce62 66%, #fbb040 100%);
+  box-shadow: 0 0 60px 18px rgba(255, 199, 105, 0.55), 0 0 170px 64px rgba(255, 181, 84, 0.3);
 }
+/* Evening sun sits lower with a warmer, longer glow */
+.hero[data-theme='evening'] .sun {
+  top: clamp(48px, 26%, 150px);
+  background: radial-gradient(circle at 42% 36%, #fff4d0 0 16%, #ffcf7e 38%, #ff9e4d 68%, #f2793a 100%);
+  box-shadow: 0 0 70px 22px rgba(255, 170, 80, 0.6), 0 0 190px 70px rgba(255, 140, 60, 0.32);
+}
+/* Moon: bright disc, multi-crater surface, limb darkening, soft halo */
 .hero .moon {
-  right: 8%;
-  top: -46px;
-  background: radial-gradient(circle at 36% 34%, #f6f8ff 0 42%, #dfe6ff 66%, #c2cdf2 100%);
-  box-shadow: 0 0 52px 10px rgba(198, 214, 255, 0.45), 0 0 130px 36px rgba(150, 180, 255, 0.2);
-}
-.hero .moon::before {
-  content: '';
-  position: absolute;
-  inset: 0;
-  border-radius: 50%;
+  top: clamp(14px, 9%, 58px);
+  right: clamp(16px, 11%, 140px);
   background:
-    radial-gradient(circle at 62% 60%, rgba(160, 175, 215, 0.65) 0 9%, transparent 10%),
-    radial-gradient(circle at 38% 30%, rgba(160, 175, 215, 0.5) 0 6%, transparent 7%),
-    radial-gradient(circle at 70% 34%, rgba(160, 175, 215, 0.4) 0 5%, transparent 6%);
+    radial-gradient(circle at 62% 56%, rgba(140, 150, 175, 0.5) 0 6.5%, transparent 8.5%),
+    radial-gradient(circle at 41% 38%, rgba(140, 150, 175, 0.42) 0 4.5%, transparent 6%),
+    radial-gradient(circle at 72% 32%, rgba(140, 150, 175, 0.38) 0 3.6%, transparent 5%),
+    radial-gradient(circle at 33% 60%, rgba(140, 150, 175, 0.46) 0 5.4%, transparent 7%),
+    radial-gradient(circle at 55% 76%, rgba(140, 150, 175, 0.34) 0 3%, transparent 4.4%),
+    radial-gradient(circle at 23% 43%, rgba(140, 150, 175, 0.3) 0 2.6%, transparent 4%),
+    radial-gradient(circle at 81% 60%, rgba(140, 150, 175, 0.3) 0 2.4%, transparent 3.6%),
+    radial-gradient(circle at 47% 22%, rgba(140, 150, 175, 0.25) 0 2%, transparent 3.2%),
+    radial-gradient(circle at 36% 30%, #fefefe 0 34%, #f1f3f2 60%, #d8dcd9 86%, #bfc5c0 100%);
+  box-shadow: 0 0 34px 6px rgba(225, 238, 255, 0.5), 0 0 110px 34px rgba(150, 185, 255, 0.25), inset -12px -14px 26px rgba(88, 98, 120, 0.4);
 }
 .hero[data-theme='morning'] .sun,
 .hero[data-theme='afternoon'] .sun,
@@ -145,7 +163,44 @@ html {
   opacity: 1;
 }
 
-/* Two soft hill layers — fills switch per theme below */
+/* ── Soft drifting clouds (white puffs by day, dark wisps at night) ── */
+.hero .clouds {
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 0;
+  height: 62%;
+  width: 100%;
+  z-index: 1;
+}
+.hero .clouds .cg-a,
+.hero .clouds .cg-b,
+.hero .clouds .cg-c {
+  transform-box: fill-box;
+}
+@media (prefers-reduced-motion: no-preference) {
+  .hero .clouds .cg-a {
+    animation: cloud-drift 70s ease-in-out infinite alternate;
+  }
+  .hero .clouds .cg-b {
+    animation: cloud-drift 95s ease-in-out infinite alternate;
+    animation-delay: -32s;
+  }
+  .hero .clouds .cg-c {
+    animation: cloud-drift 120s ease-in-out infinite alternate;
+    animation-delay: -60s;
+  }
+}
+@keyframes cloud-drift {
+  from {
+    transform: translateX(-16px);
+  }
+  to {
+    transform: translateX(16px);
+  }
+}
+
+/* ── Bottom scenery: 3 mountain ridges + conifer tree line ─────────── */
 .hero .hills {
   position: absolute;
   left: 0;
@@ -155,75 +210,101 @@ html {
   height: 52%;
   z-index: 2;
 }
-.hero .hills .h1 {
-  fill: rgba(255, 255, 255, 0.2);
-}
-.hero .hills .h2 {
-  fill: rgba(8, 18, 50, 0.55);
-}
+/* Night: dark navy ridges, near-black forest */
+.hero[data-theme='night'] .hills .h1 { fill: #1f3557; opacity: 0.85; }
+.hero[data-theme='night'] .hills .h2 { fill: #152745; }
+.hero[data-theme='night'] .hills .h3 { fill: #0d1a33; }
+.hero[data-theme='night'] .hills .tree { fill: #060d1c; }
+/* Day: hazy blue distance → deeper blue front, dark navy forest */
+.hero[data-theme='morning'] .hills .h1,
+.hero[data-theme='afternoon'] .hills .h1 { fill: #a3c8e6; }
+.hero[data-theme='morning'] .hills .h2,
+.hero[data-theme='afternoon'] .hills .h2 { fill: #7aa9d2; }
+.hero[data-theme='morning'] .hills .h3,
+.hero[data-theme='afternoon'] .hills .h3 { fill: #4e80af; }
+.hero[data-theme='morning'] .hills .tree,
+.hero[data-theme='afternoon'] .hills .tree { fill: #1d3b5c; }
+/* Evening: dusk purples */
+.hero[data-theme='evening'] .hills .h1 { fill: #8a74a8; }
+.hero[data-theme='evening'] .hills .h2 { fill: #5e4c7e; }
+.hero[data-theme='evening'] .hills .h3 { fill: #3a2f5c; }
+.hero[data-theme='evening'] .hills .tree { fill: #1c1636; }
 
 /* ── Content layout ───────────────────────────────────────────────── */
 .hero .hero-main {
   position: relative;
   z-index: 3;
+  flex: 1;
   display: grid;
   grid-template-columns: 1fr auto;
   gap: 14px;
-  align-items: end;
-  min-height: 150px;
+  padding: clamp(18px, 2.6vw, 40px) clamp(18px, 2.8vw, 44px) clamp(10px, 1.2vw, 18px);
+}
+.hero .welcome {
+  align-self: start;
 }
 .hero .welcome small {
-  font-size: 16px;
-  opacity: 0.9;
+  display: block;
+  font-size: clamp(17px, 1.75vw, 25px);
+  font-weight: 400;
+  opacity: 0.95;
 }
 .hero .welcome h2 {
-  margin: 2px 0 0;
-  font-size: clamp(24px, 3.6vw, 40px);
-  line-height: 1.08;
-  font-weight: 900;
+  margin: 4px 0 0;
+  font-size: clamp(30px, 3.8vw, 54px);
+  line-height: 1.05;
+  font-weight: 800;
   letter-spacing: 0.2px;
-  text-shadow: 0 2px 10px rgba(0, 0, 0, 0.25);
+  text-shadow: 0 2px 12px rgba(0, 0, 0, 0.28);
 }
 
-/* Role + attendance chips (reference `.chip`) — scoped under .hero .chips
-   so the app's other stylesheet (.chip in Companies.css) can never leak in */
+/* Role + attendance chips (outlined pills, per the design art) — scoped
+   under .hero .chips so the app's other stylesheet (.chip in
+   Companies.css) can never leak in */
 .hero .chips {
   display: flex;
-  gap: 8px;
+  gap: 10px;
   flex-wrap: wrap;
-  margin-top: 12px;
+  margin-top: clamp(12px, 1.6vw, 24px);
 }
 .hero .chips .chip {
   display: inline-flex;
   align-items: center;
-  gap: 6px;
-  padding: 6px 12px;
+  gap: 8px;
+  padding: clamp(6px, 0.72vw, 10px) clamp(12px, 1.35vw, 20px);
   border-radius: 999px;
-  border: 1.5px solid rgba(255, 255, 255, 0.24);
-  background: rgba(8, 18, 50, 0.45);
-  font-size: 12px;
+  border: 1.6px solid rgba(255, 255, 255, 0.62);
+  background: rgba(5, 12, 28, 0.5);
+  font-size: clamp(12px, 1.25vw, 17px);
   font-weight: 600;
   color: #fff;
   cursor: default;
 }
+/* Role chip: amber outline + amber icon/text on dark */
 .hero .chips .chip.role {
-  background: linear-gradient(135deg, #ffd66b, #ffb84d);
-  color: #4a2c00;
-  border-color: transparent;
+  border-color: #fbbf24;
+  color: #ffd34d;
+  background: rgba(5, 12, 28, 0.4);
 }
 .hero .chips .chip i {
-  width: 8px;
-  height: 8px;
+  width: 0.62em;
+  height: 0.62em;
   border-radius: 50%;
-  background: #cfd8ff;
+  background: #fff;
   display: inline-block;
+  flex: 0 0 auto;
+  transition: background 0.25s ease;
 }
 .hero .chips .chip.in i {
-  background: #34d399;
+  background: #22c55e;
+}
+.hero .chips .chip.in {
+  border-color: rgba(74, 222, 128, 0.75);
+  color: #d1fae5;
 }
 /* Live attendance state dot colours (real backend pill states) */
 .hero .chips .chip[data-state='working'] i {
-  background: #34d399;
+  background: #22c55e;
   animation: hero-pulse 1.6s ease-in-out infinite;
 }
 .hero .chips .chip[data-state='done'] i {
@@ -236,83 +317,118 @@ html {
   background: #fbbf24;
 }
 .hero .chips .chip[data-state='idle'] i {
-  background: #cfd8ff;
+  background: #fff;
 }
 .hero .chips .chip[data-state='loading'] i {
   background: #94a3b8;
 }
+.hero .chips .chip[data-state='late'] i {
+  background: #fbbf24;
+}
 @keyframes hero-pulse {
   0%,
   100% {
-    box-shadow: 0 0 0 0 rgba(52, 211, 153, 0.55);
+    box-shadow: 0 0 0 0 rgba(34, 197, 94, 0.55);
   }
   50% {
-    box-shadow: 0 0 0 5px rgba(52, 211, 153, 0);
+    box-shadow: 0 0 0 5px rgba(34, 197, 94, 0);
   }
 }
 
-/* Clock block (right) */
+/* Clock block (right, bottom-aligned) */
 .hero .when {
+  align-self: end;
+  display: grid;
+  justify-items: end;
+  gap: 8px;
   text-align: right;
   min-width: 0;
+  padding-bottom: clamp(2px, 0.5vw, 8px);
 }
 .hero .when .time {
-  font-size: clamp(22px, 3.2vw, 38px);
-  font-weight: 900;
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: clamp(6px, 0.7vw, 10px);
+  font-size: clamp(28px, 3.1vw, 44px);
+  font-weight: 800;
   line-height: 1;
   letter-spacing: 0.4px;
   font-variant-numeric: tabular-nums;
-  text-shadow: 0 2px 10px rgba(0, 0, 0, 0.25);
+  text-shadow: 0 2px 12px rgba(0, 0, 0, 0.3);
+}
+.hero .when .time .time-icon {
+  width: clamp(20px, 2vw, 30px);
+  height: auto;
+  color: #fff;
+  filter: drop-shadow(0 2px 6px rgba(0, 0, 0, 0.35));
 }
 .hero .when .row {
   display: flex;
   align-items: center;
   justify-content: flex-end;
-  gap: 6px;
-  margin-top: 6px;
-  font-size: 13px;
-  opacity: 0.95;
+  gap: 8px;
+  font-size: clamp(13px, 1.35vw, 19px);
+  opacity: 0.97;
+}
+.hero .when .row svg {
+  width: 1.05em;
+  height: 1.05em;
+  flex: 0 0 auto;
 }
 .hero .when .greet {
-  margin-top: 6px;
-  font-size: 14px;
-  font-weight: 800;
+  margin-top: clamp(2px, 0.4vw, 6px);
+  font-size: clamp(14px, 1.5vw, 21px);
+  font-weight: 700;
 }
 
-/* Stats strip — divider-separated, per-stat colour from the real data */
+/* ── Stats strip — full-bleed, divider columns, icon labels ────────── */
 .hero .stats {
   position: relative;
   z-index: 3;
-  margin-top: 18px;
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(0, 1fr));
-  border-top: 1px solid rgba(255, 255, 255, 0.22);
+  border-top: 1px solid rgba(255, 255, 255, 0.16);
   background: var(--statbg);
 }
 .hero .stat {
-  padding: 12px 6px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: clamp(4px, 0.6vw, 10px);
+  padding: clamp(14px, 1.8vw, 26px) 8px;
   text-align: center;
 }
 .hero .stat:not(:first-child) {
-  border-left: 1px solid rgba(255, 255, 255, 0.22);
+  border-left: 1px solid rgba(255, 255, 255, 0.14);
 }
 .hero .stat .n {
-  font-size: clamp(22px, 3vw, 34px);
-  font-weight: 900;
+  font-size: clamp(26px, 3vw, 44px);
+  font-weight: 800;
   line-height: 1;
+  text-shadow: 0 2px 10px rgba(0, 0, 0, 0.22);
 }
 .hero .stat .l {
-  margin-top: 6px;
-  font-size: 12px;
-  letter-spacing: 0.08em;
-  opacity: 0.8;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: clamp(5px, 0.6vw, 9px);
+  font-size: clamp(11px, 1.2vw, 17px);
+  font-weight: 600;
+  letter-spacing: 0.04em;
   text-transform: uppercase;
+  color: #fff;
+}
+.hero .stat .l svg {
+  width: 1.05em;
+  height: 1.05em;
+  color: rgba(255, 255, 255, 0.85);
 }
 /* Fallback colours when a stat carries no inline colour */
-.hero .stat:nth-child(1) .n { color: #34d399; }
-.hero .stat:nth-child(2) .n { color: #f87171; }
-.hero .stat:nth-child(3) .n { color: #60a5fa; }
-.hero .stat:nth-child(4) .n { color: #d46bff; }
+.hero .stat:nth-child(1) .n { color: #22c55e; }
+.hero .stat:nth-child(2) .n { color: #ef4444; }
+.hero .stat:nth-child(3) .n { color: #3b82f6; }
+.hero .stat:nth-child(4) .n { color: #ec4899; }
 
 /* ── Live attendance extras (kept from the HRMAX punch flow) ──────── */
 .hero .hero-detail {
@@ -320,9 +436,9 @@ html {
   flex-wrap: wrap;
   gap: 6px;
   margin-top: 10px;
-  font-size: 12.5px;
-  color: rgba(255, 255, 255, 0.9);
-  text-shadow: 0 1px 2px rgba(4, 10, 28, 0.4);
+  font-size: clamp(12px, 1vw, 14px);
+  color: rgba(255, 255, 255, 0.92);
+  text-shadow: 0 1px 2px rgba(4, 10, 28, 0.45);
 }
 .hero .hero-elapsed {
   color: #6ee7b7;
@@ -390,40 +506,51 @@ html {
 
 /* ── Responsive ───────────────────────────────────────────────────── */
 @media (max-width: 900px) {
-  .hero .hero-main {
-    min-height: 130px;
+  .hero {
+    min-height: clamp(360px, 48vw, 440px);
   }
-  .hero .sun,
-  .hero .moon {
-    right: 6%;
+  .hero .orb {
+    width: clamp(72px, 11vw, 96px);
   }
 }
 
 @media (max-width: 600px) {
-  :root {
-    --hero-pad: 12px;
+  .hero {
+    min-height: 0;
+    border-radius: 14px;
   }
   .hero .hero-main {
     grid-template-columns: 1fr;
-    min-height: 0;
-    align-items: start;
-    gap: 8px;
+    gap: 10px;
+    padding: 16px 16px 8px;
+  }
+  .hero .welcome small {
+    font-size: 15px;
+  }
+  .hero .welcome h2 {
+    font-size: 28px;
   }
   .hero .when {
+    justify-items: start;
     text-align: left;
+    align-self: start;
+  }
+  .hero .when .time {
+    justify-content: flex-start;
+    font-size: 26px;
   }
   .hero .when .row {
     justify-content: flex-start;
+    font-size: 13px;
   }
-  .hero .when .time {
-    font-size: 26px;
-  }
-  .hero .welcome h2 {
-    font-size: 26px;
+  .hero .when .greet {
+    font-size: 14px;
   }
   .hero .orb {
     transform: scale(0.55);
     transform-origin: top right;
+    top: 8px;
+    right: 8px;
   }
   .hero .stats {
     grid-template-columns: repeat(2, 1fr);
@@ -432,7 +559,7 @@ html {
     border-left: 0;
   }
   .hero .stat:nth-child(n + 3) {
-    border-top: 1px solid rgba(255, 255, 255, 0.22);
+    border-top: 1px solid rgba(255, 255, 255, 0.14);
   }
   /* Attendance extras stay compact on phones */
   .hero .hero-btn {
@@ -455,7 +582,10 @@ html {
 @media (prefers-reduced-motion: reduce) {
   .hero .star,
   .hero .chips .chip i,
-  .hero .hero-spin {
+  .hero .hero-spin,
+  .hero .clouds .cg-a,
+  .hero .clouds .cg-b,
+  .hero .clouds .cg-c {
     animation: none !important;
   }
   .hero,
