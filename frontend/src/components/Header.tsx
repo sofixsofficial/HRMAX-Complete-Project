@@ -8,6 +8,7 @@ import { useCompany } from '../context/CompanyContext'
 import { useAccessControl } from '../context/AccessControlContext'
 import { useSidebar } from '../context/SidebarContext'
 import { useCompanyStore } from '../store/companyStore'
+import { useClock } from '../context/ClockContext'
 import { NotificationBell } from './NotificationBell'
 import { roleDepartmentLabel } from '../utils/roleLabels'
 import './Header.css'
@@ -25,19 +26,16 @@ interface SearchResult {
   category: string
 }
 
-function getGreeting(): string {
-  const hour = new Date().getHours()
-  if (hour < 12) return 'Good morning'
-  if (hour < 17) return 'Good afternoon'
-  return 'Good evening'
-}
-
 export function Header({ title, breadcrumbs = [] }: HeaderProps) {
   const { user } = useAuth()
   const { selectedCompanyId, setSelectedCompanyId, availableCompanies, isCompanyRestricted, selectedCompanyName, effectiveCompanyId, isLoading } = useCompany()
   const { isViewOnly } = useAccessControl()
   const { toggle } = useSidebar()
   const navigate = useNavigate()
+  // Shared clock context — SAME time source as the dashboard hero, so the
+  // header and hero never disagree. Also carries the live place (location +
+  // temperature) for the meta strip.
+  const { time, dateShort, greeting, location, tempC } = useClock()
 
   // Sync CompanyContext → Zustand store (services can read from store directly)
   const syncStore = useCompanyStore.getState()
@@ -281,7 +279,16 @@ export function Header({ title, breadcrumbs = [] }: HeaderProps) {
           </div>
         )}
         <div className="header-welcome">
-          {getGreeting()}, {user?.name?.split(' ')[0] || 'User'}
+          {greeting}, {user?.name?.split(' ')[0] || 'User'}
+        </div>
+        {/* Live clock strip — same shared ClockContext source as the hero.
+            Location/temperature render only with real data (never invented). */}
+        <div className="hdr-meta" aria-label="Current time and place">
+          <b>{time}</b>
+          <span className="hide-mobile">{dateShort}</span>
+          {(location || tempC != null) && <span className="sep" />}
+          {location && <span className="hide-tablet">{location}</span>}
+          {tempC != null && <span className="hide-tablet">{Math.round(tempC)}°C</span>}
         </div>
         <div className="search-box" ref={searchRef} style={{ position: 'relative' }}>
           <Search size={16} />

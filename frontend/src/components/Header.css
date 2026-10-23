@@ -1,14 +1,68 @@
+/* Global header height — the sticky dashboard hero offsets by this so it can
+   never overlap the header. Keep in sync with .header height below. */
+:root {
+  --header-h: 68px;
+}
+
 .header {
   display: flex;
   align-items: center;
   justify-content: space-between;
   padding: 0 32px;
-  height: 68px;
-  background: #ffffff;
+  height: var(--header-h);
+  /* Translucent + blurred (reference header treatment) so page content
+     softly passes under the sticky bar. */
+  background: rgba(255, 255, 255, 0.92);
+  backdrop-filter: blur(8px);
   border-bottom: 1px solid #e5e7eb;
   position: sticky;
   top: 0;
   z-index: 100;
+}
+
+/* ── Live clock strip (shared ClockContext source with the hero) ──── */
+.hdr-meta {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  font-size: 13px;
+  color: #3b4a74;
+  flex-shrink: 0;
+  white-space: nowrap;
+}
+.hdr-meta b {
+  font-size: 15px;
+  font-weight: 700;
+  color: #0f1a3a;
+  font-variant-numeric: tabular-nums;
+}
+.hdr-meta .sep {
+  width: 1px;
+  height: 14px;
+  background: #e3e8f2;
+  flex: none;
+}
+/* Progressive collapse so the strip never pushes the search/profile out:
+   ≤900px drop location + temperature, ≤600px drop the date + separators
+   (the time always stays — the hero shows everything regardless). */
+@media (max-width: 900px) {
+  .hdr-meta .hide-tablet {
+    display: none;
+  }
+}
+@media (max-width: 600px) {
+  .hdr-meta .hide-mobile {
+    display: none;
+  }
+  .hdr-meta .sep {
+    display: none;
+  }
+}
+@media (max-width: 768px) {
+  :root { --header-h: 60px; }
+}
+@media (max-width: 480px) {
+  :root { --header-h: 56px; }
 }
 
 .header-left {

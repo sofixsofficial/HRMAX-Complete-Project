@@ -42,7 +42,7 @@ export interface ResolvedMode {
   mode: CharacterMode
   /** Status-pill text. */
   pill: string
-  /** Maps to `.dh-status[data-state]` (web) / status styling (mobile). */
+  /** Maps to `.hero .chips .chip[data-state]` (web) / status styling (mobile). */
   pillState: 'idle' | 'working' | 'done' | 'leave' | 'holiday'
   /** Whether the employee may check in right now. */
   canCheckIn: boolean

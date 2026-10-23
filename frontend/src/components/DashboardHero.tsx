@@ -1,46 +1,29 @@
-import { memo, useEffect, useState } from 'react'
+import { useEffect, useMemo, useRef, useState, type CSSProperties } from 'react'
 import {
   AlertCircle,
-  BarChart3,
   Calendar,
-  CalendarCheck,
   CheckCircle2,
-  ClipboardList,
   Clock3,
   Loader2,
   LogIn,
   LogOut,
-  MapPin,
-  Moon,
-  Percent,
-  Sun,
-  Sunset,
   Umbrella,
-  UserCheck,
-  UserMinus,
-  UserX,
-  Users,
 } from 'lucide-react'
 import { collection, getDocs, query, where } from 'firebase/firestore'
 import { db } from '../config/firebase'
 import { useAuth } from '../context/AuthContext'
 import { useCompany } from '../context/CompanyContext'
+import { useClock } from '../context/ClockContext'
 import { useAttendancePunch } from '../hooks/useAttendancePunch'
 import { getLeaveRequestsByUser } from '../services/leaveService'
 import { roleDepartmentLabel } from '../utils/roleLabels'
 import { parseWeekendDays, toDateKey } from '../utils/workingDays'
 import { resolveCharacterMode } from '../utils/characterMode'
-import { useHeroSky } from '../hooks/useHeroSky'
-import type { SkyWeather } from '../utils/weather'
 import {
-  effectiveTimezone,
   formatElapsed,
   formatInZone,
-  getHeroScene,
-  resolveCompanyTimezone,
   resolveCompanyWeekends,
   toDate,
-  type DayPeriod,
 } from '../utils/heroScene'
 import './DashboardHero.css'
 
@@ -56,129 +39,63 @@ interface DashboardHeroProps {
   /** Override for the role badge (defaults to the user's role • department). */
   badge?: string
   /**
-   * Show the personal attendance section (status pill, check-in/out actions,
+   * Show the personal attendance section (status chip, check-in/out actions,
    * live Working Mode). Master Admin and Company Admin do not punch in from the
-   * dashboard, so they pass false — they render a static "Not Checked In" pill.
+   * dashboard, so they pass false — they render a static "Not Checked In" chip.
    */
   showAttendance?: boolean
 }
 
 /* ------------------------------------------------------------------ */
-/* Time + weather based decorative sky (independent of attendance)     */
+/* Reference sky — CSS sun/moon orbs + seeded DOM stars + 2-layer hills */
 /* ------------------------------------------------------------------ */
 
-/** Sparse night stars — only shown on a clear night (never under clouds). */
-const NIGHT_STARS: Array<[number, number, number]> = [
-  [28, 34, 1.3],
-  [74, 16, 1],
-  [118, 52, 1.5],
-  [158, 28, 1],
-  [196, 64, 1.2],
-  [236, 22, 1.4],
-  [272, 46, 1],
-  [306, 92, 1.1],
-  [352, 116, 1.3],
-  [384, 68, 1],
-  [46, 124, 1],
-  [214, 104, 1.2],
-  [96, 96, 0.9],
-  [140, 12, 1],
-]
+/**
+ * Deterministic star field (reference `HeroBanner`): seeded so re-renders
+ * never make the stars jump around. 45 stars, two sizes, twinkle delay and
+ * duration baked in. Purely decorative (`aria-hidden` container).
+ */
+function useSkyStars() {
+  return useMemo(() => {
+    let seed = 7
+    const rnd = () => (seed = (seed * 16807) % 2147483647) / 2147483647
+    return Array.from({ length: 45 }, () => {
+      const size = rnd() > 0.85 ? 3 : 2
+      return {
+        left: `${(rnd() * 100).toFixed(2)}%`,
+        top: `${(rnd() * 100).toFixed(2)}%`,
+        size,
+        delay: `${(rnd() * 4).toFixed(2)}s`,
+        dur: `${(2.6 + rnd() * 3).toFixed(2)}s`,
+      }
+    })
+  }, [])
+}
 
-const Landscape = memo(function Landscape({ period, weather }: { period: DayPeriod; weather: SkyWeather }) {
-  const night = period === 'night'
-  // Precipitation implies cloud cover: hide sun/moon glow, thicken the clouds.
-  const overcast = weather === 'rain' || weather === 'storm' || weather === 'snow'
-  // Twinkling stars only on a clear night — clouds and snowfall hide them.
-  const stars = night && !overcast
-
-  if (night) {
-    return (
-      <svg className="dh-decor" viewBox="0 0 400 200" preserveAspectRatio="xMidYMax slice" aria-hidden="true" focusable="false">
-        {/* Moon — subtle crescent */}
-        <circle cx="336" cy="40" r="15" fill="#f5f3d8" opacity={overcast ? 0.25 : 0.85} />
-        <circle cx="329" cy="36" r="12" fill="#0d1430" opacity={overcast ? 0.95 : 0.9} />
-        {stars &&
-          NIGHT_STARS.map(([x, y, r], i) => (
-            <circle
-              key={i}
-              className="dh-star"
-              cx={x}
-              cy={y}
-              r={r}
-              fill="#eaf0ff"
-              style={{ animationDelay: `${(i % 5) * 0.75}s`, animationDuration: `${3 + (i % 4) * 0.6}s` }}
-            />
-          ))}
-        {/* Very faint, slow-drifting clouds */}
-        <ellipse className="dh-cloud dh-cloud-a" cx="120" cy="76" rx="44" ry="9" fill="#ffffff" opacity={overcast ? 0.1 : 0.05} />
-        <ellipse className="dh-cloud dh-cloud-b" cx="256" cy="120" rx="34" ry="7" fill="#ffffff" opacity={overcast ? 0.08 : 0.04} />
-      </svg>
-    )
-  }
-
-  // Day / evening — soft sun + slow, unobtrusive clouds (position follows the
-  // scene gradient's glow so the light source feels coherent). No sun while it
-  // is raining or snowing — it sits behind the cloud deck.
-  const sunX = period === 'evening' ? 64 : period === 'afternoon' ? 344 : 328
-  const sunY = period === 'evening' ? 172 : period === 'afternoon' ? 20 : 32
-  return (
-    <svg className="dh-decor" viewBox="0 0 400 200" preserveAspectRatio="xMidYMax slice" aria-hidden="true" focusable="false">
-      {!overcast && (
-        <>
-          <circle cx={sunX} cy={sunY} r="42" fill="#fff6c8" opacity="0.2" />
-          <circle cx={sunX} cy={sunY} r="18" fill="#fffbe8" opacity="0.85" />
-        </>
-      )}
-      <ellipse
-        className="dh-cloud dh-cloud-a"
-        cx="112"
-        cy="74"
-        rx="46"
-        ry="10"
-        fill={overcast ? '#cbd5e1' : '#ffffff'}
-        opacity={overcast ? 0.2 : 0.12}
-      />
-      <ellipse
-        className="dh-cloud dh-cloud-b"
-        cx="252"
-        cy="116"
-        rx="36"
-        ry="8"
-        fill={overcast ? '#cbd5e1' : '#ffffff'}
-        opacity={overcast ? 0.16 : 0.09}
-      />
-    </svg>
-  )
-})
+/* Inline icons from the reference markup — tiny stroke SVGs, no icon lib. */
+const PersonIcon = (
+  <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+    <circle cx="12" cy="8" r="4" />
+    <path d="M4 20c0-4 3.6-6 8-6s8 2 8 6" />
+  </svg>
+)
+const CalendarIcon = (
+  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+    <rect x="3" y="4" width="18" height="18" rx="2" />
+    <path d="M16 2v4M8 2v4M3 10h18" />
+  </svg>
+)
+const PinIcon = (
+  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#22c55e" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+    <path d="M20 10c0 6-8 12-8 12s-8-6-8-12a8 8 0 1 1 16 0Z" />
+    <circle cx="12" cy="10" r="3" />
+  </svg>
+)
 
 /* ------------------------------------------------------------------ */
 /* Helpers                                                             */
 /* ------------------------------------------------------------------ */
 
-const statIcon = (label: string) => {
-  const l = label.toLowerCase()
-  if (l.includes('present')) return <CalendarCheck size={13} />
-  if (l.includes('absent') || l.includes('inactive')) return <UserX size={13} />
-  if (l.includes('leave')) return <Umbrella size={13} />
-  if (l.includes('task')) return <ClipboardList size={13} />
-  if (l.includes('rate') || l.includes('month')) return <Percent size={13} />
-  if (l.includes('active')) return <UserCheck size={13} />
-  if (l.includes('team')) return <Users size={13} />
-  if (l.includes('approved')) return <CheckCircle2 size={13} />
-  return <BarChart3 size={13} />
-}
-
-const periodIcon = (period: DayPeriod) => {
-  if (period === 'night') return <Moon size={26} className="dh-clock-icon" aria-hidden="true" />
-  if (period === 'evening') return <Sunset size={26} className="dh-clock-icon" aria-hidden="true" />
-  return <Sun size={26} className="dh-clock-icon" aria-hidden="true" />
-}
-
-const fmtClockTime = (d: Date, tz: string | null) =>
-  formatInZone(d, tz, { hour: '2-digit', minute: '2-digit', hour12: true })
-const fmtClockDate = (d: Date, tz: string | null) =>
-  `${formatInZone(d, tz, { month: 'short', day: 'numeric', year: 'numeric' })} · ${formatInZone(d, tz, { weekday: 'short' })}`
 const fmtPunchTime = (value: Parameters<typeof toDate>[0], tz: string | null) => {
   const d = toDate(value)
   return d ? formatInZone(d, tz, { hour: '2-digit', minute: '2-digit', hour12: true }) : '--:--'
@@ -291,10 +208,11 @@ function useDayContext(): DayContext {
 }
 
 /* ------------------------------------------------------------------ */
-/* Attendance slice (employees) — resolves the mode and renders it     */
+/* Attendance slice (employees) — reference chips + live punch actions */
 /* ------------------------------------------------------------------ */
 
-function HeroAttendance({ badge, tz, now }: { badge: string; tz: string | null; now: Date }) {
+function HeroAttendance({ badge }: { badge: string }) {
+  const { tz, dateLong } = useClock()
   const { todayRecord, loading, checkingIn, checkingOut, checkIn, checkOut, msg } = useAttendancePunch()
   const day = useDayContext()
 
@@ -302,7 +220,7 @@ function HeroAttendance({ badge, tz, now }: { badge: string; tz: string | null; 
   const hasOut = !!todayRecord?.checkOut
 
   // Single authoritative mode — resolved from backend records only (drives the
-  // status pill and the detail line).
+  // status chip and the detail line).
   const resolved = resolveCharacterMode({
     hasCheckIn: hasIn,
     hasCheckOut: hasOut,
@@ -317,7 +235,7 @@ function HeroAttendance({ badge, tz, now }: { badge: string; tz: string | null; 
   const working = mode === 'working'
 
   const elapsedMs = working && toDate(todayRecord?.checkIn)
-    ? now.getTime() - toDate(todayRecord!.checkIn)!.getTime()
+    ? Date.now() - toDate(todayRecord!.checkIn)!.getTime()
     : 0
   const workedMs =
     hasIn && hasOut && toDate(todayRecord?.checkIn) && toDate(todayRecord?.checkOut)
@@ -331,26 +249,26 @@ function HeroAttendance({ badge, tz, now }: { badge: string; tz: string | null; 
 
   return (
     <>
-      <div className="dh-badges">
-        <span className="dh-role">
-          <Users size={13} aria-hidden="true" /> {badge}
+      <div className="chips">
+        <span className="chip role">
+          {PersonIcon} <span>{badge}</span>
         </span>
-        <span className="dh-status" data-state={pillState} role="status" aria-live="polite">
-          <i className="dh-status-dot" aria-hidden="true" /> {pillText}
+        <span className={`chip${hasIn ? ' in' : ''}`} data-state={pillState} role="status" aria-live="polite">
+          <i aria-hidden="true" /> {pillText}
         </span>
       </div>
 
-      {/* Detail line per mode */}
+      {/* Detail line per mode — live attendance facts (never invented) */}
       {working && (
-        <div className="dh-detail">
+        <div className="hero-detail">
           <Clock3 size={14} aria-hidden="true" />
           <span>Checked in at {fmtPunchTime(todayRecord?.checkIn, tz)}</span>
           <span aria-hidden="true">·</span>
-          <span className="dh-elapsed">{formatElapsed(elapsedMs)} elapsed</span>
+          <span className="hero-elapsed">{formatElapsed(elapsedMs)} elapsed</span>
         </div>
       )}
       {mode === 'complete' && (
-        <div className="dh-detail">
+        <div className="hero-detail">
           <Clock3 size={14} aria-hidden="true" />
           <span>In {fmtPunchTime(todayRecord?.checkIn, tz)}</span>
           <span aria-hidden="true">·</span>
@@ -360,41 +278,41 @@ function HeroAttendance({ badge, tz, now }: { badge: string; tz: string | null; 
         </div>
       )}
       {mode === 'on_leave' && (
-        <div className="dh-detail">
+        <div className="hero-detail">
           <Umbrella size={14} aria-hidden="true" />
           <span>{day.halfDayLeave && !day.onApprovedLeave ? 'Approved half-day leave today' : 'Approved leave today'}</span>
         </div>
       )}
       {mode === 'holiday' && (
-        <div className="dh-detail">
+        <div className="hero-detail">
           <Calendar size={14} aria-hidden="true" />
-          <span>{resolved.pill} · {fmtClockDate(now, tz)}</span>
+          <span>{resolved.pill} · {dateLong}</span>
         </div>
       )}
       {mode === 'resting' && (
-        <div className="dh-detail">
+        <div className="hero-detail">
           <Clock3 size={14} aria-hidden="true" />
           <span>You are not currently working.</span>
         </div>
       )}
 
-      {/* Punch actions */}
+      {/* Punch actions — the employee check-in/out entry point */}
       {(showCheckIn || showCheckOut) && (
-        <div className="dh-actions">
+        <div className="hero-actions">
           {showCheckIn && (
-            <button type="button" className="dh-btn" onClick={() => void checkIn()} disabled={checkingIn}>
-              {checkingIn ? <Loader2 size={15} className="dh-spin" aria-hidden="true" /> : <LogIn size={15} aria-hidden="true" />}
+            <button type="button" className="hero-btn" onClick={() => void checkIn()} disabled={checkingIn}>
+              {checkingIn ? <Loader2 size={15} className="hero-spin" aria-hidden="true" /> : <LogIn size={15} aria-hidden="true" />}
               {checkingIn ? 'Checking in…' : 'Check In'}
             </button>
           )}
           {showCheckOut && (
-            <button type="button" className="dh-btn" onClick={() => void checkOut()} disabled={checkingOut}>
-              {checkingOut ? <Loader2 size={15} className="dh-spin" aria-hidden="true" /> : <LogOut size={15} aria-hidden="true" />}
+            <button type="button" className="hero-btn" onClick={() => void checkOut()} disabled={checkingOut}>
+              {checkingOut ? <Loader2 size={15} className="hero-spin" aria-hidden="true" /> : <LogOut size={15} aria-hidden="true" />}
               {checkingOut ? 'Checking out…' : 'Check Out'}
             </button>
           )}
           {msg && (
-            <span className="dh-msg" data-type={msg.type} role={msg.type === 'error' ? 'alert' : undefined}>
+            <span className="hero-msg" data-type={msg.type} role={msg.type === 'error' ? 'alert' : undefined}>
               {msg.type === 'error' ? <AlertCircle size={14} aria-hidden="true" /> : <CheckCircle2 size={14} aria-hidden="true" />}
               {msg.text}
             </span>
@@ -402,8 +320,8 @@ function HeroAttendance({ badge, tz, now }: { badge: string; tz: string | null; 
         </div>
       )}
       {!showCheckIn && !showCheckOut && msg && (
-        <div className="dh-actions">
-          <span className="dh-msg" data-type={msg.type} role={msg.type === 'error' ? 'alert' : undefined}>
+        <div className="hero-actions">
+          <span className="hero-msg" data-type={msg.type} role={msg.type === 'error' ? 'alert' : undefined}>
             {msg.type === 'error' ? <AlertCircle size={14} aria-hidden="true" /> : <CheckCircle2 size={14} aria-hidden="true" />}
             {msg.text}
           </span>
@@ -414,124 +332,119 @@ function HeroAttendance({ badge, tz, now }: { badge: string; tz: string | null; 
 }
 
 /* ------------------------------------------------------------------ */
-/* Hero                                                                */
+/* Hero — ported from the hrmax-hero reference (HeroBanner.jsx)        */
 /* ------------------------------------------------------------------ */
-
-/* Dev-only scene preview for QA: `?sky=rain|storm|snow|clouds|clear`.
-   `import.meta.env.DEV` compiles to `false` in production builds, so this
-   constant — and the query parameter it reads — are stripped from the shipped
-   bundle; production always renders live conditions. */
-const DEV_SKY: SkyWeather | null = import.meta.env.DEV
-  ? (new URLSearchParams(window.location.search).get('sky') as SkyWeather | null)
-  : null
 
 export function DashboardHero({ stats, badge, showAttendance = true }: DashboardHeroProps) {
   const { user } = useAuth()
-  const { effectiveCompanyId } = useCompany()
-  const [companyTz, setCompanyTz] = useState<string | null>(null)
-  const [now, setNow] = useState<Date>(() => new Date())
-  // Live sky conditions for the background (Open-Meteo). Phase 1 is the real
-  // New Delhi weather + Asia/Kolkata timezone (no permission needed); phase 2
-  // upgrades to the user's actual place when location is shared.
-  const sky = useHeroSky()
+  // Shared clock context — ONE time source for the header AND the hero, so
+  // the two can never drift apart (hrmax-hero reference wiring).
+  const { theme, time, dateLong, greeting, location, tempC } = useClock()
+  const roleBadge = badge || roleDepartmentLabel(user)
+  const stars = useSkyStars()
+  const hasLoc = !!location
+  const hasTemp = tempC != null
 
+  // Publish the hero's live height so scroll offsets (html scroll-padding)
+  // always clear the sticky header + hero stack.
+  const ref = useRef<HTMLElement>(null)
   useEffect(() => {
-    let dead = false
-    resolveCompanyTimezone(effectiveCompanyId || user?.companyId)
-      .then((tz) => {
-        if (!dead) setCompanyTz(tz)
-      })
-      .catch(() => {})
-    return () => {
-      dead = true
+    const el = ref.current
+    if (!el || typeof ResizeObserver === 'undefined') return
+    const publish = () => {
+      document.documentElement.style.setProperty(
+        '--hero-h',
+        `${Math.round(el.getBoundingClientRect().height)}px`,
+      )
     }
-  }, [effectiveCompanyId, user?.companyId])
-
-  useEffect(() => {
-    const id = window.setInterval(() => setNow(new Date()), 1000)
-    const onVisible = () => {
-      if (!document.hidden) setNow(new Date())
-    }
-    document.addEventListener('visibilitychange', onVisible)
-    return () => {
-      window.clearInterval(id)
-      document.removeEventListener('visibilitychange', onVisible)
-    }
+    // Publish immediately (a hidden tab pauses rAF/RO delivery, so the
+    // observer alone could leave the default until first paint), then keep
+    // it fresh as the hero resizes (viewport, name length, stats, …).
+    publish()
+    const ro = new ResizeObserver(publish)
+    ro.observe(el)
+    return () => ro.disconnect()
   }, [])
 
-  const tz = effectiveTimezone(companyTz)
-  // The hero clock, date, greeting and SCENE follow the timezone of the place
-  // whose weather is displayed (the user's real location, or the India
-  // default) — "jahan ka time, wahi ka mausam". Punch times keep the
-  // business/company timezone so attendance display stays authoritative.
-  const heroTz = sky.timezone ?? tz
-  const { period, greeting } = getHeroScene(now, heroTz)
-  const roleBadge = badge || roleDepartmentLabel(user)
-  const weather = DEV_SKY ?? sky.weather
-
   return (
-    <section
-      className="dh"
-      data-period={period}
-      data-weather={weather}
-      data-sky-source={sky.source}
-      aria-label="Welcome summary"
-    >
-      <div className="dh-scene" aria-hidden="true" />
-      <Landscape period={period} weather={weather} />
-      {(weather === 'rain' || weather === 'storm') && <div className="dh-rain" aria-hidden="true" />}
-      {weather === 'snow' && <div className="dh-snow" aria-hidden="true" />}
-      <div className="dh-scrim" aria-hidden="true" />
+    <section ref={ref} className="hero" data-theme={theme} aria-label="Welcome summary">
+      <div className="sky" aria-hidden="true">
+        <div className="stars">
+          {stars.map((s, i) => (
+            <i
+              key={i}
+              className="star"
+              style={
+                {
+                  left: s.left,
+                  top: s.top,
+                  width: s.size,
+                  height: s.size,
+                  '--tw-delay': s.delay,
+                  '--tw-dur': s.dur,
+                } as CSSProperties
+              }
+            />
+          ))}
+        </div>
+        <div className="orb sun" />
+        <div className="orb moon" />
+        {/* Two soft hill layers — fills switch per theme in CSS */}
+        <svg className="hills" viewBox="0 0 1200 200" preserveAspectRatio="none" focusable="false">
+          <path className="h1" d="M0 140 L120 95 L240 130 L380 70 L520 125 L660 85 L800 135 L940 80 L1080 120 L1200 95 V200 H0Z" />
+          <path className="h2" d="M0 170 L150 135 L300 165 L470 120 L640 168 L820 130 L1000 170 L1200 140 V200 H0Z" />
+        </svg>
+      </div>
 
-      <div className="dh-inner">
-        <div className="dh-main">
-          <span className="dh-greeting">Welcome back,</span>
-          <h2 className="dh-name">{user?.name || 'User'}</h2>
+      <div className="hero-main">
+        <div className="welcome">
+          <small>Welcome to,</small>
+          <h2>{user?.name || roleDepartmentLabel(user) || 'User'}</h2>
 
           {showAttendance ? (
-            <HeroAttendance badge={roleBadge} tz={tz} now={now} />
+            <HeroAttendance badge={roleBadge} />
           ) : (
-            /* Company Admin — static pill (no attendance slice on the hero). */
-            <div className="dh-badges">
-              <span className="dh-role">
-                <Users size={13} aria-hidden="true" /> {roleBadge}
+            /* Master Admin / Company Admin — static chips (no attendance slice). */
+            <div className="chips">
+              <span className="chip role">
+                {PersonIcon} <span>{roleBadge}</span>
               </span>
-              <span className="dh-status" data-state="idle" role="status">
-                <i className="dh-status-dot" aria-hidden="true" /> Not Checked In
+              <span className="chip" data-state="idle" role="status">
+                <i aria-hidden="true" /> Not Checked In
               </span>
             </div>
           )}
         </div>
 
-        <div className="dh-side">
-          <div className="dh-clock">
-            <div className="dh-clock-time-row">
-              {periodIcon(period)}
-              <span className="dh-clock-time">{fmtClockTime(now, heroTz)}</span>
-            </div>
-            <span className="dh-clock-date">
-              <Calendar size={14} aria-hidden="true" /> {fmtClockDate(now, heroTz)}
-            </span>
-            <span className="dh-clock-loc">
-              <MapPin size={13} aria-hidden="true" /> {sky.locationLabel ?? 'New Delhi, India'}
-              {sky.tempC != null && <span className="dh-clock-temp">· {Math.round(sky.tempC)}°C</span>}
-            </span>
-            <span className="dh-clock-greeting">{greeting}</span>
+        <div className="when">
+          <div className="time">{time}</div>
+          <div className="row date">
+            {CalendarIcon}
+            <span>{dateLong}</span>
           </div>
-        </div>
-
-        <div className="dh-stats" role="list" aria-label="Dashboard statistics">
-          {stats.map((s) => (
-            <div key={s.label} className="dh-stat" role="listitem">
-              <span className="dh-stat-value" style={{ color: s.color }}>
-                {s.value}
-              </span>
-              <span className="dh-stat-label">
-                {statIcon(s.label)} {s.label}
+          {(hasLoc || hasTemp) && (
+            <div className="row loc">
+              {PinIcon}
+              <span>
+                {location}
+                {hasLoc && hasTemp && ' · '}
+                {hasTemp && `${Math.round(tempC!)}°C`}
               </span>
             </div>
-          ))}
+          )}
+          <div className="greet">{greeting}</div>
         </div>
+      </div>
+
+      <div className="stats" role="list" aria-label="Dashboard statistics">
+        {stats.map((s) => (
+          <div key={s.label} className="stat" role="listitem">
+            <div className="n" style={{ color: s.color }}>
+              {s.value ?? '–'}
+            </div>
+            <div className="l">{s.label}</div>
+          </div>
+        ))}
       </div>
     </section>
   )

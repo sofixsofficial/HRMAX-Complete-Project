@@ -45,19 +45,41 @@ export function getZonedHour(date: Date, timeZone?: string | null): number {
 }
 
 /**
- * Scene period per spec: morning 5:00-11:59, afternoon 12:00-16:59,
- * evening 17:00-19:59, night 20:00-04:59.
+ * Configurable scene windows (local hours, [from, to) — `to` exclusive, and
+ * `to < from` wraps midnight). Spec:
+ *   morning   5:00–11:59  sunrise / daylight
+ *   afternoon 12:00–15:59 bright sun
+ *   evening   16:00–18:59 sunset / twilight
+ *   night     19:00–4:59  night sky
+ * Tune these objects to shift any period without touching lookup logic.
  */
+export const SCENE_WINDOWS: Record<DayPeriod, { from: number; to: number }> = {
+  morning: { from: 5, to: 12 },
+  afternoon: { from: 12, to: 16 },
+  evening: { from: 16, to: 19 },
+  night: { from: 19, to: 5 },
+}
+
+const PERIOD_ORDER: DayPeriod[] = ['morning', 'afternoon', 'evening', 'night']
+
 export function periodForHour(hour: number): DayPeriod {
-  if (hour >= 5 && hour <= 11) return 'morning'
-  if (hour >= 12 && hour <= 16) return 'afternoon'
-  if (hour >= 17 && hour <= 19) return 'evening'
+  const h = ((Math.floor(hour) % 24) + 24) % 24
+  for (const period of PERIOD_ORDER) {
+    const { from, to } = SCENE_WINDOWS[period]
+    const inWindow = from <= to ? h >= from && h < to : h >= from || h < to
+    if (inWindow) return period
+  }
   return 'night'
 }
 
 export function getHeroScene(now: Date, timeZone?: string | null): HeroScene {
   const period = periodForHour(getZonedHour(now, timeZone))
   return { period, greeting: GREETINGS[period] }
+}
+
+/** Greeting text for a period (used when the theme is pinned for QA). */
+export function greetingForPeriod(period: DayPeriod): string {
+  return GREETINGS[period]
 }
 
 /** Format an instant in the resolved timezone; falls back gracefully on bad tz strings. */

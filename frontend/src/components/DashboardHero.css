@@ -1,231 +1,341 @@
 /* ------------------------------------------------------------------ */
-/* DashboardHero — time-based premium hero with live working mode      */
-/* Layout follows the reference: left greeting/badge/status, right     */
-/* clock + contextual greeting, full-width stats strip along the       */
-/* bottom with vertical dividers.                                      */
+/* Dashboard hero — dynamic sticky hero, ported from the hrmax-hero    */
+/* reference (CSS sun/moon orbs, seeded DOM stars, 2-layer hills).     */
+/*                                                                     */
+/* Sticky: pins directly below the global header while the page        */
+/* scrolls (compact on mobile, static in short landscape viewports).   */
+/* --header-h is defined in Header.css (68px, synced at each           */
+/* breakpoint); --hero-h is published live by the hero (ResizeObserver) */
+/* so the html scroll-padding below always clears header + hero.       */
+/*                                                                     */
+/* NOTE: no ancestor of .hero may set overflow:hidden/auto/scroll —    */
+/* that breaks position: sticky.                                       */
 /* ------------------------------------------------------------------ */
 
-.dh {
-  position: relative;
-  overflow: hidden;
-  margin-bottom: 24px;
-  border-radius: 18px;
-  min-height: 210px;
-  color: #fff;
-  box-shadow: 0 12px 32px rgba(2, 6, 23, 0.28);
-  isolation: isolate;
+:root {
+  --hero-pad: 20px;
+  --hero-h: 200px; /* live value published by the hero */
+  --statbg: rgba(255, 255, 255, 0.1);
 }
 
-/* ── Scenes (lightweight CSS gradients, one per local-time period) ─── */
-.dh-scene {
+/* Scroll offsets so anchor / focus scrolls land clear of the sticky stack */
+html {
+  scroll-padding-top: calc(var(--header-h, 68px) + var(--hero-h, 200px) + 16px);
+}
+
+/* ── Hero shell ───────────────────────────────────────────────────── */
+.hero {
+  position: sticky;
+  top: var(--header-h, 68px);
+  z-index: 40; /* below the header (z:100), above page content */
+  overflow: hidden;
+  margin-bottom: 24px;
+  padding: var(--hero-pad);
+  border-radius: 18px;
+  color: #fff;
+  background: var(--sky);
+  transition: background 0.6s ease;
+}
+.hero * {
+  box-sizing: border-box;
+}
+
+/* Sky gradient per day period — swaps with a soft fade */
+.hero[data-theme='morning'] {
+  --sky: linear-gradient(160deg, #8fb5ff, #ffe3bd 58%, #ffd79b);
+}
+.hero[data-theme='afternoon'] {
+  --sky: linear-gradient(160deg, #2f7ad6, #77b7ee 70%, #a9d3f5);
+}
+.hero[data-theme='evening'] {
+  --sky: linear-gradient(160deg, #26315f, #7b5aa6 52%, #f3a06a);
+}
+.hero[data-theme='night'] {
+  --sky: linear-gradient(160deg, #050b24, #101f4c 60%, #1b2f66);
+}
+
+/* ── Sky layer: scrim + stars + orbs + hills ──────────────────────── */
+.hero .sky {
   position: absolute;
   inset: 0;
   z-index: 0;
-  transition: opacity 0.6s ease;
-}
-.dh[data-period='morning'] .dh-scene {
-  background:
-    radial-gradient(circle at 82% 14%, rgba(255, 226, 160, 0.28), transparent 42%),
-    linear-gradient(165deg, #173a6b 0%, #215da3 52%, #2f81c6 100%);
-}
-.dh[data-period='afternoon'] .dh-scene {
-  background:
-    radial-gradient(circle at 86% 10%, rgba(255, 248, 214, 0.22), transparent 38%),
-    linear-gradient(165deg, #12335f 0%, #1d5ca2 58%, #2b7cbe 100%);
-}
-.dh[data-period='evening'] .dh-scene {
-  background:
-    radial-gradient(circle at 16% 90%, rgba(255, 179, 71, 0.2), transparent 40%),
-    linear-gradient(165deg, #16244c 0%, #3a4d84 55%, #8f6076 100%);
-}
-.dh[data-period='night'] .dh-scene {
-  background:
-    radial-gradient(circle at 84% 18%, rgba(150, 175, 255, 0.12), transparent 40%),
-    linear-gradient(165deg, #080f24 0%, #101c3e 58%, #182754 100%);
-}
-
-.dh-decor {
-  position: absolute;
-  inset: 0;
-  width: 100%;
-  height: 100%;
-}
-
-/* Slow, unobtrusive cloud drift — blurred so they read as soft haze rather
-   than hard-edged ellipses; disabled under reduced motion */
-.dh-cloud {
-  filter: blur(3px);
-  animation: dh-cloud-drift 60s ease-in-out infinite alternate;
-}
-.dh-cloud-b {
-  animation-duration: 84s;
-  animation-delay: -24s;
-}
-@keyframes dh-cloud-drift {
-  from { transform: translateX(-14px); }
-  to { transform: translateX(14px); }
-}
-
-/* Scrim keeps white text readable on bright scenes (WCAG contrast) */
-.dh-scrim {
-  position: absolute;
-  inset: 0;
-  z-index: 1;
-  background:
-    linear-gradient(90deg, rgba(2, 6, 23, 0.58) 0%, rgba(2, 6, 23, 0.32) 48%, rgba(2, 6, 23, 0.16) 100%),
-    linear-gradient(180deg, rgba(2, 6, 23, 0.32) 0%, rgba(2, 6, 23, 0.08) 42%, rgba(2, 6, 23, 0.2) 100%);
   pointer-events: none;
 }
+/* Scrim keeps white text readable on bright scenes (WCAG contrast) */
+.hero .sky::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(90deg, rgba(4, 10, 28, 0.5), rgba(4, 10, 28, 0.16) 48%, rgba(4, 10, 28, 0.06));
+}
 
-/* ── Layout ────────────────────────────────────────────────────────── */
-.dh-inner {
-  position: relative;
+/* Deterministic DOM stars (top 60% of the sky) — night full, evening faint */
+.hero .stars {
+  position: absolute;
+  inset: 0 0 40% 0;
+}
+.hero .star {
+  position: absolute;
+  width: 2px;
+  height: 2px;
+  border-radius: 50%;
+  background: #fff;
+  opacity: 0;
+}
+.hero[data-theme='night'] .star {
+  opacity: 1;
+}
+.hero[data-theme='evening'] .star {
+  opacity: 0.35;
+}
+@keyframes tw {
+  0%,
+  100% {
+    opacity: 0.35;
+  }
+  50% {
+    opacity: 1;
+  }
+}
+@media (prefers-reduced-motion: no-preference) {
+  .hero[data-theme='night'] .star {
+    animation: tw var(--tw-dur, 4s) ease-in-out infinite;
+    animation-delay: var(--tw-delay, 0s);
+  }
+}
+
+/* Sun/moon orbs — pure CSS (radial gradient + glow, moon craters via ::before) */
+.hero .orb {
+  position: absolute;
+  width: 110px;
+  height: 110px;
+  border-radius: 50%;
+  z-index: 1;
+  opacity: 0;
+  transition: opacity 0.5s ease, background 0.6s ease, box-shadow 0.6s ease;
+}
+.hero .sun {
+  right: 8%;
+  top: -46px;
+  background: radial-gradient(circle at 34% 32%, #fffbe8 0 40%, #ffe066 62%, #ffbf3f 100%);
+  box-shadow: 0 0 64px 16px rgba(255, 214, 102, 0.55), 0 0 140px 40px rgba(255, 180, 80, 0.25);
+}
+.hero .moon {
+  right: 8%;
+  top: -46px;
+  background: radial-gradient(circle at 36% 34%, #f6f8ff 0 42%, #dfe6ff 66%, #c2cdf2 100%);
+  box-shadow: 0 0 52px 10px rgba(198, 214, 255, 0.45), 0 0 130px 36px rgba(150, 180, 255, 0.2);
+}
+.hero .moon::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: 50%;
+  background:
+    radial-gradient(circle at 62% 60%, rgba(160, 175, 215, 0.65) 0 9%, transparent 10%),
+    radial-gradient(circle at 38% 30%, rgba(160, 175, 215, 0.5) 0 6%, transparent 7%),
+    radial-gradient(circle at 70% 34%, rgba(160, 175, 215, 0.4) 0 5%, transparent 6%);
+}
+.hero[data-theme='morning'] .sun,
+.hero[data-theme='afternoon'] .sun,
+.hero[data-theme='evening'] .sun {
+  opacity: 1;
+}
+.hero[data-theme='night'] .moon {
+  opacity: 1;
+}
+
+/* Two soft hill layers — fills switch per theme below */
+.hero .hills {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  width: 100%;
+  height: 52%;
   z-index: 2;
+}
+.hero .hills .h1 {
+  fill: rgba(255, 255, 255, 0.2);
+}
+.hero .hills .h2 {
+  fill: rgba(8, 18, 50, 0.55);
+}
+
+/* ── Content layout ───────────────────────────────────────────────── */
+.hero .hero-main {
+  position: relative;
+  z-index: 3;
   display: grid;
-  grid-template-columns: minmax(0, 1fr) auto;
-  grid-template-areas:
-    'main clock'
-    'stats stats';
-  padding: 26px 30px 0;
+  grid-template-columns: 1fr auto;
+  gap: 14px;
+  align-items: end;
+  min-height: 150px;
 }
-
-/* Left column — content is vertically centered so the row never leaves a
-   lopsided dead gap above the stats strip. */
-.dh-main {
-  grid-area: main;
-  min-width: 0;
-  position: static;
-  display: flex;
-  flex-direction: column;
-  justify-content: center;
-  padding-bottom: 0;
+.hero .welcome small {
+  font-size: 16px;
+  opacity: 0.9;
 }
-.dh-side {
-  grid-area: clock;
-  display: flex;
-  flex-direction: column;
-  align-items: flex-end;
-  gap: 4px;
-  padding-bottom: 12px;
-  min-width: 0;
-}
-
-.dh-greeting {
-  display: block;
-  font-size: 20px;
-  font-weight: 500;
-  letter-spacing: 0.3px;
-  color: rgba(148, 163, 184, 0.95);
-  text-shadow: 0 1px 2px rgba(2, 6, 23, 0.4);
-}
-
-.dh-name {
+.hero .welcome h2 {
   margin: 2px 0 0;
-  font-size: 34px;
-  font-weight: 800;
-  line-height: 1.15;
-  letter-spacing: -0.4px;
-  color: #fff;
-  text-shadow: 0 2px 4px rgba(2, 6, 23, 0.5);
+  font-size: clamp(24px, 3.6vw, 40px);
+  line-height: 1.08;
+  font-weight: 900;
+  letter-spacing: 0.2px;
+  text-shadow: 0 2px 10px rgba(0, 0, 0, 0.25);
 }
 
-.dh-badges {
+/* Role + attendance chips (reference `.chip`) — scoped under .hero .chips
+   so the app's other stylesheet (.chip in Companies.css) can never leak in */
+.hero .chips {
   display: flex;
+  gap: 8px;
   flex-wrap: wrap;
-  align-items: center;
-  gap: 10px;
-  margin-top: 14px;
+  margin-top: 12px;
 }
-
-/* Gold/amber role pill (reference: 👑 Master Admin) */
-.dh-role {
+.hero .chips .chip {
   display: inline-flex;
   align-items: center;
   gap: 6px;
-  padding: 6px 16px;
-  border-radius: 100px;
-  background: rgba(17, 24, 39, 0.72);
-  border: 1.5px solid rgba(251, 191, 36, 0.75);
-  color: #fbbf24;
-  font-size: 13px;
-  font-weight: 700;
-  backdrop-filter: blur(6px);
-}
-
-/* Status chip — server-confirmed attendance state */
-.dh-status {
-  display: inline-flex;
-  align-items: center;
-  gap: 7px;
-  padding: 5px 14px;
-  border-radius: 100px;
-  font-size: 12.5px;
+  padding: 6px 12px;
+  border-radius: 999px;
+  border: 1.5px solid rgba(255, 255, 255, 0.24);
+  background: rgba(8, 18, 50, 0.45);
+  font-size: 12px;
   font-weight: 600;
-  border: 1px solid transparent;
-  background: rgba(2, 6, 23, 0.42);
-  backdrop-filter: blur(6px);
-  color: #e2e8f0;
+  color: #fff;
+  cursor: default;
 }
-.dh-status-dot {
+.hero .chips .chip.role {
+  background: linear-gradient(135deg, #ffd66b, #ffb84d);
+  color: #4a2c00;
+  border-color: transparent;
+}
+.hero .chips .chip i {
   width: 8px;
   height: 8px;
   border-radius: 50%;
-  background: currentColor;
+  background: #cfd8ff;
+  display: inline-block;
 }
-.dh-status[data-state='working'] {
-  color: #6ee7b7;
-  border-color: rgba(16, 185, 129, 0.55);
-  background: rgba(6, 78, 59, 0.5);
+.hero .chips .chip.in i {
+  background: #34d399;
 }
-.dh-status[data-state='working'] .dh-status-dot {
-  animation: dh-pulse 1.6s ease-in-out infinite;
+/* Live attendance state dot colours (real backend pill states) */
+.hero .chips .chip[data-state='working'] i {
+  background: #34d399;
+  animation: hero-pulse 1.6s ease-in-out infinite;
 }
-.dh-status[data-state='done'] {
-  color: #93c5fd;
-  border-color: rgba(59, 130, 246, 0.55);
-  background: rgba(23, 47, 94, 0.5);
+.hero .chips .chip[data-state='done'] i {
+  background: #60a5fa;
 }
-.dh-status[data-state='leave'] {
-  color: #bfdbfe;
-  border-color: rgba(96, 165, 250, 0.5);
-  background: rgba(30, 58, 110, 0.5);
+.hero .chips .chip[data-state='leave'] i {
+  background: #60a5fa;
 }
-.dh-status[data-state='holiday'] {
-  color: #fcd34d;
-  border-color: rgba(245, 158, 11, 0.55);
-  background: rgba(69, 44, 12, 0.5);
+.hero .chips .chip[data-state='holiday'] i {
+  background: #fbbf24;
 }
-.dh-status[data-state='idle'] { color: #fde68a; border-color: rgba(245, 158, 11, 0.5); }
-.dh-status[data-state='pending'] { color: #fdba74; border-color: rgba(249, 115, 22, 0.5); }
-.dh-status[data-state='loading'] { color: #cbd5e1; }
+.hero .chips .chip[data-state='idle'] i {
+  background: #cfd8ff;
+}
+.hero .chips .chip[data-state='loading'] i {
+  background: #94a3b8;
+}
+@keyframes hero-pulse {
+  0%,
+  100% {
+    box-shadow: 0 0 0 0 rgba(52, 211, 153, 0.55);
+  }
+  50% {
+    box-shadow: 0 0 0 5px rgba(52, 211, 153, 0);
+  }
+}
 
-@keyframes dh-pulse {
-  0%, 100% { box-shadow: 0 0 0 0 rgba(110, 231, 183, 0.55); }
-  50% { box-shadow: 0 0 0 5px rgba(110, 231, 183, 0); }
+/* Clock block (right) */
+.hero .when {
+  text-align: right;
+  min-width: 0;
+}
+.hero .when .time {
+  font-size: clamp(22px, 3.2vw, 38px);
+  font-weight: 900;
+  line-height: 1;
+  letter-spacing: 0.4px;
+  font-variant-numeric: tabular-nums;
+  text-shadow: 0 2px 10px rgba(0, 0, 0, 0.25);
+}
+.hero .when .row {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 6px;
+  margin-top: 6px;
+  font-size: 13px;
+  opacity: 0.95;
+}
+.hero .when .greet {
+  margin-top: 6px;
+  font-size: 14px;
+  font-weight: 800;
 }
 
-/* Detail line (check-in time, elapsed, worked, late) */
-.dh-detail {
+/* Stats strip — divider-separated, per-stat colour from the real data */
+.hero .stats {
+  position: relative;
+  z-index: 3;
+  margin-top: 18px;
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(0, 1fr));
+  border-top: 1px solid rgba(255, 255, 255, 0.22);
+  background: var(--statbg);
+}
+.hero .stat {
+  padding: 12px 6px;
+  text-align: center;
+}
+.hero .stat:not(:first-child) {
+  border-left: 1px solid rgba(255, 255, 255, 0.22);
+}
+.hero .stat .n {
+  font-size: clamp(22px, 3vw, 34px);
+  font-weight: 900;
+  line-height: 1;
+}
+.hero .stat .l {
+  margin-top: 6px;
+  font-size: 12px;
+  letter-spacing: 0.08em;
+  opacity: 0.8;
+  text-transform: uppercase;
+}
+/* Fallback colours when a stat carries no inline colour */
+.hero .stat:nth-child(1) .n { color: #34d399; }
+.hero .stat:nth-child(2) .n { color: #f87171; }
+.hero .stat:nth-child(3) .n { color: #60a5fa; }
+.hero .stat:nth-child(4) .n { color: #d46bff; }
+
+/* ── Live attendance extras (kept from the HRMAX punch flow) ──────── */
+.hero .hero-detail {
   display: flex;
   flex-wrap: wrap;
   gap: 6px;
   margin-top: 10px;
-  font-size: 13px;
-  color: rgba(226, 232, 240, 0.92);
-  text-shadow: 0 1px 2px rgba(2, 6, 23, 0.4);
+  font-size: 12.5px;
+  color: rgba(255, 255, 255, 0.9);
+  text-shadow: 0 1px 2px rgba(4, 10, 28, 0.4);
 }
-.dh-elapsed { color: #6ee7b7; font-weight: 600; }
-.dh-late { color: #fdba74; }
-
-/* Actions */
-.dh-actions {
+.hero .hero-elapsed {
+  color: #6ee7b7;
+  font-weight: 600;
+}
+.hero .hero-actions {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
   gap: 10px;
-  margin-top: 14px;
+  margin-top: 12px;
 }
-.dh-btn {
+.hero .hero-btn {
   display: inline-flex;
   align-items: center;
   gap: 7px;
@@ -234,24 +344,28 @@
   border: 1px solid rgba(255, 255, 255, 0.42);
   background: rgba(255, 255, 255, 0.16);
   color: #fff;
-  font-size: 14px;
+  font-size: 13.5px;
   font-weight: 600;
   cursor: pointer;
   backdrop-filter: blur(8px);
   transition: background 0.18s ease, transform 0.12s ease, border-color 0.18s ease;
 }
-.dh-btn:hover:not(:disabled) {
+.hero .hero-btn:hover:not(:disabled) {
   background: rgba(255, 255, 255, 0.28);
   border-color: rgba(255, 255, 255, 0.68);
 }
-.dh-btn:active:not(:disabled) { transform: translateY(1px); }
-.dh-btn:focus-visible {
+.hero .hero-btn:active:not(:disabled) {
+  transform: translateY(1px);
+}
+.hero .hero-btn:focus-visible {
   outline: 2px solid #93c5fd;
   outline-offset: 2px;
 }
-.dh-btn:disabled { opacity: 0.65; cursor: not-allowed; }
-
-.dh-msg {
+.hero .hero-btn:disabled {
+  opacity: 0.65;
+  cursor: not-allowed;
+}
+.hero .hero-msg {
   display: inline-flex;
   align-items: center;
   gap: 6px;
@@ -259,242 +373,94 @@
   font-weight: 500;
   max-width: 100%;
 }
-.dh-msg[data-type='success'] { color: #6ee7b7; }
-.dh-msg[data-type='error'] { color: #fca5a5; }
-
-.dh-spin { animation: dh-rotate 0.9s linear infinite; }
-@keyframes dh-rotate {
-  to { transform: rotate(360deg); }
+.hero .hero-msg[data-type='success'] {
+  color: #6ee7b7;
 }
-
-/* ── Clock block (right, slightly below the top edge) ──────────────── */
-.dh-clock {
-  display: flex;
-  flex-direction: column;
-  align-items: flex-end;
-  margin-top: 4px;
-  text-align: right;
+.hero .hero-msg[data-type='error'] {
+  color: #fca5a5;
 }
-.dh-clock-time-row {
-  display: flex;
-  align-items: center;
-  gap: 10px;
+.hero .hero-spin {
+  animation: hero-rotate 0.9s linear infinite;
 }
-.dh-clock-icon {
-  color: #fde68a;
-  filter: drop-shadow(0 1px 3px rgba(2, 6, 23, 0.5));
-}
-.dh[data-period='night'] .dh-clock-icon { color: #dbe6ff; }
-.dh-clock-time {
-  font-size: 30px;
-  font-weight: 800;
-  letter-spacing: 0.5px;
-  font-variant-numeric: tabular-nums;
-  color: #fff;
-  text-shadow: 0 1px 3px rgba(2, 6, 23, 0.5);
-}
-.dh-clock-date {
-  margin-top: 3px;
-  font-size: 14px;
-  font-weight: 500;
-  color: rgba(226, 232, 240, 0.92);
-  text-shadow: 0 1px 2px rgba(2, 6, 23, 0.45);
-}
-.dh-clock-greeting {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  margin-top: 8px;
-  font-size: 15.5px;
-  font-weight: 700;
-  color: #fff;
-  text-shadow: 0 1px 3px rgba(2, 6, 23, 0.5);
-}
-.dh-clock-loc {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  margin-top: 6px;
-  font-size: 13px;
-  font-weight: 600;
-  color: rgba(226, 232, 240, 0.95);
-  text-shadow: 0 1px 2px rgba(2, 6, 23, 0.45);
-}
-.dh-clock-loc svg { color: #86efac; }
-.dh-clock-temp {
-  font-weight: 700;
-  color: #fff;
-}
-
-/* ── Stats strip (full-bleed bottom bar, divider-separated) ────────── */
-.dh-stats {
-  grid-area: stats;
-  display: flex;
-  align-items: stretch;
-  border-top: 1px solid rgba(255, 255, 255, 0.16);
-  background: rgba(2, 6, 23, 0.55);
-  backdrop-filter: blur(8px);
-  /* full-bleed inside .dh-inner padding */
-  margin: 0 -30px;
-  padding: 14px 12px 16px;
-}
-.dh-stat {
-  flex: 1 1 0;
-  min-width: 0;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 4px;
-  padding: 2px 8px;
-  text-align: center;
-}
-.dh-stat + .dh-stat {
-  border-left: 1px solid rgba(255, 255, 255, 0.14);
-}
-.dh-stat-value {
-  font-size: 30px;
-  font-weight: 800;
-  line-height: 1.1;
-  font-variant-numeric: tabular-nums;
-  text-shadow: 0 1px 3px rgba(2, 6, 23, 0.45);
-}
-.dh-stat-label {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  gap: 7px;
-  font-size: 11px;
-  font-weight: 700;
-  letter-spacing: 0.9px;
-  text-transform: uppercase;
-  color: rgba(203, 213, 225, 0.95);
-}
-.dh-stat-label svg {
-  flex: 0 0 auto;
-  color: rgba(148, 163, 184, 0.95);
-}
-
-/* ── Weather-aware sky (live conditions via Open-Meteo) ───────────── */
-/* Time-of-day stays the base scene; precipitation tints it and adds a
-   lightweight animated layer. `unknown`/`clear`/`clouds` add no layer —
-   only the decor clouds thicken. */
-.dh[data-weather='rain'] .dh-scene::after,
-.dh[data-weather='storm'] .dh-scene::after {
-  content: '';
-  position: absolute;
-  inset: 0;
-  background: linear-gradient(165deg, rgba(30, 41, 59, 0.66), rgba(15, 23, 42, 0.74));
-}
-.dh[data-weather='snow'] .dh-scene::after {
-  content: '';
-  position: absolute;
-  inset: 0;
-  /* Cold still daylight — desaturated slate that keeps white text readable. */
-  background: linear-gradient(165deg, rgba(51, 65, 85, 0.44), rgba(100, 116, 139, 0.54));
-}
-
-/* Rain — thin wind-slanted streaks, subtle and unobtrusive. The tile is
-   64×128 and the keyframe shifts exactly one tile, so it never seams. */
-.dh-rain {
-  position: absolute;
-  inset: -8% -4%;
-  z-index: 0;
-  pointer-events: none;
-  opacity: 0.7;
-  background-image: url("data:image/svg+xml,%3Csvg%20xmlns='http://www.w3.org/2000/svg'%20width='64'%20height='128'%3E%3Cg%20stroke='%23dfeaff'%20stroke-opacity='0.55'%20stroke-width='1.1'%20stroke-linecap='round'%3E%3Cpath%20d='M46%204%20L30%2036'/%3E%3Cpath%20d='M64%2044%20L40%2092'/%3E%3Cpath%20d='M20%2020%20L4%2052'/%3E%3Cpath%20d='M12%2070%20L0%2094'/%3E%3Cpath%20d='M54%2096%20L42%20120'/%3E%3Cpath%20d='M36%2096%20L20%20128'/%3E%3Cpath%20d='M8%2044%20L0%2060'/%3E%3Cpath%20d='M60%200%20L52%2016'/%3E%3C/g%3E%3C/svg%3E");
-  background-size: 64px 128px;
-  animation: dh-rain-fall 0.7s linear infinite;
-}
-@keyframes dh-rain-fall {
-  from { background-position: 0 0; }
-  to { background-position: -64px 128px; }
-}
-
-/* Snow — two drifting flake layers (near/far) for gentle depth. */
-.dh-snow {
-  position: absolute;
-  inset: -6% -3%;
-  z-index: 0;
-  pointer-events: none;
-  background-image: url("data:image/svg+xml,%3Csvg%20xmlns='http://www.w3.org/2000/svg'%20width='80'%20height='80'%3E%3Cg%20fill='white'%3E%3Ccircle%20cx='14'%20cy='18'%20r='2.2'%20opacity='0.85'/%3E%3Ccircle%20cx='52'%20cy='10'%20r='1.6'%20opacity='0.6'/%3E%3Ccircle%20cx='66'%20cy='44'%20r='2.6'%20opacity='0.75'/%3E%3Ccircle%20cx='30'%20cy='56'%20r='1.4'%20opacity='0.5'/%3E%3Ccircle%20cx='8'%20cy='72'%20r='1.8'%20opacity='0.7'/%3E%3Ccircle%20cx='44'%20cy='78'%20r='1.2'%20opacity='0.55'/%3E%3Ccircle%20cx='74'%20cy='76'%20r='1.4'%20opacity='0.5'/%3E%3Ccircle%20cx='24'%20cy='34'%20r='1'%20opacity='0.5'/%3E%3C/g%3E%3C/svg%3E");
-  background-size: 80px 80px;
-  animation: dh-snow-fall 9s linear infinite;
-}
-.dh-snow::after {
-  content: '';
-  position: absolute;
-  inset: 0;
-  background-image: inherit;
-  background-size: 132px 132px;
-  opacity: 0.55;
-  animation: dh-snow-fall-slow 15s linear infinite;
-}
-@keyframes dh-snow-fall {
-  from { background-position: 0 0; }
-  to { background-position: -20px 80px; }
-}
-@keyframes dh-snow-fall-slow {
-  from { background-position: 0 0; }
-  to { background-position: 26px 132px; }
-}
-
-/* Night twinkle — sparse stars, clear nights only (see Landscape). */
-.dh-star {
-  animation: dh-twinkle 3.4s ease-in-out infinite;
-}
-@keyframes dh-twinkle {
-  0%, 100% { opacity: 0.25; }
-  50% { opacity: 0.95; }
-}
-
-/* ── Responsive ────────────────────────────────────────────────────── */
-@media (max-width: 1120px) {
-  .dh-clock-time { font-size: 26px; }
-  .dh-name { font-size: 30px; }
-}
-
-@media (max-width: 900px) {
-  .dh-inner {
-    grid-template-columns: 1fr;
-    grid-template-areas:
-      'main'
-      'clock'
-      'stats';
-    padding: 20px 20px 0;
+@keyframes hero-rotate {
+  to {
+    transform: rotate(360deg);
   }
-  .dh-side { padding-bottom: 4px; margin-top: 2px; }
-  .dh-clock { margin-top: 0; }
-  .dh-clock-time { font-size: 24px; }
-  .dh-clock-greeting { margin-top: 6px; font-size: 14.5px; }
-  .dh-main { padding-top: 4px; padding-bottom: 4px; }
-  .dh-name { font-size: 26px; }
-  .dh-greeting { font-size: 17px; }
-  .dh-stats { margin: 0 -20px; }
 }
 
-@media (max-width: 560px) {
-  .dh-inner { padding: 16px 15px 0; }
-  .dh-name { font-size: 23px; }
-  .dh-clock-time { font-size: 21px; }
-  .dh-clock-date { font-size: 12.5px; }
-  .dh-stats { margin: 0 -15px; padding: 11px 4px 13px; }
-  .dh-stat { padding: 2px 4px; }
-  .dh-stat-value { font-size: 23px; }
-  .dh-stat-label { font-size: 9.5px; letter-spacing: 0.5px; gap: 5px; }
-  .dh-stat-label svg { display: none; }
-  .dh-btn { padding: 8px 15px; font-size: 13px; }
+/* ── Responsive ───────────────────────────────────────────────────── */
+@media (max-width: 900px) {
+  .hero .hero-main {
+    min-height: 130px;
+  }
+  .hero .sun,
+  .hero .moon {
+    right: 6%;
+  }
+}
+
+@media (max-width: 600px) {
+  :root {
+    --hero-pad: 12px;
+  }
+  .hero .hero-main {
+    grid-template-columns: 1fr;
+    min-height: 0;
+    align-items: start;
+    gap: 8px;
+  }
+  .hero .when {
+    text-align: left;
+  }
+  .hero .when .row {
+    justify-content: flex-start;
+  }
+  .hero .when .time {
+    font-size: 26px;
+  }
+  .hero .welcome h2 {
+    font-size: 26px;
+  }
+  .hero .orb {
+    transform: scale(0.55);
+    transform-origin: top right;
+  }
+  .hero .stats {
+    grid-template-columns: repeat(2, 1fr);
+  }
+  .hero .stat:nth-child(3) {
+    border-left: 0;
+  }
+  .hero .stat:nth-child(n + 3) {
+    border-top: 1px solid rgba(255, 255, 255, 0.22);
+  }
+  /* Attendance extras stay compact on phones */
+  .hero .hero-btn {
+    padding: 7px 14px;
+    font-size: 12.5px;
+  }
+  .hero .hero-detail {
+    font-size: 12px;
+  }
+}
+
+/* Landscape phones: a sticky hero would eat most of the short viewport */
+@media (max-height: 520px) {
+  .hero {
+    position: static;
+  }
 }
 
 /* Accessibility — respect reduced motion everywhere */
 @media (prefers-reduced-motion: reduce) {
-  .dh-cloud,
-  .dh-star,
-  .dh-rain,
-  .dh-snow,
-  .dh-status-dot,
-  .dh-spin {
+  .hero .star,
+  .hero .chips .chip i,
+  .hero .hero-spin {
     animation: none !important;
   }
-  .dh-scene { transition: none; }
-  .dh-btn { transition: none; }
+  .hero,
+  .hero .orb,
+  .hero .hero-btn {
+    transition: none;
+  }
 }
