@@ -37,6 +37,9 @@ import {
   type DayPeriod,
 } from '../utils/heroScene'
 import './DashboardHero.css'
+/* Moon photo cropped from the HRMAX design art (Night & Day Admin
+   Dashboard.png) — the exact moon the design calls for. */
+import moonUrl from '../assets/moon.png'
 
 export interface DashboardHeroStat {
   label: string
@@ -104,101 +107,81 @@ const PinIcon = (
 )
 
 /* ------------------------------------------------------------------ */
-/* Bottom scenery — 3 mountain ridges + conifer tree line + soft clouds */
+/* Bottom scenery — organic mountain ridges + forest line + wispy       */
+/* clouds (SVG turbulence/displacement so silhouettes read as real      */
+/* forested hills instead of flat triangles, matching the design art).  */
 /* ------------------------------------------------------------------ */
 
-/* Layered mountain silhouettes (far → near), anchored to the bottom. */
+/* Ridge baselines (far → near). Extend past the viewBox bottom (V250) so
+   filter displacement can never lift the base and reveal the sky. */
 const RIDGE_FAR =
-  'M0 200 L0 128 L90 96 L200 122 L310 84 L430 118 L540 92 L660 124 L780 88 L900 120 L1020 94 L1120 118 L1200 100 L1200 200 Z'
+  'M0 140 L120 95 L240 130 L380 70 L520 125 L660 85 L800 135 L940 80 L1080 120 L1200 95 V250 H0 Z'
 const RIDGE_MID =
-  'M0 200 L0 152 L120 124 L250 150 L380 118 L520 148 L650 122 L800 152 L930 126 L1070 150 L1200 130 L1200 200 Z'
+  'M0 170 L150 135 L300 165 L470 120 L640 168 L820 130 L1000 170 L1200 140 V250 H0 Z'
 const RIDGE_NEAR =
-  'M0 200 L0 172 L140 150 L300 172 L460 146 L620 170 L790 148 L950 172 L1110 152 L1200 166 L1200 200 Z'
+  'M0 188 L140 164 L300 186 L460 160 L620 184 L790 162 L950 186 L1110 166 L1200 178 V250 H0 Z'
+/* Darkest forest band along the very bottom — displacement roughens its
+   top edge into a treeline. */
+const FOREST =
+  'M0 178 L200 170 L420 180 L640 168 L860 178 L1080 170 L1200 176 V250 H0 Z'
 
 /**
- * Jagged conifer tree line along the very bottom — deterministic (fixed seed)
- * so the silhouette never jumps between re-renders. Built once at module load.
- */
-const TREE_LINE = (() => {
-  let seed = 13
-  const rnd = () => (seed = (seed * 16807) % 2147483647) / 2147483647
-  let d = 'M0 200 L0 184'
-  for (let x = 0; x < 1200; x += 7) {
-    const h = 6 + rnd() * 16
-    d += ` L${x + 3.5} ${(184 - h).toFixed(1)} L${x + 7} ${(185 - h * 0.3).toFixed(1)}`
-  }
-  return d + ' L1200 200 Z'
-})()
-
-/**
- * Soft blurred cloud puffs — white and fluffy by day, dark wisps hugging the
- * moon at night (matches the reference art). Slow drift, disabled under
+ * Wispy cloud masses — fractal-noise alpha thresholds shaped into organic
+ * clouds. `currentColor` from CSS per theme: dark navy wisps at night,
+ * white puffs by day, dusk violet at evening. Slow drift, disabled under
  * reduced motion.
  */
-const Clouds = ({ theme }: { theme: DayPeriod }) => {
-  const day = theme === 'morning' || theme === 'afternoon'
-  const evening = theme === 'evening'
-  const fill = day ? '#ffffff' : evening ? '#2a2144' : '#0b1a38'
-  const puff = (
-    cx: number,
-    cy: number,
-    rx: number,
-    ry: number,
-    opacity: number,
-  ) => <ellipse cx={cx} cy={cy} rx={rx} ry={ry} opacity={opacity} />
-
-  return (
-    <svg className="clouds" viewBox="0 0 1200 200" preserveAspectRatio="none" aria-hidden="true" focusable="false">
-      <defs>
-        <filter id="dh-cloud-blur" x="-30%" y="-60%" width="160%" height="220%">
-          <feGaussianBlur stdDeviation="3.4" />
-        </filter>
-      </defs>
-      <g filter="url(#dh-cloud-blur)" fill={fill}>
-        <g className="cg-a">
-          {day ? (
-            <>
-              {puff(200, 44, 74, 13, 0.95)}
-              {puff(246, 36, 48, 11, 0.95)}
-              {puff(166, 40, 40, 9, 0.9)}
-            </>
-          ) : (
-            <>
-              {puff(300, 64, 140, 9, 0.35)}
-              {puff(210, 74, 90, 7, 0.28)}
-            </>
-          )}
-        </g>
-        <g className="cg-b">
-          {day ? (
-            <>
-              {puff(640, 30, 62, 11, 0.9)}
-              {puff(684, 24, 40, 9, 0.85)}
-            </>
-          ) : (
-            <>
-              {puff(1020, 66, 116, 10, 0.5)}
-              {puff(1140, 82, 92, 8, 0.42)}
-            </>
-          )}
-        </g>
-        <g className="cg-c">
-          {day ? (
-            <>
-              {puff(960, 118, 86, 12, 0.8)}
-              {puff(1010, 110, 52, 10, 0.75)}
-            </>
-          ) : (
-            <>
-              {puff(760, 96, 120, 8, 0.3)}
-              {puff(1080, 40, 70, 6, 0.25)}
-            </>
-          )}
-        </g>
-      </g>
-    </svg>
-  )
-}
+const Clouds = () => (
+  <svg className="clouds" viewBox="0 0 1200 300" preserveAspectRatio="none" aria-hidden="true" focusable="false">
+    <defs>
+      <filter id="dh-cloud-a" x="-25%" y="-70%" width="150%" height="240%" colorInterpolationFilters="sRGB">
+        <feTurbulence type="fractalNoise" baseFrequency="0.010 0.016" numOctaves="4" seed="17" result="t" />
+        {/* alpha = 2.4·R − 1.4 → distinct puffs only where noise is strong */}
+        <feColorMatrix in="t" type="matrix" values="0 0 0 0 0  0 0 0 0 0  0 0 0 0 0  2.4 0 0 0 -1.4" result="a" />
+        <feGaussianBlur in="a" stdDeviation="3.2" result="b" />
+        <feFlood floodColor="currentColor" result="f" />
+        <feComposite in="f" in2="b" operator="in" />
+      </filter>
+      <filter id="dh-cloud-b" x="-25%" y="-70%" width="150%" height="240%" colorInterpolationFilters="sRGB">
+        <feTurbulence type="fractalNoise" baseFrequency="0.007 0.03" numOctaves="4" seed="43" result="t" />
+        <feColorMatrix in="t" type="matrix" values="0 0 0 0 0  0 0 0 0 0  0 0 0 0 0  2.3 0 0 0 -1.3" result="a" />
+        <feGaussianBlur in="a" stdDeviation="2.4" result="b" />
+        <feFlood floodColor="currentColor" result="f" />
+        <feComposite in="f" in2="b" operator="in" />
+      </filter>
+      {/* Soft elliptical fades — clouds dissolve at the edges instead of
+          being cut straight at the filter-region boundary */}
+      <radialGradient id="dh-fade">
+        <stop offset="0%" stopColor="#fff" />
+        <stop offset="55%" stopColor="#fff" />
+        <stop offset="100%" stopColor="#000" />
+      </radialGradient>
+      <mask id="dh-mask-a" maskUnits="userSpaceOnUse">
+        <ellipse cx="990" cy="112" rx="210" ry="68" fill="url(#dh-fade)" />
+      </mask>
+      <mask id="dh-mask-b" maskUnits="userSpaceOnUse">
+        <ellipse cx="860" cy="185" rx="330" ry="54" fill="url(#dh-fade)" />
+      </mask>
+      <mask id="dh-mask-c" maskUnits="userSpaceOnUse">
+        <ellipse cx="320" cy="110" rx="185" ry="54" fill="url(#dh-fade)" />
+      </mask>
+      <mask id="dh-mask-d" maskUnits="userSpaceOnUse">
+        <ellipse cx="1040" cy="34" rx="160" ry="38" fill="url(#dh-fade)" />
+      </mask>
+    </defs>
+    {/* Mass under the orb (moon/sun corner) + a mid band + a left wisp */}
+    <g className="cg-a">
+      <rect className="cb cb-a" x="790" y="60" width="400" height="105" filter="url(#dh-cloud-a)" mask="url(#dh-mask-a)" />
+    </g>
+    <g className="cg-b">
+      <rect className="cb cb-b" x="540" y="145" width="640" height="80" filter="url(#dh-cloud-b)" mask="url(#dh-mask-b)" />
+    </g>
+    <g className="cg-c">
+      <rect className="cb cb-c" x="150" y="70" width="340" height="80" filter="url(#dh-cloud-a)" mask="url(#dh-mask-c)" />
+      <rect className="cb cb-d" x="880" y="5" width="320" height="60" filter="url(#dh-cloud-b)" mask="url(#dh-mask-d)" />
+    </g>
+  </svg>
+)
 
 /** Period icon shown before the clock time (moon / sun / sunset). */
 const periodIcon = (theme: DayPeriod) => {
@@ -517,15 +500,41 @@ export function DashboardHero({ stats, badge, showAttendance = true }: Dashboard
           ))}
         </div>
         <div className="orb sun" />
-        <div className="orb moon" />
-        <Clouds theme={theme} />
-        {/* Layered scenery: 3 mountain ridges + conifer tree line — fills
-            switch per theme in CSS */}
+        <div className="orb moon" style={{ backgroundImage: `url(${moonUrl})` }} />
+        <Clouds />
+        {/* Layered scenery: displaced ridges (treeline texture) + forest band —
+            fills switch per theme in CSS */}
         <svg className="hills" viewBox="0 0 1200 200" preserveAspectRatio="none" focusable="false">
-          <path className="h1" d={RIDGE_FAR} />
-          <path className="h2" d={RIDGE_MID} />
-          <path className="h3" d={RIDGE_NEAR} />
-          <path className="tree" d={TREE_LINE} />
+          <defs>
+            {/* Far ridge: soft, hazy — gentle displacement + blur */}
+            <filter id="dh-ridge-far" x="-5%" y="-25%" width="110%" height="160%" colorInterpolationFilters="sRGB">
+              <feTurbulence type="fractalNoise" baseFrequency="0.03 0.07" numOctaves="3" seed="4" result="n" />
+              <feDisplacementMap in="SourceGraphic" in2="n" scale="13" xChannelSelector="R" yChannelSelector="G" />
+              <feGaussianBlur stdDeviation="1.3" />
+            </filter>
+            {/* Mid ridge: sharper treeline */}
+            <filter id="dh-ridge-mid" x="-5%" y="-25%" width="110%" height="160%" colorInterpolationFilters="sRGB">
+              <feTurbulence type="fractalNoise" baseFrequency="0.045 0.1" numOctaves="3" seed="9" result="n" />
+              <feDisplacementMap in="SourceGraphic" in2="n" scale="18" xChannelSelector="R" yChannelSelector="G" />
+              <feGaussianBlur stdDeviation="0.7" />
+            </filter>
+            {/* Near ridge: dense conifer teeth */}
+            <filter id="dh-ridge-near" x="-5%" y="-25%" width="110%" height="160%" colorInterpolationFilters="sRGB">
+              <feTurbulence type="fractalNoise" baseFrequency="0.055 0.13" numOctaves="3" seed="14" result="n" />
+              <feDisplacementMap in="SourceGraphic" in2="n" scale="21" xChannelSelector="R" yChannelSelector="G" />
+              <feGaussianBlur stdDeviation="0.4" />
+            </filter>
+            {/* Forest band: strongest vertical jitter → treeline silhouette */}
+            <filter id="dh-forest" x="-5%" y="-40%" width="110%" height="180%" colorInterpolationFilters="sRGB">
+              <feTurbulence type="fractalNoise" baseFrequency="0.07 0.16" numOctaves="4" seed="21" result="n" />
+              <feDisplacementMap in="SourceGraphic" in2="n" scale="25" xChannelSelector="R" yChannelSelector="G" />
+              <feGaussianBlur stdDeviation="0.3" />
+            </filter>
+          </defs>
+          <path className="h1" filter="url(#dh-ridge-far)" d={RIDGE_FAR} />
+          <path className="h2" filter="url(#dh-ridge-mid)" d={RIDGE_MID} />
+          <path className="h3" filter="url(#dh-ridge-near)" d={RIDGE_NEAR} />
+          <path className="tree" filter="url(#dh-forest)" d={FOREST} />
         </svg>
       </div>
 

@@ -60,7 +60,8 @@ html {
   --statbg: rgba(16, 10, 32, 0.28);
 }
 .hero[data-theme='night'] {
-  --sky: linear-gradient(165deg, #050c1d 0%, #0a1730 48%, #12294f 100%);
+  --sky: radial-gradient(circle at 84% 20%, rgba(104, 142, 214, 0.3) 0%, rgba(104, 142, 214, 0.1) 30%, rgba(104, 142, 214, 0) 58%),
+    linear-gradient(165deg, #050c1d 0%, #0a1730 48%, #12294f 100%);
   --scrim: linear-gradient(90deg, rgba(3, 8, 20, 0.52), rgba(3, 8, 20, 0.18) 52%, rgba(3, 8, 20, 0.04));
   --statbg: rgba(3, 9, 22, 0.32);
 }
@@ -125,12 +126,12 @@ html {
   opacity: 0;
   transition: opacity 0.5s ease, background 0.6s ease, box-shadow 0.6s ease;
 }
-/* Sun: hot core → warm edge, big double glow */
+/* Sun: white-hot core → warm edge, big double glow */
 .hero .sun {
   top: clamp(14px, 9%, 58px);
   right: clamp(16px, 11%, 140px);
-  background: radial-gradient(circle at 42% 36%, #fffdf0 0 18%, #ffeb97 40%, #ffce62 66%, #fbb040 100%);
-  box-shadow: 0 0 60px 18px rgba(255, 199, 105, 0.55), 0 0 170px 64px rgba(255, 181, 84, 0.3);
+  background: radial-gradient(circle at 42% 36%, #ffffff 0 14%, #fff3b0 34%, #ffd84a 60%, #ffb52e 100%);
+  box-shadow: 0 0 60px 18px rgba(255, 205, 110, 0.6), 0 0 170px 64px rgba(255, 187, 84, 0.32);
 }
 /* Evening sun sits lower with a warmer, longer glow */
 .hero[data-theme='evening'] .sun {
@@ -138,21 +139,17 @@ html {
   background: radial-gradient(circle at 42% 36%, #fff4d0 0 16%, #ffcf7e 38%, #ff9e4d 68%, #f2793a 100%);
   box-shadow: 0 0 70px 22px rgba(255, 170, 80, 0.6), 0 0 190px 70px rgba(255, 140, 60, 0.32);
 }
-/* Moon: bright disc, multi-crater surface, limb darkening, soft halo */
+/* Moon: the exact photographic disc from the design art (asset crop) with
+   a soft halo — background-image is applied inline from the asset import */
 .hero .moon {
   top: clamp(14px, 9%, 58px);
   right: clamp(16px, 11%, 140px);
-  background:
-    radial-gradient(circle at 62% 56%, rgba(140, 150, 175, 0.5) 0 6.5%, transparent 8.5%),
-    radial-gradient(circle at 41% 38%, rgba(140, 150, 175, 0.42) 0 4.5%, transparent 6%),
-    radial-gradient(circle at 72% 32%, rgba(140, 150, 175, 0.38) 0 3.6%, transparent 5%),
-    radial-gradient(circle at 33% 60%, rgba(140, 150, 175, 0.46) 0 5.4%, transparent 7%),
-    radial-gradient(circle at 55% 76%, rgba(140, 150, 175, 0.34) 0 3%, transparent 4.4%),
-    radial-gradient(circle at 23% 43%, rgba(140, 150, 175, 0.3) 0 2.6%, transparent 4%),
-    radial-gradient(circle at 81% 60%, rgba(140, 150, 175, 0.3) 0 2.4%, transparent 3.6%),
-    radial-gradient(circle at 47% 22%, rgba(140, 150, 175, 0.25) 0 2%, transparent 3.2%),
-    radial-gradient(circle at 36% 30%, #fefefe 0 34%, #f1f3f2 60%, #d8dcd9 86%, #bfc5c0 100%);
-  box-shadow: 0 0 34px 6px rgba(225, 238, 255, 0.5), 0 0 110px 34px rgba(150, 185, 255, 0.25), inset -12px -14px 26px rgba(88, 98, 120, 0.4);
+  width: clamp(88px, 9.6vw, 148px);
+  background-size: cover;
+  background-position: center;
+  background-repeat: no-repeat;
+  background-color: #0a1730;
+  box-shadow: 0 0 30px 6px rgba(214, 232, 255, 0.55), 0 0 110px 36px rgba(150, 188, 255, 0.32);
 }
 .hero[data-theme='morning'] .sun,
 .hero[data-theme='afternoon'] .sun,
@@ -163,15 +160,62 @@ html {
   opacity: 1;
 }
 
-/* ── Soft drifting clouds (white puffs by day, dark wisps at night) ── */
+/* ── Soft drifting clouds (white puffs by day, moonlit wisps at night) ── */
 .hero .clouds {
   position: absolute;
   left: 0;
   right: 0;
   top: 0;
-  height: 62%;
+  height: 60%;
   width: 100%;
   z-index: 1;
+}
+/* floodColor: currentColor — theme picks the cloud colour and density */
+.hero[data-theme='morning'] .clouds,
+.hero[data-theme='afternoon'] .clouds {
+  color: #ffffff;
+}
+.hero[data-theme='evening'] .clouds {
+  color: #5a4478;
+}
+.hero[data-theme='night'] .clouds {
+  color: #17274c;
+}
+.hero .clouds .cb {
+  opacity: 0.5;
+}
+/* Day: a few soft puffs only — the art's sky stays mostly clear blue */
+.hero[data-theme='morning'] .clouds .cb-a,
+.hero[data-theme='afternoon'] .clouds .cb-a {
+  opacity: 0.75;
+}
+.hero[data-theme='morning'] .clouds .cb-b,
+.hero[data-theme='afternoon'] .clouds .cb-b {
+  opacity: 0.28;
+}
+.hero[data-theme='morning'] .clouds .cb-c,
+.hero[data-theme='afternoon'] .clouds .cb-c {
+  opacity: 0.55;
+}
+.hero[data-theme='morning'] .clouds .cb-d,
+.hero[data-theme='afternoon'] .clouds .cb-d {
+  opacity: 0.55;
+}
+.hero[data-theme='evening'] .clouds .cb-a,
+.hero[data-theme='night'] .clouds .cb-a {
+  opacity: 0.85;
+}
+.hero[data-theme='evening'] .clouds .cb-b,
+.hero[data-theme='night'] .clouds .cb-b {
+  opacity: 0.6;
+}
+.hero[data-theme='evening'] .clouds .cb-c,
+.hero[data-theme='night'] .clouds .cb-c {
+  opacity: 0.42;
+}
+.hero[data-theme='evening'] .clouds .cb-d,
+.hero[data-theme='night'] .clouds .cb-d {
+  opacity: 0.5;
 }
 .hero .clouds .cg-a,
 .hero .clouds .cg-b,
@@ -211,23 +255,23 @@ html {
   z-index: 2;
 }
 /* Night: dark navy ridges, near-black forest */
-.hero[data-theme='night'] .hills .h1 { fill: #1f3557; opacity: 0.85; }
-.hero[data-theme='night'] .hills .h2 { fill: #152745; }
-.hero[data-theme='night'] .hills .h3 { fill: #0d1a33; }
-.hero[data-theme='night'] .hills .tree { fill: #060d1c; }
+.hero[data-theme='night'] .hills .h1 { fill: #243b63; opacity: 0.72; }
+.hero[data-theme='night'] .hills .h2 { fill: #17294b; }
+.hero[data-theme='night'] .hills .h3 { fill: #0e1d38; }
+.hero[data-theme='night'] .hills .tree { fill: #061225; }
 /* Day: hazy blue distance → deeper blue front, dark navy forest */
 .hero[data-theme='morning'] .hills .h1,
-.hero[data-theme='afternoon'] .hills .h1 { fill: #a3c8e6; }
+.hero[data-theme='afternoon'] .hills .h1 { fill: #93bde0; }
 .hero[data-theme='morning'] .hills .h2,
-.hero[data-theme='afternoon'] .hills .h2 { fill: #7aa9d2; }
+.hero[data-theme='afternoon'] .hills .h2 { fill: #5f95c6; }
 .hero[data-theme='morning'] .hills .h3,
-.hero[data-theme='afternoon'] .hills .h3 { fill: #4e80af; }
+.hero[data-theme='afternoon'] .hills .h3 { fill: #3f74a8; }
 .hero[data-theme='morning'] .hills .tree,
 .hero[data-theme='afternoon'] .hills .tree { fill: #1d3b5c; }
 /* Evening: dusk purples */
-.hero[data-theme='evening'] .hills .h1 { fill: #8a74a8; }
-.hero[data-theme='evening'] .hills .h2 { fill: #5e4c7e; }
-.hero[data-theme='evening'] .hills .h3 { fill: #3a2f5c; }
+.hero[data-theme='evening'] .hills .h1 { fill: #8d78ab; }
+.hero[data-theme='evening'] .hills .h2 { fill: #5f4d80; }
+.hero[data-theme='evening'] .hills .h3 { fill: #3c305e; }
 .hero[data-theme='evening'] .hills .tree { fill: #1c1636; }
 
 /* ── Content layout ───────────────────────────────────────────────── */
