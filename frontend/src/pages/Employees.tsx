@@ -137,13 +137,15 @@ interface EmployeeFormContentProps {
   users: UserType[]
   excludeEmployeeId?: string
   scopedCompanies?: Array<Pick<Company, 'id' | 'name'>>
+  /** Parent toast relay — the child has no toast state of its own. */
+  onToast?: (message: string, type: 'success' | 'error') => void
 }
 
 export interface EmployeeFormRef {
   getFilesForUpload: () => { aadharDoc: File | null; panDoc: File | null; joiningLetterDoc: File | null; offerLetterDoc: File | null }
 }
 
-const EmployeeFormContent = forwardRef<EmployeeFormRef, EmployeeFormContentProps>(({ form, formId, onSubmit, companies, departments, managerCandidates, loadingManagerCandidates, fetchManagers, excludeEmployeeId, scopedCompanies }, ref) => {
+const EmployeeFormContent = forwardRef<EmployeeFormRef, EmployeeFormContentProps>(({ form, formId, onSubmit, companies, departments, managerCandidates, loadingManagerCandidates, fetchManagers, excludeEmployeeId, scopedCompanies, onToast }, ref) => {
   const watchCompanyId = form.watch('companyId')
   const watchDepartmentId = form.watch('departmentId')
   const watchRole = form.watch('role')
@@ -217,7 +219,7 @@ const EmployeeFormContent = forwardRef<EmployeeFormRef, EmployeeFormContentProps
     const file = e.target.files?.[0]
     if (!file) return
     if (file.size > 5 * 1024 * 1024) {
-      showToast('File size exceeds 5MB limit. Please choose a smaller file.', 'error')
+      onToast?.('File size exceeds 5MB limit. Please choose a smaller file.', 'error')
       e.target.value = ''
       return
     }
@@ -1723,7 +1725,7 @@ export function Employees() {
           </>
         }
       >
-        <EmployeeFormContent ref={addFormRef} form={addForm} formId="emp-add-form" onSubmit={handleAdd} companies={companies} departments={departments} employees={employees} managerCandidates={managerCandidates} loadingManagerCandidates={loadingManagerCandidates} fetchManagers={fetchManagers} users={users} scopedCompanies={availableCompanies} />
+        <EmployeeFormContent ref={addFormRef} form={addForm} formId="emp-add-form" onSubmit={handleAdd} companies={companies} departments={departments} employees={employees} managerCandidates={managerCandidates} loadingManagerCandidates={loadingManagerCandidates} fetchManagers={fetchManagers} users={users} scopedCompanies={availableCompanies} onToast={showToast} />
       </Modal>
 
       {/* EDIT EMPLOYEE MODAL */}
@@ -1741,7 +1743,7 @@ export function Employees() {
           </>
         }
       >
-        <EmployeeFormContent ref={editFormRef} form={editForm} formId="emp-edit-form" onSubmit={handleEdit} companies={companies} departments={departments} employees={employees} managerCandidates={managerCandidates} loadingManagerCandidates={loadingManagerCandidates} fetchManagers={fetchManagers} users={users} excludeEmployeeId={selectedEmployee?.id} scopedCompanies={availableCompanies} />
+        <EmployeeFormContent ref={editFormRef} form={editForm} formId="emp-edit-form" onSubmit={handleEdit} companies={companies} departments={departments} employees={employees} managerCandidates={managerCandidates} loadingManagerCandidates={loadingManagerCandidates} fetchManagers={fetchManagers} users={users} excludeEmployeeId={selectedEmployee?.id} scopedCompanies={availableCompanies} onToast={showToast} />
       </Modal>
 
       {/* VIEW PROFILE MODAL */}
