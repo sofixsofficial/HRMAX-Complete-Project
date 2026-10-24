@@ -245,6 +245,38 @@ html, body {
   -webkit-overflow-scrolling: touch;
 }
 
+/* Black horizontal scrollbar on EVERY table container (all roles/pages) —
+   wide black thumb + light track so horizontal scrolling is always visible.
+   (webkit pseudo only: scrollbar-color/width would disable these in
+   Chromium and render a thin default bar instead.) */
+.table-container,
+.table-wrapper,
+.perm-table-container {
+  overflow-x: auto;
+}
+.table-container::-webkit-scrollbar,
+.table-wrapper::-webkit-scrollbar,
+.perm-table-container::-webkit-scrollbar {
+  height: 10px;
+}
+.table-container::-webkit-scrollbar-track,
+.table-wrapper::-webkit-scrollbar-track,
+.perm-table-container::-webkit-scrollbar-track {
+  background: #e5e7eb;
+}
+.table-container::-webkit-scrollbar-thumb,
+.table-wrapper::-webkit-scrollbar-thumb,
+.perm-table-container::-webkit-scrollbar-thumb {
+  background: #111827;
+  border-radius: 999px;
+  border: 2px solid #e5e7eb;
+}
+.table-container::-webkit-scrollbar-thumb:hover,
+.table-wrapper::-webkit-scrollbar-thumb:hover,
+.perm-table-container::-webkit-scrollbar-thumb:hover {
+  background: #000;
+}
+
 .filter-select {
   padding: 9px 14px;
   border: 1px solid #e5e7eb;
