@@ -42,7 +42,7 @@ export const VerifyResetCodeScreen: React.FC<Props> = ({ navigation, route }) =>
     setError('');
     setLoading(true);
     try {
-      await confirmResetPassword(code.trim(), newPassword.trim());
+      await confirmResetPassword(code.trim(), newPassword.trim(), email);
       Alert.alert('Success', 'Your password has been reset. Please sign in.', [
         { text: 'OK', onPress: () => navigation.navigate('Login') },
       ]);

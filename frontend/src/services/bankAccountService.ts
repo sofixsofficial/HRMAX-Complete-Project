@@ -2,7 +2,7 @@ import { collection, doc, getDocs, addDoc, updateDoc, deleteDoc, query, where, s
 import { db } from '../aws/clients'
 import type { BankAccount } from '../types/employeeProfile'
 
-const getCol = (employeeId: string) => collection(db, 'employees', employeeId, 'bankAccounts')
+const getCol = (employeeId: string) => query(collection(db, 'bankAccounts'), where('employeeId', '==', employeeId))
 
 const mapDoc = (id: string, data: any): BankAccount => ({
   id,
@@ -27,10 +27,10 @@ export const addBankAccount = async (employeeId: string, data: Omit<BankAccount,
   if (data.isDefault) {
     const existing = await getBankAccounts(employeeId)
     for (const acct of existing) {
-      if (acct.isDefault) await updateDoc(doc(db, 'employees', employeeId, 'bankAccounts', acct.id), { isDefault: false })
+      if (acct.isDefault) await updateDoc(doc(db, 'bankAccounts', acct.id), { isDefault: false })
     }
   }
-  const docRef = await addDoc(getCol(employeeId), {
+  const docRef = await addDoc(collection(db, 'bankAccounts'), {
     ...data,
     employeeId,
     createdAt: serverTimestamp(),
@@ -43,12 +43,12 @@ export const updateBankAccount = async (employeeId: string, accountId: string, d
   if (data.isDefault) {
     const existing = await getBankAccounts(employeeId)
     for (const acct of existing) {
-      if (acct.id !== accountId && acct.isDefault) await updateDoc(doc(db, 'employees', employeeId, 'bankAccounts', acct.id), { isDefault: false })
+      if (acct.id !== accountId && acct.isDefault) await updateDoc(doc(db, 'bankAccounts', acct.id), { isDefault: false })
     }
   }
-  await updateDoc(doc(db, 'employees', employeeId, 'bankAccounts', accountId), { ...data, updatedAt: serverTimestamp() })
+  await updateDoc(doc(db, 'bankAccounts', accountId), { ...data, updatedAt: serverTimestamp() })
 }
 
 export const deleteBankAccount = async (employeeId: string, accountId: string): Promise<void> => {
-  await deleteDoc(doc(db, 'employees', employeeId, 'bankAccounts', accountId))
+  await deleteDoc(doc(db, 'bankAccounts', accountId))
 }

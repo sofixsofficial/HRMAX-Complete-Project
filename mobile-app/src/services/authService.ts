@@ -111,9 +111,9 @@ export const resetPassword = async (email: string): Promise<void> => {
   }
 };
 
-export const confirmResetPassword = async (code: string, newPassword: string): Promise<void> => {
+export const confirmResetPassword = async (code: string, newPassword: string, email?: string): Promise<void> => {
   try {
-    await confirmPasswordReset(auth, code, newPassword);
+    await confirmPasswordReset(auth, code, newPassword, email);
   } catch (error) {
     handleAuthError(error as AuthError);
   }

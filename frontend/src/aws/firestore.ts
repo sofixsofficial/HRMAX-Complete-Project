@@ -374,6 +374,7 @@ function endpointFor(path: string): string {
     companySettings: '/api/company-settings',
     emailLogs: '/api/email/logs',
     invitations: '/api/auth/invitations',
+    audit_logs: '/api/audit-logs',
   };
   const top = path.split('/')[0];
   return map[top] ?? `/api/${top.replace(/([A-Z])/g, '-$1').toLowerCase()}`;
@@ -720,6 +721,21 @@ export function onSnapshot(
 // Writes
 // ---------------------------------------------------------------------------
 
+// Coalesced listener invalidation: after every successful write, active
+// snapshot listeners (bell badge, live lists) refetch immediately instead of
+// waiting out the 17–26 s poll — so mark-read clears the badge and freshly
+// created notifications bump the unseen count within ~150 ms. Trailing-debounced
+// so bulk loops (batch/multi-doc updates) fire one refetch burst rather than a
+// herd against the reduced concurrency cap.
+let pendingInvalidate: ReturnType<typeof setTimeout> | undefined;
+function scheduleInvalidate(): void {
+  if (pendingInvalidate) return;
+  pendingInvalidate = setTimeout(() => {
+    pendingInvalidate = undefined;
+    invalidateSnapshots();
+  }, 150);
+}
+
 function prepareData(data: DocumentData): DocumentData {
   const out: DocumentData = {};
   for (const [k, v] of Object.entries(data)) {
@@ -747,6 +763,7 @@ export async function addDoc(collRef: CollectionReference, data: DocumentData): 
   }
   const body = (await res.json()) as { id?: string };
   const id = body.id ?? generateId();
+  scheduleInvalidate();
   return new DocumentReference(id, `${collRef._path}/${id}`);
 }
 
@@ -765,6 +782,7 @@ export async function setDoc(ref: DocumentReference, data: DocumentData, opts?: 
     const friendly = toFriendlyError(res.status, body);
     throw new FirestoreError(friendly.code, friendly.message);
   }
+  scheduleInvalidate();
 }
 
 export async function updateDoc(ref: DocumentReference, data: DocumentData): Promise<void> {
@@ -780,6 +798,7 @@ export async function updateDoc(ref: DocumentReference, data: DocumentData): Pro
     const friendly = toFriendlyError(res.status, body);
     throw new FirestoreError(friendly.code, friendly.message);
   }
+  scheduleInvalidate();
 }
 
 export async function deleteDoc(ref: DocumentReference): Promise<void> {
@@ -791,6 +810,7 @@ export async function deleteDoc(ref: DocumentReference): Promise<void> {
     const friendly = toFriendlyError(res.status, body);
     throw new FirestoreError(friendly.code, friendly.message);
   }
+  if (res.ok) scheduleInvalidate();
 }
 
 /** users collection docs use the uid as both id and companyId bucket. */

@@ -1,4 +1,4 @@
-import { collection, doc, getDocs, getDoc, query, where, orderBy, limit, onSnapshot } from '../aws/firestore-compat';
+import { collection, doc, getDocs, getDoc, query, where, orderBy, limit, onSnapshot, invalidateSnapshots } from '../aws/firestore-compat';
 import { db } from '../aws/clients';
 import { httpsCallable } from '../aws/functions-compat';
 import { functions } from '../aws/clients';
@@ -54,16 +54,20 @@ export const subscribeToNotifications = (userId: string, callback: (notification
 export const markNotificationAsRead = async (notificationId: string): Promise<void> => {
   const callableFn = httpsCallable(functions, 'mobileMarkNotificationRead');
   await callableFn({ notificationId });
+  // Callable writes server-side (no shim write path) — refresh badges now.
+  invalidateSnapshots();
 };
 
 export const markAllNotificationsAsRead = async (userId: string): Promise<void> => {
   const callableFn = httpsCallable(functions, 'mobileMarkAllNotificationsRead');
   await callableFn({ userId });
+  invalidateSnapshots();
 };
 
 export const deleteNotification = async (notificationId: string): Promise<void> => {
   const callableFn = httpsCallable(functions, 'mobileDeleteNotification');
   await callableFn({ notificationId });
+  invalidateSnapshots();
 };
 
 export const getUnreadNotificationCount = async (userId: string): Promise<number> => {

@@ -15,7 +15,7 @@ import {
   onAuthStateChanged,
   getIdTokenResult
 } from '../aws/auth-compat';
-import type { User as AuthUser, AuthError } from '../aws/auth-compat';
+import type { AuthError } from '../aws/auth-compat';
 import type { PermissionScopeMap } from './permissionConfig';
 import { 
   doc, 
@@ -30,7 +30,7 @@ import {
   serverTimestamp,
   deleteField
 } from '../aws/firestore-compat';
-import { httpsCallable } from '../aws/functions-compat';
+import { getFunctions, httpsCallable } from '../aws/functions-compat';
 import { auth, db, functions } from '../aws/clients';
 import { ERROR_MESSAGES } from '../aws/errors';
 import type { User, UserRole } from '../types/user';
@@ -335,55 +335,16 @@ export const confirmResetPassword = async (code: string, newPassword: string): P
 };
 
 /**
- * Generate a 6-digit reset code and store it in Firestore with a 10-minute expiration
- */
-export const generateResetCode = async (email: string): Promise<{ code: string; expiresAt: Date }> => {
-  const code = Math.floor(100000 + Math.random() * 900000).toString();
-  const expiresAt = new Date(Date.now() + 10 * 60 * 1000);
-
-  const resetCodeRef = doc(collection(db, 'resetCodes'));
-  await setDoc(resetCodeRef, {
-    email: email.toLowerCase(),
-    code,
-    expiresAt,
-    used: false,
-    createdAt: serverTimestamp(),
-  });
-
-  return { code, expiresAt };
-};
-
-/**
- * Verify a 6-digit reset code from Firestore
+ * Verify a 6-digit reset code (server-side check; does not consume it).
  */
 export const verifyResetCode = async (email: string, code: string): Promise<boolean> => {
-  const q = query(
-    collection(db, 'resetCodes'),
-    where('email', '==', email.toLowerCase()),
-    where('code', '==', code),
-    where('used', '==', false)
-  );
-  const snap = await getDocs(q);
-  if (snap.empty) return false;
-
-  const data = snap.docs[0].data();
-  const expiresAt = data.expiresAt?.toDate?.() || data.expiresAt;
-  if (expiresAt && new Date() > expiresAt) {
-    await snap.docs[0].ref.update({ used: true }).catch(() => {});
+  try {
+    const fn = httpsCallable(getFunctions(), 'verifyResetCode');
+    const res = await fn({ email: email.toLowerCase(), code });
+    return Boolean((res as any)?.data?.valid);
+  } catch {
     return false;
   }
-
-  return true;
-};
-
-/**
- * Invalidate all reset codes for a given email
- */
-export const invalidateResetCodes = async (email: string): Promise<void> => {
-  const q = query(collection(db, 'resetCodes'), where('email', '==', email.toLowerCase()));
-  const snap = await getDocs(q);
-  const batch = snap.docs.map(d => d.ref.update({ used: true }));
-  await Promise.all(batch);
 };
 
 /**

@@ -247,6 +247,22 @@ export const authRoutes: Route[] = [
     },
   },
 
+  // Verify-only step for the 3-screen reset UI (email → code → new password).
+  // Checks the same SHA-256 hash + expiry without consuming or resetting.
+  {
+    method: 'POST',
+    path: '/api/auth/verify-reset-code',
+    public: true,
+    handler: async (req) => {
+      const email = String(req.body.email ?? '').trim().toLowerCase();
+      const code = String(req.body.code ?? '');
+      if (!email || !code) throw new ApiError('bad-request', 'email, code required');
+      const codes = await queryEntities<ResetCodeDoc>({ entity: 'resetCode', companyId: 'global', filters: { email, used: false }, limit: 10 });
+      const valid = codes.some((c) => c.code === createHash('sha256').update(code).digest('hex') && new Date(c.expiresAt).getTime() > Date.now());
+      return { valid };
+    },
+  },
+
   // --------------------------------------------- change password (self)
   {
     method: 'POST',

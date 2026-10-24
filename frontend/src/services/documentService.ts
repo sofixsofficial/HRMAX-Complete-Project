@@ -1,8 +1,8 @@
-import { collection, doc, getDocs, addDoc, updateDoc, deleteDoc, serverTimestamp } from '../aws/firestore-compat'
+import { collection, doc, getDocs, addDoc, updateDoc, deleteDoc, query, where, serverTimestamp } from '../aws/firestore-compat'
 import { db } from '../aws/clients'
 import type { EmployeeDocument } from '../types/employeeProfile'
 
-const getCol = (employeeId: string) => collection(db, 'employees', employeeId, 'documents')
+const getCol = (employeeId: string) => query(collection(db, 'documents'), where('employeeId', '==', employeeId))
 
 const mapDoc = (id: string, data: any): EmployeeDocument => ({
   id,
@@ -23,7 +23,7 @@ export const getDocuments = async (employeeId: string): Promise<EmployeeDocument
 
 // uploadedBy comes from the third argument (written below), not from `data`.
 export const addDocument = async (employeeId: string, data: Omit<EmployeeDocument, 'id' | 'employeeId' | 'uploadedAt' | 'uploadedBy'>, uploadedBy: string): Promise<string> => {
-  const docRef = await addDoc(getCol(employeeId), {
+  const docRef = await addDoc(collection(db, 'documents'), {
     ...data,
     employeeId,
     uploadedBy,
@@ -33,5 +33,5 @@ export const addDocument = async (employeeId: string, data: Omit<EmployeeDocumen
 }
 
 export const deleteDocument = async (employeeId: string, documentId: string): Promise<void> => {
-  await deleteDoc(doc(db, 'employees', employeeId, 'documents', documentId))
+  await deleteDoc(doc(db, 'documents', documentId))
 }

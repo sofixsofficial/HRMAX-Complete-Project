@@ -2,7 +2,6 @@ import { useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { Mail, ArrowLeft, Loader2, CheckCircle, Lock, Shield, Zap, ArrowRight } from 'lucide-react';
 import { Logo } from '../../components/Logo';
-import { generateResetCode } from '../../services/authService';
 import { getFunctions, httpsCallable } from '../../aws/functions-compat';
 import { ERROR_MESSAGES, toDisplayError, validateEmail } from '../../aws/errors';
 import '../../pages/Login.css';
@@ -34,14 +33,13 @@ export function ForgotPassword() {
     setIsLoading(true);
 
     try {
-      const { code } = await generateResetCode(emailValue);
-
+      // Server generates + emails the 6-digit code (stored SHA-256-hashed).
+      const functions = getFunctions();
+      const sendResetCodeFn = httpsCallable(functions, 'sendResetCode');
       try {
-        const functions = getFunctions();
-        const sendResetCodeFn = httpsCallable(functions, 'sendResetCode');
-        await sendResetCodeFn({ email: emailValue, code });
+        await sendResetCodeFn({ email: emailValue });
       } catch (fnErr: any) {
-        console.warn('SendResetCode cloud function failed (email may not be sent):', fnErr);
+        console.warn('SendResetCode failed (email may not be sent):', fnErr);
       }
 
       setSuccess(true);

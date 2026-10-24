@@ -1,8 +1,8 @@
-import { collection, doc, getDocs, addDoc, updateDoc, deleteDoc, serverTimestamp } from '../aws/firestore-compat'
+import { collection, doc, getDocs, addDoc, updateDoc, deleteDoc, query, where, serverTimestamp } from '../aws/firestore-compat'
 import { db } from '../aws/clients'
 import type { EmployeeContract } from '../types/employeeProfile'
 
-const getCol = (employeeId: string) => collection(db, 'employees', employeeId, 'contracts')
+const getCol = (employeeId: string) => query(collection(db, 'contracts'), where('employeeId', '==', employeeId))
 
 const mapDoc = (id: string, data: any): EmployeeContract => ({
   id,
@@ -24,7 +24,7 @@ export const getContracts = async (employeeId: string): Promise<EmployeeContract
 }
 
 export const addContract = async (employeeId: string, data: Omit<EmployeeContract, 'id' | 'employeeId' | 'createdAt' | 'updatedAt'>): Promise<string> => {
-  const docRef = await addDoc(getCol(employeeId), {
+  const docRef = await addDoc(collection(db, 'contracts'), {
     ...data,
     employeeId,
     createdAt: serverTimestamp(),
@@ -34,9 +34,9 @@ export const addContract = async (employeeId: string, data: Omit<EmployeeContrac
 }
 
 export const updateContract = async (employeeId: string, contractId: string, data: Partial<EmployeeContract>): Promise<void> => {
-  await updateDoc(doc(db, 'employees', employeeId, 'contracts', contractId), { ...data, updatedAt: serverTimestamp() })
+  await updateDoc(doc(db, 'contracts', contractId), { ...data, updatedAt: serverTimestamp() })
 }
 
 export const deleteContract = async (employeeId: string, contractId: string): Promise<void> => {
-  await deleteDoc(doc(db, 'employees', employeeId, 'contracts', contractId))
+  await deleteDoc(doc(db, 'contracts', contractId))
 }

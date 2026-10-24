@@ -196,7 +196,13 @@ export async function patchEntity<T>(
     }
   }
   merged.updatedAt = new Date().toISOString();
-  await putEntity(merged as T, opts);
+  // Write back to the EXACT partition the row was read from. putEntity would
+  // otherwise default keyCompanyId to rec.companyId (the data field) — for
+  // rows whose partition diverges from data.companyId (notifications are
+  // forced to the 'global' bucket on create), that silently created a DUPLICATE
+  // row in another partition and left the original stale: mark-read returned
+  // success but the badge never cleared.
+  await putEntity(merged as T, { ...opts, keyCompanyId: companyId });
   return merged as T;
 }
 

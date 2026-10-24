@@ -17,6 +17,7 @@ export {
   setDoc,
   updateDoc,
   deleteDoc,
+  invalidateSnapshots,
   serverTimestamp,
   deleteField,
   Timestamp,

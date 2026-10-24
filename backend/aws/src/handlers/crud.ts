@@ -28,15 +28,31 @@ interface CollectionConfig {
   userIdField?: string;
   /** Timestamp field for ordering */
   tsField?: string;
+  /**
+   * Collection is written with globalList (GSI3) instead of a COMPANY#
+   * partition — list/read must query GSI3. Without this the list reads a
+   * partition the rows were never written to and returns an empty set.
+   */
+  globalList?: boolean;
   /** Employees-style records that must belong to caller's company on create */
   requireCompanyOnCreate?: boolean;
+  /**
+   * Employees may only ever read their own rows (salary slips: the shadowed
+   * per-collection handler enforced this; the generic route must too).
+   */
+  employeeOwnOnly?: boolean;
   /** Field whitelist for non-admin updates */
   editableFields?: string[];
 }
 
 export function crudRoutes(cfg: CollectionConfig): Route[] {
   const tsField = cfg.tsField ?? 'createdAt';
-  const storeOpts = { entity: cfg.entity, userIdField: cfg.userIdField, tsField };
+  const storeOpts = {
+    entity: cfg.entity,
+    userIdField: cfg.userIdField,
+    tsField,
+    ...(cfg.globalList ? { globalList: true } : {}),
+  };
 
   return [
     // ------------------------------------------------------------------ list
@@ -56,11 +72,36 @@ export function crudRoutes(cfg: CollectionConfig): Route[] {
           ...(filters ? { filters } : {}),
         };
         if (req.query.userId) base.userId = req.query.userId;
+        if (cfg.employeeOwnOnly && caller.role === 'employee') {
+          // Own rows only, regardless of any ?companyId / ?userId sent.
+          base.userId = caller.uid;
+        } else if (base.userId && base.userId !== caller.uid && !isSuperAdmin(caller)) {
+          // ?userId queries GSI1 directly, which ignores tenant partitions —
+          // a user from another company could read someone else's rows.
+          const target = await getUserDoc(base.userId);
+          const readable = await readPartitions(caller);
+          if (!target || !readable.includes(String(target.companyId ?? ''))) {
+            throw new ApiError('permission-denied', 'User out of scope');
+          }
+        }
 
         let docs: Record<string, unknown>[];
         if (base.userId) {
           // GSI1 is already cross-partition (per-user collections).
           docs = await queryEntities<Record<string, unknown>>(base as Parameters<typeof queryEntities>[0]);
+        } else if (cfg.globalList) {
+          // GSI3 rows live outside COMPANY# <partition addressing, so read
+          // the global index. Super-admin sees every row (Firestore parity);
+          // anyone else is still fenced to their readable partitions.
+          if (!isSuperAdmin(caller)) await readPartitions(caller);
+          docs = await queryEntities<Record<string, unknown>>({ ...base, global: true, companyId: 'global' });
+          if (explicit) {
+            if (!isSuperAdmin(caller)) assertCompanyScope(caller, explicit);
+            docs = docs.filter((d) => String(d.companyId ?? '') === explicit);
+          } else if (!isSuperAdmin(caller)) {
+            const readable = await readPartitions(caller);
+            docs = docs.filter((d) => readable.includes(String(d.companyId ?? '')));
+          }
         } else if (explicit) {
           if (!isSuperAdmin(caller)) assertCompanyScope(caller, explicit);
           docs = await queryEntities<Record<string, unknown>>({ ...base, companyId: explicit });
@@ -91,6 +132,9 @@ export function crudRoutes(cfg: CollectionConfig): Route[] {
         // flat paths), so resolve across the caller's readable partitions.
         const found = await locateEntityAcross<Record<string, unknown>>(cfg.entity, req.params.id, await readPartitions(caller));
         if (!found) throw new ApiError('not-found', `${cfg.entity} not found`);
+        if (cfg.employeeOwnOnly && caller.role === 'employee' && String(found.doc.userId ?? '') !== caller.uid) {
+          throw new ApiError('not-found', `${cfg.entity} not found`);
+        }
         return { [cfg.entity]: found.doc };
       },
     },
@@ -224,9 +268,29 @@ export const coreCrudRoutes: Route[] = [
   ...crudRoutes({ url: '/api/transfers', entity: 'transfer', tsField: 'createdAt' }),
   ...crudRoutes({ url: '/api/performance', entity: 'performance', tsField: 'createdAt' }),
   ...crudRoutes({ url: '/api/documents', entity: 'document', userIdField: 'uploadedBy', tsField: 'createdAt' }),
-  ...crudRoutes({ url: '/api/salary-slips', entity: 'salarySlip', readPerm: 'payroll.view', userIdField: 'userId', tsField: 'createdAt' }),
+  ...crudRoutes({ url: '/api/salary-slips', entity: 'salarySlip', readPerm: 'payroll.view', writePerm: 'payroll.manage', userIdField: 'userId', tsField: 'createdAt', employeeOwnOnly: true }),
   ...crudRoutes({ url: '/api/payroll-runs', entity: 'payrollRun', readPerm: 'payroll.view', writePerm: 'payroll.calculate', tsField: 'createdAt' }),
   ...crudRoutes({ url: '/api/attendance-logs', entity: 'attendanceLog', userIdField: 'userId', tsField: 'timestamp' }),
+
+  // ---------------------------------------------- audit / emails / payroll
+  // Web Email Center: read+compose gated on support.view (company-admin gets
+  // it via the *.view auto-grant; employees' subset excludes it).
+  ...crudRoutes({ url: '/api/emails', entity: 'email', readPerm: 'support.view', writePerm: 'support.view', tsField: 'createdAt' }),
+  // Audit trail: readable via the reports gate (MA/CA), any authed user may
+  // append — actorId is stamped from the caller, never from the body.
+  // globalList: the legacy logAuditEvent writer indexes rows on GSI3, so the
+  // list must read GSI3 too (partition reads returned an empty set).
+  ...crudRoutes({ url: '/api/audit-logs', entity: 'auditLog', readPerm: 'reports.view', tsField: 'createdAt', globalList: true }),
+  // Client-side payroll fallback writes its own audit row (server-side runs
+  // go through payrollRoutes directly).
+  ...crudRoutes({ url: '/api/payroll-audit', entity: 'payrollAudit', readPerm: 'payroll.view', writePerm: 'payroll.manage', tsField: 'timestamp' }),
+
+  // ------------------------------------------------- staff documents etc.
+  // Former Firestore subcollections employees/{id}/documents|contracts|
+  // bankAccounts — now first-class collections filtered by ?employeeId
+  // (documents already existed; contracts/bankAccounts were missing).
+  ...crudRoutes({ url: '/api/contracts', entity: 'contract', userIdField: 'uploadedBy', tsField: 'createdAt' }),
+  ...crudRoutes({ url: '/api/bank-accounts', entity: 'bankAccount', tsField: 'createdAt' }),
 
   // ------------------------------------------------------------------ users
   {
@@ -488,8 +552,21 @@ export const notificationRoutes: Route[] = [
       const docs = await queryEntities<Record<string, unknown>>({
         entity: 'notification', companyId: 'global', userId: want || caller.uid,
       });
-      docs.sort((a, b) => String(b.createdAt ?? '').localeCompare(String(a.createdAt ?? '')));
-      return { notifications: (req.query.limit ? docs.slice(0, Number(req.query.limit)) : docs) };
+      // Recovery guard: pre-fix mark-read calls could leave the same id in two
+      // partitions (original stale + duplicate). Keep the freshest copy per id
+      // so the bell neither counts nor lists a phantom duplicate. Non-
+      // destructive; the row writes themselves are fixed in patchEntity.
+      const byId = new Map<string, Record<string, unknown>>();
+      const freshness = (d: Record<string, unknown>) => String(d.updatedAt ?? d.createdAt ?? '');
+      for (const d of docs) {
+        const id = String(d.id ?? '');
+        if (!id) continue;
+        const cur = byId.get(id);
+        if (!cur || freshness(d) > freshness(cur)) byId.set(id, d);
+      }
+      const deduped = [...byId.values()];
+      deduped.sort((a, b) => String(b.createdAt ?? '').localeCompare(String(a.createdAt ?? '')));
+      return { notifications: (req.query.limit ? deduped.slice(0, Number(req.query.limit)) : deduped) };
     },
   },
   {
@@ -557,10 +634,19 @@ export const notificationRoutes: Route[] = [
     handler: async (req) => {
       const caller = must(req);
       const unread = await queryEntities<{ id: string }>({ entity: 'notification', companyId: 'global', userId: caller.uid, filters: { read: false } });
+      // Rows may sit in any company partition (older runtime writes) — locate
+      // each one like the single mark-read route does, otherwise those rows
+      // stay unread and the badge count never clears.
+      const parts = await allPartitions();
+      let count = 0;
       for (const n of unread) {
-        await patchEntity('notification', 'global', n.id, { read: true, readAt: isoNow() }, { entity: 'notification', userIdField: 'userId' });
+        const found = await locateEntityAcross<{ userId: string }>('notification', n.id, parts);
+        if (!found) continue;
+        if (!isSuperAdmin(caller) && found.doc.userId !== caller.uid) continue;
+        await patchEntity('notification', found.companyId, n.id, { read: true, readAt: isoNow() }, { entity: 'notification', userIdField: 'userId' });
+        count++;
       }
-      return { success: true, count: unread.length };
+      return { success: true, count };
     },
   },
   {

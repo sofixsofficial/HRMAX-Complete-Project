@@ -25,7 +25,9 @@ const ROUTE_MAP: Record<string, { path: string; method?: 'GET' | 'POST' | 'PUT' 
   // auth
   createStaffUser: { path: '/api/users/create-staff' },
   sendResetCode: { path: '/api/auth/forgot-password' },
+  verifyResetCode: { path: '/api/auth/verify-reset-code' },
   resetPasswordWithCode: { path: '/api/auth/reset-password' },
+  markAllNotificationsRead: { path: '/api/notifications/read-all' },
   // attendance
   markAttendance: { path: '/api/attendance/mark' },
   // payroll

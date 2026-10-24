@@ -109,7 +109,7 @@ export function Reports() {
       }, { total: 0, active: 0, totalEmployees: 0 }, 'company stats'),
       safeFetch(async () => {
         if (companyId) {
-          const snap = await getDocs(query(collection(db, 'supportTickets'), where('companyId', '==', companyId)))
+          const snap = await getDocs(query(collection(db, 'tickets'), where('companyId', '==', companyId)))
           return snap.docs.map(d => ({ id: d.id, ...d.data() }))
         }
         return await getAllTickets()

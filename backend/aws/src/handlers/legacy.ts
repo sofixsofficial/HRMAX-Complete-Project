@@ -17,11 +17,13 @@ import { AdminDeleteUserCommand, CognitoIdentityProviderClient } from '@aws-sdk/
 import type { Req, Route } from '../lib/http.js';
 import { must } from '../lib/http.js';
 import {
+  allPartitions,
   companyPK,
   deleteEntity,
   doc,
   getEntity,
   getUserDoc,
+  locateEntityAcross,
   patchEntity,
   putEntity,
   queryEntities,
@@ -539,6 +541,9 @@ export const legacyRoutes: Route[] = [
       ip: caller.ip,
       userAgent: caller.userAgent,
       createdAt: isoNow(),
+      // Readers (AuditLogs page, Settings, ExecutiveOversight) sort/display by
+      // `timestamp` — stamp both so server-written rows appear there too.
+      timestamp: isoNow(),
     }, { entity: 'auditLog', globalList: true, tsField: 'createdAt' });
     return { success: true, id };
   }),
@@ -967,28 +972,44 @@ export const legacyRoutes: Route[] = [
   }),
   fn('mobileDeleteNotification', async (req) => {
     const caller = must(req);
-    const id = String(bodyOf(req).id ?? '');
-    if (!isSuperAdmin(caller)) {
-      const n = await getEntity<Body>('notification', 'global', id);
-      if (n && String(n.userId) !== caller.uid) throw new ApiError('permission-denied', 'Not your notification');
-    }
-    await deleteEntity('notification', 'global', id);
+    const raw = bodyOf(req);
+    // The mobile client sends { notificationId }; older builds sent { id }.
+    const id = String(raw.id ?? raw.notificationId ?? '');
+    // Rows may live in any company partition ('global' on POST, legacy
+    // runtime writes elsewhere) — locate before touching, and treat a miss
+    // as already-deleted (parity with deleteDoc's 404 tolerance).
+    const found = await locateEntityAcross<Body>('notification', id, await allPartitions());
+    if (!found) return { success: true };
+    if (!isSuperAdmin(caller) && String(found.doc.userId) !== caller.uid) throw new ApiError('permission-denied', 'Not your notification');
+    await deleteEntity('notification', found.companyId, id);
     return { success: true };
   }),
   fn('mobileMarkNotificationRead', async (req) => {
     const caller = must(req);
-    const id = String(bodyOf(req).id ?? '');
-    await patchEntity<Body>('notification', 'global', id, { read: true, readAt: isoNow() }, { entity: 'notification', userIdField: 'userId' });
-    void caller;
+    const raw = bodyOf(req);
+    // { notificationId } from the app, { id } from older builds.
+    const id = String(raw.id ?? raw.notificationId ?? '');
+    // Locate across partitions — patching 'global' unconditionally silently
+    // missed rows written to company partitions (the mobile equivalent of the
+    // web mark-read bug: success returned, badge never cleared).
+    const found = await locateEntityAcross<Body>('notification', id, await allPartitions());
+    if (found) {
+      if (!isSuperAdmin(caller) && String(found.doc.userId) !== caller.uid) throw new ApiError('permission-denied', 'Not your notification');
+      await patchEntity<Body>('notification', found.companyId, id, { read: true, readAt: isoNow() }, { entity: 'notification', userIdField: 'userId' });
+    }
     return { success: true };
   }),
   fn('mobileMarkAllNotificationsRead', async (req) => {
     const caller = must(req);
     const unread = await queryEntities<Body>({ entity: 'notification', companyId: 'global', userId: caller.uid, filters: { read: false } });
+    let applied = 0;
     for (const n of unread) {
-      await patchEntity<Body>('notification', 'global', String(n.id), { read: true, readAt: isoNow() }, { entity: 'notification', userIdField: 'userId' });
+      const found = await locateEntityAcross<Body>('notification', String(n.id), await allPartitions());
+      if (!found) continue;
+      await patchEntity<Body>('notification', found.companyId, String(n.id), { read: true, readAt: isoNow() }, { entity: 'notification', userIdField: 'userId' });
+      applied++;
     }
-    return { success: true, count: unread.length };
+    return { success: true, count: applied };
   }),
   fn('mobileCreateAdminAlert', async (req) => {
     const caller = must(req);

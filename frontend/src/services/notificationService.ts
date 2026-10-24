@@ -1,7 +1,8 @@
 import {
   collection, doc, getDocs, addDoc, updateDoc, deleteDoc,
-  query, where, orderBy, limit, onSnapshot, serverTimestamp
+  query, where, orderBy, limit, onSnapshot, serverTimestamp, invalidateSnapshots
 } from '../aws/firestore-compat';
+import { getFunctions, httpsCallable } from '../aws/functions-compat';
 import { db } from '../aws/clients';
 import type { AppNotification, NotificationType } from '../types/user';
 
@@ -63,20 +64,21 @@ export async function markNotificationAsRead(notificationId: string): Promise<vo
 }
 
 // Mark all notifications as read
+// Server-side batch: the previous client loop issued one PATCH per unread row,
+// and each PATCH located the row across every company partition (N×partitions
+// round-trips — slow, and partial failure left the badge count stale).
 export async function markAllNotificationsAsRead(userId: string): Promise<void> {
-  const q = query(
-    notificationsRef,
-    where('userId', '==', userId),
-    where('read', '==', false)
-  );
-  const snapshot = await getDocs(q);
-
-  const batch: Promise<void>[] = [];
-  snapshot.docs.forEach(doc => {
-    batch.push(updateDoc(doc.ref, { read: true }));
-  });
-
-  await Promise.all(batch);
+  try {
+    await httpsCallable(getFunctions(), 'markAllNotificationsRead')({});
+  } catch (err) {
+    console.error('Error marking all notifications as read:', err);
+    throw err;
+  }
+  // The batch write happened server-side (no shim write path to hook), so
+  // refresh listeners explicitly — badge must drop immediately, not on the
+  // next 17–26 s poll.
+  invalidateSnapshots();
+  void userId; // server scopes to the authenticated caller
 }
 
 // Delete a notification

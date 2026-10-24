@@ -43,6 +43,7 @@ export const storageRoutes: Route[] = [
     handler: async (req) => {
       const caller = must(req);
       const { path: objPath, action, contentType } = req.body as { path: string; action: 'put' | 'get' | 'delete'; contentType?: string };
+      if (!BUCKET) throw new ApiError('internal', 'File storage is not configured');
       if (!objPath) throw new ApiError('bad-request', 'path required');
       if (objPath.includes('..')) throw new ApiError('bad-request', 'Invalid path');
 

@@ -344,7 +344,7 @@ function endpointFor(path: string): string {
     emailLogs: '/api/email/logs',
     emails: '/api/emails',
     invitations: '/api/auth/invitations',
-    resetCodes: '/api/auth/reset-codes',
+    audit_logs: '/api/audit-logs',
   };
   const top = path.split('/')[0];
   return map[top] ?? `/api/${top.replace(/([A-Z])/g, '-$1').toLowerCase()}`;
@@ -473,6 +473,22 @@ export async function getDoc(ref: DocumentReference): Promise<DocumentSnapshot> 
 
 const DEFAULT_POLL_MS = 20_000;
 
+// Active polling listeners; write paths force an immediate refetch so bell
+// badges and lists update within ~150 ms of a write instead of waiting out
+// the 20 s poll (mirrors the web shim's invalidateSnapshots).
+const activeForceTicks = new Set<() => void>();
+
+/** Force every active onSnapshot listener to refetch right now. */
+export function invalidateSnapshots(): void {
+  for (const tick of [...activeForceTicks]) {
+    try {
+      tick();
+    } catch {
+      /* a broken listener must not block the refresh of the others */
+    }
+  }
+}
+
 export type Unsubscribe = () => void;
 
 export interface SnapshotListenOptions {
@@ -581,8 +597,13 @@ export function onSnapshot(
 
   void tick();
   const timer = setInterval(tick, pollMs);
+  const forceTick = () => {
+    if (!stopped) void tick();
+  };
+  activeForceTicks.add(forceTick);
   return () => {
     stopped = true;
+    activeForceTicks.delete(forceTick);
     clearInterval(timer);
   };
 }
@@ -590,6 +611,17 @@ export function onSnapshot(
 // ---------------------------------------------------------------------------
 // Writes
 // ---------------------------------------------------------------------------
+
+// Trailing-debounced listener invalidation: bulk loops produce one refetch
+// burst instead of a herd against the reduced concurrency cap.
+let pendingInvalidate: ReturnType<typeof setTimeout> | undefined;
+function scheduleInvalidate(): void {
+  if (pendingInvalidate) return;
+  pendingInvalidate = setTimeout(() => {
+    pendingInvalidate = undefined;
+    invalidateSnapshots();
+  }, 150);
+}
 
 function prepareData(data: DocumentData): DocumentData {
   const out: DocumentData = {};
@@ -612,6 +644,7 @@ export async function addDoc(collRef: CollectionReference, data: DocumentData): 
   }
   const body = (await res.json()) as { id?: string };
   const id = body.id ?? generateId();
+  scheduleInvalidate();
   return new DocumentReference(id, `${collRef._path}/${id}`);
 }
 
@@ -626,6 +659,7 @@ export async function setDoc(ref: DocumentReference, data: DocumentData, opts?: 
     const friendly = toFriendlyError(res.status, body);
     throw new FirestoreError(friendly.code, friendly.message);
   }
+  scheduleInvalidate();
 }
 
 export async function updateDoc(ref: DocumentReference, data: DocumentData): Promise<void> {
@@ -639,6 +673,7 @@ export async function updateDoc(ref: DocumentReference, data: DocumentData): Pro
     const friendly = toFriendlyError(res.status, body);
     throw new FirestoreError(friendly.code, friendly.message);
   }
+  scheduleInvalidate();
 }
 
 export async function deleteDoc(ref: DocumentReference): Promise<void> {
@@ -649,6 +684,7 @@ export async function deleteDoc(ref: DocumentReference): Promise<void> {
     const friendly = toFriendlyError(res.status, body);
     throw new FirestoreError(friendly.code, friendly.message);
   }
+  if (res.ok) scheduleInvalidate();
 }
 
 function extractCompanyId(ref: DocumentReference, data: DocumentData): string {

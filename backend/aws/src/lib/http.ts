@@ -116,7 +116,9 @@ export function makeRouter(routes: Route[]) {
           return json(err.httpStatus, { error: { code: err.code, message: err.message } });
         }
         console.error(`[${method} ${path}]`, err);
-        return json(500, { error: { code: 'internal', message: (err as Error).message ?? 'Internal error' } });
+        // Never surface raw exception text (DB errors can carry table names,
+        // SDK internals or credential hints) — generic message only.
+        return json(500, { error: { code: 'internal', message: 'Internal server error' } });
       }
     }
 

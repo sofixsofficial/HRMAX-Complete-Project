@@ -101,10 +101,12 @@ export function AuditLogs() {
         const q = query(baseRef, ...constraints)
         const snap = await getDocs(q)
         // Snapshot data is untyped DocumentData — the docs are audit logs at runtime.
+        // Rows carry `timestamp` (client writer), `createdAt` (server writer), or
+        // both — display must fall back so no row renders as N/A.
         let allLogs: AuditLog[] = snap.docs.map(d => ({
           id: d.id,
           ...d.data(),
-          timestamp: (d.data() as any).timestamp?.toDate ? (d.data() as any).timestamp.toDate() : null,
+          timestamp: ((d.data() as any).timestamp ?? (d.data() as any).createdAt)?.toDate?.() ?? null,
         })) as AuditLog[]
         if (effectiveCompanyId) allLogs.reverse()
 

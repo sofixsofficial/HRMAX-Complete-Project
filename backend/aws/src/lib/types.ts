@@ -230,6 +230,9 @@ export const FULL_PERMISSIONS: string[] = [
   'reports.view', 'reports.create', 'reports.edit', 'reports.delete', 'reports.export', 'reports.download', 'reports.manage',
   'settings.view', 'settings.edit', 'settings.create', 'settings.delete', 'settings.approve', 'settings.manage',
   'companies.view', 'companies.create', 'companies.edit', 'companies.delete', 'companies.approve', 'companies.manage',
+  // Executives pages gate on executives.* (previously virtual — grantable only
+  // via the '*' wildcard roles, never toggeable in the role manager).
+  'executives.view', 'executives.create', 'executives.edit', 'executives.delete', 'executives.approve', 'executives.manage',
   'assets.view', 'assets.create', 'assets.edit', 'assets.delete', 'assets.approve', 'assets.manage',
 ];
 
