@@ -304,20 +304,8 @@ html {
   -webkit-mask-image: linear-gradient(to bottom, transparent 0%, #000 28%);
   mask-image: linear-gradient(to bottom, transparent 0%, #000 28%);
 }
-/* Day: brighten the night crop into the design art's rich blues (tamed
-   saturation so no electric band sits above the ridges) */
-.hero[data-theme='morning'] .hills,
-.hero[data-theme='afternoon'] .hills {
-  /* De-saturated + contrasty: ridges read as gray-blue atmospheric haze,
-     NOT milky saturated blue. */
-  filter: brightness(2.1) saturate(0.4) contrast(1.2);
-}
-/* Evening: dusk violet shift */
-.hero[data-theme='evening'] .hills {
-  /* Warm sepia dusk — blue fully pulled out. */
-  filter: brightness(1.3) saturate(0.5) sepia(0.45) hue-rotate(-15deg) contrast(1.1);
-}
-/* Unfiltered base fade painted OVER the (filtered) hills — melts the
+/* Photo shown exactly as cropped — no per-theme filters/tints. */
+/* Unfiltered base fade painted OVER the hills — melts the
    crop's bottom haze strip into each theme's dark base color so no
    foreign tint (e.g. blue at dusk) survives behind the stats. */
 .hero .hill-fade {
