@@ -3,8 +3,8 @@ import { View, Text, ScrollView, TouchableOpacity, TextInput, StyleSheet, Activi
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { useNavigation } from '@react-navigation/native';
-import { collection, query, where, onSnapshot } from 'firebase/firestore';
-import { db } from '../../config/firebase';
+import { collection, query, where, onSnapshot } from '../../aws/firestore-compat';
+import { db } from '../../aws/clients';
 import { Paths, File } from 'expo-file-system';
 import * as Sharing from 'expo-sharing';
 import { HeroBanner, PremiumCard, SegmentControl, StatusBadge, EmptyStateView, PremiumBottomSheet } from '../../components/PremiumComponents';

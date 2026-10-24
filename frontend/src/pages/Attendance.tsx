@@ -2,8 +2,8 @@
 import { errText } from '../aws/errors';
 import { useNavigate, useSearchParams } from 'react-router-dom'
 import { Clock, CheckCircle, XCircle, Search, Loader2, User, LogIn, LogOut, Filter, Building2, ThumbsUp, ThumbsDown, Ban, AlertCircle, RefreshCw, ChevronLeft, ChevronRight, Activity, Edit3, MapPin, Wifi, Shield, Camera, Globe, Smartphone, Crown, Eye } from 'lucide-react'
-import { collection, query, where, onSnapshot, orderBy } from 'firebase/firestore'
-import { db } from '../firebase/config'
+import { collection, query, where, onSnapshot, orderBy } from '../aws/firestore-compat'
+import { db } from '../aws/clients'
 import { Header } from '../components/Header'
 import { Modal } from '../components/Modal'
 import { useAuth } from '../context/AuthContext'
@@ -264,7 +264,7 @@ const [submittingRectify, setSubmittingRectify] = useState(false)
     const onErr = (err: any) => {
       console.error('[Attendance] onSnapshot error:', err?.message || err)
       if (err?.message?.includes('index')) {
-        console.warn('Create the required index at: https://console.firebase.google.com/v1/r/project/hrm-sofisx/firestore/indexes')
+        console.warn('Composite query unavailable — server-side index required.')
       }
       setLoading(false)
       setError('Failed to load attendance records. Retrying...')
@@ -488,8 +488,8 @@ const [submittingRectify, setSubmittingRectify] = useState(false)
 
       // Try cloud function first, fall back to direct Firestore
       try {
-        const { httpsCallable } = await import('firebase/functions')
-        const { functions: fns } = await import('../firebase/config')
+        const { httpsCallable } = await import('../aws/functions-compat')
+        const { functions: fns } = await import('../aws/clients')
         const markAttendance = httpsCallable(fns, 'markAttendance')
         const netInfo = getNetworkInfo()
         const result = await markAttendance({

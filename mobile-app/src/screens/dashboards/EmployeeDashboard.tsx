@@ -1,8 +1,8 @@
 import React, { useState, useMemo, useEffect, useRef } from 'react';
 import { View, Text, ScrollView, StyleSheet, RefreshControl, TouchableOpacity, Alert, Animated, Modal, TextInput } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
-import { doc, getDoc, query, where, onSnapshot, collection } from 'firebase/firestore';
-import { db } from '../../config/firebase';
+import { doc, getDoc, query, where, onSnapshot, collection } from '../../aws/firestore-compat';
+import { db } from '../../aws/clients';
 import { useAuth } from '../../context/AuthContext';
 import { useTheme, ThemeColors } from '../../context/ThemeContext';
 import { useEmployeePersonalStats } from '../../hooks/useEmployeePersonalStats';

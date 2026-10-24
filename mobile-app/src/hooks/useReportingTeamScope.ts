@@ -1,6 +1,6 @@
 import { useState, useEffect, useMemo, useRef } from 'react';
-import { collection, query, where, onSnapshot, doc, updateDoc, getDoc } from 'firebase/firestore';
-import { db } from '../config/firebase';
+import { collection, query, where, onSnapshot, doc, updateDoc, getDoc } from '../aws/firestore-compat';
+import { db } from '../aws/clients';
 
 export interface ReportingTeamScope {
   loading: boolean;

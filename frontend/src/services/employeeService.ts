@@ -11,9 +11,9 @@ import {
   setDoc,
   serverTimestamp,
   onSnapshot
-} from 'firebase/firestore';
-import { httpsCallable } from 'firebase/functions';
-import { auth, db, functions } from '../config/firebase';
+} from '../aws/firestore-compat';
+import { httpsCallable } from '../aws/functions-compat';
+import { auth, db, functions } from '../aws/clients';
 import type { Employee } from '../types/user';
 import { generateUniqueId } from './codeGenerator';
 import { createNotification } from './notificationService';
@@ -418,7 +418,7 @@ export const createEmployee = async (employee: Omit<Employee, 'id' | 'employeeId
   const username = employee.username || generateUsername(employeeId);
   const effectivePassword = employee.password || generateTempPassword();
 
-  // Create the Firebase Auth account + users/{uid} document via the
+  // Create the auth account + users/{uid} document via the
   // createStaffUser cloud function (Admin SDK). This keeps the caller's
   // session intact — client-side createUserWithEmailAndPassword would sign
   // the admin out and break every subsequent Firestore write.
@@ -616,7 +616,7 @@ export const updateEmployee = async (
 ): Promise<void> => {
   const docRef = doc(db, COLLECTION_NAME, id);
   const sanitized = stripUndefined(updates as Record<string, any>);
-  delete sanitized.password; // passwords are managed via Firebase Auth only
+  delete sanitized.password; // passwords are managed by the auth service only
   await updateDoc(docRef, sanitized);
 
   if (auditInfo) {

@@ -1,7 +1,7 @@
-import { collection, doc, getDocs, query, where, orderBy, onSnapshot } from 'firebase/firestore';
-import { db } from '../config/firebase';
-import { httpsCallable } from 'firebase/functions';
-import { functions } from '../config/firebase';
+import { collection, doc, getDocs, query, where, orderBy, onSnapshot } from '../aws/firestore-compat';
+import { db } from '../aws/clients';
+import { httpsCallable } from '../aws/functions-compat';
+import { functions } from '../aws/clients';
 import type { SupportTicket, TicketMessage } from '../types/user';
 
 const COLLECTION_NAME = 'tickets';

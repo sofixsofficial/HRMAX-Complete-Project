@@ -1,7 +1,7 @@
-import { collection, doc, getDocs, getDoc, query, where, orderBy, limit, onSnapshot } from 'firebase/firestore';
-import { db } from '../config/firebase';
-import { httpsCallable } from 'firebase/functions';
-import { functions } from '../config/firebase';
+import { collection, doc, getDocs, getDoc, query, where, orderBy, limit, onSnapshot } from '../aws/firestore-compat';
+import { db } from '../aws/clients';
+import { httpsCallable } from '../aws/functions-compat';
+import { functions } from '../aws/clients';
 
 export interface AppNotification {
   id: string;

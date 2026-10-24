@@ -3,7 +3,7 @@ import { errText } from '../aws/errors';
 import { Loader2 } from 'lucide-react'
 import { Modal } from './Modal'
 import { useAuth } from '../context/AuthContext'
-import { auth } from '../config/firebase'
+import { auth } from '../aws/clients'
 import { getEmployeeByUserId } from '../services/employeeService'
 import { createLeaveRequest, calcLeaveDays, isLeaveTypePaid, getEffectiveTiers, TIER_LABELS, requiresMasterAdminGate } from '../services/leaveService'
 import { logAudit } from '../services/auditLogService'

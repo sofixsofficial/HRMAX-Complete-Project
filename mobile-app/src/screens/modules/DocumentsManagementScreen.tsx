@@ -5,8 +5,8 @@ import {
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useNavigation } from '@react-navigation/native';
-import { collection, getDocs, addDoc, deleteDoc, doc, query, orderBy, serverTimestamp } from 'firebase/firestore';
-import { db } from '../../config/firebase';
+import { collection, getDocs, addDoc, deleteDoc, doc, query, orderBy, serverTimestamp } from '../../aws/firestore-compat';
+import { db } from '../../aws/clients';
 import { useAuth } from '../../context/AuthContext';
 import { useCompany } from '../../context/CompanyContext';
 import { HeroBanner, PremiumCard, PremiumSearchBar, StatusBadge, EmptyStateView, PremiumBottomSheet, FloatingActionButton } from '../../components/PremiumComponents';

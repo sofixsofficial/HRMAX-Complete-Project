@@ -1,5 +1,5 @@
 /**
- * firebase/functions-compatible httpsCallable → REST API POST.
+ * httpsCallable-style wrapper → REST API POST.
  * Every original callable maps to a REST route (or a /fn/ legacy shim).
  */
 

@@ -5,8 +5,8 @@ import {
   Building2, Users, UserCheck, ChevronDown, ChevronLeft, ChevronRight,
   Loader2, FileText, Calendar
 } from 'lucide-react'
-import { collection, getDocs, doc, updateDoc } from 'firebase/firestore'
-import { db } from '../firebase/config'
+import { collection, getDocs, doc, updateDoc } from '../aws/firestore-compat'
+import { db } from '../aws/clients'
 import { Header } from '../components/Header'
 import { useAuth } from '../context/AuthContext'
 import { logAudit } from '../services/auditLogService'

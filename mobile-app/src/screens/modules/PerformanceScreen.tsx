@@ -5,8 +5,8 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
-import { collection, getDocs, addDoc, updateDoc, doc, query, where, orderBy, serverTimestamp } from 'firebase/firestore';
-import { db } from '../../config/firebase';
+import { collection, getDocs, addDoc, updateDoc, doc, query, where, orderBy, serverTimestamp } from '../../aws/firestore-compat';
+import { db } from '../../aws/clients';
 import { useAuth } from '../../context/AuthContext';
 import { useCompany } from '../../context/CompanyContext';
 import { subscribeEmployees } from '../../services/employeeService';

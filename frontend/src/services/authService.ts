@@ -1,5 +1,5 @@
 /**
- * Firebase Authentication Service
+ * Authentication Service (Cognito)
  * Handles auth operations with custom claims
  */
 
@@ -14,8 +14,8 @@ import {
   updateProfile,
   onAuthStateChanged,
   getIdTokenResult
-} from 'firebase/auth';
-import type { User as FirebaseUser, AuthError } from 'firebase/auth';
+} from '../aws/auth-compat';
+import type { User as AuthUser, AuthError } from '../aws/auth-compat';
 import type { PermissionScopeMap } from './permissionConfig';
 import { 
   doc, 
@@ -29,9 +29,9 @@ import {
   where,
   serverTimestamp,
   deleteField
-} from 'firebase/firestore';
-import { httpsCallable } from 'firebase/functions';
-import { auth, db, functions } from '../firebase/config';
+} from '../aws/firestore-compat';
+import { httpsCallable } from '../aws/functions-compat';
+import { auth, db, functions } from '../aws/clients';
 import { ERROR_MESSAGES } from '../aws/errors';
 import type { User, UserRole } from '../types/user';
 
@@ -132,12 +132,12 @@ export const signUpCompany = async (
   adminName: string
 ): Promise<AuthResult> => {
   try {
-    // Create Firebase auth user
+    // Create auth user
     const userCredential = await createUserWithEmailAndPassword(auth, email, password);
-    const firebaseUser = userCredential.user;
+    const remoteUser = userCredential.user;
     
     // Update profile
-    await updateProfile(firebaseUser, { displayName: adminName });
+    await updateProfile(remoteUser, { displayName: adminName });
     
     // Create company directly in Firestore
     const companyRef = doc(collection(db, 'companies'));
@@ -151,14 +151,14 @@ export const signUpCompany = async (
       active: true,
       createdAt: serverTimestamp(),
       updatedAt: serverTimestamp(),
-      createdBy: firebaseUser.uid,
+      createdBy: remoteUser.uid,
       employeeCount: 1,
     });
     
     // Create user document with company-admin role — default to Pending approval
     const permissions = getPermissionArray('company-admin');
     const userData: User = {
-      id: firebaseUser.uid,
+      id: remoteUser.uid,
       email,
       name: adminName,
       role: 'company-admin',
@@ -177,7 +177,7 @@ export const signUpCompany = async (
       suspendedAt: null,
     };
     
-    await setDoc(doc(db, 'users', firebaseUser.uid), {
+    await setDoc(doc(db, 'users', remoteUser.uid), {
       ...userData,
       createdAt: serverTimestamp(),
       updatedAt: serverTimestamp(),
@@ -222,12 +222,12 @@ export const signIn = async (email: string, password: string): Promise<User> => 
 
   const attempt = async (): Promise<User> => {
     const userCredential = await signInWithEmailAndPassword(auth, trimmedEmail, trimmedPassword);
-    const firebaseUser = userCredential.user;
+    const remoteUser = userCredential.user;
 
-    const tokenResult = await getIdTokenResult(firebaseUser, true);
+    const tokenResult = await getIdTokenResult(remoteUser, true);
     const claims = tokenResult.claims as unknown as CustomClaims;
 
-    const userDoc = await getDoc(doc(db, 'users', firebaseUser.uid));
+    const userDoc = await getDoc(doc(db, 'users', remoteUser.uid));
 
     if (!userDoc.exists()) {
       throw new Error('User profile not found. Please contact support.');
@@ -254,7 +254,7 @@ export const signIn = async (email: string, password: string): Promise<User> => 
 
     // Non-critical: update lastLogin timestamp (failure should not block sign-in)
     try {
-      await updateDoc(doc(db, 'users', firebaseUser.uid), {
+      await updateDoc(doc(db, 'users', remoteUser.uid), {
         lastLoginAt: serverTimestamp(),
         lastLoginIp: '',
       });
@@ -304,8 +304,8 @@ export const signUp = signUpCompany;
 /**
  * Get user data (alias for backward compatibility)
  */
-export const getUserData = async (firebaseUser: any): Promise<User> => {
-  const userDoc = await getDoc(doc(db, 'users', firebaseUser.uid));
+export const getUserData = async (remoteUser: any): Promise<User> => {
+  const userDoc = await getDoc(doc(db, 'users', remoteUser.uid));
   if (!userDoc.exists()) {
     throw new Error('User not found');
   }
@@ -390,7 +390,7 @@ export const invalidateResetCodes = async (email: string): Promise<void> => {
  * Re-authenticate current user with their password (for sensitive operations)
  */
 export const reauthenticateUser = async (currentPassword: string): Promise<void> => {
-  const { reauthenticateWithCredential, EmailAuthProvider } = await import('firebase/auth');
+  const { reauthenticateWithCredential, EmailAuthProvider } = await import('../aws/auth-compat');
   const user = auth.currentUser;
   if (!user || !user.email) throw new Error('No user signed in');
   const credential = EmailAuthProvider.credential(user.email, currentPassword);
@@ -504,17 +504,17 @@ export const refreshUserClaims = async (): Promise<AuthResult | null> => {
  * Subscribe to auth state changes
  */
 export const onAuthChange = (callback: (user: User | null) => void) => {
-  return onAuthStateChanged(auth, async (firebaseUser) => {
-    if (!firebaseUser) {
+  return onAuthStateChanged(auth, async (remoteUser) => {
+    if (!remoteUser) {
       callback(null);
       return;
     }
     
     try {
-      const tokenResult = await getIdTokenResult(firebaseUser, true);
+      const tokenResult = await getIdTokenResult(remoteUser, true);
       const claims = tokenResult.claims as unknown as CustomClaims;
       
-      const userDoc = await getDoc(doc(db, 'users', firebaseUser.uid));
+      const userDoc = await getDoc(doc(db, 'users', remoteUser.uid));
       if (!userDoc.exists()) {
         callback(null);
         return;
@@ -531,9 +531,9 @@ export const onAuthChange = (callback: (user: User | null) => void) => {
       // Instead emit a minimal least-privilege user; the AuthContext realtime
       // user-doc listener replaces it with the full profile once reads recover.
       const fallback: User = {
-        id: firebaseUser.uid,
-        email: firebaseUser.email || '',
-        name: firebaseUser.displayName || firebaseUser.email || 'User',
+        id: remoteUser.uid,
+        email: remoteUser.email || '',
+        name: remoteUser.displayName || remoteUser.email || 'User',
         role: 'employee',
         companyId: null,
         departmentId: null,
@@ -744,19 +744,19 @@ export const acceptInvitation = async (
       throw new Error('Email does not match the invitation');
     }
     
-    // Create Firebase auth user
+    // Create auth user
     const userCredential = await createUserWithEmailAndPassword(auth, email, password);
-    const firebaseUser = userCredential.user;
+    const remoteUser = userCredential.user;
     
     // Update profile
-    await updateProfile(firebaseUser, { displayName: name });
+    await updateProfile(remoteUser, { displayName: name });
     
     // Get permissions for role
     const permissions = getPermissionArray(inviteData.role as UserRole);
     
     // Create user document
     const userData: User = {
-      id: firebaseUser.uid,
+      id: remoteUser.uid,
       email,
       name,
       role: inviteData.role as UserRole,
@@ -769,7 +769,7 @@ export const acceptInvitation = async (
       updatedAt: new Date(),
     };
     
-    await setDoc(doc(db, 'users', firebaseUser.uid), {
+    await setDoc(doc(db, 'users', remoteUser.uid), {
       ...userData,
       createdAt: serverTimestamp(),
       updatedAt: serverTimestamp(),
@@ -782,7 +782,7 @@ export const acceptInvitation = async (
       const existingEmpDoc = await getDoc(existingEmpRef);
       if (existingEmpDoc.exists()) {
         await updateDoc(existingEmpRef, {
-          userId: firebaseUser.uid,
+          userId: remoteUser.uid,
           email,
           avatar: userData.avatar,
           designation: inviteData.role === 'team-leader' ? 'Team Leader' : 'Executive',
@@ -803,11 +803,11 @@ export const acceptInvitation = async (
       }
       
       const employeeData = {
-        userId: firebaseUser.uid,
+        userId: remoteUser.uid,
         name,
         email,
         avatar: userData.avatar,
-        employeeId: `EMP-${firebaseUser.uid.slice(-4).toUpperCase()}`,
+        employeeId: `EMP-${remoteUser.uid.slice(-4).toUpperCase()}`,
         department: departmentName,
         departmentId: inviteData.departmentId || '',
         departmentColor,
@@ -825,12 +825,12 @@ export const acceptInvitation = async (
     // Update invitation status
     await updateDoc(inviteDocRef, {
       status: 'accepted',
-      acceptedBy: firebaseUser.uid,
+      acceptedBy: remoteUser.uid,
       acceptedAt: serverTimestamp(),
     });
     
     // Get token with claims
-    const tokenResult = await getIdTokenResult(firebaseUser, true);
+    const tokenResult = await getIdTokenResult(remoteUser, true);
     const claims = tokenResult.claims as unknown as CustomClaims;
     
     return { user: userData, claims };
@@ -916,28 +916,28 @@ export const setupMasterAdmin = async (
   name: string
 ): Promise<AuthResult> => {
   try {
-    // Create Firebase auth user first (needed to be authenticated for Firestore queries)
+    // Create auth user first (needed for the bootstrap session)
     const userCredential = await createUserWithEmailAndPassword(auth, email, password);
-    const firebaseUser = userCredential.user;
+    const remoteUser = userCredential.user;
     
     // Now check if any master admin already exists (we're authenticated, query will work)
     const q = query(collection(db, 'users'), where('role', '==', 'master-admin'));
     const snapshot = await getDocs(q);
-    const existingAdmins = snapshot.docs.filter(d => d.id !== firebaseUser.uid);
+    const existingAdmins = snapshot.docs.filter(d => d.id !== remoteUser.uid);
     
     if (existingAdmins.length > 0) {
       // A master admin already exists — clean up the auth user we just created
-      await firebaseUser.delete().catch(() => {});
+      await remoteUser.delete().catch(() => {});
       throw new Error('A master admin already exists. Please contact them for access.');
     }
     
     // Update profile
-    await updateProfile(firebaseUser, { displayName: name });
+    await updateProfile(remoteUser, { displayName: name });
     
     // Create user document
     const permissions = getPermissionArray('master-admin');
     const userData: User = {
-      id: firebaseUser.uid,
+      id: remoteUser.uid,
       email,
       name,
       role: 'master-admin',
@@ -950,7 +950,7 @@ export const setupMasterAdmin = async (
       updatedAt: new Date(),
     };
     
-    await setDoc(doc(db, 'users', firebaseUser.uid), {
+    await setDoc(doc(db, 'users', remoteUser.uid), {
       ...userData,
       createdAt: serverTimestamp(),
       updatedAt: serverTimestamp(),

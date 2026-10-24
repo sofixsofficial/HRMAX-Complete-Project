@@ -8,8 +8,8 @@ import {
   HelpCircle, LogIn, LogOut, Trash2, Pencil, Plus, ThumbsUp,
   ThumbsDown, UserCheck
 } from 'lucide-react'
-import { collection, getDocs, query, orderBy, limit, where } from 'firebase/firestore'
-import { db } from '../firebase/config'
+import { collection, getDocs, query, orderBy, limit, where } from '../aws/firestore-compat'
+import { db } from '../aws/clients'
 import { Header } from '../components/Header'
 import { useAuth } from '../context/AuthContext'
 import { useCompany } from '../context/CompanyContext'

@@ -1,5 +1,5 @@
 /**
- * firebase/storage-compatible upload/delete backed by presigned S3 URLs.
+ * Storage-compatible upload/delete backed by presigned S3 URLs.
  * API: ref(storage, path) → { uploadBytes, getDownloadURL, deleteObject }.
  *
  * Uses the API's presign endpoint so authz stays server-side.

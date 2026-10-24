@@ -2,8 +2,8 @@ import {
   collection, query, where, onSnapshot, 
   doc, addDoc, updateDoc, getDocs, getDoc, deleteDoc,
   serverTimestamp 
-} from 'firebase/firestore';
-import { db } from '../config/firebase';
+} from '../aws/firestore-compat';
+import { db } from '../aws/clients';
 import type { AttendanceRecord, Employee, ApprovalTier, ApprovalLevel } from '../types/user';
 import { getCompanySettings } from './shiftService';
 import { getLeaveRequestsByUser, resolveApplicantRole, resolveMasterAdminApproverId, findManagingTeamLeaderForExec, getReviewerRole } from './leaveService';
@@ -291,8 +291,8 @@ export const checkOut = async (attendanceId: string): Promise<AttendanceRecord |
 
   if (data.companyId) {
     try {
-      const { httpsCallable } = await import('firebase/functions');
-      const { functions: fns } = await import('../config/firebase');
+      const { httpsCallable } = await import('../aws/functions-compat');
+      const { functions: fns } = await import('../aws/clients');
       const markAttendance = httpsCallable(fns, 'markAttendance');
       await markAttendance({
         action: 'check-out',

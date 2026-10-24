@@ -1,6 +1,6 @@
-import { collection, query, where, getDocs, doc, getDoc } from 'firebase/firestore';
-import { httpsCallable } from 'firebase/functions';
-import { db, functions } from '../config/firebase';
+import { collection, query, where, getDocs, doc, getDoc } from '../aws/firestore-compat';
+import { httpsCallable } from '../aws/functions-compat';
+import { db, functions } from '../aws/clients';
 import { PayrollRun, PayrollItem, Employee, AttendanceRecord, LeaveRequest, Holiday, SalaryStructure } from '../types/user';
 import { toDateSafe } from '../utils/dateUtils';
 import { getApprovedLeaveDaysForMonth, computeLeaveEncashmentDays } from './leaveService';

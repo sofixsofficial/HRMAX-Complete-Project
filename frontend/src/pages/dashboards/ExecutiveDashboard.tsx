@@ -6,8 +6,8 @@ import {
   PartyPopper, Cake, Crown,
   ArrowUpRight,
 } from 'lucide-react'
-import { collection, query, where, onSnapshot } from 'firebase/firestore'
-import { db } from '../../config/firebase'
+import { collection, query, where, onSnapshot } from '../../aws/firestore-compat'
+import { db } from '../../aws/clients'
 import { Header } from '../../components/Header'
 import { DashboardHero } from '../../components/DashboardHero'
 import { MissedPunchAlertCard } from '../../components/MissedPunchAlertCard'

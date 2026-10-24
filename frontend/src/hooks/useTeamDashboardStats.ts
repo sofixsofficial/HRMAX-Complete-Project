@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react'
-import { collection, query, where, onSnapshot, type FirestoreError } from 'firebase/firestore'
-import { auth, db } from '../config/firebase'
+import { collection, query, where, onSnapshot, type FirestoreError } from '../aws/firestore-compat'
+import { auth, db } from '../aws/clients'
 import { isDate } from '../utils/dateUtils'
 import { getActionableLeaveTier } from '../services/leaveService'
 import { useAuth } from '../context/AuthContext'

@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { View, Text, ScrollView, TouchableOpacity, StyleSheet, RefreshControl, TextInput, Alert } from 'react-native';
-import { doc, getDoc, updateDoc, serverTimestamp } from 'firebase/firestore';
-import { db } from '../../config/firebase';
+import { doc, getDoc, updateDoc, serverTimestamp } from '../../aws/firestore-compat';
+import { db } from '../../aws/clients';
 import { useAuth } from '../../context/AuthContext';
 import { useTheme, ThemeColors } from '../../context/ThemeContext';
 import { Icon } from '../../utils/icons';

@@ -1,7 +1,7 @@
-import { collection, query, where, getDocs, doc } from 'firebase/firestore';
-import { db } from '../config/firebase';
-import { httpsCallable } from 'firebase/functions';
-import { functions } from '../config/firebase';
+import { collection, query, where, getDocs, doc } from '../aws/firestore-compat';
+import { db } from '../aws/clients';
+import { httpsCallable } from '../aws/functions-compat';
+import { functions } from '../aws/clients';
 import { SalaryStructure } from '../types/user';
 
 const ref = collection(db, 'salaryStructures');

@@ -1,4 +1,4 @@
-import { where } from 'firebase/firestore'
+import { where } from '../aws/firestore-compat'
 
 /**
  * Company ids for the active scope: the selected company, or ALL authorized

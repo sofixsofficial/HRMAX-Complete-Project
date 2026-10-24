@@ -1,8 +1,8 @@
 import { 
   collection, getDocs, doc, getDoc, addDoc, updateDoc, deleteDoc,
   query, where, orderBy, serverTimestamp
-} from 'firebase/firestore';
-import { db } from '../config/firebase';
+} from '../aws/firestore-compat';
+import { db } from '../aws/clients';
 import type { SupportTicket, TicketMessage } from '../types/user';
 
 const COLLECTION_NAME = 'tickets';

@@ -2,8 +2,8 @@ import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { View, Text, StyleSheet, Animated, AccessibilityInfo, Pressable, ActivityIndicator } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import Svg, { Circle, Ellipse, Path, Rect } from 'react-native-svg';
-import { collection, getDocs, query, where } from 'firebase/firestore';
-import { db } from '../config/firebase';
+import { collection, getDocs, query, where } from '../aws/firestore-compat';
+import { db } from '../aws/clients';
 import { useAuth } from '../context/AuthContext';
 import { useCompany } from '../context/CompanyContext';
 import { useTodayAttendance } from '../hooks/useTodayAttendance';

@@ -1,8 +1,8 @@
 import React, { createContext, useContext, useState, useCallback, useEffect, useRef } from 'react';
-import { onAuthChange, signIn as firebaseSignIn, logOut as firebaseLogOut } from '../services/authService';
+import { onAuthChange, signIn as remoteSignIn, logOut as remoteLogOut } from '../services/authService';
 import { isSameSet, LEGACY_ROLE_DEFAULT_PERMS, isCorePermissionKey } from '../services/permissionConfig';
-import { auth, db } from '../config/firebase';
-import { doc, getDoc, onSnapshot } from 'firebase/firestore';
+import { auth, db } from '../aws/clients';
+import { doc, getDoc, onSnapshot } from '../aws/firestore-compat';
 import type { User, UserRole } from '../types/user';
 
 interface AuthContextType {
@@ -29,9 +29,9 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   // Listen for auth state changes
   useEffect(() => {
-    const unsubscribe = onAuthChange((firebaseUser) => {
+    const unsubscribe = onAuthChange((remoteUser) => {
       if (!isSigningIn.current) {
-        setUser(firebaseUser);
+        setUser(remoteUser);
         setIsLoading(false);
       }
     });
@@ -61,7 +61,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     isSigningIn.current = true;
     setIsLoading(true);
     try {
-      const userData = await firebaseSignIn(email, password);
+      const userData = await remoteSignIn(email, password);
       setUser(userData);
     } catch (error) {
       console.error('Login error:', error);
@@ -77,7 +77,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     try {
       localStorage.clear();
       sessionStorage.clear();
-      await firebaseLogOut();
+      await remoteLogOut();
       setUser(null);
     } catch (error) {
       console.error('Logout error:', error);
@@ -90,7 +90,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const refreshUser = useCallback(async () => {
     try {
       if (auth.currentUser) {
-        // Force refresh the Firebase auth token to get latest custom claims
+        // Force refresh the auth token to get latest claims
         await auth.currentUser.getIdToken(true);
         // Re-fetch the Firestore user document to get latest role/permissions
         const userDoc = await getDoc(doc(db, 'users', auth.currentUser.uid));

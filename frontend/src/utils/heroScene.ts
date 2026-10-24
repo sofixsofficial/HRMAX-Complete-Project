@@ -8,8 +8,8 @@
  *   company settings timezone (if valid)  →  localStorage override  →  user's
  *   device timezone (Intl resolved, i.e. the browser the user is on).
  */
-import { doc, getDoc } from 'firebase/firestore'
-import { db } from '../config/firebase'
+import { doc, getDoc } from '../aws/firestore-compat'
+import { db } from '../aws/clients'
 
 export type DayPeriod = 'morning' | 'afternoon' | 'evening' | 'night'
 

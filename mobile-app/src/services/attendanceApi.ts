@@ -1,6 +1,6 @@
-import { httpsCallable } from 'firebase/functions';
-import { functions, db } from '../config/firebase';
-import { collection, query, getDocs, where, doc, getDoc } from 'firebase/firestore';
+import { httpsCallable } from '../aws/functions-compat';
+import { functions, db } from '../aws/clients';
+import { collection, query, getDocs, where, doc, getDoc } from '../aws/firestore-compat';
 import NetInfo from '@react-native-community/netinfo';
 import * as Location from 'expo-location';
 import * as Device from 'expo-device';

@@ -6,8 +6,8 @@ import {
   query,
   where,
   serverTimestamp
-} from 'firebase/firestore';
-import { db } from '../config/firebase';
+} from '../aws/firestore-compat';
+import { db } from '../aws/clients';
 
 export interface Invitation {
   id: string;

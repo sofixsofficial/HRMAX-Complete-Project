@@ -1,5 +1,5 @@
 /**
- * firebase/functions compatibility (mobile) → REST API callables.
+ * Callable-function compatibility (mobile) → REST API callables.
  */
 
 import { getIdToken } from './auth';

@@ -5,8 +5,8 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
-import { collection, query, where, getDocs, doc, updateDoc } from 'firebase/firestore';
-import { db } from '../../config/firebase';
+import { collection, query, where, getDocs, doc, updateDoc } from '../../aws/firestore-compat';
+import { db } from '../../aws/clients';
 import { useAuth } from '../../context/AuthContext';
 import { getAllCompanies } from '../../services/companyService';
 import { HeroBanner, PremiumCard, PremiumSearchBar, StatusBadge, EmptyStateView, PremiumModal, PremiumBottomSheet } from '../../components/PremiumComponents';

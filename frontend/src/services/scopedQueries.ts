@@ -1,5 +1,5 @@
-import { collection, query, where, Query, CollectionReference, QueryConstraint, orderBy, limit } from 'firebase/firestore'
-import { db } from '../config/firebase'
+import { collection, query, where, Query, CollectionReference, QueryConstraint, orderBy, limit } from '../aws/firestore-compat'
+import { db } from '../aws/clients'
 import type { User } from '../types/user'
 
 export interface ScopedQueryConfig {

@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
-import { collection, query, where, onSnapshot, doc, type FirestoreError } from 'firebase/firestore';
-import { auth, db } from '../firebase/config';
+import { collection, query, where, onSnapshot, doc, type FirestoreError } from '../aws/firestore-compat';
+import { auth, db } from '../aws/clients';
 import { isDate } from '../utils/dateUtils';
 import { isActiveMissedPunchRecord, isWithinRecentWindow, recentMissPunchSinceDate } from '../utils/attendanceStatus';
 import { buildScopedQuery } from '../services/scopedQueries';

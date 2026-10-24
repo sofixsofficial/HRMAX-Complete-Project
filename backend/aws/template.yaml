@@ -25,6 +25,7 @@ Globals:
         TABLE_NAME: !Ref HRMaxTable
         COGNITO_USER_POOL_ID: !Ref UserPool
         COGNITO_CLIENT_ID: !Ref UserPoolClient
+        FILES_BUCKET: !Ref FilesBucket
         EMAIL_FROM: !Ref EmailFrom
         EMAIL_FROM_NAME: HR MAX
         APP_URL: !If [HasAppDomain, !Sub 'https://${AppDomain}', !Sub 'https://${WebDistribution.DomainName}']

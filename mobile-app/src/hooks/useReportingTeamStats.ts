@@ -1,6 +1,6 @@
 import { useState, useEffect, useMemo } from 'react';
-import { collection, query, where, onSnapshot } from 'firebase/firestore';
-import { db } from '../config/firebase';
+import { collection, query, where, onSnapshot } from '../aws/firestore-compat';
+import { db } from '../aws/clients';
 import { useReportingTeamScope } from './useReportingTeamScope';
 import { isActiveMissedPunchRecord, isWithinRecentWindow, recentMissPunchSinceDate } from '../utils/attendanceStatus';
 import { getActionableMissedPunchTier } from '../services/attendanceApi';

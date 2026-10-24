@@ -96,7 +96,7 @@ export interface DocumentSnapshot {
   readonly id: string;
   readonly ref: DocumentReference;
   readonly metadata: SnapshotMetadata;
-  /** Real Firebase: `exists()` is a method with a type predicate. */
+  /** Compat: `exists()` is a method with a type predicate. */
   exists(): this is QueryDocumentSnapshot;
   data(options?: SnapshotOptions): DocumentData | undefined;
   get(fieldPath: string, options?: SnapshotOptions): unknown;
@@ -225,7 +225,7 @@ export class Query {
   }
 }
 
-/** Real Firebase: CollectionReference extends Query. */
+/** Compat: CollectionReference extends Query. */
 export class CollectionReference extends Query {
   constructor(_path: string) {
     super(_path, []);

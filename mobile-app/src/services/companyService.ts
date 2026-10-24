@@ -1,11 +1,11 @@
 import {
   collection, getDocs, getDoc, doc, query, where,
   onSnapshot,
-} from 'firebase/firestore';
-import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
-import { db, storage } from '../config/firebase';
-import { httpsCallable } from 'firebase/functions';
-import { functions } from '../config/firebase';
+} from '../aws/firestore-compat';
+import { ref, uploadBytes, getDownloadURL } from '../aws/storage-compat';
+import { db, storage } from '../aws/clients';
+import { httpsCallable } from '../aws/functions-compat';
+import { functions } from '../aws/clients';
 
 const COLLECTION_NAME = 'companies';
 const companiesRef = collection(db, COLLECTION_NAME);

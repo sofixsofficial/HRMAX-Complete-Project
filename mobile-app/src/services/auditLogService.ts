@@ -1,5 +1,5 @@
-import { doc, setDoc, serverTimestamp } from 'firebase/firestore';
-import { db } from '../config/firebase';
+import { doc, setDoc, serverTimestamp } from '../aws/firestore-compat';
+import { db } from '../aws/clients';
 
 export const ACTION_MODULES = [
   'All', 'Employees', 'Attendance', 'Leave', 'Payroll', 'Roles & Permissions',

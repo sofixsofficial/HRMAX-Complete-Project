@@ -3,8 +3,8 @@ import { View, Text, ScrollView, StyleSheet, RefreshControl, TouchableOpacity, A
 import { useNavigation } from '@react-navigation/native';
 import { useAuth } from '../../context/AuthContext';
 import { useTheme, ThemeColors } from '../../context/ThemeContext';
-import { db } from '../../config/firebase';
-import { collection, query, where, getDocs, orderBy, limit, doc, getDoc, updateDoc } from 'firebase/firestore';
+import { db } from '../../aws/clients';
+import { collection, query, where, getDocs, orderBy, limit, doc, getDoc, updateDoc } from '../../aws/firestore-compat';
 import { Paths, File } from 'expo-file-system';
 import * as Sharing from 'expo-sharing';
 import { Icon } from '../../utils/icons';

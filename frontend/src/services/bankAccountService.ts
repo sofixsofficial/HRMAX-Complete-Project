@@ -1,5 +1,5 @@
-import { collection, doc, getDocs, addDoc, updateDoc, deleteDoc, query, where, serverTimestamp } from 'firebase/firestore'
-import { db } from '../config/firebase'
+import { collection, doc, getDocs, addDoc, updateDoc, deleteDoc, query, where, serverTimestamp } from '../aws/firestore-compat'
+import { db } from '../aws/clients'
 import type { BankAccount } from '../types/employeeProfile'
 
 const getCol = (employeeId: string) => collection(db, 'employees', employeeId, 'bankAccounts')

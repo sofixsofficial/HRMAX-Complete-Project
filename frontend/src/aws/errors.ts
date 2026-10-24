@@ -17,7 +17,7 @@ export const ERROR_MESSAGES = {
   generic: 'Something went wrong. Please try again.',
 } as const;
 
-/** Firebase-style codes carried on thrown errors so existing UI switches keep working. */
+/** Auth-style codes carried on thrown errors so existing UI switches keep working. */
 export const ERROR_CODES = {
   invalidCredential: 'auth/invalid-credential',
   invalidEmail: 'auth/invalid-email',
@@ -51,7 +51,7 @@ export function consumeSessionExpired(): boolean {
   return false;
 }
 
-/** Normalized, display-safe error. `.code` mirrors Firebase-style codes. */
+/** Normalized, display-safe error. `.code` mirrors Auth-style codes. */
 export class FriendlyError extends Error {
   code: string;
   status?: number;
@@ -146,7 +146,7 @@ export function safeDisplayText(msg: unknown): string {
  * Normalize any thrown value to a display-safe message for catch blocks.
  *
  * Use this INSTEAD of raw `err.message` so backend/provider details (tokens,
- * stack traces, Firebase internals) are never surfaced. It routes through
+ * stack traces, SDK internals) are never surfaced. It routes through
  * `toDisplayError`, so network / session-expired / access-denied errors get
  * their exact taxonomy message, and unsafe backend text falls back to `fallback`
  * (a contextual hint like 'Failed to send email') rather than a raw leak.

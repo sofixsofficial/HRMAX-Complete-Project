@@ -3,7 +3,7 @@ import { useNavigate, Link } from 'react-router-dom';
 import { Mail, ArrowLeft, Loader2, CheckCircle, Lock, Shield, Zap, ArrowRight } from 'lucide-react';
 import { Logo } from '../../components/Logo';
 import { generateResetCode } from '../../services/authService';
-import { getFunctions, httpsCallable } from 'firebase/functions';
+import { getFunctions, httpsCallable } from '../../aws/functions-compat';
 import { ERROR_MESSAGES, toDisplayError, validateEmail } from '../../aws/errors';
 import '../../pages/Login.css';
 

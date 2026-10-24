@@ -15,15 +15,6 @@
     "noEmit": true,
     "jsx": "react-jsx",
 
-    /* AWS shims replace the firebase SDK */
-    "paths": {
-      "firebase/app": ["./src/aws/firebase-app"],
-      "firebase/auth": ["./src/aws/firebase-auth"],
-      "firebase/firestore": ["./src/aws/firebase-firestore"],
-      "firebase/functions": ["./src/aws/firebase-functions"],
-      "firebase/storage": ["./src/aws/firebase-storage"]
-    },
-
     /* Linting */
     "noUnusedLocals": false,
     "noUnusedParameters": false,

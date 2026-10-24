@@ -1,5 +1,5 @@
-import { doc, getDoc } from 'firebase/firestore'
-import { db } from '../config/firebase'
+import { doc, getDoc } from '../aws/firestore-compat'
+import { db } from '../aws/clients'
 import type { Company } from '../types/user'
 
 export interface PayslipOptions {

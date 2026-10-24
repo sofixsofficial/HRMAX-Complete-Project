@@ -11,9 +11,9 @@ import {
   onSnapshot,
   serverTimestamp,
   writeBatch
-} from 'firebase/firestore';
-import { httpsCallable } from 'firebase/functions';
-import { db, functions } from '../config/firebase';
+} from '../aws/firestore-compat';
+import { httpsCallable } from '../aws/functions-compat';
+import { db, functions } from '../aws/clients';
 import type { Company, CompanyAttendanceSettings, CompanyPayrollSettings } from '../types/user';
 import { generateUniqueCode } from './codeGenerator';
 

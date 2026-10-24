@@ -9,9 +9,9 @@ import {
   query,
   where,
   serverTimestamp
-} from 'firebase/firestore';
-import { httpsCallable } from 'firebase/functions';
-import { db, functions } from '../config/firebase';
+} from '../aws/firestore-compat';
+import { httpsCallable } from '../aws/functions-compat';
+import { db, functions } from '../aws/clients';
 import type { SalarySlip } from '../types/user';
 
 const COLLECTION_NAME = 'salarySlips';

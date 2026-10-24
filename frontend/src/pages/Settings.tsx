@@ -8,8 +8,8 @@ import { usePermissionScope } from '../hooks/usePermissionScope'
 import { updateUserProfile, updateUserPassword, reauthenticateUser } from '../services/authService'
 import { logAudit } from '../services/auditLogService'
 import { useNavigate, useSearchParams } from 'react-router-dom'
-import { collection, doc, getDoc, getDocs, query, orderBy, limit } from 'firebase/firestore'
-import { db } from '../config/firebase'
+import { collection, doc, getDoc, getDocs, query, orderBy, limit } from '../aws/firestore-compat'
+import { db } from '../aws/clients'
 import './Settings.css'
 
 export function Settings() {

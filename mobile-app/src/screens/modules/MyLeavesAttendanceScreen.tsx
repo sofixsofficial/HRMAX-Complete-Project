@@ -7,11 +7,11 @@ import { useAuth } from '../../context/AuthContext';
 import { useTheme, ThemeColors } from '../../context/ThemeContext';
 import { useCompany } from '../../context/CompanyContext';
 import { useEmployeePersonalStats } from '../../hooks/useEmployeePersonalStats';
-import { db } from '../../config/firebase';
+import { db } from '../../aws/clients';
 import {
   collection, query, where, getDocs, orderBy, limit, doc, getDoc,
   updateDoc, onSnapshot,
-} from 'firebase/firestore';
+} from '../../aws/firestore-compat';
 import { requestPunchRectification, getRecordEffectiveMissedPunchTiers } from '../../services/attendanceApi';
 import { notifyPunchRectificationRequested } from '../../services/notificationService';
 import { isActiveMissedPunchRecord } from '../../utils/attendanceStatus';

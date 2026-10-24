@@ -1,8 +1,8 @@
 import React, { createContext, useContext, useState, useCallback, useEffect, useRef } from 'react';
 import { safeStore } from '../utils/safeStorage';
-import { onAuthChange, signIn as firebaseSignIn, logOut as firebaseLogOut } from '../services/authService';
-import { auth, db } from '../config/firebase';
-import { doc, getDoc, onSnapshot } from 'firebase/firestore';
+import { onAuthChange, signIn as remoteSignIn, logOut as remoteLogOut } from '../services/authService';
+import { auth, db } from '../aws/clients';
+import { doc, getDoc, onSnapshot } from '../aws/firestore-compat';
 import { isCorePermissionKey } from '../services/permissionConfig';
 import type { User, UserRole } from '../types/user';
 
@@ -77,12 +77,12 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   // Listen for auth state changes
   useEffect(() => {
-    const unsubscribe = onAuthChange((firebaseUser) => {
+    const unsubscribe = onAuthChange((remoteUser) => {
       if (!isSigningIn.current) {
-        setUser(firebaseUser);
+        setUser(remoteUser);
         setIsLoading(false);
-        if (firebaseUser) {
-          safeStore.setItem(USER_CACHE_KEY, JSON.stringify(firebaseUser)).catch(() => {});
+        if (remoteUser) {
+          safeStore.setItem(USER_CACHE_KEY, JSON.stringify(remoteUser)).catch(() => {});
         } else {
           safeStore.deleteItem(USER_CACHE_KEY).catch(() => {});
         }
@@ -116,7 +116,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
     const checkReportingManager = async () => {
       try {
-        const { collection, query, where, getDocs } = await import('firebase/firestore');
+        const { collection, query, where, getDocs } = await import('../aws/firestore-compat');
         const empQuery = query(collection(db, 'employees'), where('userId', '==', user.id));
         const empSnap = await getDocs(empQuery);
         if (!empSnap.empty) {
@@ -131,7 +131,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const login = useCallback(async (email: string, password: string) => {
     isSigningIn.current = true;
     try {
-      const userData = await firebaseSignIn(email, password);
+      const userData = await remoteSignIn(email, password);
       setUser(userData);
       await safeStore.setItem(USER_CACHE_KEY, JSON.stringify(userData));
     } catch (error) {
@@ -146,7 +146,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     setIsLoading(true);
     try {
       await safeStore.deleteItem(USER_CACHE_KEY);
-      await firebaseLogOut();
+      await remoteLogOut();
       setUser(null);
       setIsReportingManager(false);
     } catch (error) {

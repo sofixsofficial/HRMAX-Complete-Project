@@ -16,8 +16,8 @@ import {
   Users,
   UserX,
 } from 'lucide-react'
-import { collection, getDocs, query, where } from 'firebase/firestore'
-import { db } from '../config/firebase'
+import { collection, getDocs, query, where } from '../aws/firestore-compat'
+import { db } from '../aws/clients'
 import { useAuth } from '../context/AuthContext'
 import { useCompany } from '../context/CompanyContext'
 import { useClock } from '../context/ClockContext'

@@ -1,5 +1,5 @@
 /**
- * AWS auth module for mobile (React Native) — firebase/auth-compatible
+ * AWS auth module for mobile (React Native) — auth-compat
  * surface backed by Amazon Cognito. Tokens persist in SecureStore via
  * safeStore; everything else mirrors the web shim.
  */
@@ -27,7 +27,7 @@ export interface AwsUser {
   delete(): Promise<void>;
 }
 
-/** firebase/auth-compatible credential result (the app reads `.user`). */
+/** auth-compat credential result (the app reads `.user`). */
 export interface UserCredential {
   user: AwsUser;
   operationType?: string;
@@ -36,7 +36,7 @@ export interface UserCredential {
   credential?: unknown;
 }
 
-/** firebase/auth-compatible Auth instance (the app reads `auth.currentUser`). */
+/** auth-compat Auth instance (the app reads `auth.currentUser`). */
 export interface Auth {
   currentUser: AwsUser | null;
 }
@@ -187,12 +187,12 @@ function buildUser(tokens: TokenSet): AwsUser {
 }
 
 // ---------------------------------------------------------------------------
-// firebase/auth-compatible exports
+// auth-compat exports
 // ---------------------------------------------------------------------------
 
 /**
  * Live Auth singleton — `getAuth()` hands out this object so `auth.currentUser`
- * always reflects the current session (mirrors the Firebase SDK).
+ * always reflects the current session (mirrors standard auth-SDK behaviour).
  */
 const authInstance: Auth = {
   get currentUser(): AwsUser | null {
@@ -250,7 +250,7 @@ export async function signInWithEmailAndPassword(_auth: unknown, email: string, 
 export async function createUserWithEmailAndPassword(_auth: unknown, email: string, password: string): Promise<UserCredential> {
   try {
     // Cognito self sign-up. The pool's PreSignUp trigger auto-confirms the
-    // user and marks the email verified (Firebase parity: no code-entry step).
+    // user and marks the email verified (parity: no code-entry step).
     await cognitoCall('SignUp', {
       Username: email,
       Password: password,
@@ -259,7 +259,7 @@ export async function createUserWithEmailAndPassword(_auth: unknown, email: stri
   } catch (err) {
     throw mapError(err as Error & { code?: string });
   }
-  // Firebase parity: createUserWithEmailAndPassword returns an already
+  // Parity: createUserWithEmailAndPassword returns an already
   // signed-in credential; the PreSignUp trigger guarantees sign-in succeeds.
   return signInWithEmailAndPassword(_auth, email, password);
 }

@@ -5,9 +5,9 @@ import {
   Loader2, Building2, Users, FolderOpen, ChevronLeft, ChevronRight,
   AlertCircle, CheckCircle, X, ExternalLink
 } from 'lucide-react'
-import { collection, getDocs, doc, deleteDoc, updateDoc } from 'firebase/firestore'
-import { ref, deleteObject } from 'firebase/storage'
-import { db, storage } from '../firebase/config'
+import { collection, getDocs, doc, deleteDoc, updateDoc } from '../aws/firestore-compat'
+import { ref, deleteObject } from '../aws/storage-compat'
+import { db, storage } from '../aws/clients'
 import { Header } from '../components/Header'
 import { useAuth } from '../context/AuthContext'
 import { useCompany } from '../context/CompanyContext'
@@ -304,7 +304,7 @@ export function DocumentsManagement() {
     if (!confirm(`Are you sure you want to delete "${doc.docName}"? This action cannot be undone.`)) return
     setDeletingId(doc.id)
     try {
-      // Delete from Firebase Storage if it's an employee-field document
+      // Delete from storage if it's an employee-field document
       if (doc.source === 'employee-field' && doc.storagePath) {
         const storageRef = ref(storage, doc.storagePath)
         await deleteObject(storageRef)

@@ -1,6 +1,6 @@
 import React, { createContext, useContext, useState, useEffect, useCallback, useMemo } from 'react'
-import { collection, getDocs, query, where, doc, getDoc } from 'firebase/firestore'
-import { db } from '../config/firebase'
+import { collection, getDocs, query, where, doc, getDoc } from '../aws/firestore-compat'
+import { db } from '../aws/clients'
 import { useAuth } from './AuthContext'
 import { TLFilterContext } from './TLFilterContext'
 

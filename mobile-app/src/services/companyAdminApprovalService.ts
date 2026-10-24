@@ -1,10 +1,10 @@
 import {
   collection, doc,
   query, where, onSnapshot,
-} from 'firebase/firestore';
-import { db } from '../config/firebase';
-import { httpsCallable } from 'firebase/functions';
-import { functions } from '../config/firebase';
+} from '../aws/firestore-compat';
+import { db } from '../aws/clients';
+import { httpsCallable } from '../aws/functions-compat';
+import { functions } from '../aws/clients';
 import type { User } from '../types/user';
 
 export function subscribeCompanyAdmins(callback: (admins: User[]) => void): () => void {

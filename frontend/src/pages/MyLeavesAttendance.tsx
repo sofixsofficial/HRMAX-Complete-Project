@@ -4,8 +4,8 @@ import {
   CalendarDays, CalendarClock, Clock, Edit3, AlertCircle, Info,
   Wallet, ArrowRight, CheckCircle2, Loader2, Eye,
 } from 'lucide-react'
-import { collection, query, where, onSnapshot } from 'firebase/firestore'
-import { db } from '../config/firebase'
+import { collection, query, where, onSnapshot } from '../aws/firestore-compat'
+import { db } from '../aws/clients'
 import { Header } from '../components/Header'
 import { Modal } from '../components/Modal'
 import { Pagination } from '../components/Pagination'

@@ -8,8 +8,8 @@ import {
 } from 'lucide-react'
 import { useAuth } from '../context/AuthContext'
 import type { UserRole } from '../types/user'
-import { collection, query, where, onSnapshot } from 'firebase/firestore'
-import { db } from '../firebase/config'
+import { collection, query, where, onSnapshot } from '../aws/firestore-compat'
+import { db } from '../aws/clients'
 import { useRealtimeDashboard } from '../hooks/useRealtimeDashboard'
 
 type RoleOption = UserRole

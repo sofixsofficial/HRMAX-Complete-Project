@@ -1,7 +1,7 @@
 import {
   collection, doc, addDoc, updateDoc, deleteDoc, getDocs, getDoc, query, where, serverTimestamp
-} from 'firebase/firestore';
-import { db } from '../config/firebase';
+} from '../aws/firestore-compat';
+import { db } from '../aws/clients';
 import type { ShiftConfig } from '../types/user';
 
 const COLLECTION_NAME = 'shiftConfigs';

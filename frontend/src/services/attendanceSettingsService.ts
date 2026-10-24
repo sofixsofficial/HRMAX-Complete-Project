@@ -1,7 +1,7 @@
 import {
   collection, doc, addDoc, updateDoc, deleteDoc, getDocs, getDoc, query, where, serverTimestamp
-} from 'firebase/firestore';
-import { db } from '../config/firebase';
+} from '../aws/firestore-compat';
+import { db } from '../aws/clients';
 import type { AttendancePolicy } from '../types/attendance';
 
 const COLLECTION_NAME = 'attendanceSettings';
@@ -92,4 +92,4 @@ export const subscribeAttendancePolicy = (
   return unsub;
 };
 
-import { onSnapshot } from 'firebase/firestore';
+import { onSnapshot } from '../aws/firestore-compat';

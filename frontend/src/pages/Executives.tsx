@@ -6,12 +6,12 @@ import type { Resolver } from 'react-hook-form'
 import { useNavigate } from 'react-router-dom'
 import { z } from 'zod'
 import { zodResolver } from '@hookform/resolvers/zod'
-import { collection, doc, onSnapshot, query, updateDoc, deleteDoc, serverTimestamp, getDocs, getDoc, where } from 'firebase/firestore'
-import { ref as storageRef, uploadBytes, getDownloadURL } from 'firebase/storage'
-import { sendPasswordResetEmail } from 'firebase/auth'
-import { httpsCallable } from 'firebase/functions'
+import { collection, doc, onSnapshot, query, updateDoc, deleteDoc, serverTimestamp, getDocs, getDoc, where } from '../aws/firestore-compat'
+import { ref as storageRef, uploadBytes, getDownloadURL } from '../aws/storage-compat'
+import { sendPasswordResetEmail } from '../aws/auth-compat'
+import { httpsCallable } from '../aws/functions-compat'
 import { createAdminAlert, createNotification } from '../services/notificationService'
-import { auth, db, storage, functions } from '../config/firebase'
+import { auth, db, storage, functions } from '../aws/clients'
 import { logAudit } from '../services/auditLogService'
 import { Header } from '../components/Header'
 import { Modal } from '../components/Modal'
@@ -750,10 +750,10 @@ export function Executives() {
         attendanceSettings: buildAttendanceSettings(values),
         permissions: addPermissions, permissionsConfigured: true,
       } as any)
-      const firebaseUid = (result as any).uid as string
+      const accountUid = (result as any).uid as string
 
       const newUser: User = {
-        id: firebaseUid,
+        id: accountUid,
         name: values.name,
         email: values.email,
         role: 'executive',
@@ -794,25 +794,25 @@ export function Executives() {
       // Upload files if any (account and user doc are created server-side by the admin callable)
       const uploads: { field: string; url: string }[] = []
       if (aadharFileRef.current) {
-        const url = await uploadFileToStorage(aadharFileRef.current, firebaseUid, 'aadharDoc')
+        const url = await uploadFileToStorage(aadharFileRef.current, accountUid, 'aadharDoc')
         uploads.push({ field: 'aadharDoc', url })
       }
       if (panFileRef.current) {
-        const url = await uploadFileToStorage(panFileRef.current, firebaseUid, 'panDoc')
+        const url = await uploadFileToStorage(panFileRef.current, accountUid, 'panDoc')
         uploads.push({ field: 'panDoc', url })
       }
       if (joiningLetterFileRef.current) {
-        const url = await uploadFileToStorage(joiningLetterFileRef.current, firebaseUid, 'joiningLetterDoc')
+        const url = await uploadFileToStorage(joiningLetterFileRef.current, accountUid, 'joiningLetterDoc')
         uploads.push({ field: 'joiningLetterDoc', url })
       }
       if (offerLetterFileRef.current) {
-        const url = await uploadFileToStorage(offerLetterFileRef.current, firebaseUid, 'offerLetterDoc')
+        const url = await uploadFileToStorage(offerLetterFileRef.current, accountUid, 'offerLetterDoc')
         uploads.push({ field: 'offerLetterDoc', url })
       }
       if (uploads.length > 0) {
         const updateData: Record<string, string> = {}
         uploads.forEach(u => (updateData[u.field] = u.url))
-        await updateDoc(doc(db, 'users', firebaseUid), updateData)
+        await updateDoc(doc(db, 'users', accountUid), updateData)
         uploads.forEach(u => { (newUser as any)[u.field] = u.url })
       }
 

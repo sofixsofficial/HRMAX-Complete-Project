@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { useNavigate, useSearchParams, Link } from 'react-router-dom';
 import { ArrowLeft, Loader2, Shield, Lock, Eye, EyeOff, CheckCircle, XCircle } from 'lucide-react';
 import { Logo } from '../../components/Logo';
-import { getFunctions, httpsCallable } from 'firebase/functions';
+import { getFunctions, httpsCallable } from '../../aws/functions-compat';
 import { toDisplayError } from '../../aws/errors';
 import '../../pages/Login.css';
 

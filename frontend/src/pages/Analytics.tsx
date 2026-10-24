@@ -2,8 +2,8 @@ import { useState, useEffect } from 'react'
 import {
   TrendingUp, Users, CheckSquare, Clock, Loader2, Calendar
 } from 'lucide-react'
-import { collection, query, where, getDocs } from 'firebase/firestore'
-import { db } from '../config/firebase'
+import { collection, query, where, getDocs } from '../aws/firestore-compat'
+import { db } from '../aws/clients'
 import { Header } from '../components/Header'
 import { useAuth } from '../context/AuthContext'
 import type { AttendanceRecord } from '../types/user'

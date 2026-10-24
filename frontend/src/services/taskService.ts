@@ -9,8 +9,8 @@ import {
   query, 
   where,
   serverTimestamp 
-} from 'firebase/firestore';
-import { db } from '../config/firebase';
+} from '../aws/firestore-compat';
+import { db } from '../aws/clients';
 import type { Task } from '../types/user';
 
 const COLLECTION_NAME = 'tasks';

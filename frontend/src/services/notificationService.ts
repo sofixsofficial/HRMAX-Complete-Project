@@ -1,8 +1,8 @@
 import {
   collection, doc, getDocs, addDoc, updateDoc, deleteDoc,
   query, where, orderBy, limit, onSnapshot, serverTimestamp
-} from 'firebase/firestore';
-import { db } from '../config/firebase';
+} from '../aws/firestore-compat';
+import { db } from '../aws/clients';
 import type { AppNotification, NotificationType } from '../types/user';
 
 const notificationsRef = collection(db, 'notifications');

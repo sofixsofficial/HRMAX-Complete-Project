@@ -5,21 +5,6 @@
     "paths": {
       "@/*": [
         "./src/*"
-      ],
-      "firebase/app": [
-        "./src/aws/firebase-app"
-      ],
-      "firebase/auth": [
-        "./src/aws/firebase-auth"
-      ],
-      "firebase/firestore": [
-        "./src/aws/firebase-firestore"
-      ],
-      "firebase/functions": [
-        "./src/aws/firebase-functions"
-      ],
-      "firebase/storage": [
-        "./src/aws/firebase-storage"
       ]
     }
   }

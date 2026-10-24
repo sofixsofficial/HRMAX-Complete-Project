@@ -5,8 +5,8 @@ import {
   Building2, Users, Crown, Loader2, AlertCircle, Eye, User as UserIcon,
   CheckCircle, XCircle
 } from 'lucide-react'
-import { doc, getDoc } from 'firebase/firestore'
-import { db } from '../../config/firebase'
+import { doc, getDoc } from '../../aws/firestore-compat'
+import { db } from '../../aws/clients'
 import { logAudit } from '../../services/auditLogService'
 import { getAllCompanies } from '../../services/companyService'
 import { getAllUsers } from '../../services/authService'

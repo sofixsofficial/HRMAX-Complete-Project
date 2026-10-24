@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from 'react'
-import { invalidateSnapshots } from 'firebase/firestore'
+import { invalidateSnapshots } from '../aws/firestore-compat'
 import { useAuth } from '../context/AuthContext'
 import { useCompany } from '../context/CompanyContext'
 import { useEmployeePersonalStats } from './useEmployeePersonalStats'
@@ -153,8 +153,8 @@ export function useAttendancePunch() {
       // Cloud function first; fall back to direct Firestore only on transport
       // failures (function not deployed / CORS / timeout / unavailable).
       try {
-        const { httpsCallable } = await import('firebase/functions')
-        const { functions: fns } = await import('../firebase/config')
+        const { httpsCallable } = await import('../aws/functions-compat')
+        const { functions: fns } = await import('../aws/clients')
         const markAttendance = httpsCallable(fns, 'markAttendance')
         const net = getNetworkInfo()
         const result = await markAttendance({

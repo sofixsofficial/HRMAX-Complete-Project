@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
-import { collection, query, where, onSnapshot, doc } from 'firebase/firestore';
-import { db } from '../config/firebase';
+import { collection, query, where, onSnapshot, doc } from '../aws/firestore-compat';
+import { db } from '../aws/clients';
 import { useAuth } from '../context/AuthContext';
 import { isActiveMissedPunchRecord, isWithinRecentWindow, recentMissPunchSinceDate } from '../utils/attendanceStatus';
 

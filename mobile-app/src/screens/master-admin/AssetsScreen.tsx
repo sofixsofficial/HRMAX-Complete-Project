@@ -1,8 +1,8 @@
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { View, Text, ScrollView, StyleSheet, RefreshControl, TextInput, TouchableOpacity, Modal, Alert, ActivityIndicator } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
-import { db } from '../../config/firebase';
-import { collection, getDocs, addDoc, updateDoc, deleteDoc, doc, query, where, Timestamp } from 'firebase/firestore';
+import { db } from '../../aws/clients';
+import { collection, getDocs, addDoc, updateDoc, deleteDoc, doc, query, where, Timestamp } from '../../aws/firestore-compat';
 import { useCompany } from '../../context/CompanyContext';
 import { useAuth } from '../../context/AuthContext';
 import { scopedCompanyIdsForRole } from '../../utils/companyScope';

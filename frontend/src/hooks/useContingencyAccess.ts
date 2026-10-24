@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react'
-import { collection, query, where, onSnapshot } from 'firebase/firestore'
-import { db } from '../firebase/config'
+import { collection, query, where, onSnapshot } from '../aws/firestore-compat'
+import { db } from '../aws/clients'
 import { useAuth } from '../context/AuthContext'
 
 export interface ContingencyInfo {

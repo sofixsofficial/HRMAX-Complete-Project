@@ -1,5 +1,5 @@
-import { httpsCallable } from 'firebase/functions';
-import { functions } from '../config/firebase';
+import { httpsCallable } from '../aws/functions-compat';
+import { functions } from '../aws/clients';
 
 export type BroadcastMode = 'all-active' | 'department' | 'selected';
 export type BroadcastMessageType = 'payroll' | 'attendance' | 'leave' | 'general';

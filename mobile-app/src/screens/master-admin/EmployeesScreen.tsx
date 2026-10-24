@@ -1,9 +1,9 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { View, Text, ScrollView, StyleSheet, TextInput, TouchableOpacity, Modal, Alert, ActivityIndicator } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
-import { collection, getDocs } from 'firebase/firestore';
-import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
-import { db, storage } from '../../config/firebase';
+import { collection, getDocs } from '../../aws/firestore-compat';
+import { ref, uploadBytes, getDownloadURL } from '../../aws/storage-compat';
+import { db, storage } from '../../aws/clients';
 import { Paths, File } from 'expo-file-system';
 import * as Sharing from 'expo-sharing';
 import * as DocumentPicker from 'expo-document-picker';

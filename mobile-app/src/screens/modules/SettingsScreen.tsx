@@ -3,10 +3,10 @@ import { View, Text, ScrollView, TouchableOpacity, TextInput, StyleSheet, Alert,
 import { useAuth } from '../../context/AuthContext';
 import { useTheme, ThemeColors } from '../../context/ThemeContext';
 import { useNotifications } from '../../hooks/useNotifications';
-import { getAuth, reauthenticateWithCredential, EmailAuthProvider, updatePassword } from 'firebase/auth';
+import { getAuth, reauthenticateWithCredential, EmailAuthProvider, updatePassword } from '../../aws/auth-compat';
 import { Icon } from '../../utils/icons';
-import { collection, onSnapshot } from 'firebase/firestore';
-import { db } from '../../config/firebase';
+import { collection, onSnapshot } from '../../aws/firestore-compat';
+import { db } from '../../aws/clients';
 import { ScreenHeader } from '../../components/ScreenHeader';
 
 type Tab = 'profile' | 'notifications' | 'security' | 'system';

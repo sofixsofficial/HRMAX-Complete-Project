@@ -1,5 +1,5 @@
 /**
- * firebase/storage compatibility (mobile) → S3 presigned URLs.
+ * Storage compatibility (mobile) → S3 presigned URLs.
  * Mobile uploads pass RN file URIs — converted to blobs via fetch.
  */
 

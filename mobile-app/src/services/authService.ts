@@ -5,13 +5,13 @@ import {
   confirmPasswordReset,
   onAuthStateChanged,
   getIdTokenResult,
-} from 'firebase/auth';
-import type { AuthError } from 'firebase/auth';
-import { doc, getDoc } from 'firebase/firestore';
-import { auth, db } from '../config/firebase';
-import { httpsCallable } from 'firebase/functions';
+} from '../aws/auth-compat';
+import type { AuthError } from '../aws/auth-compat';
+import { doc, getDoc } from '../aws/firestore-compat';
+import { auth, db } from '../aws/clients';
+import { httpsCallable } from '../aws/functions-compat';
 import { ERROR_MESSAGES } from '../aws/errors';
-import { functions } from '../config/firebase';
+import { functions } from '../aws/clients';
 import type { User, UserRole } from '../types/user';
 
 interface CustomClaims {
@@ -42,12 +42,12 @@ export const signIn = async (email: string, password: string): Promise<User> => 
 
   const attempt = async (): Promise<User> => {
     const userCredential = await signInWithEmailAndPassword(auth, trimmedEmail, trimmedPassword);
-    const firebaseUser = userCredential.user;
+    const remoteUser = userCredential.user;
 
-    const tokenResult = await getIdTokenResult(firebaseUser, true);
+    const tokenResult = await getIdTokenResult(remoteUser, true);
     const claims = tokenResult.claims as unknown as CustomClaims;
 
-    const userDoc = await getDoc(doc(db, 'users', firebaseUser.uid));
+    const userDoc = await getDoc(doc(db, 'users', remoteUser.uid));
     if (!userDoc.exists()) {
       throw new Error('User profile not found. Please contact support.');
     }
@@ -72,7 +72,7 @@ export const signIn = async (email: string, password: string): Promise<User> => 
 
     try {
       const callableFn = httpsCallable(functions, 'mobileUpdateLastLogin');
-      await callableFn({ userId: firebaseUser.uid });
+      await callableFn({ userId: remoteUser.uid });
     } catch {}
 
     return userData;
@@ -120,13 +120,13 @@ export const confirmResetPassword = async (code: string, newPassword: string): P
 };
 
 export const onAuthChange = (callback: (user: User | null) => void) => {
-  return onAuthStateChanged(auth, async (firebaseUser) => {
-    if (!firebaseUser) {
+  return onAuthStateChanged(auth, async (remoteUser) => {
+    if (!remoteUser) {
       callback(null);
       return;
     }
     try {
-      const userDoc = await getDoc(doc(db, 'users', firebaseUser.uid));
+      const userDoc = await getDoc(doc(db, 'users', remoteUser.uid));
       if (!userDoc.exists()) {
         callback(null);
         return;

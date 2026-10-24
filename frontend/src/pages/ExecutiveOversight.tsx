@@ -7,9 +7,9 @@ import {
   Shield, AlertCircle, X,
   CheckCircle, RefreshCw, Activity, UserCheck, ListChecks
 } from 'lucide-react'
-import { collection, getDocs, query, where, orderBy, limit } from 'firebase/firestore'
-import { doc, getDoc } from 'firebase/firestore'
-import { db } from '../firebase/config'
+import { collection, getDocs, query, where, orderBy, limit } from '../aws/firestore-compat'
+import { doc, getDoc } from '../aws/firestore-compat'
+import { db } from '../aws/clients'
 import { Header } from '../components/Header'
 import { useAuth } from '../context/AuthContext'
 import { getAllUsers } from '../services/authService'

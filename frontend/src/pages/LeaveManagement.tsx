@@ -4,7 +4,7 @@ import { ActionErrorBanner } from '../components/ActionErrorBanner';
 import { useSearchParams } from 'react-router-dom'
 import { Plane, Clock, CheckCircle, XCircle, Plus, Search, Check, X, Ban, Loader2, Crown, Eye, AlertCircle } from 'lucide-react'
 
-import { auth, db } from '../config/firebase'
+import { auth, db } from '../aws/clients'
 import { Header } from '../components/Header'
 import { Modal } from '../components/Modal'
 import { useAuth } from '../context/AuthContext'

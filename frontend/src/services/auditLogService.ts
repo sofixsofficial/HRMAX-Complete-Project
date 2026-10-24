@@ -1,5 +1,5 @@
-import { collection, doc, setDoc, serverTimestamp } from 'firebase/firestore'
-import { db } from '../config/firebase'
+import { collection, doc, setDoc, serverTimestamp } from '../aws/firestore-compat'
+import { db } from '../aws/clients'
 
 export interface AuditLogEntry {
   id?: string

@@ -46,7 +46,7 @@ const sections = [
     content: [
       'All data is encrypted in transit using TLS 1.3',
       'Data at rest is encrypted using Google Cloud\'s AES-256 encryption',
-      'Firebase Authentication with secure session management',
+      'Secure authentication with encrypted token-based sessions',
       'Role-based access control (RBAC) ensures least-privilege access',
       'All write operations are performed through server-side Cloud Functions',
       'Regular security audits and vulnerability assessments',
@@ -58,7 +58,7 @@ const sections = [
     title: 'Data Storage & Location',
     content: [
       'All data is stored on Google Cloud Platform servers in the United States',
-      'Firebase Firestore provides automatic replication and backup',
+      'Data hosted on AWS with automatic replication and backups',
       'Cloud Functions run in us-central1 region',
       'We do not sell, rent, or share personal data with third parties for advertising',
       'Data is retained for the duration of your organization\'s account',

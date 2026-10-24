@@ -6,8 +6,8 @@ import {
   Loader2, Building2, BarChart3, Package, ArrowUpRight,
   UserX, UserCheck, Mail, Send, Bell, CheckCircle2, XCircle,
 } from 'lucide-react'
-import { collection, query, where, onSnapshot } from 'firebase/firestore'
-import { db } from '../../config/firebase'
+import { collection, query, where, onSnapshot } from '../../aws/firestore-compat'
+import { db } from '../../aws/clients'
 import { Header } from '../../components/Header'
 import { DashboardHero } from '../../components/DashboardHero'
 import { Modal } from '../../components/Modal'

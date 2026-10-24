@@ -1,10 +1,10 @@
 import {
   collection, getDocs, doc, getDoc,
   query, where
-} from 'firebase/firestore';
-import { db } from '../config/firebase';
-import { httpsCallable } from 'firebase/functions';
-import { functions } from '../config/firebase';
+} from '../aws/firestore-compat';
+import { db } from '../aws/clients';
+import { httpsCallable } from '../aws/functions-compat';
+import { functions } from '../aws/clients';
 import { createNotification } from './notificationService';
 import type { LeaveRequest, LeaveType, LeaveStatus, ApprovalTier, ApprovalLevel, ApprovalFlags } from '../types/user';
 

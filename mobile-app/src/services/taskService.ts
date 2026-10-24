@@ -1,10 +1,10 @@
 import {
   collection, getDocs, doc,
   query, where
-} from 'firebase/firestore';
-import { db } from '../config/firebase';
-import { httpsCallable } from 'firebase/functions';
-import { functions } from '../config/firebase';
+} from '../aws/firestore-compat';
+import { db } from '../aws/clients';
+import { httpsCallable } from '../aws/functions-compat';
+import { functions } from '../aws/clients';
 import type { Task } from '../types/user';
 
 const COLLECTION_NAME = 'tasks';

@@ -9,10 +9,10 @@ import { useAuth } from '../context/AuthContext'
 import { getAllUsers } from '../services/authService'
 import { getAllCompanies } from '../services/companyService'
 import { getDepartmentsByCompany, getAllDepartments } from '../services/departmentService'
-import { collection, doc, onSnapshot, updateDoc, serverTimestamp } from 'firebase/firestore'
-import { ref as storageRef, uploadBytes, getDownloadURL } from 'firebase/storage'
-import { httpsCallable } from 'firebase/functions'
-import { db, storage, functions } from '../config/firebase'
+import { collection, doc, onSnapshot, updateDoc, serverTimestamp } from '../aws/firestore-compat'
+import { ref as storageRef, uploadBytes, getDownloadURL } from '../aws/storage-compat'
+import { httpsCallable } from '../aws/functions-compat'
+import { db, storage, functions } from '../aws/clients'
 import { logAudit } from '../services/auditLogService'
 import { isDate } from '../utils/dateUtils'
 import { useForm } from 'react-hook-form'
@@ -479,10 +479,10 @@ export function TeamLeaders() {
         attendanceSettings: buildAttendanceSettings(values),
         permissions: addPermissions, permissionsConfigured: true,
       } as any)
-      const firebaseUid = (result as any).uid as string
+      const accountUid = (result as any).uid as string
 
       const newUser: User = {
-        id: firebaseUid,
+        id: accountUid,
         name: values.name,
         email: values.email,
         role: 'team-leader',
@@ -523,34 +523,34 @@ export function TeamLeaders() {
       // Upload files (account and user doc are created server-side by the admin callable)
       const uploads: { field: string; url: string }[] = []
       if (aadharFileRef.current) {
-        const url = await uploadFileToStorage(aadharFileRef.current, firebaseUid, 'aadharDoc')
+        const url = await uploadFileToStorage(aadharFileRef.current, accountUid, 'aadharDoc')
         uploads.push({ field: 'aadharDoc', url })
       }
       if (panFileRef.current) {
-        const url = await uploadFileToStorage(panFileRef.current, firebaseUid, 'panDoc')
+        const url = await uploadFileToStorage(panFileRef.current, accountUid, 'panDoc')
         uploads.push({ field: 'panDoc', url })
       }
       if (joiningLetterFileRef.current) {
-        const url = await uploadFileToStorage(joiningLetterFileRef.current, firebaseUid, 'joiningLetterDoc')
+        const url = await uploadFileToStorage(joiningLetterFileRef.current, accountUid, 'joiningLetterDoc')
         uploads.push({ field: 'joiningLetterDoc', url })
       }
       if (offerLetterFileRef.current) {
-        const url = await uploadFileToStorage(offerLetterFileRef.current, firebaseUid, 'offerLetterDoc')
+        const url = await uploadFileToStorage(offerLetterFileRef.current, accountUid, 'offerLetterDoc')
         uploads.push({ field: 'offerLetterDoc', url })
       }
       if (uploads.length > 0) {
         const updateData: Record<string, string> = {}
         uploads.forEach(u => (updateData[u.field] = u.url))
-        await updateDoc(doc(db, 'users', firebaseUid), updateData)
+        await updateDoc(doc(db, 'users', accountUid), updateData)
         uploads.forEach(u => { (newUser as any)[u.field] = u.url })
       }
 
       // Update each selected executive's assignedTeamLeaderIds
       for (const exec of selectedExecs) {
         const currentTLs = (exec as any).assignedTeamLeaderIds || []
-        if (!currentTLs.includes(firebaseUid)) {
+        if (!currentTLs.includes(accountUid)) {
           await updateDoc(doc(db, 'users', exec.id), {
-            assignedTeamLeaderIds: [...currentTLs, firebaseUid],
+            assignedTeamLeaderIds: [...currentTLs, accountUid],
           })
         }
       }

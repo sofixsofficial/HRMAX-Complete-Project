@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import { AppState } from 'react-native';
-import { collection, query, where, onSnapshot } from 'firebase/firestore';
-import { db } from '../config/firebase';
+import { collection, query, where, onSnapshot } from '../aws/firestore-compat';
+import { db } from '../aws/clients';
 import { useAuth } from '../context/AuthContext';
 import type { AttendanceRecord } from '../types/user';
 

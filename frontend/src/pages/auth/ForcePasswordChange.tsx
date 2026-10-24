@@ -71,8 +71,8 @@ export function ForcePasswordChange() {
       await updateUserPassword(newPassword);
 
       if (user) {
-        const { doc, updateDoc, serverTimestamp } = await import('firebase/firestore');
-        const { db } = await import('../../config/firebase');
+        const { doc, updateDoc, serverTimestamp } = await import('../../aws/firestore-compat');
+        const { db } = await import('../../aws/clients');
         await updateDoc(doc(db, 'users', user.id), {
           requirePasswordChange: false,
           updatedAt: serverTimestamp(),

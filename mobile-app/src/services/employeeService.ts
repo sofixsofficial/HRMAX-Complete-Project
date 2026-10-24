@@ -1,10 +1,10 @@
 import {
   collection, getDocs, doc, getDoc, query, where, serverTimestamp, onSnapshot,
-} from 'firebase/firestore';
-import { createUserWithEmailAndPassword } from 'firebase/auth';
-import { auth, db } from '../config/firebase';
-import { httpsCallable } from 'firebase/functions';
-import { functions } from '../config/firebase';
+} from '../aws/firestore-compat';
+import { createUserWithEmailAndPassword } from '../aws/auth-compat';
+import { auth, db } from '../aws/clients';
+import { httpsCallable } from '../aws/functions-compat';
+import { functions } from '../aws/clients';
 
 const COLLECTION_NAME = 'employees';
 const employeesRef = collection(db, COLLECTION_NAME);

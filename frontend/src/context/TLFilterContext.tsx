@@ -1,6 +1,6 @@
 import React, { createContext, useContext, useState, useEffect, useCallback, useMemo } from 'react'
-import { collection, getDocs, query, where, doc, getDoc, onSnapshot } from 'firebase/firestore'
-import { db } from '../config/firebase'
+import { collection, getDocs, query, where, doc, getDoc, onSnapshot } from '../aws/firestore-compat'
+import { db } from '../aws/clients'
 import { useAuth } from './AuthContext'
 
 interface ExecutiveInfo {

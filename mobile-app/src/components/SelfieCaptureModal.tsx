@@ -1,8 +1,8 @@
 import React, { useRef, useState } from 'react';
 import { View, Text, StyleSheet, Modal, TouchableOpacity, ActivityIndicator } from 'react-native';
 import { CameraView, useCameraPermissions } from 'expo-camera';
-import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
-import { storage } from '../config/firebase';
+import { ref, uploadBytes, getDownloadURL } from '../aws/storage-compat';
+import { storage } from '../aws/clients';
 import { Icon } from '../utils/icons';
 
 interface Props {

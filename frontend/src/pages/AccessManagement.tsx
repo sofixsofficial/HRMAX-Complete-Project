@@ -349,7 +349,7 @@ export function AccessManagement() {
   const activeCount = users.filter(u => u.isActive !== false).length
   const pendingCount = invitations.length
 
-  // Employees who don't have a Firebase auth account yet and aren't already invited
+  // Employees who don't have an auth account yet and aren't already invited
   const invitedEmails = new Set(invitations.map(inv => inv.email.toLowerCase()))
   const existingEmails = new Set(users.map(u => u.email.toLowerCase()))
   const eligibleEmployees = employees.filter(emp =>

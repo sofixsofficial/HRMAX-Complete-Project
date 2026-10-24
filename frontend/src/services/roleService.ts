@@ -10,8 +10,8 @@ import {
   where,
   onSnapshot,
   serverTimestamp 
-} from 'firebase/firestore';
-import { db } from '../config/firebase';
+} from '../aws/firestore-compat';
+import { db } from '../aws/clients';
 import type { User, UserRole } from '../types/user';
 
 const COLLECTION_NAME = 'roles';

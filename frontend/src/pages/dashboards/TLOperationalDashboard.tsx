@@ -6,8 +6,8 @@ import {
   Filter, Plus, Loader2, Search,
   AlertCircle, X, ArrowUpRight, Building2, Users, UserCheck, PartyPopper, Cake, Wallet, Eye,
 } from 'lucide-react'
-import { collection, query, where, orderBy, limit, onSnapshot } from 'firebase/firestore'
-import { db } from '../../config/firebase'
+import { collection, query, where, orderBy, limit, onSnapshot } from '../../aws/firestore-compat'
+import { db } from '../../aws/clients'
 import { Header } from '../../components/Header'
 import { DashboardHero } from '../../components/DashboardHero'
 import { Modal } from '../../components/Modal'

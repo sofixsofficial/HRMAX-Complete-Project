@@ -1,10 +1,10 @@
 /**
- * AWS auth module — drop-in replacement for the firebase/auth API surface
+ * AWS auth module — auth API surface consumed by the app
  * used by the HR MAX frontend (signInWithEmailAndPassword, signOut,
  * onAuthStateChanged, getIdToken…). Backed by Amazon Cognito.
  *
  * The 30+ call-sites keep working because function signatures match; only
- * the import path changes: `from 'firebase/auth'` → `from '../aws/auth'`.
+ * app code imports the compat module at `../aws/auth-compat`.
  */
 
 import { AWS_CONFIG } from './config';
@@ -33,7 +33,7 @@ export interface AwsUser {
   delete(): Promise<void>;
 }
 
-/** firebase/auth-compatible credential result (the app reads `.user`). */
+/** auth-compat credential result (the app reads `.user`). */
 export interface UserCredential {
   user: AwsUser;
   operationType?: string;
@@ -42,7 +42,7 @@ export interface UserCredential {
   credential?: unknown;
 }
 
-/** firebase/auth-compatible Auth instance (the app reads `auth.currentUser`). */
+/** auth-compat Auth instance (the app reads `auth.currentUser`). */
 export interface Auth {
   currentUser: AwsUser | null;
 }
@@ -172,12 +172,12 @@ function buildUser(tokens: TokenSet): AwsUser {
 }
 
 // ---------------------------------------------------------------------------
-// firebase/auth-compatible surface
+// auth-compat surface
 // ---------------------------------------------------------------------------
 
 /**
  * Live Auth singleton — `getAuth()` hands out this object so `auth.currentUser`
- * always reflects the current session (mirrors the Firebase SDK).
+ * always reflects the current session (mirrors standard auth-SDK behaviour).
  */
 const authInstance: Auth = {
   get currentUser(): AwsUser | null {
@@ -197,7 +197,7 @@ export class AuthError extends Error {
   }
 }
 
-/** Map Cognito error codes to the Firebase-style codes the UI already handles. */
+/** Map Cognito error codes to the auth-style codes the UI already handles. */
 function mapError(err: Error & { code?: string }): AuthError {
   if (err instanceof FriendlyError) {
     return new AuthError(err.code, err.message); // already normalized (network/session)
@@ -243,7 +243,7 @@ export async function createUserWithEmailAndPassword(
 ): Promise<UserCredential> {
   try {
     // Cognito self sign-up. The pool's PreSignUp trigger auto-confirms the
-    // user and marks the email verified (Firebase parity: no code-entry step).
+    // user and marks the email verified (parity: no code-entry step).
     await cognitoCall('SignUp', {
       Username: email,
       Password: password,
@@ -252,7 +252,7 @@ export async function createUserWithEmailAndPassword(
   } catch (err) {
     throw mapError(err as Error & { code?: string });
   }
-  // Firebase parity: createUserWithEmailAndPassword returns an already
+  // Parity: createUserWithEmailAndPassword returns an already
   // signed-in credential; the PreSignUp trigger guarantees sign-in succeeds.
   return signInWithEmailAndPassword(_auth, email, password);
 }

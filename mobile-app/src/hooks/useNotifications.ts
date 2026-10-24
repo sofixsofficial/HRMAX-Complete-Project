@@ -2,8 +2,8 @@ import { useState, useEffect, useCallback } from 'react';
 import { Platform } from 'react-native';
 import * as Notifications from 'expo-notifications';
 import * as Device from 'expo-device';
-import { auth, db } from '../config/firebase';
-import { doc, updateDoc, deleteField } from 'firebase/firestore';
+import { auth, db } from '../aws/clients';
+import { doc, updateDoc, deleteField } from '../aws/firestore-compat';
 
 if (Platform.OS !== 'web') {
   Notifications.setNotificationHandler({

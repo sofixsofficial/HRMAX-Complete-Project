@@ -1,8 +1,8 @@
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { View, Text, ScrollView, StyleSheet, RefreshControl, TextInput, TouchableOpacity, Alert, ActivityIndicator } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
-import { db } from '../../config/firebase';
-import { collection, getDocs, query, orderBy, limit, startAfter } from 'firebase/firestore';
+import { db } from '../../aws/clients';
+import { collection, getDocs, query, orderBy, limit, startAfter } from '../../aws/firestore-compat';
 import { useTheme, ThemeColors } from '../../context/ThemeContext';
 import { ACTION_MODULES, ACTION_TYPES, STATUS_OPTIONS, actionLabel, statusBadge } from '../../services/auditLogService';
 import { Paths, File } from 'expo-file-system';

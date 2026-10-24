@@ -1,7 +1,7 @@
 import {
   collection, addDoc, getDocs, query, where, orderBy, limit, serverTimestamp
-} from 'firebase/firestore';
-import { db } from '../config/firebase';
+} from '../aws/firestore-compat';
+import { db } from '../aws/clients';
 import type { AttendanceLog } from '../types/attendance';
 
 const COLLECTION_NAME = 'attendanceLogs';

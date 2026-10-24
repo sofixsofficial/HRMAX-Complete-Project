@@ -5,7 +5,7 @@
 
 import React, { useEffect, useRef } from 'react';
 import { Navigate, useLocation } from 'react-router-dom';
-import { auth } from '../config/firebase';
+import { auth } from '../aws/clients';
 import { useAuth } from '../context/AuthContext';
 import type { UserRole } from '../types/user';
 
@@ -38,7 +38,7 @@ export const ProtectedRoute: React.FC<ProtectedRouteProps> = ({
   const location = useLocation();
   const tokenRefreshed = useRef(false);
 
-  // Force refresh Firebase idToken + Firestore user data on mount
+  // Force refresh the idToken + user doc on mount
   // This ensures the latest role/permissions are loaded from the server
   useEffect(() => {
     if (!tokenRefreshed.current && isAuthenticated && auth.currentUser) {

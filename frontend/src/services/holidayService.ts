@@ -9,8 +9,8 @@ import {
   query, 
   where,
   orderBy 
-} from 'firebase/firestore';
-import { db } from '../config/firebase';
+} from '../aws/firestore-compat';
+import { db } from '../aws/clients';
 import type { Holiday } from '../types/user';
 
 const COLLECTION_NAME = 'holidays';

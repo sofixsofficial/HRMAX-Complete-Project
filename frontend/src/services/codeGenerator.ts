@@ -3,8 +3,8 @@ import {
   getDocs,
   query,
   where,
-} from 'firebase/firestore';
-import { db } from '../config/firebase';
+} from '../aws/firestore-compat';
+import { db } from '../aws/clients';
 
 export async function generateUniqueCode(
   collectionName: string,

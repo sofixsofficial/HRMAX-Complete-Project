@@ -9,9 +9,9 @@ import {
   orderBy,
   serverTimestamp,
   writeBatch,
-} from 'firebase/firestore'
-import { getFunctions, httpsCallable } from 'firebase/functions'
-import { db } from '../config/firebase'
+} from '../aws/firestore-compat'
+import { getFunctions, httpsCallable } from '../aws/functions-compat'
+import { db } from '../aws/clients'
 import { getAllEmployees, getEmployeesByCompany, getEmployeesByCompanies } from './employeeService'
 import type { Email, DeliveryStatus } from '../types/email'
 import type { Employee } from '../types/user'

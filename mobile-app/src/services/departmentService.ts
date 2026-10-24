@@ -1,9 +1,9 @@
 import {
   collection, getDocs, doc, query, where, onSnapshot,
-} from 'firebase/firestore';
-import { db } from '../config/firebase';
-import { httpsCallable } from 'firebase/functions';
-import { functions } from '../config/firebase';
+} from '../aws/firestore-compat';
+import { db } from '../aws/clients';
+import { httpsCallable } from '../aws/functions-compat';
+import { functions } from '../aws/clients';
 
 const COLLECTION_NAME = 'departments';
 const deptsRef = collection(db, COLLECTION_NAME);

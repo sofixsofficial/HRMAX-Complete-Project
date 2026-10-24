@@ -1,8 +1,8 @@
 import {
   collection, doc, getDocs, getDoc, updateDoc, deleteDoc,
   query, where, orderBy, onSnapshot, serverTimestamp
-} from 'firebase/firestore';
-import { db, auth } from '../firebase/config';
+} from '../aws/firestore-compat';
+import { db, auth } from '../aws/clients';
 import type { User, CompanyAdminStatus } from '../types/user';
 import { createNotification } from './notificationService';
 

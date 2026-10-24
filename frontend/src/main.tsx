@@ -8,8 +8,6 @@ import { AccessControlProvider } from './context/AccessControlContext'
 import App from './App.tsx'
 import './index.css'
 
-// Import Firebase config to initialize it
-import './config/firebase'
 
 createRoot(document.getElementById('root')!).render(
   <StrictMode>

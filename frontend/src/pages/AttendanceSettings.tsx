@@ -410,7 +410,7 @@ function AttendanceSettingsForm() {
           {enableSelfie && (
             <>
               <div style={{ marginBottom: 16 }}><label style={labelStyle}>Selfie Verification Window (seconds)</label><input type="number" style={inputStyle} value={selfieExpirySeconds} onChange={e => setSelfieExpirySeconds(Number(e.target.value))} min={10} max={300} /><span style={{ fontSize: 11, color: '#9ca3af' }}>Time window to capture selfie after check-in initiation</span></div>
-              <div style={{ padding: 12, background: '#f0fdf4', borderRadius: 8, border: '1px solid #bbf7d0', fontSize: 13, color: '#166534' }}><strong>Note:</strong> Selfies are stored securely in Firebase Storage and can be reviewed for attendance verification by admins.</div>
+              <div style={{ padding: 12, background: '#f0fdf4', borderRadius: 8, border: '1px solid #bbf7d0', fontSize: 13, color: '#166534' }}><strong>Note:</strong> Selfies are stored securely in encrypted cloud storage and can be reviewed for attendance verification by admins.</div>
             </>
           )}
         </div>

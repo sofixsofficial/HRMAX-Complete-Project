@@ -9,8 +9,8 @@ import {
   where,
   getDoc,
   serverTimestamp
-} from 'firebase/firestore';
-import { db } from '../config/firebase';
+} from '../aws/firestore-compat';
+import { db } from '../aws/clients';
 import type { LeaveRequest, LeaveStatus, LeaveType, ApprovalTier, ApprovalLevel, ApprovalFlags } from '../types/user';
 // Re-exported so consumers (LeaveBalanceCard, leavePolicyService) can import the type from here.
 export type { LeaveType } from '../types/user';

@@ -1,5 +1,5 @@
-import { httpsCallable } from 'firebase/functions';
-import { functions } from '../firebase/config';
+import { httpsCallable } from '../aws/functions-compat';
+import { functions } from '../aws/clients';
 
 export type AttendanceCascadeKind =
   | 'missed-punch-marked'

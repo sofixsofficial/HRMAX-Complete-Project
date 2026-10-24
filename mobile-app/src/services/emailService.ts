@@ -1,6 +1,6 @@
-import { collection, doc, query, where, orderBy, onSnapshot } from 'firebase/firestore';
-import { httpsCallable } from 'firebase/functions';
-import { db, functions } from '../config/firebase';
+import { collection, doc, query, where, orderBy, onSnapshot } from '../aws/firestore-compat';
+import { httpsCallable } from '../aws/functions-compat';
+import { db, functions } from '../aws/clients';
 interface Email {
   id: string; from: string; fromEmail: string; to: string; toEmail: string;
   cc?: string; bcc?: string; subject: string; body: string; date: string;

@@ -1,10 +1,10 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { View, Text, ScrollView, StyleSheet, TextInput, TouchableOpacity, Modal, Alert, Switch, ActivityIndicator, useWindowDimensions } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
-import { collection, doc, query, where, onSnapshot, getDocs } from 'firebase/firestore';
+import { collection, doc, query, where, onSnapshot, getDocs } from '../../aws/firestore-compat';
 import * as DocumentPicker from 'expo-document-picker';
 import * as Location from 'expo-location';
-import { db } from '../../config/firebase';
+import { db } from '../../aws/clients';
 import { Paths, File, Directory } from 'expo-file-system';
 import * as Sharing from 'expo-sharing';
 import { useAuth } from '../../context/AuthContext';
