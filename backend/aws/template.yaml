@@ -355,14 +355,20 @@ Resources:
 
   # Origin Access Control — CloudFront signs origin requests (S3 policy only
   # grants the signed OAC path).
-  # SAR publishing does not support AWS::CloudFront::OriginAccessControl, so
-  # the web bucket is locked to CloudFront via the classic OAI (identical
-  # effect: only the distribution can read the bucket).
-  WebOAI:
-    Type: AWS::CloudFront::CloudFrontOriginAccessIdentity
+  # NOTE: This repo template is the LIVE-stack template and uses OAC (modern,
+  # matches the deployed stack). SAR publishing rejects the OAC resource type,
+  # so `sam publish` uses a separate OAI-variant template generated at publish
+  # time — do NOT swap this live template back to OAI (in-place OAC->OAI
+  # migration breaks the origin and returns 403; OAI only works on fresh deploys).
+  WebOAC:
+    Type: AWS::CloudFront::OriginAccessControl
     Properties:
-      CloudFrontOriginAccessIdentityConfig:
-        Comment: !Sub ${AWS::StackName}-web-oai
+      OriginAccessControlConfig:
+        Name: !Sub ${AWS::StackName}-web-oac
+        Description: OAC for the HR MAX web bucket
+        OriginAccessControlOriginType: s3
+        SigningBehavior: always
+        SigningProtocol: sigv4
 
   WebDistribution:
     Type: AWS::CloudFront::Distribution
@@ -374,8 +380,9 @@ Resources:
         Origins:
           - Id: s3-web
             DomainName: !GetAtt WebBucket.RegionalDomainName
+            OriginAccessControlId: !GetAtt WebOAC.Id
             S3OriginConfig:
-              OriginAccessIdentity: !Sub origin-access-identity/cloudfront/${WebOAI}
+              OriginAccessIdentity: ''
         DefaultCacheBehavior:
           TargetOriginId: s3-web
           ViewerProtocolPolicy: redirect-to-https
@@ -396,9 +403,12 @@ Resources:
         Statement:
           - Effect: Allow
             Principal:
-              CanonicalUser: !GetAtt WebOAI.S3CanonicalUserId
+              Service: cloudfront.amazonaws.com
             Action: s3:GetObject
             Resource: !Sub ${WebBucket.Arn}/*
+            Condition:
+              StringEquals:
+                AWS:SourceArn: !Sub arn:aws:cloudfront::${AWS::AccountId}:distribution/${WebDistribution}
 
 Outputs:
   ApiUrl:
