@@ -255,15 +255,16 @@ html {
   z-index: 2;
   background-size: 100% 100%;
   background-repeat: no-repeat;
-  /* Fade the top ~24% — dissolves the crop's own night-sky strip so the
-     ridges emerge smoothly from the live sky gradient (hazy ridge tops) */
-  -webkit-mask-image: linear-gradient(to bottom, transparent 0%, #000 24%);
-  mask-image: linear-gradient(to bottom, transparent 0%, #000 24%);
+  /* Long top fade — dissolves the crop's own sky strip so the ridges
+     emerge softly from the live sky gradient (no stray color band) */
+  -webkit-mask-image: linear-gradient(to bottom, transparent 0%, #000 38%);
+  mask-image: linear-gradient(to bottom, transparent 0%, #000 38%);
 }
-/* Day: brighten the night crop into the design art's rich, vivid blues */
+/* Day: brighten the night crop into the design art's rich blues (tamed
+   saturation so no electric band sits above the ridges) */
 .hero[data-theme='morning'] .hills,
 .hero[data-theme='afternoon'] .hills {
-  filter: brightness(2.4) saturate(1.5) contrast(1.02);
+  filter: brightness(2.35) saturate(1.15);
 }
 /* Evening: dusk violet shift */
 .hero[data-theme='evening'] .hills {
