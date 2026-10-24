@@ -1,42 +1,29 @@
 /* ------------------------------------------------------------------ */
-/* Dashboard hero — cinematic sticky hero matched to the HRMAX design  */
-/* art (deep sky gradient, photoreal moon / glowing sun, drifting       */
-/* clouds, layered mountains + conifer tree line, divider stats).      */
-/*                                                                     */
-/* Sticky: pins directly below the global header while the page        */
-/* scrolls (compact on mobile, static in short landscape viewports).   */
-/* --header-h is defined in Header.css (68px, synced at each           */
-/* breakpoint); --hero-h is published live by the hero (ResizeObserver) */
-/* so the html scroll-padding below always clears header + hero.       */
-/*                                                                     */
-/* NOTE: no ancestor of .hero may set overflow:hidden/auto/scroll —    */
-/* that breaks position: sticky.                                       */
+/* Dashboard hero — cinematic hero matched to the HRMAX design art     */
+/* (deep sky gradient, photographic moon + mountain band cropped from  */
+/* the art, drifting clouds, divider stats). Scrolls with the page     */
+/* (NOT sticky).                                                       */
 /* ------------------------------------------------------------------ */
 
-:root {
-  --hero-h: 420px; /* live value published by the hero */
-}
-
-/* Scroll offsets so anchor / focus scrolls land clear of the sticky stack */
+/* Scroll offsets so anchor / focus scrolls land clear of the header */
 html {
-  scroll-padding-top: calc(var(--header-h, 68px) + var(--hero-h, 420px) + 16px);
+  scroll-padding-top: calc(var(--header-h, 68px) + 16px);
 }
 
 /* ── Hero shell ───────────────────────────────────────────────────── */
 .hero {
-  position: sticky;
-  top: var(--header-h, 68px);
-  z-index: 40; /* below the header (z:100), above page content */
+  position: relative; /* containing block for the absolute sky/hills/orbs
+                         (NOT sticky — hero scrolls with the page) */
   overflow: hidden;
   isolation: isolate;
-  margin-bottom: 24px;
+  margin-bottom: 20px;
   display: flex;
   flex-direction: column;
-  min-height: clamp(400px, 40vw, 580px);
+  min-height: clamp(330px, 33vw, 460px);
   border-radius: 18px;
   color: #fff;
   background: var(--sky);
-  box-shadow: 0 12px 34px rgba(2, 6, 23, 0.16);
+  box-shadow: 0 10px 30px rgba(10, 20, 60, 0.18);
   transition: background 0.6s ease;
 }
 .hero * {
@@ -81,32 +68,39 @@ html {
   background: var(--scrim);
 }
 
-/* Deterministic DOM stars (top 60% of the sky) — night full, evening faint */
+/* Realistic DOM stars — per-star brightness (--tw-op), soft glow on the
+   brightest, occasional warm tint. Night full, evening faint. */
 .hero .stars {
   position: absolute;
   inset: 0 0 40% 0;
+  opacity: 0;
+  transition: opacity 0.6s ease;
 }
 .hero .star {
   position: absolute;
-  width: 2px;
-  height: 2px;
   border-radius: 50%;
   background: #fff;
-  opacity: 0;
+  opacity: var(--tw-op, 0.8);
 }
-.hero[data-theme='night'] .star {
+.hero .star.warm {
+  background: #ffe9c8;
+}
+.hero .star.glow {
+  box-shadow: 0 0 5px 1px rgba(198, 220, 255, 0.75);
+}
+.hero[data-theme='night'] .stars {
   opacity: 1;
 }
-.hero[data-theme='evening'] .star {
+.hero[data-theme='evening'] .stars {
   opacity: 0.35;
 }
 @keyframes tw {
   0%,
   100% {
-    opacity: 0.35;
+    opacity: var(--tw-op, 0.8);
   }
   50% {
-    opacity: 1;
+    opacity: calc(var(--tw-op, 0.8) * 0.35);
   }
 }
 @media (prefers-reduced-motion: no-preference) {
@@ -119,7 +113,7 @@ html {
 /* ── Sun & moon orbs — pure CSS, sized/positioned like the design art ── */
 .hero .orb {
   position: absolute;
-  width: clamp(84px, 9vw, 132px);
+  width: clamp(72px, 7.6vw, 112px);
   aspect-ratio: 1;
   border-radius: 50%;
   z-index: 1;
@@ -144,7 +138,7 @@ html {
 .hero .moon {
   top: clamp(14px, 9%, 58px);
   right: clamp(16px, 11%, 140px);
-  width: clamp(88px, 9.6vw, 148px);
+  width: clamp(76px, 8.2vw, 124px);
   background-size: cover;
   background-position: center;
   background-repeat: no-repeat;
@@ -282,20 +276,20 @@ html {
   display: grid;
   grid-template-columns: 1fr auto;
   gap: 14px;
-  padding: clamp(18px, 2.6vw, 40px) clamp(18px, 2.8vw, 44px) clamp(10px, 1.2vw, 18px);
+  padding: clamp(15px, 2.1vw, 32px) clamp(16px, 2.4vw, 36px) clamp(9px, 1vw, 15px);
 }
 .hero .welcome {
   align-self: start;
 }
 .hero .welcome small {
   display: block;
-  font-size: clamp(17px, 1.75vw, 25px);
+  font-size: clamp(15px, 1.5vw, 21px);
   font-weight: 400;
   opacity: 0.95;
 }
 .hero .welcome h2 {
   margin: 4px 0 0;
-  font-size: clamp(30px, 3.8vw, 54px);
+  font-size: clamp(27px, 3.3vw, 46px);
   line-height: 1.05;
   font-weight: 800;
   letter-spacing: 0.2px;
@@ -309,17 +303,17 @@ html {
   display: flex;
   gap: 10px;
   flex-wrap: wrap;
-  margin-top: clamp(12px, 1.6vw, 24px);
+  margin-top: clamp(10px, 1.3vw, 20px);
 }
 .hero .chips .chip {
   display: inline-flex;
   align-items: center;
   gap: 8px;
-  padding: clamp(6px, 0.72vw, 10px) clamp(12px, 1.35vw, 20px);
+  padding: clamp(5px, 0.65vw, 8px) clamp(10px, 1.15vw, 16px);
   border-radius: 999px;
   border: 1.6px solid rgba(255, 255, 255, 0.62);
   background: rgba(5, 12, 28, 0.5);
-  font-size: clamp(12px, 1.25vw, 17px);
+  font-size: clamp(11px, 1.1vw, 15px);
   font-weight: 600;
   color: #fff;
   cursor: default;
@@ -394,7 +388,7 @@ html {
   align-items: center;
   justify-content: flex-end;
   gap: clamp(6px, 0.7vw, 10px);
-  font-size: clamp(28px, 3.1vw, 44px);
+  font-size: clamp(24px, 2.7vw, 38px);
   font-weight: 800;
   line-height: 1;
   letter-spacing: 0.4px;
@@ -402,7 +396,7 @@ html {
   text-shadow: 0 2px 12px rgba(0, 0, 0, 0.3);
 }
 .hero .when .time .time-icon {
-  width: clamp(20px, 2vw, 30px);
+  width: clamp(18px, 1.7vw, 26px);
   height: auto;
   color: #fff;
   filter: drop-shadow(0 2px 6px rgba(0, 0, 0, 0.35));
@@ -412,7 +406,7 @@ html {
   align-items: center;
   justify-content: flex-end;
   gap: 8px;
-  font-size: clamp(13px, 1.35vw, 19px);
+  font-size: clamp(12px, 1.2vw, 16px);
   opacity: 0.97;
 }
 .hero .when .row svg {
@@ -422,7 +416,7 @@ html {
 }
 .hero .when .greet {
   margin-top: clamp(2px, 0.4vw, 6px);
-  font-size: clamp(14px, 1.5vw, 21px);
+  font-size: clamp(13px, 1.3vw, 18px);
   font-weight: 700;
 }
 
@@ -439,15 +433,15 @@ html {
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: clamp(4px, 0.6vw, 10px);
-  padding: clamp(14px, 1.8vw, 26px) 8px;
+  gap: clamp(3px, 0.5vw, 8px);
+  padding: clamp(11px, 1.4vw, 20px) 6px;
   text-align: center;
 }
 .hero .stat:not(:first-child) {
   border-left: 1px solid rgba(255, 255, 255, 0.14);
 }
 .hero .stat .n {
-  font-size: clamp(26px, 3vw, 44px);
+  font-size: clamp(22px, 2.5vw, 36px);
   font-weight: 800;
   line-height: 1;
   text-shadow: 0 2px 10px rgba(0, 0, 0, 0.22);
@@ -456,8 +450,8 @@ html {
   display: flex;
   align-items: center;
   justify-content: center;
-  gap: clamp(5px, 0.6vw, 9px);
-  font-size: clamp(11px, 1.2vw, 17px);
+  gap: clamp(4px, 0.5vw, 7px);
+  font-size: clamp(10px, 1.05vw, 14px);
   font-weight: 600;
   letter-spacing: 0.04em;
   text-transform: uppercase;
@@ -551,10 +545,10 @@ html {
 /* ── Responsive ───────────────────────────────────────────────────── */
 @media (max-width: 900px) {
   .hero {
-    min-height: clamp(360px, 48vw, 440px);
+    min-height: clamp(300px, 40vw, 370px);
   }
   .hero .orb {
-    width: clamp(72px, 11vw, 96px);
+    width: clamp(60px, 10vw, 88px);
   }
 }
 
@@ -612,13 +606,6 @@ html {
   }
   .hero .hero-detail {
     font-size: 12px;
-  }
-}
-
-/* Landscape phones: a sticky hero would eat most of the short viewport */
-@media (max-height: 520px) {
-  .hero {
-    position: static;
   }
 }
 

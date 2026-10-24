@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState, type CSSProperties } from 'react'
+import { useEffect, useMemo, useState, type CSSProperties } from 'react'
 import {
   AlertCircle,
   BarChart3,
@@ -65,22 +65,26 @@ interface DashboardHeroProps {
 /* ------------------------------------------------------------------ */
 
 /**
- * Deterministic star field (reference `HeroBanner`): seeded so re-renders
- * never make the stars jump around. 45 stars, two sizes, twinkle delay and
- * duration baked in. Purely decorative (`aria-hidden` container).
+ * Realistic star field: mostly faint pinpoints with a scattering of
+ * brighter stars, a few with a soft glow, occasional warm-tinted ones —
+ * seeded so re-renders never make the stars jump around. Purely
+ * decorative (`aria-hidden` container).
  */
 function useSkyStars() {
   return useMemo(() => {
     let seed = 7
     const rnd = () => (seed = (seed * 16807) % 2147483647) / 2147483647
-    return Array.from({ length: 45 }, () => {
-      const size = rnd() > 0.85 ? 3 : 2
+    return Array.from({ length: 72 }, () => {
+      const bright = rnd() > 0.84
       return {
         left: `${(rnd() * 100).toFixed(2)}%`,
-        top: `${(rnd() * 100).toFixed(2)}%`,
-        size,
-        delay: `${(rnd() * 4).toFixed(2)}s`,
-        dur: `${(2.6 + rnd() * 3).toFixed(2)}s`,
+        top: `${(rnd() * 92).toFixed(2)}%`,
+        size: Number((bright ? 2.2 + rnd() * 1.4 : 1 + rnd() * 1.3).toFixed(2)),
+        opacity: (bright ? 0.85 + rnd() * 0.15 : 0.22 + rnd() * 0.55).toFixed(2),
+        glow: bright && rnd() > 0.45,
+        warm: rnd() > 0.91,
+        delay: `${(rnd() * 6).toFixed(2)}s`,
+        dur: `${(3 + rnd() * 4).toFixed(2)}s`,
       }
     })
   }, [])
@@ -107,9 +111,7 @@ const PinIcon = (
 )
 
 /* ------------------------------------------------------------------ */
-/* Bottom scenery — organic mountain ridges + forest line + wispy       */
-/* clouds (SVG turbulence/displacement so silhouettes read as real      */
-/* forested hills instead of flat triangles, matching the design art).  */
+/* Bottom scenery — organic mountain ridges + forest line               */
 /* ------------------------------------------------------------------ */
 
 /* Ridge baselines (far → near). Extend past the viewBox bottom (V250) so
@@ -125,12 +127,12 @@ const RIDGE_NEAR =
 const FOREST =
   'M0 178 L200 170 L420 180 L640 168 L860 178 L1080 170 L1200 176 V250 H0 Z'
 
-/**
- * Wispy cloud masses — fractal-noise alpha thresholds shaped into organic
- * clouds. `currentColor` from CSS per theme: dark navy wisps at night,
- * white puffs by day, dusk violet at evening. Slow drift, disabled under
- * reduced motion.
- */
+/* ------------------------------------------------------------------ */
+/* Wispy cloud masses — fractal-noise alpha thresholds shaped into      */
+/* organic clouds. `currentColor` from CSS per theme: dark navy wisps   */
+/* at night, white puffs by day, dusk violet at evening. Slow drift,    */
+/* disabled under reduced motion.                                       */
+/* ------------------------------------------------------------------ */
 const Clouds = () => (
   <svg className="clouds" viewBox="0 0 1200 300" preserveAspectRatio="none" aria-hidden="true" focusable="false">
     <defs>
@@ -457,41 +459,21 @@ export function DashboardHero({ stats, badge, showAttendance = true }: Dashboard
   const hasLoc = !!location
   const hasTemp = tempC != null
 
-  // Publish the hero's live height so scroll offsets (html scroll-padding)
-  // always clear the sticky header + hero stack.
-  const ref = useRef<HTMLElement>(null)
-  useEffect(() => {
-    const el = ref.current
-    if (!el || typeof ResizeObserver === 'undefined') return
-    const publish = () => {
-      document.documentElement.style.setProperty(
-        '--hero-h',
-        `${Math.round(el.getBoundingClientRect().height)}px`,
-      )
-    }
-    // Publish immediately (a hidden tab pauses rAF/RO delivery, so the
-    // observer alone could leave the default until first paint), then keep
-    // it fresh as the hero resizes (viewport, name length, stats, …).
-    publish()
-    const ro = new ResizeObserver(publish)
-    ro.observe(el)
-    return () => ro.disconnect()
-  }, [])
-
   return (
-    <section ref={ref} className="hero" data-theme={theme} aria-label="Welcome summary">
+    <section className="hero" data-theme={theme} aria-label="Welcome summary">
       <div className="sky" aria-hidden="true">
         <div className="stars">
           {stars.map((s, i) => (
             <i
               key={i}
-              className="star"
+              className={`star${s.glow ? ' glow' : ''}${s.warm ? ' warm' : ''}`}
               style={
                 {
                   left: s.left,
                   top: s.top,
-                  width: s.size,
-                  height: s.size,
+                  width: `${s.size}px`,
+                  height: `${s.size}px`,
+                  '--tw-op': s.opacity,
                   '--tw-delay': s.delay,
                   '--tw-dur': s.dur,
                 } as CSSProperties
