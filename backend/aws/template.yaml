@@ -1,5 +1,16 @@
 AWSTemplateFormatVersion: '2010-09-09'
 Transform: AWS::Serverless-2016-10-31
+
+Metadata:
+  AWS::ServerlessRepo::Application:
+    Name: hr-max-hrm-platform
+    Description: >
+      Complete HR management platform: Cognito auth, DynamoDB single-table
+      data layer, Lambda API, S3/CloudFront hosting and file storage, SES
+      email, and EventBridge scheduled jobs.
+    Author: Sofixs Company
+    LicenseUrl: https://raw.githubusercontent.com/sofixscompany-code/HR-MAX/main/LICENSE.txt
+    ReadmeUrl: https://raw.githubusercontent.com/sofixscompany-code/HR-MAX/main/backend/aws/SAR-README.md
 Description: >
   HR MAX — complete AWS infrastructure.
   Cognito (auth) + DynamoDB (data) + API Gateway/Lambda (API) + S3/CloudFront

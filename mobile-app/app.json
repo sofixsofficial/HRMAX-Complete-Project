@@ -12,7 +12,7 @@
     "ios": {
       "supportsTablet": true,
       "bundleIdentifier": "com.hrmax.app",
-      "buildNumber": "3",
+      "buildNumber": "4",
       "infoPlist": {
         "NSCameraUsageDescription": "HR MAX uses the camera to verify attendance with selfie check-ins.",
         "NSPhotoLibraryUsageDescription": "HR MAX needs photo library access to upload documents such as Aadhar, PAN, joining letter and offer letter.",
@@ -22,7 +22,7 @@
     },
     "android": {
       "package": "com.hrmax.app",
-      "versionCode": 8,
+      "versionCode": 9,
       "adaptiveIcon": {
         "foregroundImage": "./assets/adaptive-icon.png",
         "backgroundColor": "#FFFFFF"
