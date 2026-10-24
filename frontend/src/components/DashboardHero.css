@@ -50,19 +50,19 @@ html {
 .hero[data-theme='evening'] {
   --sky: linear-gradient(160deg, #262a63 0%, #6b4a8e 42%, #c96a3e 80%, #f0a35c 100%);
   --scrim: linear-gradient(90deg, rgba(28, 16, 40, 0.42), rgba(28, 16, 40, 0.08) 60%, rgba(28, 16, 40, 0));
-  --statbg: rgba(16, 10, 32, 0.28);
-  --hill-base: #25123f;
-  --hill-fade-from: 36%;
-  --hill-fade-full: 82%;
+  --statbg: rgba(13, 8, 26, 0.72);
+  --hill-base: #1d0f36;
+  --hill-fade-from: 30%;
+  --hill-fade-full: 63%;
 }
 .hero[data-theme='night'] {
   --sky: radial-gradient(circle at 84% 20%, rgba(104, 142, 214, 0.3) 0%, rgba(104, 142, 214, 0.1) 30%, rgba(104, 142, 214, 0) 58%),
     linear-gradient(165deg, #050c1d 0%, #0a1730 48%, #12294f 100%);
   --scrim: linear-gradient(90deg, rgba(3, 8, 20, 0.52), rgba(3, 8, 20, 0.18) 52%, rgba(3, 8, 20, 0.04));
-  --statbg: rgba(3, 9, 22, 0.32);
-  --hill-base: #04101f;
-  --hill-fade-from: 42%;
-  --hill-fade-full: 96%;
+  --statbg: rgba(2, 6, 16, 0.7);
+  --hill-base: #030b18;
+  --hill-fade-from: 32%;
+  --hill-fade-full: 65%;
 }
 
 /* ── Sky layer: scrim + stars + orbs + clouds + landscape ─────────── */
