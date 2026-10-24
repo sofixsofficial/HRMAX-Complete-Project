@@ -466,6 +466,8 @@ export function DashboardHero({ stats, badge, showAttendance = true }: Dashboard
         {/* Real photographic mountain band (cropped from the design art) —
             layered ridges + conifer treeline; theme tints via CSS filters */}
         <div className="hills" style={{ backgroundImage: `url(${ridgeUrl})` }} />
+        {/* Base fade — melts the crop's bottom into the theme's dark color */}
+        <div className="hill-fade" />
       </div>
 
       <div className="hero-main">

@@ -35,22 +35,26 @@ html {
   --sky: linear-gradient(180deg, #3b83c5 0%, #6faddd 48%, #a3d1ef 100%);
   --scrim: linear-gradient(90deg, rgba(8, 28, 54, 0.42), rgba(8, 28, 54, 0.1) 55%, rgba(8, 28, 54, 0));
   --statbg: rgba(9, 30, 58, 0.22);
+  --hill-base: #0a2e52;
 }
 .hero[data-theme='afternoon'] {
   --sky: linear-gradient(180deg, #3682ca 0%, #69ade0 50%, #a9d8f0 100%);
   --scrim: linear-gradient(90deg, rgba(8, 28, 54, 0.42), rgba(8, 28, 54, 0.1) 55%, rgba(8, 28, 54, 0));
   --statbg: rgba(9, 30, 58, 0.22);
+  --hill-base: #0a2e52;
 }
 .hero[data-theme='evening'] {
   --sky: linear-gradient(160deg, #262a63 0%, #6b4a8e 42%, #c96a3e 80%, #f0a35c 100%);
   --scrim: linear-gradient(90deg, rgba(28, 16, 40, 0.42), rgba(28, 16, 40, 0.08) 60%, rgba(28, 16, 40, 0));
   --statbg: rgba(16, 10, 32, 0.28);
+  --hill-base: #25123f;
 }
 .hero[data-theme='night'] {
   --sky: radial-gradient(circle at 84% 20%, rgba(104, 142, 214, 0.3) 0%, rgba(104, 142, 214, 0.1) 30%, rgba(104, 142, 214, 0) 58%),
     linear-gradient(165deg, #050c1d 0%, #0a1730 48%, #12294f 100%);
   --scrim: linear-gradient(90deg, rgba(3, 8, 20, 0.52), rgba(3, 8, 20, 0.18) 52%, rgba(3, 8, 20, 0.04));
   --statbg: rgba(3, 9, 22, 0.32);
+  --hill-base: #04101f;
 }
 
 /* ── Sky layer: scrim + stars + orbs + clouds + landscape ─────────── */
@@ -251,17 +255,33 @@ html {
   z-index: 2;
   background-size: 100% 100%;
   background-repeat: no-repeat;
-  -webkit-mask-image: linear-gradient(to bottom, transparent 0%, #000 16%);
-  mask-image: linear-gradient(to bottom, transparent 0%, #000 16%);
+  /* Fade the top ~24% — dissolves the crop's own night-sky strip so the
+     ridges emerge smoothly from the live sky gradient (hazy ridge tops) */
+  -webkit-mask-image: linear-gradient(to bottom, transparent 0%, #000 24%);
+  mask-image: linear-gradient(to bottom, transparent 0%, #000 24%);
 }
-/* Day: brighten the night crop into hazy, soft daylight blues */
+/* Day: brighten the night crop into the design art's rich, vivid blues */
 .hero[data-theme='morning'] .hills,
 .hero[data-theme='afternoon'] .hills {
-  filter: brightness(2.55) saturate(0.85) contrast(0.9);
+  filter: brightness(2.4) saturate(1.5) contrast(1.02);
 }
 /* Evening: dusk violet shift */
 .hero[data-theme='evening'] .hills {
-  filter: hue-rotate(48deg) brightness(1.55) saturate(1.6);
+  filter: hue-rotate(48deg) brightness(1.5) saturate(1.65);
+}
+/* Unfiltered base fade painted OVER the (filtered) hills — melts the
+   crop's bottom haze strip into each theme's dark base color so no
+   foreign tint (e.g. blue at dusk) survives behind the stats. */
+.hero .hill-fade {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  width: 100%;
+  height: 52%;
+  z-index: 2;
+  pointer-events: none;
+  background: linear-gradient(to bottom, transparent 0%, transparent 50%, var(--hill-base, #04101f) 96%);
 }
 
 /* ── Content layout ───────────────────────────────────────────────── */
