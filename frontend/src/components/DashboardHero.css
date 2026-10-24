@@ -19,7 +19,7 @@ html {
   margin-bottom: 20px;
   display: flex;
   flex-direction: column;
-  min-height: clamp(330px, 33vw, 460px);
+  min-height: clamp(290px, 28vw, 400px);
   border-radius: 18px;
   color: #fff;
   background: var(--sky);
@@ -35,19 +35,25 @@ html {
   --sky: linear-gradient(180deg, #3b83c5 0%, #6faddd 48%, #a3d1ef 100%);
   --scrim: linear-gradient(90deg, rgba(8, 28, 54, 0.42), rgba(8, 28, 54, 0.1) 55%, rgba(8, 28, 54, 0));
   --statbg: rgba(9, 30, 58, 0.22);
-  --hill-base: #0a2e52;
+  --hill-base: #08233f;
+  --hill-fade-from: 30%;
+  --hill-fade-full: 68%;
 }
 .hero[data-theme='afternoon'] {
   --sky: linear-gradient(180deg, #3682ca 0%, #69ade0 50%, #a9d8f0 100%);
   --scrim: linear-gradient(90deg, rgba(8, 28, 54, 0.42), rgba(8, 28, 54, 0.1) 55%, rgba(8, 28, 54, 0));
   --statbg: rgba(9, 30, 58, 0.22);
-  --hill-base: #0a2e52;
+  --hill-base: #08233f;
+  --hill-fade-from: 30%;
+  --hill-fade-full: 68%;
 }
 .hero[data-theme='evening'] {
   --sky: linear-gradient(160deg, #262a63 0%, #6b4a8e 42%, #c96a3e 80%, #f0a35c 100%);
   --scrim: linear-gradient(90deg, rgba(28, 16, 40, 0.42), rgba(28, 16, 40, 0.08) 60%, rgba(28, 16, 40, 0));
   --statbg: rgba(16, 10, 32, 0.28);
   --hill-base: #25123f;
+  --hill-fade-from: 36%;
+  --hill-fade-full: 82%;
 }
 .hero[data-theme='night'] {
   --sky: radial-gradient(circle at 84% 20%, rgba(104, 142, 214, 0.3) 0%, rgba(104, 142, 214, 0.1) 30%, rgba(104, 142, 214, 0) 58%),
@@ -55,6 +61,8 @@ html {
   --scrim: linear-gradient(90deg, rgba(3, 8, 20, 0.52), rgba(3, 8, 20, 0.18) 52%, rgba(3, 8, 20, 0.04));
   --statbg: rgba(3, 9, 22, 0.32);
   --hill-base: #04101f;
+  --hill-fade-from: 42%;
+  --hill-fade-full: 96%;
 }
 
 /* ── Sky layer: scrim + stars + orbs + clouds + landscape ─────────── */
@@ -282,7 +290,12 @@ html {
   height: 52%;
   z-index: 2;
   pointer-events: none;
-  background: linear-gradient(to bottom, transparent 0%, transparent 50%, var(--hill-base, #04101f) 96%);
+  background: linear-gradient(
+    to bottom,
+    transparent 0%,
+    transparent var(--hill-fade-from, 36%),
+    var(--hill-base, #04101f) var(--hill-fade-full, 90%)
+  );
 }
 
 /* ── Content layout ───────────────────────────────────────────────── */
@@ -526,7 +539,7 @@ html {
 /* ── Responsive ───────────────────────────────────────────────────── */
 @media (max-width: 900px) {
   .hero {
-    min-height: clamp(300px, 40vw, 370px);
+    min-height: clamp(265px, 36vw, 330px);
   }
   .hero .orb {
     width: clamp(60px, 10vw, 88px);
