@@ -23,7 +23,6 @@ html {
   border-radius: 18px;
   color: #fff;
   background: var(--sky);
-  box-shadow: 0 10px 30px rgba(10, 20, 60, 0.18);
   transition: background 0.6s ease;
 }
 .hero * {
@@ -34,35 +33,35 @@ html {
 .hero[data-theme='morning'] {
   --sky: linear-gradient(180deg, #3b83c5 0%, #6faddd 48%, #a3d1ef 100%);
   --scrim: linear-gradient(90deg, rgba(8, 28, 54, 0.42), rgba(8, 28, 54, 0.1) 55%, rgba(8, 28, 54, 0));
-  --statbg: rgba(9, 30, 58, 0.22);
-  --hill-base: #08233f;
-  --hill-fade-from: 30%;
-  --hill-fade-full: 68%;
+  --statbg: rgba(5, 14, 27, 0.82);
+  --hill-base: #051426;
+  --hill-fade-from: 22%;
+  --hill-fade-full: 44%;
 }
 .hero[data-theme='afternoon'] {
   --sky: linear-gradient(180deg, #3682ca 0%, #69ade0 50%, #a9d8f0 100%);
   --scrim: linear-gradient(90deg, rgba(8, 28, 54, 0.42), rgba(8, 28, 54, 0.1) 55%, rgba(8, 28, 54, 0));
-  --statbg: rgba(9, 30, 58, 0.22);
-  --hill-base: #08233f;
-  --hill-fade-from: 30%;
-  --hill-fade-full: 68%;
+  --statbg: rgba(5, 14, 27, 0.82);
+  --hill-base: #051426;
+  --hill-fade-from: 22%;
+  --hill-fade-full: 44%;
 }
 .hero[data-theme='evening'] {
   --sky: linear-gradient(160deg, #262a63 0%, #6b4a8e 42%, #c96a3e 80%, #f0a35c 100%);
   --scrim: linear-gradient(90deg, rgba(28, 16, 40, 0.42), rgba(28, 16, 40, 0.08) 60%, rgba(28, 16, 40, 0));
-  --statbg: rgba(13, 8, 26, 0.72);
-  --hill-base: #1d0f36;
-  --hill-fade-from: 30%;
-  --hill-fade-full: 63%;
+  --statbg: rgba(10, 6, 20, 0.85);
+  --hill-base: #130a26;
+  --hill-fade-from: 22%;
+  --hill-fade-full: 44%;
 }
 .hero[data-theme='night'] {
   --sky: radial-gradient(circle at 84% 20%, rgba(104, 142, 214, 0.3) 0%, rgba(104, 142, 214, 0.1) 30%, rgba(104, 142, 214, 0) 58%),
     linear-gradient(165deg, #050c1d 0%, #0a1730 48%, #12294f 100%);
   --scrim: linear-gradient(90deg, rgba(3, 8, 20, 0.52), rgba(3, 8, 20, 0.18) 52%, rgba(3, 8, 20, 0.04));
-  --statbg: rgba(2, 6, 16, 0.7);
-  --hill-base: #030b18;
-  --hill-fade-from: 32%;
-  --hill-fade-full: 65%;
+  --statbg: rgba(1, 4, 10, 0.82);
+  --hill-base: #02060f;
+  --hill-fade-from: 24%;
+  --hill-fade-full: 46%;
 }
 
 /* ── Sky layer: scrim + stars + orbs + clouds + landscape ─────────── */
@@ -106,19 +105,56 @@ html {
 .hero[data-theme='evening'] .stars {
   opacity: 0.35;
 }
+/* Real scintillation: two dip rhythms (tw / tw2), deep uneven dips,
+   per-star speed + phase — reads like real atmospheric twinkling. */
 @keyframes tw {
   0%,
   100% {
     opacity: var(--tw-op, 0.8);
   }
-  50% {
-    opacity: calc(var(--tw-op, 0.8) * 0.35);
+  38% {
+    opacity: calc(var(--tw-op, 0.8) * 0.5);
+  }
+  48% {
+    opacity: calc(var(--tw-op, 0.8) * 0.12);
+  }
+  58% {
+    opacity: calc(var(--tw-op, 0.8) * 0.55);
+  }
+  80% {
+    opacity: var(--tw-op, 0.8);
+  }
+}
+@keyframes tw2 {
+  0%,
+  100% {
+    opacity: var(--tw-op, 0.8);
+  }
+  16% {
+    opacity: calc(var(--tw-op, 0.8) * 0.18);
+  }
+  30% {
+    opacity: var(--tw-op, 0.8);
+  }
+  54% {
+    opacity: calc(var(--tw-op, 0.8) * 0.42);
+  }
+  62% {
+    opacity: calc(var(--tw-op, 0.8) * 0.1);
+  }
+  78% {
+    opacity: var(--tw-op, 0.8);
   }
 }
 @media (prefers-reduced-motion: no-preference) {
-  .hero[data-theme='night'] .star {
+  .hero[data-theme='night'] .star,
+  .hero[data-theme='evening'] .star {
     animation: tw var(--tw-dur, 4s) ease-in-out infinite;
     animation-delay: var(--tw-delay, 0s);
+  }
+  .hero[data-theme='night'] .star.tw2,
+  .hero[data-theme='evening'] .star.tw2 {
+    animation-name: tw2;
   }
 }
 

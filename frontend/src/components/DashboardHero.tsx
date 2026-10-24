@@ -82,8 +82,9 @@ function useSkyStars() {
         opacity: (bright ? 0.85 + rnd() * 0.15 : 0.22 + rnd() * 0.55).toFixed(2),
         glow: bright && rnd() > 0.45,
         warm: rnd() > 0.91,
+        blink: rnd() > 0.55,
         delay: `${(rnd() * 6).toFixed(2)}s`,
-        dur: `${(3 + rnd() * 4).toFixed(2)}s`,
+        dur: `${(1.6 + rnd() * 6.6).toFixed(2)}s`,
       }
     })
   }, [])
@@ -427,7 +428,7 @@ export function DashboardHero({ stats, badge, showAttendance = true }: Dashboard
           {stars.map((s, i) => (
             <i
               key={i}
-              className={`star${s.glow ? ' glow' : ''}${s.warm ? ' warm' : ''}`}
+              className={`star${s.glow ? ' glow' : ''}${s.warm ? ' warm' : ''}${s.blink ? ' tw2' : ''}`}
               style={
                 {
                   left: s.left,
