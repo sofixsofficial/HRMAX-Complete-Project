@@ -33,35 +33,35 @@ html {
 .hero[data-theme='morning'] {
   --sky: linear-gradient(180deg, #3b83c5 0%, #6faddd 48%, #a3d1ef 100%);
   --scrim: linear-gradient(90deg, rgba(8, 28, 54, 0.42), rgba(8, 28, 54, 0.1) 55%, rgba(8, 28, 54, 0));
-  --statbg: rgba(5, 14, 27, 0.82);
+  --statbg: rgba(4, 12, 24, 0.9);
   --hill-base: #051426;
-  --hill-fade-from: 22%;
-  --hill-fade-full: 44%;
+  --hill-fade-from: 28%;
+  --hill-fade-full: 70%;
 }
 .hero[data-theme='afternoon'] {
   --sky: linear-gradient(180deg, #3682ca 0%, #69ade0 50%, #a9d8f0 100%);
   --scrim: linear-gradient(90deg, rgba(8, 28, 54, 0.42), rgba(8, 28, 54, 0.1) 55%, rgba(8, 28, 54, 0));
-  --statbg: rgba(5, 14, 27, 0.82);
+  --statbg: rgba(4, 12, 24, 0.9);
   --hill-base: #051426;
-  --hill-fade-from: 22%;
-  --hill-fade-full: 44%;
+  --hill-fade-from: 28%;
+  --hill-fade-full: 70%;
 }
 .hero[data-theme='evening'] {
   --sky: linear-gradient(160deg, #262a63 0%, #6b4a8e 42%, #c96a3e 80%, #f0a35c 100%);
   --scrim: linear-gradient(90deg, rgba(28, 16, 40, 0.42), rgba(28, 16, 40, 0.08) 60%, rgba(28, 16, 40, 0));
-  --statbg: rgba(10, 6, 20, 0.85);
+  --statbg: rgba(8, 5, 16, 0.9);
   --hill-base: #130a26;
-  --hill-fade-from: 22%;
-  --hill-fade-full: 44%;
+  --hill-fade-from: 28%;
+  --hill-fade-full: 72%;
 }
 .hero[data-theme='night'] {
   --sky: radial-gradient(circle at 84% 20%, rgba(104, 142, 214, 0.3) 0%, rgba(104, 142, 214, 0.1) 30%, rgba(104, 142, 214, 0) 58%),
     linear-gradient(165deg, #050c1d 0%, #0a1730 48%, #12294f 100%);
   --scrim: linear-gradient(90deg, rgba(3, 8, 20, 0.52), rgba(3, 8, 20, 0.18) 52%, rgba(3, 8, 20, 0.04));
-  --statbg: rgba(1, 4, 10, 0.82);
+  --statbg: rgba(1, 3, 8, 0.88);
   --hill-base: #02060f;
-  --hill-fade-from: 24%;
-  --hill-fade-full: 46%;
+  --hill-fade-from: 30%;
+  --hill-fade-full: 76%;
 }
 
 /* ── Sky layer: scrim + stars + orbs + clouds + landscape ─────────── */
@@ -308,7 +308,7 @@ html {
    saturation so no electric band sits above the ridges) */
 .hero[data-theme='morning'] .hills,
 .hero[data-theme='afternoon'] .hills {
-  filter: brightness(2.35) saturate(1.15);
+  filter: brightness(2.05) contrast(1.12) saturate(1.1);
 }
 /* Evening: dusk violet shift */
 .hero[data-theme='evening'] .hills {
