@@ -1,0 +1,22 @@
+HR MAX — Proprietary License
+
+Copyright (c) 2026 Sofixs Company. All rights reserved.
+
+This software and associated documentation files (the "Software") are the
+proprietary property of Sofixs Company. Publication of this Software on the
+AWS Serverless Application Repository is intended solely to enable discovery
+and one-click deployment for authorized users.
+
+Permission is granted to download, deploy, and use an instance of the
+deployed application solely for evaluation or for use by parties who have a
+separate commercial agreement with Sofixs Company.
+
+The Software may not be redistributed, rebranded, sold, sublicensed, or
+made available as a competing hosted service without prior written
+permission from Sofixs Company.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR ITS USE.

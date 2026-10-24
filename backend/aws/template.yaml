@@ -9,8 +9,9 @@ Metadata:
       data layer, Lambda API, S3/CloudFront hosting and file storage, SES
       email, and EventBridge scheduled jobs.
     Author: Sofixs Company
-    LicenseUrl: https://raw.githubusercontent.com/sofixscompany-code/HR-MAX/main/LICENSE.txt
-    ReadmeUrl: https://raw.githubusercontent.com/sofixscompany-code/HR-MAX/main/backend/aws/SAR-README.md
+    SourceCodeUrl: https://github.com/sofixscompany-code/HR-MAX
+    LicenseUrl: ./LICENSE.txt
+    ReadmeUrl: ./SAR-README.md
 Description: >
   HR MAX — complete AWS infrastructure.
   Cognito (auth) + DynamoDB (data) + API Gateway/Lambda (API) + S3/CloudFront
@@ -354,15 +355,14 @@ Resources:
 
   # Origin Access Control — CloudFront signs origin requests (S3 policy only
   # grants the signed OAC path).
-  WebOAC:
-    Type: AWS::CloudFront::OriginAccessControl
+  # SAR publishing does not support AWS::CloudFront::OriginAccessControl, so
+  # the web bucket is locked to CloudFront via the classic OAI (identical
+  # effect: only the distribution can read the bucket).
+  WebOAI:
+    Type: AWS::CloudFront::CloudFrontOriginAccessIdentity
     Properties:
-      OriginAccessControlConfig:
-        Name: !Sub ${AWS::StackName}-web-oac
-        Description: OAC for the HR MAX web bucket
-        OriginAccessControlOriginType: s3
-        SigningBehavior: always
-        SigningProtocol: sigv4
+      CloudFrontOriginAccessIdentityConfig:
+        Comment: !Sub ${AWS::StackName}-web-oai
 
   WebDistribution:
     Type: AWS::CloudFront::Distribution
@@ -374,9 +374,8 @@ Resources:
         Origins:
           - Id: s3-web
             DomainName: !GetAtt WebBucket.RegionalDomainName
-            OriginAccessControlId: !GetAtt WebOAC.Id
             S3OriginConfig:
-              OriginAccessIdentity: ''
+              OriginAccessIdentity: !Sub origin-access-identity/cloudfront/${WebOAI}
         DefaultCacheBehavior:
           TargetOriginId: s3-web
           ViewerProtocolPolicy: redirect-to-https
@@ -397,12 +396,9 @@ Resources:
         Statement:
           - Effect: Allow
             Principal:
-              Service: cloudfront.amazonaws.com
+              CanonicalUser: !GetAtt WebOAI.S3CanonicalUserId
             Action: s3:GetObject
             Resource: !Sub ${WebBucket.Arn}/*
-            Condition:
-              StringEquals:
-                AWS:SourceArn: !Sub arn:aws:cloudfront::${AWS::AccountId}:distribution/${WebDistribution}
 
 Outputs:
   ApiUrl:
