@@ -42,6 +42,20 @@
   background: #e3e8f2;
   flex: none;
 }
+/* Meta cells pair a simple icon with the text (clock / calendar / pin) */
+.hdr-meta b,
+.hdr-meta span {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+}
+.hdr-meta svg {
+  flex: none;
+  color: #7c8bb0;
+}
+.hdr-meta b svg {
+  color: #43548a;
+}
 /* Progressive collapse so the strip never pushes the search/profile out:
    ≤900px drop location + temperature, ≤600px drop the date + separators
    (the time always stays — the hero shows everything regardless). */

@@ -37,9 +37,11 @@ import {
   type DayPeriod,
 } from '../utils/heroScene'
 import './DashboardHero.css'
-/* Moon photo cropped from the HRMAX design art (Night & Day Admin
-   Dashboard.png) — the exact moon the design calls for. */
+/* Moon + mountain band cropped from the HRMAX design art (Night & Day
+   Admin Dashboard.png) — the exact photographic scenery the design calls
+   for; theme tints are applied via CSS filters. */
 import moonUrl from '../assets/moon.png'
+import ridgeUrl from '../assets/night-ridge.png'
 
 export interface DashboardHeroStat {
   label: string
@@ -97,35 +99,12 @@ const PersonIcon = (
     <path d="M4 20c0-4 3.6-6 8-6s8 2 8 6" />
   </svg>
 )
-const CalendarIcon = (
-  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-    <rect x="3" y="4" width="18" height="18" rx="2" />
-    <path d="M16 2v4M8 2v4M3 10h18" />
-  </svg>
-)
 const PinIcon = (
   <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#22c55e" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
     <path d="M20 10c0 6-8 12-8 12s-8-6-8-12a8 8 0 1 1 16 0Z" />
     <circle cx="12" cy="10" r="3" />
   </svg>
 )
-
-/* ------------------------------------------------------------------ */
-/* Bottom scenery — organic mountain ridges + forest line               */
-/* ------------------------------------------------------------------ */
-
-/* Ridge baselines (far → near). Extend past the viewBox bottom (V250) so
-   filter displacement can never lift the base and reveal the sky. */
-const RIDGE_FAR =
-  'M0 140 L120 95 L240 130 L380 70 L520 125 L660 85 L800 135 L940 80 L1080 120 L1200 95 V250 H0 Z'
-const RIDGE_MID =
-  'M0 170 L150 135 L300 165 L470 120 L640 168 L820 130 L1000 170 L1200 140 V250 H0 Z'
-const RIDGE_NEAR =
-  'M0 188 L140 164 L300 186 L460 160 L620 184 L790 162 L950 186 L1110 166 L1200 178 V250 H0 Z'
-/* Darkest forest band along the very bottom — displacement roughens its
-   top edge into a treeline. */
-const FOREST =
-  'M0 178 L200 170 L420 180 L640 168 L860 178 L1080 170 L1200 176 V250 H0 Z'
 
 /* ------------------------------------------------------------------ */
 /* Wispy cloud masses — fractal-noise alpha thresholds shaped into      */
@@ -453,7 +432,7 @@ export function DashboardHero({ stats, badge, showAttendance = true }: Dashboard
   const { user } = useAuth()
   // Shared clock context — ONE time source for the header AND the hero, so
   // the two can never drift apart (hrmax-hero reference wiring).
-  const { theme, time, dateLong, greeting, location, tempC } = useClock()
+  const { theme, time, greeting, location, tempC } = useClock()
   const roleBadge = badge || roleDepartmentLabel(user)
   const stars = useSkyStars()
   const hasLoc = !!location
@@ -484,46 +463,18 @@ export function DashboardHero({ stats, badge, showAttendance = true }: Dashboard
         <div className="orb sun" />
         <div className="orb moon" style={{ backgroundImage: `url(${moonUrl})` }} />
         <Clouds />
-        {/* Layered scenery: displaced ridges (treeline texture) + forest band —
-            fills switch per theme in CSS */}
-        <svg className="hills" viewBox="0 0 1200 200" preserveAspectRatio="none" focusable="false">
-          <defs>
-            {/* Far ridge: soft, hazy — gentle displacement + blur */}
-            <filter id="dh-ridge-far" x="-5%" y="-25%" width="110%" height="160%" colorInterpolationFilters="sRGB">
-              <feTurbulence type="fractalNoise" baseFrequency="0.03 0.07" numOctaves="3" seed="4" result="n" />
-              <feDisplacementMap in="SourceGraphic" in2="n" scale="13" xChannelSelector="R" yChannelSelector="G" />
-              <feGaussianBlur stdDeviation="1.3" />
-            </filter>
-            {/* Mid ridge: sharper treeline */}
-            <filter id="dh-ridge-mid" x="-5%" y="-25%" width="110%" height="160%" colorInterpolationFilters="sRGB">
-              <feTurbulence type="fractalNoise" baseFrequency="0.045 0.1" numOctaves="3" seed="9" result="n" />
-              <feDisplacementMap in="SourceGraphic" in2="n" scale="18" xChannelSelector="R" yChannelSelector="G" />
-              <feGaussianBlur stdDeviation="0.7" />
-            </filter>
-            {/* Near ridge: dense conifer teeth */}
-            <filter id="dh-ridge-near" x="-5%" y="-25%" width="110%" height="160%" colorInterpolationFilters="sRGB">
-              <feTurbulence type="fractalNoise" baseFrequency="0.055 0.13" numOctaves="3" seed="14" result="n" />
-              <feDisplacementMap in="SourceGraphic" in2="n" scale="21" xChannelSelector="R" yChannelSelector="G" />
-              <feGaussianBlur stdDeviation="0.4" />
-            </filter>
-            {/* Forest band: strongest vertical jitter → treeline silhouette */}
-            <filter id="dh-forest" x="-5%" y="-40%" width="110%" height="180%" colorInterpolationFilters="sRGB">
-              <feTurbulence type="fractalNoise" baseFrequency="0.07 0.16" numOctaves="4" seed="21" result="n" />
-              <feDisplacementMap in="SourceGraphic" in2="n" scale="25" xChannelSelector="R" yChannelSelector="G" />
-              <feGaussianBlur stdDeviation="0.3" />
-            </filter>
-          </defs>
-          <path className="h1" filter="url(#dh-ridge-far)" d={RIDGE_FAR} />
-          <path className="h2" filter="url(#dh-ridge-mid)" d={RIDGE_MID} />
-          <path className="h3" filter="url(#dh-ridge-near)" d={RIDGE_NEAR} />
-          <path className="tree" filter="url(#dh-forest)" d={FOREST} />
-        </svg>
+        {/* Real photographic mountain band (cropped from the design art) —
+            layered ridges + conifer treeline; theme tints via CSS filters */}
+        <div className="hills" style={{ backgroundImage: `url(${ridgeUrl})` }} />
       </div>
 
       <div className="hero-main">
         <div className="welcome">
           <small>Welcome to,</small>
-          <h2>{user?.name || roleDepartmentLabel(user) || 'User'}</h2>
+          <h2>
+            {user?.name || roleDepartmentLabel(user) || 'User'}
+            <span className="greet-inline">{greeting}</span>
+          </h2>
 
           {showAttendance ? (
             <HeroAttendance badge={roleBadge} />
@@ -545,10 +496,6 @@ export function DashboardHero({ stats, badge, showAttendance = true }: Dashboard
             {periodIcon(theme)}
             <span>{time}</span>
           </div>
-          <div className="row date">
-            {CalendarIcon}
-            <span>{dateLong}</span>
-          </div>
           {(hasLoc || hasTemp) && (
             <div className="row loc">
               {PinIcon}
@@ -559,7 +506,6 @@ export function DashboardHero({ stats, badge, showAttendance = true }: Dashboard
               </span>
             </div>
           )}
-          <div className="greet">{greeting}</div>
         </div>
       </div>
 

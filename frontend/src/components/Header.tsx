@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef, useCallback } from 'react'
-import { Search, Menu, Loader2, Users, Ticket, FileText, ArrowRight, Building2, ChevronDown, Lock, Globe } from 'lucide-react'
+import { Search, Menu, Loader2, Users, Ticket, FileText, ArrowRight, Building2, ChevronDown, Lock, Globe, Clock3, CalendarDays, MapPin } from 'lucide-react'
 import { useNavigate } from 'react-router-dom'
 import { collection, query, where, getDocs, limit } from 'firebase/firestore'
 import { db } from '../config/firebase'
@@ -282,13 +282,20 @@ export function Header({ title, breadcrumbs = [] }: HeaderProps) {
           {greeting}, {user?.name?.split(' ')[0] || 'User'}
         </div>
         {/* Live clock strip — same shared ClockContext source as the hero.
-            Location/temperature render only with real data (never invented). */}
+            Each cell carries a simple icon (clock / calendar / pin). Location
+            and temperature render only with real data (never invented). */}
         <div className="hdr-meta" aria-label="Current time and place">
-          <b>{time}</b>
-          <span className="hide-mobile">{dateShort}</span>
+          <b><Clock3 size={15} />{time}</b>
+          <span className="hide-mobile"><CalendarDays size={14} />{dateShort}</span>
           {(location || tempC != null) && <span className="sep" />}
-          {location && <span className="hide-tablet">{location}</span>}
-          {tempC != null && <span className="hide-tablet">{Math.round(tempC)}°C</span>}
+          {(location || tempC != null) && (
+            <span className="hide-tablet">
+              <MapPin size={14} />
+              {location}
+              {location && tempC != null && ' · '}
+              {tempC != null && `${Math.round(tempC)}°C`}
+            </span>
+          )}
         </div>
         <div className="search-box" ref={searchRef} style={{ position: 'relative' }}>
           <Search size={16} />
