@@ -9,10 +9,7 @@ import {
   Loader2,
   LogIn,
   LogOut,
-  Moon,
   Percent,
-  Sun,
-  Sunset,
   Umbrella,
   User,
   UserCheck,
@@ -99,12 +96,6 @@ const PersonIcon = (
     <path d="M4 20c0-4 3.6-6 8-6s8 2 8 6" />
   </svg>
 )
-const PinIcon = (
-  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#22c55e" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-    <path d="M20 10c0 6-8 12-8 12s-8-6-8-12a8 8 0 1 1 16 0Z" />
-    <circle cx="12" cy="10" r="3" />
-  </svg>
-)
 
 /* ------------------------------------------------------------------ */
 /* Wispy cloud masses — fractal-noise alpha thresholds shaped into      */
@@ -163,13 +154,6 @@ const Clouds = () => (
     </g>
   </svg>
 )
-
-/** Period icon shown before the clock time (moon / sun / sunset). */
-const periodIcon = (theme: DayPeriod) => {
-  if (theme === 'night') return <Moon className="time-icon" aria-hidden="true" />
-  if (theme === 'evening') return <Sunset className="time-icon" aria-hidden="true" />
-  return <Sun className="time-icon" aria-hidden="true" />
-}
 
 /** Stat label icon — matches the reference strip (person, user-x, umbrella, …). */
 const statIcon = (label: string) => {
@@ -432,11 +416,9 @@ export function DashboardHero({ stats, badge, showAttendance = true }: Dashboard
   const { user } = useAuth()
   // Shared clock context — ONE time source for the header AND the hero, so
   // the two can never drift apart (hrmax-hero reference wiring).
-  const { theme, time, greeting, location, tempC } = useClock()
+  const { theme, greeting } = useClock()
   const roleBadge = badge || roleDepartmentLabel(user)
   const stars = useSkyStars()
-  const hasLoc = !!location
-  const hasTemp = tempC != null
 
   return (
     <section className="hero" data-theme={theme} aria-label="Welcome summary">
@@ -481,30 +463,11 @@ export function DashboardHero({ stats, badge, showAttendance = true }: Dashboard
           {showAttendance ? (
             <HeroAttendance badge={roleBadge} />
           ) : (
-            /* Master Admin / Company Admin — static chips (no attendance slice). */
+            /* Master Admin / Company Admin — role chip only (no attendance
+               slice, so no "Not Checked In" pill). */
             <div className="chips">
               <span className="chip role">
                 {PersonIcon} <span>{roleBadge}</span>
-              </span>
-              <span className="chip" data-state="idle" role="status">
-                <i aria-hidden="true" /> Not Checked In
-              </span>
-            </div>
-          )}
-        </div>
-
-        <div className="when">
-          <div className="time">
-            {periodIcon(theme)}
-            <span>{time}</span>
-          </div>
-          {(hasLoc || hasTemp) && (
-            <div className="row loc">
-              {PinIcon}
-              <span>
-                {location}
-                {hasLoc && hasTemp && ' · '}
-                {hasTemp && `${Math.round(tempC!)}°C`}
               </span>
             </div>
           )}
