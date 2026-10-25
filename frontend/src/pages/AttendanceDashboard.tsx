@@ -409,7 +409,7 @@ export function AttendanceDashboard() {
                 </div>
               ) : (
                 <>
-                  <div style={{ overflowX: 'auto' }}>
+                  <div className="table-scroll" style={{ overflowX: 'auto' }}>
                     <table style={{ width: '100%', borderCollapse: 'collapse', minWidth: 800 }}>
                       <thead>
                         <tr style={{ background: '#f9fafb', borderBottom: '1px solid #e5e7eb' }}>
@@ -508,7 +508,7 @@ export function AttendanceDashboard() {
               </div>
               <span style={{ fontSize: 13, color: '#6b7280' }}>{filteredEmpStats.length} employees</span>
             </div>
-            <div style={{ overflowX: 'auto' }}>
+            <div className="table-scroll" style={{ overflowX: 'auto' }}>
               <table style={{ width: '100%', borderCollapse: 'collapse', minWidth: 900 }}>
                 <thead>
                   <tr style={{ background: '#f9fafb', borderBottom: '1px solid #e5e7eb' }}>

@@ -116,6 +116,10 @@
   border-radius: 12px;
   padding: 20px;
   box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
+  /* min-width:0 — as a grid item its auto minimum is min-content (~384px from
+     the fixed-width bars), which made the whole page scroll sideways on a
+     390px phone. With 0 the card fits and .chart-container scrolls instead. */
+  min-width: 0;
 }
 
 .chart-header {
@@ -163,6 +167,7 @@
   height: 250px;
   display: flex;
   align-items: flex-end;
+  overflow-x: auto;
 }
 
 .bar-chart {

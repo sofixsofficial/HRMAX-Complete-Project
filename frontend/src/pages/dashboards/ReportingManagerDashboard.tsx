@@ -338,7 +338,7 @@ export function ReportingManagerDashboard() {
             </div>
           </div>
           <div style={{ padding: 0 }}>
-            <div style={{ overflowX: 'auto' }}>
+            <div className="table-scroll" style={{ overflowX: 'auto' }}>
               <table className="data-table" style={{ margin: 0 }}>
                 <thead>
                   <tr>

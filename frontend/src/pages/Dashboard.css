@@ -581,3 +581,43 @@
     padding: 0 12px 12px;
   }
 }
+
+/* ── Attendance Settings split layout ─────────────────────────────────────
+   Sticky 220px section rail + content. The rail is fixed-width and the
+   content has its own min-content (~220px), so side by side they totalled
+   ~476px and forced horizontal page scroll on a 390px phone. Below 768px the
+   rail stacks full-width above the content instead. */
+.as-layout {
+  display: flex;
+  gap: 24px;
+  align-items: flex-start;
+}
+
+.as-nav {
+  width: 220px;
+  flex-shrink: 0;
+  position: sticky;
+  top: 16px;
+}
+
+.as-main {
+  flex: 1;
+  max-width: 800px;
+  min-width: 0;
+}
+
+@media (max-width: 768px) {
+  .as-layout {
+    flex-direction: column;
+    gap: 16px;
+  }
+
+  .as-nav {
+    width: 100%;
+    position: static;
+  }
+
+  .as-main {
+    max-width: 100%;
+  }
+}

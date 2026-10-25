@@ -469,8 +469,11 @@ function AttendanceSettingsForm() {
     <div className="page-container">
       <Header title="Attendance Settings" />
       <div className="page-content">
-        <div style={{ display: 'flex', gap: 24, alignItems: 'flex-start' }}>
-          <div style={{ width: 220, flexShrink: 0, position: 'sticky', top: 16 }}>
+        {/* Class-based layout: `.as-nav` is a fixed 220px rail, which alongside
+            the content's own min-content (~220px) summed to 476px and pushed
+            the page sideways on phones. Media query stacks them instead. */}
+        <div className="as-layout">
+          <div className="as-nav">
             <div style={{ background: '#fff', borderRadius: 12, border: '1px solid #e5e7eb', overflow: 'hidden' }}>
               {SECTIONS.map(s => (
                 <div key={s.id} onClick={() => setActiveSection(s.id)} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '12px 16px', cursor: 'pointer', fontSize: 13, fontWeight: 500, background: activeSection === s.id ? '#fff7ed' : 'transparent', color: activeSection === s.id ? '#f97316' : '#374151', borderLeft: activeSection === s.id ? '3px solid #f97316' : '3px solid transparent', transition: 'all 0.12s ease' }}>
@@ -479,7 +482,7 @@ function AttendanceSettingsForm() {
               ))}
             </div>
           </div>
-          <div style={{ flex: 1, maxWidth: 800 }}>
+          <div className="as-main">
             {sectionContent}
             <div style={{ marginTop: 24, display: 'flex', gap: 12, justifyContent: 'flex-end' }}>
               <button onClick={handleSave} disabled={saving} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '12px 28px', borderRadius: 10, border: 'none', background: saving ? '#d1d5db' : '#f97316', color: '#fff', fontSize: 15, fontWeight: 600, cursor: saving ? 'not-allowed' : 'pointer', transition: 'background 0.15s ease' }}>
