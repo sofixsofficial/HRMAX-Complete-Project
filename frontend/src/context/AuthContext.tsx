@@ -58,8 +58,13 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   }, [auth.currentUser?.uid]);
 
   const login = useCallback(async (email: string, password: string) => {
+    // NOTE: deliberately does NOT toggle the global `isLoading` flag.
+    // AppRoutes swaps the whole route tree for a spinner whenever isLoading is
+    // true, so setting it here unmounted <Login> mid-attempt: on failure the
+    // catch block's setError() ran on the unmounted component and the fresh
+    // remount had error='' again — wrong-credentials messages never appeared.
+    // The Login page renders its own "Signing In..." spinner while awaiting.
     isSigningIn.current = true;
-    setIsLoading(true);
     try {
       const userData = await remoteSignIn(email, password);
       setUser(userData);
@@ -68,7 +73,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       throw error;
     } finally {
       isSigningIn.current = false;
-      setIsLoading(false);
     }
   }, []);
 

@@ -19,6 +19,7 @@ const API = () => AWS_CONFIG.apiUrl;
 const ROUTE_MAP: Record<string, string> = {
   // auth
   createStaffUser: '/api/users/create-staff',
+  changePassword: '/api/auth/change-password',
   sendResetCode: '/api/auth/forgot-password',
   resetPasswordWithCode: '/api/auth/reset-password',
   // attendance

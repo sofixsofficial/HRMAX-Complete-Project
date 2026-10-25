@@ -12,6 +12,7 @@ import { useTheme, ThemeColors } from '../../context/ThemeContext';
 import { Icon } from '../../utils/icons';
 import { ScreenHeader } from '../../components/ScreenHeader';
 import { confirmResetPassword } from '../../services/authService';
+import { validatePasswordPolicy } from '../../utils/passwordPolicy';
 import { toDisplayError } from '../../aws/errors';
 
 interface Props {
@@ -35,8 +36,11 @@ export const VerifyResetCodeScreen: React.FC<Props> = ({ navigation, route }) =>
       setError('Please enter both the code and your new password.');
       return;
     }
-    if (newPassword.length < 6) {
-      setError('Password must be at least 6 characters.');
+    // Same 8+/upper/lower/digit/symbol policy as the server — show the exact
+    // requirement that failed instead of a generic length message.
+    const policy = validatePasswordPolicy(newPassword);
+    if (!policy.valid) {
+      setError(policy.errors[0]);
       return;
     }
     setError('');

@@ -119,6 +119,18 @@ export const confirmResetPassword = async (code: string, newPassword: string, em
   }
 };
 
+/**
+ * Server-verified password change (parity with web Settings).
+ * The backend verifies the current password, enforces the shared policy,
+ * records an audit event and sends a security email — so genuine messages
+ * ("Current password is incorrect", policy specifics) come straight from it.
+ * Errors are already normalized by httpsCallable's toFriendlyError.
+ */
+export const changePassword = async (currentPassword: string, newPassword: string): Promise<void> => {
+  const fn = httpsCallable(functions, 'changePassword');
+  await fn({ currentPassword, newPassword });
+};
+
 export const onAuthChange = (callback: (user: User | null) => void) => {
   return onAuthStateChanged(auth, async (remoteUser) => {
     if (!remoteUser) {

@@ -3,7 +3,7 @@ import { View, Text, ScrollView, TouchableOpacity, TextInput, StyleSheet, Alert,
 import { useAuth } from '../../context/AuthContext';
 import { useTheme, ThemeColors } from '../../context/ThemeContext';
 import { useNotifications } from '../../hooks/useNotifications';
-import { getAuth, reauthenticateWithCredential, EmailAuthProvider, updatePassword } from '../../aws/auth-compat';
+import { validatePasswordPolicy } from '../../utils/passwordPolicy';
 import { Icon } from '../../utils/icons';
 import { collection, onSnapshot } from '../../aws/firestore-compat';
 import { db } from '../../aws/clients';
@@ -67,37 +67,34 @@ export const SettingsScreen: React.FC<{ navigation?: any }> = ({ navigation }) =
       Alert.alert('Error', 'Please fill current and new password');
       return;
     }
-    if (newPassword.length < 6) {
-      Alert.alert('Error', 'New password must be at least 6 characters');
-      return;
-    }
     if (newPassword !== confirmPassword) {
       Alert.alert('Error', 'New passwords do not match');
       return;
     }
+    if (newPassword === currentPassword) {
+      Alert.alert('Error', 'New password must be different from the current password.');
+      return;
+    }
+    // Same 8+/upper/lower/digit/symbol policy as the web and the server.
+    const policy = validatePasswordPolicy(newPassword);
+    if (!policy.valid) {
+      Alert.alert('Password does not meet the requirements', policy.errors.join('\n'));
+      return;
+    }
     setSaving(true);
     try {
-      const auth = getAuth();
-      const currentUser = auth.currentUser;
-      if (!currentUser || !currentUser.email) {
-        Alert.alert('Error', 'User not authenticated');
-        return;
-      }
-      const credential = EmailAuthProvider.credential(currentUser.email, currentPassword);
-      await reauthenticateWithCredential(currentUser, credential);
-      await updatePassword(currentUser, newPassword);
+      // Server-verified: backend re-checks the current password, enforces the
+      // policy, records the audit event and emails the user. Genuine server
+      // messages ("Current password is incorrect", policy errors) surface here.
+      const { changePassword } = await import('../../services/authService');
+      await changePassword(currentPassword, newPassword);
       Alert.alert('Success', 'Password updated successfully!');
       setCurrentPassword('');
       setNewPassword('');
       setConfirmPassword('');
     } catch (error: any) {
-      if (error.code === 'auth/wrong-password' || error.code === 'auth/invalid-credential') {
-        Alert.alert('Error', 'Current password is incorrect');
-      } else if (error.code === 'auth/weak-password') {
-        Alert.alert('Error', 'New password is too weak');
-      } else {
-        Alert.alert('Error', error.message || 'Failed to update password');
-      }
+      const { toDisplayError } = await import('../../aws/errors');
+      Alert.alert('Error', toDisplayError(error).message || 'Failed to update password');
     } finally {
       setSaving(false);
     }

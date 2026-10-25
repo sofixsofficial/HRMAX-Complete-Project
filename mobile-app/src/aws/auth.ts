@@ -227,6 +227,13 @@ function mapError(err: Error & { code?: string }): AuthError {
     CodeMismatchException: ['auth/invalid-credential', 'Invalid verification code.'],
     ExpiredCodeException: ['auth/invalid-credential', 'Verification code expired.'],
   };
+  // Cognito reports temporary lockouts as NotAuthorizedException with a
+  // distinct message ("Password attempts exceeded"). Map that to the
+  // rate-limit message instead of the wrong-credentials text so the user is
+  // told the truth: waiting, not re-typing the password.
+  if (err.code === 'NotAuthorizedException' && /attempts exceeded|limit exceeded/i.test(err.message ?? '')) {
+    return new AuthError('auth/too-many-requests', 'Too many failed attempts. Please wait a few minutes and try again.');
+  }
   const hit = map[err.code ?? ''] ?? [err.code ?? 'auth/internal-error', safeDisplayText(err.message)];
   return new AuthError(hit[0], hit[1]);
 }

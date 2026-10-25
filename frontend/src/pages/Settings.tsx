@@ -176,7 +176,7 @@ export function Settings() {
       setSuccess('Profile updated successfully!')
     } catch (err) {
       console.error('Error updating profile:', err)
-      setError('Failed to update profile. Please try again.')
+      setError(errText(err, 'Failed to update profile. Please try again.'))
     } finally { setSaving(false) }
   }
 
