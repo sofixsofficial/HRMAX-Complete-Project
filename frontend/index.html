@@ -3,7 +3,7 @@
   <head>
     <meta charset="UTF-8" />
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
-    <link rel="apple-touch-icon" href="/favicon.svg" />
+    <link rel="apple-touch-icon" href="/og-image.png" />
     <link rel="manifest" href="/manifest.json" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <meta name="theme-color" content="#f97316" />
@@ -14,19 +14,69 @@
     <meta name="description" content="HR MAX - HR Management Platform. Manage companies, employees, attendance, payroll, and more from a single powerful dashboard." />
     <meta name="keywords" content="HRM, HR management, payroll, attendance, employee management, HR software" />
     <meta name="author" content="HR MAX" />
+    <meta name="robots" content="index, follow, max-image-preview:large" />
+
+    <!-- Canonical host: www.hrmax.in (apex hrmax.in has no A record) -->
+    <link rel="canonical" href="https://www.hrmax.in/" />
 
     <!-- Open Graph -->
+    <meta property="og:site_name" content="HR MAX" />
+    <meta property="og:locale" content="en_IN" />
     <meta property="og:title" content="HR MAX - HR Management Platform" />
     <meta property="og:description" content="All-in-one HR solution for managing companies, employees, attendance, payroll, and more." />
     <meta property="og:type" content="website" />
-    <meta property="og:image" content="/favicon.svg" />
+    <meta property="og:url" content="https://www.hrmax.in/" />
+    <meta property="og:image" content="https://www.hrmax.in/og-image.png" />
+    <meta property="og:image:width" content="1024" />
+    <meta property="og:image:height" content="1024" />
+    <meta property="og:image:alt" content="HR MAX logo" />
 
     <!-- Twitter Card -->
     <meta name="twitter:card" content="summary_large_image" />
     <meta name="twitter:title" content="HR MAX - HR Management Platform" />
     <meta name="twitter:description" content="All-in-one HR solution for managing companies, employees, attendance, payroll, and more." />
+    <meta name="twitter:image" content="https://www.hrmax.in/og-image.png" />
+    <meta name="twitter:image:alt" content="HR MAX logo" />
 
     <title>HR MAX - HR Management Platform</title>
+
+    <!-- Structured data: helps Google understand the org/product and can win
+         rich results (sitelinks / product cards). -->
+    <script type="application/ld+json">
+    {
+      "@context": "https://schema.org",
+      "@graph": [
+        {
+          "@type": "Organization",
+          "@id": "https://www.hrmax.in/#organization",
+          "name": "HR MAX",
+          "url": "https://www.hrmax.in/",
+          "logo": "https://www.hrmax.in/og-image.png",
+          "email": "info@hrmax.in",
+          "sameAs": []
+        },
+        {
+          "@type": "WebSite",
+          "@id": "https://www.hrmax.in/#website",
+          "url": "https://www.hrmax.in/",
+          "name": "HR MAX - HR Management Platform",
+          "inLanguage": "en-IN",
+          "publisher": { "@id": "https://www.hrmax.in/#organization" }
+        },
+        {
+          "@type": "SoftwareApplication",
+          "name": "HR MAX",
+          "applicationCategory": "BusinessApplication",
+          "operatingSystem": "Web, Android, iOS",
+          "url": "https://www.hrmax.in/",
+          "image": "https://www.hrmax.in/og-image.png",
+          "description": "HR MAX is an all-in-one HR management platform for companies: employee records, attendance, leave, payroll, tasks and analytics in a single dashboard.",
+          "offers": { "@type": "Offer", "price": "0", "priceCurrency": "INR" },
+          "author": { "@id": "https://www.hrmax.in/#organization" }
+        }
+      ]
+    }
+    </script>
   </head>
   <body>
     <div id="root"></div>

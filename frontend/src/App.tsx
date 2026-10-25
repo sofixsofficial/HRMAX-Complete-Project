@@ -4,6 +4,7 @@ import { useAuth } from './context/AuthContext'
 import { ProtectedRoute, MasterAdminRoute, ExecutiveRoute, TeamLeaderRoute } from './components/ProtectedRoute'
 import { CompanyRouteGuard } from './components/CompanyRouteGuard'
 import { AuthenticatedLayout } from './components/AuthenticatedLayout'
+import { Seo } from './components/Seo'
 import {
   RoleRouteGuard,
   ExecutivePageRoute,
@@ -431,7 +432,12 @@ function AppRoutes() {
 }
 
 function App() {
-  return <AppRoutes />
+  return (
+    <>
+      <Seo />
+      <AppRoutes />
+    </>
+  )
 }
 
 export default App

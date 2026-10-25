@@ -1,4 +1,22 @@
 User-agent: *
 Allow: /
 
-Sitemap: https://hrm-sofisx.web.app/sitemap.xml
+# Auth/flow pages — no SEO value, require tokens or a signed-in session
+Disallow: /verify-reset-code
+Disallow: /set-new-password
+Disallow: /accept-invite
+Disallow: /force-password-change
+Disallow: /unauthorized
+
+# Application (login-required) areas — crawlable only behind auth, never indexed
+Disallow: /master-admin/
+Disallow: /company-admin/
+Disallow: /executive/
+Disallow: /team-leader/
+Disallow: /reporting-manager/
+Disallow: /employee/
+Disallow: /admin/
+Disallow: /hr/
+Disallow: /manager/
+
+Sitemap: https://www.hrmax.in/sitemap.xml
