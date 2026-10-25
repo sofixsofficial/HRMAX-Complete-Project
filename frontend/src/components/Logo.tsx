@@ -25,7 +25,9 @@ export function Logo({ variant = 'compact', size = 'md', onLight = false }: Logo
       <svg width={dim} height={dim * 40 / 150} viewBox="0 0 150 40" fill="none" xmlns="http://www.w3.org/2000/svg">
         <rect x="0" y="4" width="32" height="32" rx="8" fill="#f97316"/>
         <text x="16" y="27" textAnchor="middle" fontFamily="Inter, Arial, sans-serif" fontWeight="800" fontSize="17" fill="white">HR</text>
-        <text x="46" y="28" fontFamily="Inter, Arial, sans-serif" fontWeight="700" fontSize="24" fill={onLight ? '#111827' : 'white'}>HR</text>
+        {/* Wordmark "HR" is orange so it matches "MAX" — previously #111827,
+            which made the lockup read as a dark/orange mix in the navbar+footer. */}
+        <text x="46" y="28" fontFamily="Inter, Arial, sans-serif" fontWeight="700" fontSize="24" fill="#f97316">HR</text>
         <text x="80" y="28" fontFamily="Inter, Arial, sans-serif" fontWeight="800" fontSize="24" fill="#f97316">MAX</text>
       </svg>
     )
@@ -40,7 +42,9 @@ export function Logo({ variant = 'compact', size = 'md', onLight = false }: Logo
     <svg width={dim} height={dim * 98 / 120} viewBox="0 0 120 98" fill="none" xmlns="http://www.w3.org/2000/svg">
       <rect x="35" y="0" width="50" height="50" rx="12" fill="#f97316"/>
       <text x="60" y="34" textAnchor="middle" fontFamily="Inter, Arial, sans-serif" fontWeight="800" fontSize="23" fill="white">HR</text>
-      <text x="60" y="90" textAnchor="middle" fontFamily="Inter, Arial, sans-serif" fontWeight="800" fontSize="36" fill="#FFFFFF">MAX</text>
+      {/* Full wordmark below the mark: "HR MAX" (was just "MAX"). Font size
+          26 keeps the 6 glyphs inside the 120-unit viewBox when centred. */}
+      <text x="60" y="88" textAnchor="middle" fontFamily="Inter, Arial, sans-serif" fontWeight="800" fontSize="26" fill="#FFFFFF">HR MAX</text>
     </svg>
   )
 }

@@ -101,46 +101,54 @@
 .hero-btn-primary {
   display: inline-flex;
   align-items: center;
-  gap: 8px;
-  padding: 14px 28px;
-  border-radius: 10px;
-  font-size: 15px;
-  font-weight: 600;
+  justify-content: center;
+  gap: 10px;
+  padding: 16px 32px;
+  border-radius: 12px;
+  font-size: 16px;
+  font-weight: 700;
+  letter-spacing: 0.2px;
   color: #fff;
   text-decoration: none;
-  background: #f97316;
-  box-shadow: 0 4px 16px rgba(249,115,22,0.3);
+  /* Gradient + depth so it reads as a primary CTA rather than a flat block */
+  background: linear-gradient(135deg, #fb923c 0%, #f97316 55%, #ea580c 100%);
+  box-shadow: 0 10px 24px rgba(249, 115, 22, 0.35);
   transition: all 0.3s;
   border: none;
   cursor: pointer;
 }
 
 .hero-btn-primary:hover {
-  background: #ea580c;
-  transform: translateY(-2px);
-  box-shadow: 0 6px 20px rgba(249,115,22,0.4);
+  background: linear-gradient(135deg, #fdba74 0%, #f97316 55%, #c2410c 100%);
+  transform: translateY(-3px);
+  box-shadow: 0 16px 32px rgba(249, 115, 22, 0.45);
 }
 
 .hero-btn-secondary {
   display: inline-flex;
   align-items: center;
-  gap: 8px;
-  padding: 14px 28px;
-  border-radius: 10px;
-  font-size: 15px;
-  font-weight: 500;
-  color: #374151;
+  justify-content: center;
+  gap: 10px;
+  padding: 16px 32px;
+  border-radius: 12px;
+  font-size: 16px;
+  font-weight: 600;
+  color: #1f2937;
   text-decoration: none;
-  border: 1px solid #e5e7eb;
+  /* Thicker frame + soft shadow so it sits at the same visual weight as the
+     primary button instead of looking like a plain outline. */
+  border: 1.5px solid #d1d5db;
   background: #fff;
+  box-shadow: 0 4px 12px rgba(15, 23, 42, 0.06);
   transition: all 0.3s;
 }
 
 .hero-btn-secondary:hover {
   border-color: #f97316;
-  color: #f97316;
-  transform: translateY(-2px);
-  box-shadow: 0 4px 12px rgba(0,0,0,0.08);
+  background: #fff7ed;
+  color: #ea580c;
+  transform: translateY(-3px);
+  box-shadow: 0 10px 22px rgba(249, 115, 22, 0.16);
 }
 
 .hero-stats {

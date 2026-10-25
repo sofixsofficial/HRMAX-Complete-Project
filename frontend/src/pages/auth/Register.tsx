@@ -114,11 +114,11 @@ export const Register: React.FC = () => {
               <form onSubmit={handleSubmit} className="inquiry-form">
                 <div className="inquiry-field">
                   <label>Company Name *</label>
-                  <input type="text" name="companyName" value={formData.companyName} onChange={handleChange} placeholder="Acme Corporation" required />
+                  <input type="text" name="companyName" value={formData.companyName} onChange={handleChange} placeholder="Your Company Name" required />
                 </div>
                 <div className="inquiry-field">
                   <label>Your Full Name *</label>
-                  <input type="text" name="fullName" value={formData.fullName} onChange={handleChange} placeholder="John Doe" required />
+                  <input type="text" name="fullName" value={formData.fullName} onChange={handleChange} placeholder="Your Full Name" required />
                 </div>
                 <div className="inquiry-field">
                   <label>Work Email *</label>
@@ -126,7 +126,7 @@ export const Register: React.FC = () => {
                 </div>
                 <div className="inquiry-field">
                   <label>Phone Number</label>
-                  <input type="tel" name="phoneNumber" value={formData.phoneNumber} onChange={handleChange} placeholder="+1 (555) 000-0000" />
+                  <input type="tel" name="phoneNumber" value={formData.phoneNumber} onChange={handleChange} placeholder="+91 0000000000" />
                 </div>
                 <div className="inquiry-field">
                   <label>Estimated Team Size *</label>

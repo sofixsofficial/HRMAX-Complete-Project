@@ -116,7 +116,7 @@ export function Contact() {
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
                   <div className="contact-field">
                     <label>Your Full Name *</label>
-                    <input type="text" name="fullName" value={form.fullName} onChange={handleChange} placeholder="John Doe" required />
+                    <input type="text" name="fullName" value={form.fullName} onChange={handleChange} placeholder="Your Full Name" required />
                   </div>
                   <div className="contact-field">
                     <label>Work Email *</label>
@@ -126,11 +126,11 @@ export function Contact() {
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
                   <div className="contact-field">
                     <label>Company Name</label>
-                    <input type="text" name="companyName" value={form.companyName} onChange={handleChange} placeholder="Acme Corporation" />
+                    <input type="text" name="companyName" value={form.companyName} onChange={handleChange} placeholder="Your Company Name" />
                   </div>
                   <div className="contact-field">
                     <label>Phone Number</label>
-                    <input type="tel" name="phoneNumber" value={form.phoneNumber} onChange={handleChange} placeholder="+91 96015 82622" />
+                    <input type="tel" name="phoneNumber" value={form.phoneNumber} onChange={handleChange} placeholder="+910000000000" />
                   </div>
                 </div>
                 <div className="contact-field">
