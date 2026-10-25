@@ -5,7 +5,8 @@ import { Header } from '../components/Header'
 import { useAuth } from '../context/AuthContext'
 import { useCompany } from '../context/CompanyContext'
 import { usePermissionScope } from '../hooks/usePermissionScope'
-import { updateUserProfile, updateUserPassword, reauthenticateUser } from '../services/authService'
+import { updateUserProfile, changePassword } from '../services/authService'
+import { PASSWORD_REQUIREMENTS, getPasswordStrength, validatePasswordPolicy } from '../utils/passwordPolicy'
 import { logAudit } from '../services/auditLogService'
 import { useNavigate, useSearchParams } from 'react-router-dom'
 import { collection, doc, getDoc, getDocs, query, orderBy, limit } from '../aws/firestore-compat'
@@ -183,19 +184,6 @@ export function Settings() {
     setNotificationSettings(prev => ({ ...prev, [key]: !prev[key as keyof typeof notificationSettings] }))
   }
 
-  const getPasswordStrength = (pw: string): { score: number; label: string; color: string } => {
-    let score = 0
-    if (pw.length >= 6) score++
-    if (pw.length >= 8) score++
-    if (/[A-Z]/.test(pw)) score++
-    if (/[a-z]/.test(pw)) score++
-    if (/[0-9]/.test(pw)) score++
-    if (/[^A-Za-z0-9]/.test(pw)) score++
-    const labels = ['Weak', 'Fair', 'Good', 'Strong', 'Very Strong', 'Excellent']
-    const colors = ['#dc2626', '#f59e0b', '#eab308', '#22c55e', '#16a34a', '#15803d']
-    return { score: Math.min(score, 5), label: labels[Math.min(score, 5)], color: colors[Math.min(score, 5)] }
-  }
-
   const handleSecurityChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     setSecuritySettings(prev => ({ ...prev, [e.target.name]: e.target.value }))
   }
@@ -208,20 +196,21 @@ export function Settings() {
     if (!securitySettings.newPassword) {
       setError('Please enter a new password'); return
     }
-    if (securitySettings.newPassword.length < 6) {
-      setError('New password must be at least 6 characters'); return
+    if (securitySettings.newPassword === securitySettings.currentPassword) {
+      setError('New password must be different from the current password.'); return
+    }
+    const policy = validatePasswordPolicy(securitySettings.newPassword)
+    if (!policy.valid) {
+      setError(policy.errors[0]); return
     }
     if (securitySettings.newPassword !== securitySettings.confirmPassword) {
       setError('Passwords do not match'); return
     }
-    const strength = getPasswordStrength(securitySettings.newPassword)
-    if (strength.score < 2) {
-      setError('Password is too weak. Use a mix of uppercase, lowercase, numbers, and special characters.'); return
-    }
     setSaving(true); setError(null); setSuccess(null)
     try {
-      await reauthenticateUser(securitySettings.currentPassword)
-      await updateUserPassword(securitySettings.newPassword)
+      // Server-backed change: verifies the current password, enforces the
+      // shared policy, sends a security email and records an audit event.
+      await changePassword(securitySettings.currentPassword, securitySettings.newPassword)
       logAudit({ userId: user.id, userName: user.name, userRole: user.role, action: 'Changed password', actionType: 'update', module: 'Settings', targetEntity: user.name, companyId: effectiveCompanyId || undefined, status: 'success' })
       setSuccess('Password updated successfully!')
       setSecuritySettings(prev => ({ ...prev, currentPassword: '', newPassword: '', confirmPassword: '' }))
@@ -386,13 +375,24 @@ export function Settings() {
                     {securitySettings.newPassword && (() => {
                       const s = getPasswordStrength(securitySettings.newPassword)
                       return (
-                        <div style={{ marginTop: 6 }}>
-                          <div style={{ display: 'flex', gap: 4, marginBottom: 4 }}>
-                            {Array.from({ length: 6 }).map((_, i) => (
-                              <div key={i} style={{ flex: 1, height: 4, borderRadius: 2, background: i < s.score ? s.color : '#e5e7eb' }} />
+                        <div style={{ marginTop: 8 }}>
+                          <div style={{ display: 'flex', gap: 4, marginBottom: 6 }}>
+                            {Array.from({ length: 5 }).map((_, i) => (
+                              <div key={i} style={{ flex: 1, height: 4, borderRadius: 2, background: i < s.metCount ? s.color : '#e5e7eb' }} />
                             ))}
                           </div>
-                          <span style={{ fontSize: 11, color: s.color, fontWeight: 600 }}>{s.label}</span>
+                          <span style={{ fontSize: 11, color: s.color, fontWeight: 600, display: 'block', marginBottom: 6 }}>{s.label}</span>
+                          <div style={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
+                            {PASSWORD_REQUIREMENTS.map(req => {
+                              const ok = req.test(securitySettings.newPassword)
+                              return (
+                                <div key={req.id} style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 11, color: ok ? '#16a34a' : '#6b7280' }}>
+                                  <span style={{ fontSize: 12 }}>{ok ? '✓' : '○'}</span>
+                                  <span>{req.label}</span>
+                                </div>
+                              )
+                            })}
+                          </div>
                         </div>
                       )
                     })()}

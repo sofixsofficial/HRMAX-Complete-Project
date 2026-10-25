@@ -16,8 +16,8 @@ async function scanAll() {
     const res = await ddb.send(new ScanCommand({
       TableName: TABLE,
       ExclusiveStartKey: start,
-      ProjectionExpression: 'entity, #i, email, role, companyId, PK, SK',
-      ExpressionAttributeNames: { '#i': 'id' },
+      ProjectionExpression: 'entity, #i, email, #r, companyId, PK, SK',
+      ExpressionAttributeNames: { '#i': 'id', '#r': 'role' },
     }));
     out.push(...(res.Items ?? []).map((i) => unmarshall(i)));
     start = res.LastEvaluatedKey;

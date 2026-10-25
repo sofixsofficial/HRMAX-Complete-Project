@@ -107,6 +107,37 @@ for (const [path, missing] of Object.entries(MOUNTED_PUBLIC_POST)) {
   });
 }
 
+// ---------------------------------------------------------------------------
+// Password policy (shared with frontend/src/utils/passwordPolicy.ts).
+// The policy check runs BEFORE any DynamoDB/Cognito call, so these are
+// offline-safe and assert the exact server-side rejection message.
+// ---------------------------------------------------------------------------
+
+test('POST /api/auth/reset-password rejects passwords below the shared policy (before any AWS call)', async () => {
+  const weakPasswords = [
+    { pw: 'short1!', msg: 'Password must be at least 8 characters long.' },
+    { pw: 'alllowercase1!', msg: 'Password must contain at least one uppercase letter (A-Z).' },
+    { pw: 'ALLUPPERCASE1!', msg: 'Password must contain at least one lowercase letter (a-z).' },
+    { pw: 'NoDigitsHere!!', msg: 'Password must contain at least one number (0-9).' },
+    { pw: 'NoSymbols12345', msg: 'Password must contain at least one special symbol (! @ # $ % & *).' },
+  ];
+  for (const { pw, msg } of weakPasswords) {
+    const { status, body } = await call('POST', '/api/auth/reset-password', {
+      body: JSON.stringify({ email: 'user@example.com', code: '123456', newPassword: pw }),
+    });
+    assert.equal(status, 400, `password "${pw}" should be rejected: ${JSON.stringify(body)}`);
+    assert.equal(body?.error?.message, msg);
+  }
+});
+
+test('POST /api/auth/change-password is auth-gated (401 for anonymous, not 404)', async () => {
+  const { status, body } = await call('POST', '/api/auth/change-password', {
+    body: JSON.stringify({ currentPassword: 'x', newPassword: 'Str0ng!Pass' }),
+  });
+  assert.equal(status, 401);
+  assert.equal(body?.error?.code, 'unauthenticated');
+});
+
 const MOUNTED_POST = [
   '/api/notifications/read-all',    // batch mark-read
   '/api/notifications',

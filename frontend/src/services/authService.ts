@@ -373,6 +373,19 @@ export const updateUserPassword = async (newPassword: string): Promise<void> => 
 };
 
 /**
+ * Change own password through the backend (/api/auth/change-password).
+ * Server verifies the current password, enforces the shared password policy,
+ * rejects reusing the current password, sends a security notification email
+ * and records an audit event. Preferred over the client-side Cognito path.
+ */
+export const changePassword = async (currentPassword: string, newPassword: string): Promise<void> => {
+  const { httpsCallable } = await import('../aws/functions-compat');
+  const { functions } = await import('../aws/clients');
+  const fn = httpsCallable(functions, 'changePassword');
+  await fn({ currentPassword, newPassword });
+};
+
+/**
  * Update user email
  */
 export const updateUserEmail = async (newEmail: string): Promise<void> => {

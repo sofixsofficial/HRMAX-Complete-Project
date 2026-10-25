@@ -255,6 +255,9 @@ export const CompanyProvider: React.FC<{ children: React.ReactNode }> = ({ child
     // First: check availableCompanies (already loaded by loadCompanies)
     const found = availableCompanies.find(c => c.id === cid)
     if (found) { setCompanyName(found.name); return }
+    // 'global' is the master-admin scope sentinel, not a real company document
+    // — fetching it would only produce a pointless 404.
+    if (cid === 'global') { setCompanyName(null); return }
     // Fallback: direct Firestore read for company name
     getDoc(doc(db, 'companies', cid)).then(snap => {
       if (snap.exists()) setCompanyName(snap.data()?.name || null)

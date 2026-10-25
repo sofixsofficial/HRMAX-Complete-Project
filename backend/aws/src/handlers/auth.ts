@@ -15,13 +15,88 @@ import { PutCommand } from '@aws-sdk/lib-dynamodb';
 import { putEntity, getUserDoc, queryEntities, deleteUserDoc, patchEntity, doc, TABLE, userPK } from '../lib/db.js';
 import { sendEmailCentral, templates } from '../lib/email.js';
 import { createNotification } from '../lib/notify.js';
+import { enforceRateLimit } from '../lib/rateLimit.js';
 import { ApiError, newId, isoNow, defaultPermissionsForRole, type UserDoc } from '../lib/types.js';
 
 const cognito = new CognitoIdentityProviderClient({});
 const POOL_ID = () => process.env.COGNITO_USER_POOL_ID ?? '';
 const CLIENT_ID = () => process.env.COGNITO_CLIENT_ID ?? '';
 
+/** Client IP for rate-limit buckets on public routes (caller is null there). */
+const sourceIp = (req: { raw: { requestContext: { http: { sourceIp?: string } } } }): string =>
+  String(req.raw?.requestContext?.http?.sourceIp ?? 'unknown');
+
 const APP_URL = () => process.env.APP_URL ?? 'https://hrmax.in';
+
+// ---------------------------------------------------------------------------
+// Password policy (single source of truth for every server-side password set)
+// ---------------------------------------------------------------------------
+// Matches the frontend policy (frontend/src/utils/passwordPolicy.ts). Enforced
+// ONLY on new-password paths (reset, change, invite, admin-created staff) so
+// existing accounts with historical passwords can still sign in untouched.
+export function validatePasswordPolicy(password: string): { valid: boolean; message?: string } {
+  if (typeof password !== 'string' || password.length === 0) {
+    return { valid: false, message: 'Password is required.' };
+  }
+  if (password.length < 8) {
+    return { valid: false, message: 'Password must be at least 8 characters long.' };
+  }
+  if (!/[A-Z]/.test(password)) {
+    return { valid: false, message: 'Password must contain at least one uppercase letter (A-Z).' };
+  }
+  if (!/[a-z]/.test(password)) {
+    return { valid: false, message: 'Password must contain at least one lowercase letter (a-z).' };
+  }
+  if (!/[0-9]/.test(password)) {
+    return { valid: false, message: 'Password must contain at least one number (0-9).' };
+  }
+  if (!/[!@#$%&*]/.test(password)) {
+    return { valid: false, message: 'Password must contain at least one special symbol (! @ # $ % & *).' };
+  }
+  return { valid: true };
+}
+
+/** Best-effort security email + audit trail for password events (never throws,
+ *  never logs the password itself). */
+async function recordPasswordEvent(opts: {
+  uid: string; email: string; name?: string; companyId: string;
+  action: 'PASSWORD_RESET_COMPLETED' | 'PASSWORD_CHANGED';
+  ip?: string; userAgent?: string;
+}): Promise<void> {
+  try {
+    const t = templates.passwordChanged(opts.name ?? '');
+    await sendEmailCentral({
+      to: opts.email,
+      subject: t.subject,
+      html: t.html,
+      type: 'system',
+      companyId: opts.companyId,
+      dedupKey: `password-event-${opts.uid}-${opts.action}-${Date.now()}`,
+    });
+  } catch (e) {
+    console.warn('[auth] password-event email failed (best-effort):', e instanceof Error ? e.message : String(e));
+  }
+  try {
+    await putEntity(
+      {
+        id: newId(),
+        companyId: opts.companyId || 'global',
+        action: opts.action,
+        actorId: opts.uid,
+        actorName: opts.name ?? '',
+        targetId: opts.uid,
+        details: 'Password updated via self-service flow',
+        ip: opts.ip ?? '',
+        userAgent: opts.userAgent ?? '',
+        createdAt: isoNow(),
+        timestamp: isoNow(),
+      },
+      { entity: 'auditLog', globalList: true, tsField: 'createdAt' },
+    );
+  } catch (e) {
+    console.warn('[auth] password-event audit failed (best-effort):', e instanceof Error ? e.message : String(e));
+  }
+}
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -202,6 +277,10 @@ export const authRoutes: Route[] = [
   },
 
   // ------------------------------------------------------- forgot password
+  // Anti-enumeration: ALWAYS returns { success: true } whether or not the
+  // account exists. A reset code is only created (and emailed) when the
+  // address matches a real Cognito account, so an attacker learns nothing
+  // from the response, and no orphan code/email documents are written.
   {
     method: 'POST',
     path: '/api/auth/forgot-password',
@@ -209,6 +288,26 @@ export const authRoutes: Route[] = [
     handler: async (req) => {
       const email = String(req.body.email ?? '').trim().toLowerCase();
       if (!email) throw new ApiError('bad-request', 'email required');
+      await enforceRateLimit(`forgot#${email}`, 3, 600);
+      await enforceRateLimit(`forgot-ip#${sourceIp(req)}`, 10, 600);
+
+      const account = await cognitoGetUserByEmail(email);
+      if (!account) {
+        // Simulate the same success path without touching data or email.
+        return { success: true };
+      }
+
+      // Only one active code per address: retire previous unused codes so an
+      // attacker-supplied older code cannot race a freshly requested one.
+      try {
+        const old = await queryEntities<ResetCodeDoc>({ entity: 'resetCode', companyId: 'global', filters: { email, used: false }, limit: 10 });
+        for (const c of old) {
+          await patchEntity('resetCode', 'global', String(c.id), { used: true }, { entity: 'resetCode' }).catch(() => undefined);
+        }
+      } catch (e) {
+        console.warn('[auth] retiring old reset codes failed (best-effort):', e instanceof Error ? e.message : String(e));
+      }
+
       const code = String(Math.floor(100000 + Math.random() * 900000));
       await putEntity<ResetCodeDoc>(
         {
@@ -222,7 +321,13 @@ export const authRoutes: Route[] = [
         { entity: 'resetCode' },
       );
       const t = templates.resetCode(code);
-      await sendEmailCentral({ to: email, subject: t.subject, html: t.html, type: 'otp', dedupKey: `reset-code-${email}-${code}` });
+      const result = await sendEmailCentral({ to: email, subject: t.subject, html: t.html, type: 'otp', dedupKey: `reset-code-${email}-${code}` });
+      if (!result.success) {
+        // Do NOT fail the request (that would leak sendability + differ from
+        // the unknown-account path); the delivery attempt is logged by
+        // sendEmailCentral for the Email Center retry flow.
+        console.warn('[auth] reset-code email not delivered:', result.error ?? result.skipped);
+      }
       return { success: true };
     },
   },
@@ -236,13 +341,38 @@ export const authRoutes: Route[] = [
       const code = String(req.body.code ?? '');
       const newPassword = String(req.body.newPassword ?? '');
       if (!email || !code || !newPassword) throw new ApiError('bad-request', 'email, code, newPassword required');
+      await enforceRateLimit(`reset#${email}`, 5, 600);
+      await enforceRateLimit(`reset-ip#${sourceIp(req)}`, 10, 600);
+
+      const policy = validatePasswordPolicy(newPassword);
+      if (!policy.valid) throw new ApiError('bad-request', policy.message ?? 'Password does not meet the requirements.');
 
       const codes = await queryEntities<ResetCodeDoc>({ entity: 'resetCode', companyId: 'global', filters: { email, used: false }, limit: 10 });
       const match = codes.find((c) => c.code === createHash('sha256').update(code).digest('hex') && new Date(c.expiresAt).getTime() > Date.now());
       if (!match) throw new ApiError('bad-request', 'Invalid or expired code');
 
       await cognito.send(new AdminSetUserPasswordCommand({ UserPoolId: POOL_ID(), Username: email, Password: newPassword, Permanent: true }));
-      await patchEntity('resetCode', 'global', match.id, { used: true }, { entity: 'resetCode' });
+
+      // Burn EVERY active code for this address (single-use guarantee — the
+      // matched code plus any parallel request an attacker might hold).
+      for (const c of codes) {
+        await patchEntity('resetCode', 'global', String(c.id), { used: true }, { entity: 'resetCode' }).catch(() => undefined);
+      }
+
+      // Security notification + audit trail (best-effort, never blocks the reset).
+      const account = await cognitoGetUserByEmail(email).catch(() => null);
+      if (account) {
+        const profile = await getUserDoc(account.uid).catch(() => null);
+        await recordPasswordEvent({
+          uid: account.uid,
+          email,
+          name: (profile?.name as string) ?? account.name ?? '',
+          companyId: String(profile?.companyId ?? 'global'),
+          action: 'PASSWORD_RESET_COMPLETED',
+          ip: req.caller?.ip,
+          userAgent: req.caller?.userAgent,
+        });
+      }
       return { success: true };
     },
   },
@@ -257,6 +387,7 @@ export const authRoutes: Route[] = [
       const email = String(req.body.email ?? '').trim().toLowerCase();
       const code = String(req.body.code ?? '');
       if (!email || !code) throw new ApiError('bad-request', 'email, code required');
+      await enforceRateLimit(`verify#${email}`, 10, 600);
       const codes = await queryEntities<ResetCodeDoc>({ entity: 'resetCode', companyId: 'global', filters: { email, used: false }, limit: 10 });
       const valid = codes.some((c) => c.code === createHash('sha256').update(code).digest('hex') && new Date(c.expiresAt).getTime() > Date.now());
       return { valid };
@@ -272,6 +403,10 @@ export const authRoutes: Route[] = [
       const current = String(req.body.currentPassword ?? '');
       const next = String(req.body.newPassword ?? '');
       if (!current || !next) throw new ApiError('bad-request', 'currentPassword and newPassword required');
+      await enforceRateLimit(`chpw#${caller.uid}`, 10, 600);
+      if (current === next) throw new ApiError('bad-request', 'New password must be different from the current password.');
+      const policy = validatePasswordPolicy(next);
+      if (!policy.valid) throw new ApiError('bad-request', policy.message ?? 'Password does not meet the requirements.');
       // verify current password
       try {
         await cognitoSignIn(caller.email, current);
@@ -282,6 +417,15 @@ export const authRoutes: Route[] = [
         new AdminSetUserPasswordCommand({ UserPoolId: POOL_ID(), Username: caller.email, Password: next, Permanent: true }),
       );
       await patchEntity('user', caller.companyId || 'global', caller.uid, { requirePasswordChange: false }, { entity: 'user' });
+      await recordPasswordEvent({
+        uid: caller.uid,
+        email: caller.email,
+        name: caller.name,
+        companyId: caller.companyId || 'global',
+        action: 'PASSWORD_CHANGED',
+        ip: caller.ip,
+        userAgent: caller.userAgent,
+      });
       return { success: true };
     },
   },
@@ -297,6 +441,9 @@ export const authRoutes: Route[] = [
       const password = String(req.body.password ?? '');
       const name = String(req.body.name ?? '');
       if (!token || !email || !password || !name) throw new ApiError('bad-request', 'token, email, password, name required');
+      await enforceRateLimit(`invite-ip#${sourceIp(req)}`, 10, 600);
+      const policy = validatePasswordPolicy(password);
+      if (!policy.valid) throw new ApiError('bad-request', policy.message ?? 'Password does not meet the requirements.');
 
       const invites = await queryEntities<Record<string, unknown>>({ entity: 'invitation', companyId: 'global', filters: { token, status: 'pending' }, limit: 5 });
       const invite = invites.find((i) => String(i.email ?? '').toLowerCase() === email);
@@ -418,9 +565,16 @@ export const authRoutes: Route[] = [
     handler: async (req) => {
       const caller = must(req);
       assertPermission(caller, 'employees.create');
-      const { email, name, role, companyId, departmentId, designation, tempPassword } = req.body as Record<string, string>;
+      const { email, name, role, companyId, departmentId, designation, tempPassword, password: webPassword, username } = req.body as Record<string, string>;
       if (!email || !name || !role) throw new ApiError('bad-request', 'email, name, role required');
-      const password = tempPassword ?? `Hr@${randomBytes(4).toString('hex')}123`;
+      // Web (Companies.tsx) sends `password`; mobile/legacy callers send `tempPassword`.
+      const password = tempPassword ?? webPassword ?? `Hr@${randomBytes(4).toString('hex')}123`;
+      // Enforce the shared policy only when the caller chose the password
+      // (server-generated temp passwords already comply: mixed case + symbol + digits).
+      if (tempPassword ?? webPassword) {
+        const policy = validatePasswordPolicy(password);
+        if (!policy.valid) throw new ApiError('bad-request', policy.message ?? 'Password does not meet the requirements.');
+      }
       const cid = companyId || caller.companyId;
 
       const uid = await cognitoCreateUser(email, password, name, role, cid);
@@ -428,6 +582,7 @@ export const authRoutes: Route[] = [
         email, name, role, companyId: cid,
         departmentId: departmentId ?? null,
         designation: designation ?? null,
+        username: username ?? null,
         permissions: defaultPermissionsForRole(role as UserDoc['role']),
         requirePasswordChange: true,
         status: 'Active',
@@ -441,7 +596,7 @@ export const authRoutes: Route[] = [
         userId: caller.uid, companyId: cid, type: 'account_created',
         title: `${name} account created`, message: `${role} account for ${name} is ready.`,
       });
-      return { uid, user: doc_ };
+      return { success: true, uid, user: doc_ };
     },
   },
 

@@ -4,12 +4,47 @@
  * the dashboard's Email System page. Logging goes to the email_logs table.
  */
 
+/**
+ * Central email service — SMTP (Zoho Mail) primary, Amazon SES fallback.
+ * Transport selection is configuration-driven (never per-send retry, so a
+ * message is never double-sent):
+ *   - ZOHO_USER + ZOHO_PASS set  → Zoho SMTP (nodemailer)
+ *   - otherwise                  → Amazon SES v2
+ * SMTP credentials come from the stack parameters (NoEcho) and land in the
+ * Lambda environment — never hard-coded. Logging goes to the email_logs
+ * table with the provider recorded per send.
+ */
+
 import { SESv2Client, SendEmailCommand } from '@aws-sdk/client-sesv2';
+import nodemailer from 'nodemailer';
 import { createHash } from 'node:crypto';
 import { putEntity, queryEntities } from './db.js';
 import { newId, type BaseEntity } from './types.js';
 
 const ses = new SESv2Client({});
+
+export type EmailProvider = 'smtp' | 'ses';
+
+/** SMTP (Zoho) credentials from the environment. Null = not configured. */
+export interface SmtpConfig {
+  host: string;
+  port: number;
+  user: string;
+  pass: string;
+}
+
+export function getSmtpConfig(): SmtpConfig | null {
+  const user = process.env.ZOHO_USER || process.env.SMTP_USER || '';
+  const pass = process.env.ZOHO_PASS || process.env.SMTP_PASS || '';
+  if (!user || !pass) return null;
+  const host = process.env.ZOHO_SMTP_HOST || process.env.SMTP_HOST || 'smtp.zoho.in';
+  const port = Number(process.env.ZOHO_SMTP_PORT || process.env.SMTP_PORT || 465);
+  return { host, port: Number.isFinite(port) && port > 0 ? port : 465, user, pass };
+}
+
+export function activeProvider(): EmailProvider {
+  return getSmtpConfig() ? 'smtp' : 'ses';
+}
 
 export interface EmailConfig {
   enabled: boolean;
@@ -54,6 +89,8 @@ export interface EmailLogDoc extends BaseEntity {
   status: 'success' | 'failed' | 'skipped-duplicate';
   messageId?: string;
   error?: string;
+  /** Transport that delivered (or attempted) the message. */
+  provider?: EmailProvider;
   attempts: number;
   createdAt: string;
   sentAt?: string;
@@ -126,6 +163,42 @@ export async function sendEmailCentral(opts: SendEmailOptions): Promise<{
     const toList = ([] as string[]).concat(opts.to);
     let messageId: string | undefined;
 
+    const smtp = getSmtpConfig();
+    if (smtp) {
+      // ---------------------------------------------------------- SMTP path
+      // Zoho requires From = the authenticated mailbox (or a verified alias),
+      // so the SMTP user overrides EMAIL_FROM on this transport.
+      const transport = nodemailer.createTransport({
+        host: smtp.host,
+        port: smtp.port,
+        secure: smtp.port === 465,
+        auth: { user: smtp.user, pass: smtp.pass },
+        connectionTimeout: 15000,
+        greetingTimeout: 15000,
+        socketTimeout: 30000,
+      });
+      const info = await transport.sendMail({
+        from: `"${config.fromName}" <${smtp.user}>`,
+        to: toList.join(', '),
+        cc: opts.cc?.length ? opts.cc.join(', ') : undefined,
+        bcc: opts.bcc?.length ? opts.bcc.join(', ') : undefined,
+        replyTo: opts.replyTo || config.replyTo || undefined,
+        subject: opts.subject,
+        text: opts.text ?? undefined,
+        html: opts.html,
+        attachments: opts.attachments?.map((a) => ({
+          filename: a.filename,
+          content: a.content,
+          contentType: a.contentType,
+        })),
+      });
+      messageId = info.messageId ?? undefined;
+      await logEmail({ ...opts, logId, dedupKey, status: 'success', messageId, provider: 'smtp' });
+      return { success: true, delivered: true, logId, messageId };
+    }
+
+    // ------------------------------------------------------------ SES path
+
     if (opts.attachments?.length) {
       // Raw message with MIME attachments (payslips)
       const boundary = `----hrmax-${logId}`;
@@ -187,17 +260,17 @@ export async function sendEmailCentral(opts: SendEmailOptions): Promise<{
       messageId = res.MessageId;
     }
 
-    await logEmail({ ...opts, logId, dedupKey, status: 'success', messageId });
+    await logEmail({ ...opts, logId, dedupKey, status: 'success', messageId, provider: 'ses' });
     return { success: true, delivered: true, logId, messageId };
   } catch (err) {
     const message = (err as Error).message;
-    await logEmail({ ...opts, logId, dedupKey, status: 'failed', error: message });
+    await logEmail({ ...opts, logId, dedupKey, status: 'failed', error: message, provider: activeProvider() });
     return { success: false, logId, error: message };
   }
 }
 
 async function logEmail(
-  opts: SendEmailOptions & { logId: string; dedupKey: string; status: 'success' | 'failed'; messageId?: string; error?: string },
+  opts: SendEmailOptions & { logId: string; dedupKey: string; status: 'success' | 'failed'; messageId?: string; error?: string; provider?: EmailProvider },
 ): Promise<void> {
   await putEntity<EmailLogDoc>(
     {
@@ -212,6 +285,7 @@ async function logEmail(
       status: opts.status,
       messageId: opts.messageId,
       error: opts.error,
+      provider: opts.provider,
       payload: {
         to: ([] as string[]).concat(opts.to),
         cc: opts.cc,
@@ -282,6 +356,17 @@ export const templates = {
              <td style="padding:8px;border:1px solid #eee;font-weight:bold">${tempPassword}</td></tr>
        </table>
        <p>You will be asked to change this password on first sign-in.</p>`,
+    ),
+  }),
+
+  passwordChanged: (name: string) => ({
+    subject: 'Your HR MAX password was changed',
+    html: brand(
+      name ? `Hello ${name},` : 'Hello,',
+      `<p>Your <b>HR MAX</b> account password was successfully changed.</p>
+       <p>If you did not make this change, please contact your system administrator
+       immediately or use “Forgot Password” on the sign-in page to secure your account.</p>
+       <p style="color:#888;font-size:12px">This is an automated security notification.</p>`,
     ),
   }),
 

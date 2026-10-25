@@ -2,23 +2,11 @@ import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Lock, Eye, EyeOff, Loader2, Shield, CheckCircle, AlertCircle } from 'lucide-react';
 import { Logo } from '../../components/Logo';
-import { updateUserPassword, reauthenticateUser } from '../../services/authService';
+import { changePassword } from '../../services/authService';
 import { useAuth } from '../../context/AuthContext';
 import { toDisplayError } from '../../aws/errors';
+import { PASSWORD_REQUIREMENTS, getPasswordStrength, validatePasswordPolicy } from '../../utils/passwordPolicy';
 import '../../pages/Login.css';
-
-function getPasswordStrength(pw: string): { score: number; label: string; color: string } {
-  let score = 0;
-  if (pw.length >= 6) score++;
-  if (pw.length >= 8) score++;
-  if (/[A-Z]/.test(pw)) score++;
-  if (/[a-z]/.test(pw)) score++;
-  if (/[0-9]/.test(pw)) score++;
-  if (/[^A-Za-z0-9]/.test(pw)) score++;
-  const map = ['Weak', 'Fair', 'Good', 'Strong', 'Very Strong', 'Excellent'];
-  const colors = ['#dc2626', '#f59e0b', '#eab308', '#22c55e', '#16a34a', '#15803d'];
-  return { score: Math.min(score, 5), label: map[Math.min(score, 5)], color: colors[Math.min(score, 5)] };
-}
 
 export function ForcePasswordChange() {
   const navigate = useNavigate();
@@ -49,8 +37,9 @@ export function ForcePasswordChange() {
     e.preventDefault();
     setError('');
 
-    if (newPassword.length < 6) {
-      setError('Password must be at least 6 characters');
+    const policy = validatePasswordPolicy(newPassword);
+    if (!policy.valid) {
+      setError(policy.errors[0] || 'Password does not meet the requirements.');
       return;
     }
 
@@ -59,16 +48,17 @@ export function ForcePasswordChange() {
       return;
     }
 
-    if (strength.score < 2) {
-      setError('Password is too weak. Use a mix of uppercase, lowercase, numbers, and special characters.');
+    if (newPassword === currentPassword) {
+      setError('New password must be different from the current password.');
       return;
     }
 
     setIsLoading(true);
 
     try {
-      await reauthenticateUser(currentPassword);
-      await updateUserPassword(newPassword);
+      // Server-backed change: verifies the current password, enforces the
+      // shared policy, sends a security email and records an audit event.
+      await changePassword(currentPassword, newPassword);
 
       if (user) {
         const { doc, updateDoc, serverTimestamp } = await import('../../aws/firestore-compat');
@@ -163,13 +153,24 @@ export function ForcePasswordChange() {
                 </button>
               </div>
               {newPassword && (
-                <div style={{ marginTop: 6 }}>
-                  <div style={{ display: 'flex', gap: 4, marginBottom: 4 }}>
-                    {Array.from({ length: 6 }).map((_, i) => (
-                      <div key={i} style={{ flex: 1, height: 4, borderRadius: 2, background: i < strength.score ? strength.color : '#e5e7eb' }} />
+                <div style={{ marginTop: 8 }}>
+                  <div style={{ display: 'flex', gap: 4, marginBottom: 6 }}>
+                    {Array.from({ length: 5 }).map((_, i) => (
+                      <div key={i} style={{ flex: 1, height: 4, borderRadius: 2, background: i < strength.metCount ? strength.color : '#e5e7eb' }} />
                     ))}
                   </div>
-                  <span style={{ fontSize: 11, color: strength.color, fontWeight: 600 }}>{strength.label}</span>
+                  <span style={{ fontSize: 11, color: strength.color, fontWeight: 600, display: 'block', marginBottom: 6 }}>{strength.label}</span>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
+                    {PASSWORD_REQUIREMENTS.map(req => {
+                      const ok = req.test(newPassword);
+                      return (
+                        <div key={req.id} style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 11, color: ok ? '#16a34a' : '#6b7280' }}>
+                          <span style={{ fontSize: 12 }}>{ok ? '✓' : '○'}</span>
+                          <span>{req.label}</span>
+                        </div>
+                      );
+                    })}
+                  </div>
                 </div>
               )}
             </div>

@@ -1104,10 +1104,11 @@ export function Companies() {
         email: values.adminEmail,
         username: values.adminUsername.trim(),
         password: values.adminPassword,
+        tempPassword: values.adminPassword,
         role: 'company-admin',
         companyId: company.id,
       }) as { data: { success?: boolean; uid?: string; error?: string } }
-      if (!staffResult?.success) {
+      if (!staffResult?.uid && !staffResult?.success) {
         throw new Error(staffResult?.error || 'Failed to create admin account')
       }
 

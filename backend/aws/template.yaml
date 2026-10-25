@@ -25,7 +25,24 @@ Parameters:
   EmailFrom:
     Type: String
     Default: info@hrmax.in
-    Description: SES verified sender address
+    Description: Verified sender address (display From; SMTP transport overrides with the Zoho mailbox)
+  ZohoSmtpUser:
+    Type: String
+    Default: ''
+    Description: Zoho Mail SMTP login (e.g. info@hrmax.in). Empty = fall back to Amazon SES.
+  ZohoSmtpPass:
+    Type: String
+    Default: ''
+    NoEcho: true
+    Description: Zoho Mail app password (Zoho Accounts > Security > App Passwords). Never the normal password.
+  ZohoSmtpHost:
+    Type: String
+    Default: smtp.zoho.in
+    Description: Zoho SMTP host (smtp.zoho.in for India DC, smtp.zoho.com otherwise)
+  ZohoSmtpPort:
+    Type: String
+    Default: '465'
+    Description: 465 (SSL) or 587 (STARTTLS)
 
 Globals:
   Function:
@@ -40,6 +57,12 @@ Globals:
         FILES_BUCKET: !Ref FilesBucket
         EMAIL_FROM: !Ref EmailFrom
         EMAIL_FROM_NAME: HR MAX
+        # Zoho SMTP (primary transport when ZOHO_USER+ZOHO_PASS are set;
+        # otherwise the email service falls back to SES)
+        ZOHO_USER: !Ref ZohoSmtpUser
+        ZOHO_PASS: !Ref ZohoSmtpPass
+        ZOHO_SMTP_HOST: !Ref ZohoSmtpHost
+        ZOHO_SMTP_PORT: !Ref ZohoSmtpPort
         APP_URL: !If [HasAppDomain, !Sub 'https://${AppDomain}', !Sub 'https://${WebDistribution.DomainName}']
     Architectures: [arm64]
 
@@ -65,11 +88,15 @@ Resources:
         PreSignUp: !GetAtt PreSignUpFn.Arn
       Policies:
         PasswordPolicy:
-          MinimumLength: 8
-          RequireLowercase: true
-          RequireNumbers: true
+          # Relaxed to match the live pool (min 6, no complexity) so the six
+          # provisioned accounts can reset to their chosen passwords. Keep this
+          # in sync with the deployed pool or the next deploy will silently
+          # revert it and break resets.
+          MinimumLength: 6
+          RequireLowercase: false
+          RequireNumbers: false
           RequireSymbols: false
-          RequireUppercase: true
+          RequireUppercase: false
       Schema:
         - Name: role
           AttributeDataType: String
@@ -258,6 +285,16 @@ Resources:
         AllowOrigins: ['*']
         AllowHeaders: [authorization, content-type]
         AllowMethods: [GET, POST, PUT, PATCH, DELETE, OPTIONS]
+      # Stage-level default throttle headroom. NOTE: per-route RouteSettings
+      # CANNOT be used here — every route is served by the ANY /{proxy+}
+      # catch-all, so explicit route keys like "POST /api/auth/..."
+      # do not exist and CloudFormation fails the update (tried & rolled back).
+      # The strict brute-force limits on forgot/reset/verify/change/invite
+      # live in code instead: src/lib/rateLimit.ts (DynamoDB fixed-window
+      # counters, accurate across Lambda instances).
+      DefaultRouteSettings:
+        ThrottlingBurstLimit: 200
+        ThrottlingRateLimit: 100
 
   # ================================================================ SCHEDULER
   SchedulerFn:
@@ -360,11 +397,17 @@ Resources:
   # so `sam publish` uses a separate OAI-variant template generated at publish
   # time — do NOT swap this live template back to OAI (in-place OAC->OAI
   # migration breaks the origin and returns 403; OAI only works on fresh deploys).
+  # The -v2 suffix exists because an earlier troubleshooting session created an
+  # OAC named "hrmax-api-web-oac" OUTSIDE the stack (CloudFormation cannot
+  # import or adopt it — its physical ID is not expressible in the template),
+  # which made every deploy fail with AlreadyExists. The -v2 name lets
+  # CloudFormation create and own this resource; the manual one is deleted
+  # after the first successful deploy.
   WebOAC:
     Type: AWS::CloudFront::OriginAccessControl
     Properties:
       OriginAccessControlConfig:
-        Name: !Sub ${AWS::StackName}-web-oac
+        Name: !Sub ${AWS::StackName}-web-oac-v2
         Description: OAC for the HR MAX web bucket
         OriginAccessControlOriginType: s3
         SigningBehavior: always

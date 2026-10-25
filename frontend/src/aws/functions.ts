@@ -24,6 +24,7 @@ const API = () => AWS_CONFIG.apiUrl.replace(/\/$/, '');
 const ROUTE_MAP: Record<string, { path: string; method?: 'GET' | 'POST' | 'PUT' | 'PATCH' | 'DELETE' }> = {
   // auth
   createStaffUser: { path: '/api/users/create-staff' },
+  changePassword: { path: '/api/auth/change-password' },
   sendResetCode: { path: '/api/auth/forgot-password' },
   verifyResetCode: { path: '/api/auth/verify-reset-code' },
   resetPasswordWithCode: { path: '/api/auth/reset-password' },
