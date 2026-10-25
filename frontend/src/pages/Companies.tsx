@@ -11,6 +11,7 @@ import { useForm } from 'react-hook-form'
 import type { Resolver } from 'react-hook-form'
 import { z } from 'zod'
 import { zodResolver } from '@hookform/resolvers/zod'
+import { validatePasswordPolicy } from '../utils/passwordPolicy'
 import { httpsCallable } from '../aws/functions-compat'
 import { doc, onSnapshot } from '../aws/firestore-compat'
 import { functions, db } from '../aws/clients'
@@ -55,7 +56,7 @@ const companySchema = z.object({
   adminName: z.string().min(2, 'Admin name must be at least 2 characters'),
   adminEmail: z.string().email('Invalid admin email'),
   adminUsername: z.string().min(3, 'Username must be at least 3 characters').optional(),
-  adminPassword: z.string().min(6, 'Password must be at least 6 characters').optional(),
+  adminPassword: z.string().min(8, 'Password must be at least 8 characters').optional(),
   adminPhone: z.string().optional(),
   panNumber: z.string().optional(),
   gstNumber: z.string().optional(),
@@ -514,7 +515,7 @@ const CompanyForm = ({ onSubmit, submitLabel, onCancel, isSubmitting, defaultVal
             <input
               type="text"
               {...register('adminPassword')}
-              placeholder="Min 6 characters"
+              placeholder="Min 8 chars (upper+lower+number+symbol)"
             />
             {errors.adminPassword && <span className="field-error">{errors.adminPassword.message}</span>}
           </div>
@@ -1061,8 +1062,9 @@ export function Companies() {
       setFormError('System Username is required (min 3 characters)')
       return
     }
-    if (!values.adminPassword || values.adminPassword.length < 6) {
-      setFormError('Temporary Password is required (min 6 characters)')
+    if (!values.adminPassword || !validatePasswordPolicy(values.adminPassword).valid) {
+      const policy = validatePasswordPolicy(values.adminPassword || '')
+      setFormError(policy.errors[0] || 'Temporary Password is required (min 8 characters)')
       return
     }
     setIsSubmitting(true)

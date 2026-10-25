@@ -13,6 +13,7 @@ import { useForm, Controller } from 'react-hook-form'
 import type { UseFormReturn, Resolver } from 'react-hook-form'
 import { z } from 'zod'
 import { zodResolver } from '@hookform/resolvers/zod'
+import { validatePasswordPolicy } from '../utils/passwordPolicy'
 import { collection, onSnapshot, query, doc, updateDoc, serverTimestamp, getDocs } from '../aws/firestore-compat'
 import { Toast } from '../components/Toast'
 import { ref, uploadBytes, getDownloadURL } from '../aws/storage-compat'
@@ -69,7 +70,7 @@ const employeeSchema = z.object({
   name: z.string().min(2, 'Name must be at least 2 characters'),
   email: z.string().email('Invalid email'),
   username: z.string().min(3, 'Username must be at least 3 characters'),
-  password: z.string().min(6, 'Password must be at least 6 characters'),
+  password: z.string().refine((p) => validatePasswordPolicy(p).valid, (p) => ({ message: validatePasswordPolicy(p).errors[0] || 'Password does not meet the requirements' })),
   phone: z.string().optional().default(''),
   employeeId: z.string().optional().default(''),
   department: z.string().default(''),
@@ -303,7 +304,7 @@ const EmployeeFormContent = forwardRef<EmployeeFormRef, EmployeeFormContentProps
           </div>
           <div className="modal-field">
             <label>Temporary Password *</label>
-            <input type="text" {...form.register('password')} placeholder="Min 6 characters" />
+            <input type="text" {...form.register('password')} placeholder="Min 8 chars (upper+lower+number+symbol)" />
             {form.formState.errors.password && <span className="field-error">{form.formState.errors.password.message}</span>}
           </div>
         </div>

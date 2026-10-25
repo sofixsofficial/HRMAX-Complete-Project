@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef } from 'react'
 import { errText } from '../aws/errors';
+import { validatePasswordPolicy } from '../utils/passwordPolicy';
 import { UserPlus, Search, Plus, Eye, Pencil, Trash2, Loader2, ChevronLeft, ChevronRight, Mail, Shield, User as UserIcon, Briefcase, Lock, Crown, Building2, Users, ChevronDown, Check, Activity, Bell, Upload, DollarSign, CalendarDays, MapPin, CreditCard, BadgeAlert, Filter, CheckSquare, Crosshair, Wifi, Camera, Smartphone } from 'lucide-react'
 import { useNavigate } from 'react-router-dom'
 import { Header } from '../components/Header'
@@ -90,7 +91,7 @@ const authErrorMessage = (code: string): string => {
     case 'auth/email-already-in-use':
       return 'This email is already registered. Please use a different email or log in.'
     case 'auth/weak-password':
-      return 'Password must be at least 6 characters.'
+      return 'Password must be at least 8 characters with upper, lower, number and symbol.'
     case 'auth/invalid-email':
       return 'The email address is not valid.'
     case 'auth/operation-not-allowed':
@@ -436,8 +437,9 @@ export function TeamLeaders() {
       setToast({ message: 'Username must be at least 3 characters', type: 'error' })
       return
     }
-    if (!values.password || values.password.length < 6) {
-      setToast({ message: 'Password must be at least 6 characters', type: 'error' })
+    if (!values.password || !validatePasswordPolicy(values.password).valid) {
+      const policy = validatePasswordPolicy(values.password || '')
+      setToast({ message: policy.errors[0] || 'Password does not meet the requirements', type: 'error' })
       return
     }
     setIsSubmitting(true)
@@ -1189,7 +1191,7 @@ export function TeamLeaders() {
               </div>
               <div className="modal-field">
                 <label>Temporary Password *</label>
-                <input type="text" {...form.register('password')} placeholder="Min 6 characters" />
+                <input type="text" {...form.register('password')} placeholder="Min 8 chars (upper+lower+number+symbol)" />
                 {form.formState.errors.password && <span className="field-error">{form.formState.errors.password.message}</span>}
               </div>
             </div>

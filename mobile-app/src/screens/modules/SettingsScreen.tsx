@@ -175,7 +175,7 @@ export const SettingsScreen: React.FC<{ navigation?: any }> = ({ navigation }) =
               </View>
               <Text style={s.fieldLabel}>New Password</Text>
               <View style={s.inputRow}>
-                <TextInput style={s.inputFlex} placeholder="Enter new password (min 6 chars)" placeholderTextColor={colors.textTertiary} value={newPassword} onChangeText={setNewPassword} secureTextEntry={!showNewPw} autoCapitalize="none" />
+                <TextInput style={s.inputFlex} placeholder="Enter new password (min 8 chars)" placeholderTextColor={colors.textTertiary} value={newPassword} onChangeText={setNewPassword} secureTextEntry={!showNewPw} autoCapitalize="none" />
                 <Icon name={showNewPw ? 'eye-off-outline' : 'eye-outline'} size={22} color="#FF6600" onPress={() => setShowNewPw(!showNewPw)} />
               </View>
               <Text style={s.fieldLabel}>Confirm Password</Text>

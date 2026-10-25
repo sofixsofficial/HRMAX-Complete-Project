@@ -100,7 +100,7 @@ const handleAuthError = (error: AuthError): void => {
     'auth/invalid-email': ERROR_MESSAGES.invalidEmail,
     'auth/user-disabled': 'This account has been disabled. Contact your admin.',
     'auth/email-already-in-use': 'An account already exists with this email.',
-    'auth/weak-password': 'Password is too weak (min 6 characters).',
+    'auth/weak-password': 'Password is too weak (min 8 chars, upper+lower+number+symbol).',
     'auth/invalid-credential': ERROR_MESSAGES.invalidCredentials,
     'auth/requires-recent-login': ERROR_MESSAGES.sessionExpired,
     'auth/too-many-requests': 'Too many failed attempts. Please try again later.',

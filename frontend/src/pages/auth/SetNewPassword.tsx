@@ -111,7 +111,7 @@ export function SetNewPassword() {
             <div className="login-features">
               <div className="login-feature">
                 <Lock size={18} />
-                <span>At least 6 characters</span>
+                <span>At least 8 characters</span>
               </div>
               <div className="login-feature">
                 <Shield size={18} />

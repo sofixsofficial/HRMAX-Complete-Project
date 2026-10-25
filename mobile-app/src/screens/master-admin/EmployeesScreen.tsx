@@ -8,6 +8,7 @@ import { Paths, File } from 'expo-file-system';
 import * as Sharing from 'expo-sharing';
 import * as DocumentPicker from 'expo-document-picker';
 import { useAuth } from '../../context/AuthContext';
+import { validatePasswordPolicy } from '../../utils/passwordPolicy';
 import { useCompany } from '../../context/CompanyContext';
 import { useTheme, ThemeColors } from '../../context/ThemeContext';
 import { subscribeEmployees, subscribeEmployeesScoped, createEmployee, updateEmployee, getEmployeesByCompany, type Employee } from '../../services/employeeService';
@@ -289,7 +290,7 @@ export const EmployeesScreen: React.FC<{ route?: any }> = ({ route }) => {
     if (!editing) {
       if (!form.username.trim() || form.username.trim().length < 3) { Alert.alert('Validation', 'Username must be at least 3 characters'); return; }
       if (!form.password) { Alert.alert('Validation', 'Password is required for new employees'); return; }
-      if (form.password.length < 6) { Alert.alert('Validation', 'Password must be at least 6 characters'); return; }
+      if (!form.password || !validatePasswordPolicy(form.password).valid) { Alert.alert('Password does not meet the requirements', validatePasswordPolicy(form.password || '').errors[0] || 'Password must be at least 8 characters with upper, lower, number and symbol.'); return; }
       if (!form.companyId) { Alert.alert('Validation', 'Please assign a company'); return; }
       if (form.role !== 'reporting-manager' && !form.managerId) { Alert.alert('Validation', 'Manager is required for Employee role'); return; }
     }

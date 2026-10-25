@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef, useMemo } from 'react'
 import { errText } from '../aws/errors';
+import { validatePasswordPolicy } from '../utils/passwordPolicy';
 import { Crown, Search, Plus, Eye, Pencil, Trash2, Loader2, ChevronLeft, ChevronRight, Mail, Phone, Briefcase, X, User as UserIcon, Shield, Building2, Lock, Users, Check, CheckSquare, ChevronDown, Upload, DollarSign, CalendarDays, MapPin, Phone as PhoneIcon, FileText, CreditCard, BadgeAlert, KeyRound, Crosshair, Wifi, Camera, Smartphone } from 'lucide-react'
 import { useForm } from 'react-hook-form'
 import type { Resolver } from 'react-hook-form'
@@ -114,7 +115,7 @@ const authErrorMessage = (code: string): string => {
     case 'auth/email-already-in-use':
       return 'This email is already registered. Please use a different email or log in.'
     case 'auth/weak-password':
-      return 'Password must be at least 6 characters.'
+      return 'Password must be at least 8 characters with upper, lower, number and symbol.'
     case 'auth/invalid-email':
       return 'The email address is not valid.'
     case 'auth/operation-not-allowed':
@@ -708,8 +709,9 @@ export function Executives() {
         setIsSubmitting(false)
         return
       }
-      if (!values.password || values.password.length < 6) {
-        setToast({ message: 'Password must be at least 6 characters', type: 'error' })
+      if (!values.password || !validatePasswordPolicy(values.password).valid) {
+        const policy = validatePasswordPolicy(values.password || '')
+        setToast({ message: policy.errors[0] || 'Password does not meet the requirements', type: 'error' })
         setIsSubmitting(false)
         return
       }
@@ -1468,7 +1470,7 @@ export function Executives() {
               </div>
               <div className="modal-field">
                 <label>Temporary Password *</label>
-                <input type="text" {...form.register('password')} placeholder="Min 6 characters" />
+                <input type="text" {...form.register('password')} placeholder="Min 8 chars (upper+lower+number+symbol)" />
                 {form.formState.errors.password && <span className="field-error">{form.formState.errors.password.message}</span>}
               </div>
             </div>

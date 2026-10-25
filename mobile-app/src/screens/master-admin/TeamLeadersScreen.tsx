@@ -15,6 +15,7 @@ import { Icon } from '../../utils/icons';
 import { FilterChips } from '../../components/FilterChips';
 import { ScreenHeader } from '../../components/ScreenHeader';
 import { notifyTeamLeaderCreated, notifyTeamLeaderUpdated, notifyTeamLeaderDeactivated } from '../../services/notificationService';
+import { validatePasswordPolicy } from '../../utils/passwordPolicy';
 import type { User } from '../../types/user';
 
 const EMPLOYMENT_TYPE_OPTIONS = ['Full-time', 'Part-time', 'Contract', 'Intern'] as const;
@@ -340,8 +341,9 @@ export const TeamLeadersScreen: React.FC = () => {
           setSaving(false);
           return;
         }
-        if (!form.password || form.password.length < 6) {
-          Alert.alert('Validation', 'Temporary password must be at least 6 characters');
+        if (!form.password || !validatePasswordPolicy(form.password).valid) {
+          const policy = validatePasswordPolicy(form.password || '');
+          Alert.alert('Password does not meet the requirements', policy.errors[0] || 'Password does not meet the requirements.');
           setSaving(false);
           return;
         }
@@ -395,7 +397,7 @@ export const TeamLeadersScreen: React.FC = () => {
     } catch (err: any) {
       const code = err.code || '';
       if (code === 'auth/email-already-in-use') Alert.alert('Error', 'This email is already registered. Please use a different email.');
-      else if (code === 'auth/weak-password') Alert.alert('Error', 'Password must be at least 6 characters.');
+      else if (code === 'auth/weak-password') Alert.alert('Error', 'Password must be at least 8 characters with upper, lower, number and symbol.');
       else if (code === 'auth/invalid-email') Alert.alert('Error', 'The email address is not valid.');
       else Alert.alert('Error', err.message || 'Failed to save');
     } finally {
@@ -617,7 +619,7 @@ export const TeamLeadersScreen: React.FC = () => {
                   <Text style={s.fieldLabel}>System Username *</Text>
                   <TextInput style={s.input} placeholder="e.g. rohitk" placeholderTextColor={colors.textTertiary} value={form.username} onChangeText={(t) => setForm({...form, username: t})} autoCapitalize="none" autoCorrect={false} />
                   <Text style={s.fieldLabel}>Temporary Password *</Text>
-                  <TextInput style={s.input} placeholder="Min 6 characters" placeholderTextColor={colors.textTertiary} value={form.password} onChangeText={(t) => setForm({...form, password: t})} />
+                  <TextInput style={s.input} placeholder="Min 8 chars (upper+lower+number+symbol)" placeholderTextColor={colors.textTertiary} value={form.password} onChangeText={(t) => setForm({...form, password: t})} />
                 </>
               )}
 

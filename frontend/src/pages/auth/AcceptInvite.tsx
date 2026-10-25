@@ -4,6 +4,7 @@ import { acceptInvitation, getInvitationByToken } from '../../services/authServi
 import { User, Mail, Lock, Eye, EyeOff, Loader2, CheckCircle, AlertCircle } from 'lucide-react';
 import { Logo } from '../../components/Logo';
 import { toDisplayError } from '../../aws/errors';
+import { validatePasswordPolicy } from '../../utils/passwordPolicy';
 import type { UserRole } from '../../types/user';
 import '../Login.css';
 
@@ -85,8 +86,8 @@ export const AcceptInvite: React.FC = () => {
       setError('Password is required');
       return;
     }
-    if (formData.password.length < 6) {
-      setError('Password must be at least 6 characters');
+    if (formData.password.length < 8 || !validatePasswordPolicy(formData.password).valid) {
+      setError(validatePasswordPolicy(formData.password).errors[0] || 'Password must be at least 8 characters with upper, lower, number and symbol.');
       return;
     }
     if (formData.password !== formData.confirmPassword) {
@@ -243,7 +244,7 @@ export const AcceptInvite: React.FC = () => {
                     name="password"
                     value={formData.password}
                     onChange={handleChange}
-                    placeholder="Min 6 characters"
+                    placeholder="Min 8 chars (upper+lower+number+symbol)"
                     required
                   />
                   <button
