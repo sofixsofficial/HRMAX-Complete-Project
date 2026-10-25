@@ -1,5 +1,5 @@
 /**
- * `firebase/firestore` compatibility (mobile) → REST API + polling.
+ * `firebase/firestore` compatibility (mobile) â†’ REST API + polling.
  */
 
 export {
@@ -53,7 +53,7 @@ export function writeBatch(_db: unknown) {
       ops.push({
         run: async () => {
           const { setDoc, DocumentReference } = await import('./firestore');
-          await setDoc(new DocumentReference(ref.id, ref._path), data, { merge: true });
+          await setDoc(new DocumentReference(ref.id, ref._path), data);
         },
       });
     },

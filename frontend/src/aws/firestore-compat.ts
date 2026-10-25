@@ -65,7 +65,12 @@ export function writeBatch(_db: unknown) {
         run: async () => {
           const { setDoc } = await import('./firestore');
           const { DocumentReference } = await import('./firestore');
-          await setDoc(new DocumentReference(ref.id, ref._path), data, { merge: true });
+          // NO merge flag: setDoc without merge maps to PUT, which the backend
+          // implements as a true Firestore set() upsert (create-if-missing or
+          // merge-if-exists). With { merge: true } setDoc sent PATCH, and the
+          // strict PATCH route 404s on brand-new ids - that broke company
+          // onboarding (batch.set on the company doc was the first op).
+          await setDoc(new DocumentReference(ref.id, ref._path), data);
         },
       });
     },

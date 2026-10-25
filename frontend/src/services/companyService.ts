@@ -197,7 +197,10 @@ export const onboardCompany = async (data: {
   }
 
   // 3. Default attendance policy document (backward compatibility with existing services)
-  const policyRef = doc(collection(db, 'attendanceSettings'))
+  // Doc id = companyId so it matches the legacy readers that do
+  // getEntity('attendanceSettings', companyId, companyId) as well as the
+  // partition query getPolicy() uses.
+  const policyRef = doc(db, 'attendanceSettings', companyId)
   batch.set(policyRef, {
     companyId,
     mode: 'gps-only',
