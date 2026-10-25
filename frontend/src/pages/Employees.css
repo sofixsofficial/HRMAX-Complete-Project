@@ -136,6 +136,11 @@
   border: 1px solid #e5e7eb;
   border-radius: 8px;
   background: #fff;
+  /* wrap: company select + category select + action button overflowed the
+     viewport on narrow screens (Announcements toolbar) */
+  flex-wrap: wrap;
+  min-width: 0;
+  max-width: 100%;
 }
 
 .emp-filter-group svg {
@@ -152,6 +157,8 @@
   color: #374151;
   background: transparent;
   cursor: pointer;
+  max-width: 100%;
+  min-width: 0;
   padding-right: 4px;
 }
 

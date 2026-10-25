@@ -156,7 +156,13 @@
   z-index: 1;
 }
 
-.input-wrapper input {
+/* NOTE: `div.` prefix is deliberate — these auth inputs live inside a
+   .form-group, and Settings.css / AccessManagement.css declare a generic
+   `.form-group input { padding: 10px 14px }` at the SAME specificity that
+   bundles later and wins the tie. That crushed the left padding to 14px so
+   the .input-icon (left:16px, 18px wide => ends at 34px) sat on top of the
+   placeholder. `div.input-wrapper input` = 0-1-2, which beats 0-1-1. */
+div.input-wrapper input {
   width: 100%;
   padding: 12px 48px 12px 48px;
   border: 1px solid #e5e7eb;
@@ -168,12 +174,12 @@
   color: #111827;
 }
 
-.input-wrapper input:focus {
+div.input-wrapper input:focus {
   border-color: #f97316;
   box-shadow: 0 0 0 3px rgba(249,115,22,0.1);
 }
 
-.input-wrapper input::placeholder {
+div.input-wrapper input::placeholder {
   color: #6b7280;
 }
 
@@ -456,7 +462,8 @@
     right: 12px;
   }
 
-  .input-wrapper input {
+  /* same `div.` specificity bump as above — see .input-wrapper input note */
+  div.input-wrapper input {
     padding: 10px 40px 10px 40px;
     font-size: 13px;
   }

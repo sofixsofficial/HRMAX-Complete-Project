@@ -284,7 +284,11 @@ export function Departments() {
 
         <ScopeIndicator />
 
-        <div className="stats-row" style={{ gridTemplateColumns: 'repeat(3, 1fr)' }}>
+        {/* No inline gridTemplateColumns: `.stats-row` is already
+            repeat(auto-fit, minmax(200px,1fr)) so it reflows to 1 column on
+            phones. A hard-coded repeat(3,1fr) can't be overridden by media
+            queries and forced the page to scroll sideways on mobile. */}
+        <div className="stats-row">
           <div className="stat-card-companies" onClick={() => handleFilterClick('all')} style={{ cursor: 'pointer', transition: 'all 0.15s', border: activeFilter === 'all' ? '2px solid #f97316' : '2px solid transparent', boxShadow: activeFilter === 'all' ? '0 0 0 3px rgba(249,115,22,0.15)' : 'none' }}>
             <div className="stat-card-content">
               <div className="stat-icon-wrapper" style={{ background: '#eff6ff', color: '#3b82f6' }}><Network size={24} /></div>
@@ -342,7 +346,10 @@ export function Departments() {
               <select
                 value={companyId}
                 onChange={e => { setSelectedCompanyId(e.target.value || ''); setCurrentPage(1) }}
-                style={{ width: '100%', padding: '8px 12px', border: '1px solid #e5e7eb', borderRadius: 8, fontSize: 14, background: '#fff' }}
+                // padding-left MUST clear the .search-filter svg (absolute at
+                // left:12px, 16px wide => ends at 28px). The old `8px 12px`
+                // started the text underneath the icon.
+                style={{ width: '100%', padding: '10px 12px 10px 40px', border: '1px solid #e5e7eb', borderRadius: 8, fontSize: 14, background: '#fff' }}
               >
                 {canAccessAllCompanies && <option value="">All Companies</option>}
                 {availableCompanies.map(c => (

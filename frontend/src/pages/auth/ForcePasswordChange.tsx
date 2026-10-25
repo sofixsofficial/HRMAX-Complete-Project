@@ -97,25 +97,44 @@ export function ForcePasswordChange() {
 
   return (
     <div className="login-page">
-      <div className="login-container" style={{ maxWidth: 520, gridTemplateColumns: '1fr' }}>
-        <div style={{ padding: '48px 40px' }}>
-          <div style={{ textAlign: 'center', marginBottom: 32 }}>
-            <Logo variant="stacked" size="sm" />
+      <div className="login-container" style={{ maxWidth: 560, gridTemplateColumns: '1fr' }}>
+        {/* Branded header panel — matches Login / SetNewPassword / ForgotPassword
+            so the page never opens on a bare white gap above the heading. */}
+        <div className="login-brand" style={{ padding: '36px 40px 32px' }}>
+          <div className="login-brand-content">
+            <div className="login-logo" style={{ marginBottom: 24 }}>
+              <Logo variant="stacked" size="sm" />
+            </div>
+            <div className="login-hero">
+              <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 10 }}>
+                <Shield size={26} style={{ color: '#f97316', flexShrink: 0 }} />
+                <h2 style={{ margin: 0 }}>Change Required</h2>
+              </div>
+              <p style={{ margin: 0 }}>
+                For security reasons, you must change your password before continuing.
+              </p>
+            </div>
+            <div className="login-features" style={{ marginTop: 24 }}>
+              <div className="login-feature">
+                <Lock size={18} />
+                <span>Minimum 8 characters — upper, lower, number &amp; symbol</span>
+              </div>
+              <div className="login-feature">
+                <CheckCircle size={18} />
+                <span>Your current password is verified on the server first</span>
+              </div>
+            </div>
           </div>
-          <div style={{ textAlign: 'center', marginBottom: 24 }}>
-            <Shield size={40} style={{ color: '#f97316', marginBottom: 12 }} />
-            <h2 style={{ margin: '0 0 4px 0', fontSize: 22 }}>Change Required</h2>
-            <p style={{ color: '#6b7280', fontSize: 14, margin: 0 }}>
-              For security reasons, you must change your password before continuing.
-            </p>
-          </div>
+        </div>
 
-          <div style={{ background: '#fffbeb', border: '1px solid #fde68a', borderRadius: 10, padding: '10px 14px', marginBottom: 20, display: 'flex', alignItems: 'center', gap: 8, fontSize: 13, color: '#92400e' }}>
-            <AlertCircle size={16} style={{ flexShrink: 0 }} />
-            <span>This is a temporary password. Please set a new one.</span>
-          </div>
+        <div className="login-form-container" style={{ padding: '28px 40px 36px' }}>
+          <div className="login-form-wrapper">
+            <div style={{ background: '#fffbeb', border: '1px solid #fde68a', borderRadius: 10, padding: '10px 14px', marginBottom: 20, display: 'flex', alignItems: 'center', gap: 8, fontSize: 13, color: '#92400e' }}>
+              <AlertCircle size={16} style={{ flexShrink: 0 }} />
+              <span>This is a temporary password. Please set a new one.</span>
+            </div>
 
-          {error && <div className="login-error">{error}</div>}
+            {error && <div className="login-error">{error}</div>}
 
           <form onSubmit={handleSubmit} className="login-form">
             <div className="form-group">
@@ -204,6 +223,7 @@ export function ForcePasswordChange() {
               )}
             </button>
           </form>
+          </div>
         </div>
       </div>
     </div>

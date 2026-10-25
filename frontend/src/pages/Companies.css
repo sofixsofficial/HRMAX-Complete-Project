@@ -139,6 +139,11 @@
   display: flex;
   align-items: center;
   gap: 8px;
+  /* wrap: the filter input (200px) + status select + Export/Add buttons is
+     ~580px wide, which pushed the whole page past the viewport on mobile.
+     Wrapping lets it fold onto multiple lines inside the section header. */
+  flex-wrap: wrap;
+  min-width: 0;
 }
 
 .section-header-companies h3 {
