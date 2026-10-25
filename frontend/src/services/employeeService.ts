@@ -306,32 +306,37 @@ export const getCompanyAdmins = async (companyId: string, companyName?: string):
   // Fallback: surface the company document's recorded admin (companies whose
   // admin account predates dedicated company-admin role accounts, or was never
   // mirrored into the users collection with a matching companyId).
-  try {
-    const compSnap = await getDoc(doc(db, 'companies', companyId));
-    if (compSnap.exists()) {
-      const comp = compSnap.data();
-      if (comp.adminId) {
-        return [{
-          id: comp.adminId,
-          userId: comp.adminId,
-          slug: '',
-          name: comp.adminName || 'Company Admin',
-          email: '',
-          avatar: '',
-          employeeId: 'Company Admin',
-          department: '',
-          departmentId: '',
-          departmentColor: '#f97316',
-          designation: '',
-          phone: '',
-          status: 'Active',
-          joinDate: new Date(),
-          companyId,
-          employmentType: 'Full-time',
-        } as Employee];
+  // 'global' is the master-admin scope sentinel, not a real company document —
+  // fetching it only produces a pointless 404 (console noise on every
+  // Employees page load for master-admin).
+  if (companyId !== 'global') {
+    try {
+      const compSnap = await getDoc(doc(db, 'companies', companyId));
+      if (compSnap.exists()) {
+        const comp = compSnap.data();
+        if (comp.adminId) {
+          return [{
+            id: comp.adminId,
+            userId: comp.adminId,
+            slug: '',
+            name: comp.adminName || 'Company Admin',
+            email: '',
+            avatar: '',
+            employeeId: 'Company Admin',
+            department: '',
+            departmentId: '',
+            departmentColor: '#f97316',
+            designation: '',
+            phone: '',
+            status: 'Active',
+            joinDate: new Date(),
+            companyId,
+            employmentType: 'Full-time',
+          } as Employee];
+        }
       }
-    }
-  } catch { /* company read unavailable — leave the dropdown empty */ }
+    } catch { /* company read unavailable — leave the dropdown empty */ }
+  }
   return [];
 };
 
