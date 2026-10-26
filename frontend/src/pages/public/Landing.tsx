@@ -248,7 +248,6 @@ export function Landing() {
       <section className="hero-section">
         <div className="hero-content">
           <div className="hero-left">
-            <p className="hero-eyebrow">HR Management System</p>
             <h1>
               Your People. Your Processes. <span>One Powerful HR Platform.</span>
             </h1>
