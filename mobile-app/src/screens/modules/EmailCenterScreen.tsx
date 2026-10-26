@@ -966,7 +966,14 @@ export default function EmailCenterScreen() {
         ]}
       />
 
-      <ScrollView horizontal showsHorizontalScrollIndicator={false} style={[styles.tabBar, { backgroundColor: colors.card }]} contentContainerStyle={{ paddingHorizontal: 8 }}>
+      {/* Horizontally scrollable tab strip. The indicator stays on so the
+          cut-off last tab is obviously swipeable rather than hidden content. */}
+      <ScrollView
+        horizontal
+        showsHorizontalScrollIndicator
+        style={[styles.tabBar, { backgroundColor: colors.card }]}
+        contentContainerStyle={{ paddingHorizontal: 8 }}
+      >
         {TABS.map(tab => (
           <TouchableOpacity
             key={tab.key}
