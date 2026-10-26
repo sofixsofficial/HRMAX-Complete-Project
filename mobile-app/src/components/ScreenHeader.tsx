@@ -20,9 +20,12 @@ interface ScreenHeaderProps {
 
 /**
  * Standardized top navigation header for all secondary/internal screens.
- * Left-aligned back button (← chevron, safe 44pt touch target) followed by
- * the dynamic section title. Uses safe-area insets so it renders correctly
- * under the status-bar / notch on BOTH Android and iOS.
+ * Left-aligned back button (chevron + the word "Back", safe 44pt touch
+ * target) followed by the dynamic section title. Uses safe-area insets so it
+ * renders correctly under the status-bar / notch on BOTH Android and iOS.
+ *
+ * Every secondary screen renders through this component, so the back
+ * affordance is identical app-wide and for every role.
  */
 export const ScreenHeader: React.FC<ScreenHeaderProps> = ({
   title,
@@ -50,10 +53,13 @@ export const ScreenHeader: React.FC<ScreenHeaderProps> = ({
         {!hideBack ? (
           <TouchableOpacity
             onPress={onBack || defaultGoBack(nav)}
+            accessibilityRole="button"
+            accessibilityLabel="Back"
             style={[styles.backBtn, { backgroundColor: colors.background }]}
             hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
           >
             <Icon name="chevron-back" size={22} color={colors.text} />
+            <Text style={[styles.backText, { color: colors.text }]}>Back</Text>
           </TouchableOpacity>
         ) : null}
 
@@ -111,12 +117,18 @@ const styles = StyleSheet.create({
     minHeight: 52,
   },
   backBtn: {
-    width: 44,
-    height: 44,
+    minHeight: 44,
     borderRadius: 10,
+    flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'center',
+    paddingRight: 12,
+    paddingLeft: 8,
     marginRight: 8,
+  },
+  backText: {
+    fontSize: 14.5,
+    fontWeight: '600',
+    marginLeft: 2,
   },
   titleArea: {
     flex: 1,
