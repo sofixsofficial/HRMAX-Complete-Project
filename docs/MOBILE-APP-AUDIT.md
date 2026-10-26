@@ -177,7 +177,7 @@ The two approver accounts were **kept** (named `test.*`) so future approval E2E 
 | Design tokens / dark mode | ⚠️ PARTIAL | `ThemeContext.tsx` = **colors only** (40 keys); no spacing/typography tokens; light+dark ✅ (`app.json:8 automatic`) |
 | Skeletons / empty states / error states | ✅ / ⚠️ | `SkeletonLoader.tsx`, `EmptyStateView` (25+ screens); **no shared `ErrorState` component** |
 | Safe areas | ✅ | `SafeAreaProvider`, iOS `infoPlist` strings (`app.json:17`), camera/location/notification permission plugins |
-| Tests | ✅ **DONE (Stage 4)** | backend **86/86** (`node --test`) + mobile **27/27** (jest-expo) + web **33/33** (vitest) = **146 total**; mobile `lint` script exists but eslint isn't a dep |
+| Tests | ✅ **DONE (Stage 4)** | backend **93/93** (`node --test`) + mobile **27/27** (jest-expo) + web **33/33** (vitest) = **153 total**; mobile `lint` script exists but eslint isn't a dep |
 | Offline attendance queue | ❌ **MISSING** | no queue/retry anywhere — a failed punch is lost |
 
 **Role support:** 6 declared roles ✅ (all have dashboards). `hr-manager` exists only as an ad-hoc string in 8
@@ -202,7 +202,7 @@ mobile files (falls back to `EmployeeDashboard`); `regional-manager` does not ex
 - **Web: ✅ 33/33 pass, 3 suites** (Stage 4, `41d0e3a`) — `npm test` in `frontend` (vitest):
   geofence maths, working-day rules, `companyScope` sentinels + chunking. Web bundle still builds
   (`npm run build` ✅) and the sentinel fix was verified live on `/master-admin/employees`.
-- **Grand total: 146 tests** (86 backend + 27 mobile + 33 web).
+- **Grand total: 153 tests** (backend **93** + mobile **27** + web **33**).
 
 ## 7. Exact bugs found
 
@@ -226,6 +226,7 @@ mobile files (falls back to `EmployeeDashboard`); `regional-manager` does not ex
 | B9 | Legacy callables with no role check (`mobileUpdatePayrollRun` "original had no role check", email CRUD, `mobileCreateTask/Announcement`) | `legacy.ts:1144-1145,1352-1379,873-880,940-948` | privilege escalation risk | ⚠️ open — needs caller audit (web/mobile both route through `/fn/*`); not safe to gate blindly |
 | B10 | Approved-leave date-range check stubbed (`return true; // simplified`) → employee on leave *any* day excluded from `Absent` | `scheduler.ts:69-73` | wrong `Absent` rows | ✅ **fixed** `4b52638` — real range compare; malformed dates never suppress an Absent row |
 | B11 | Deploy workflow does not run tests | `.github/workflows/deploy.yml` | broken code can deploy | ✅ **fixed** `4b52638` — `Test backend (gate before deploy)` step added |
+| B12 | **Payslip email claimed "Please find attached" but sent no attachment**; company admin never CC'd (spec §D requires both) | `payroll.ts:288-336` vs `email.ts:373-381` | ✅ **fixed** `53341b7` — server-side jsPDF generator (`lib/payslipPdf.ts`, same DejaVu font as the web download → identical ₹ rendering), per-employee PDF attachment + CC to every company admin (recipient excluded). Status `Pending→Emailed` already correct. Verified: package ships fonts, local smoke 291,928 bytes `%PDF-`, deployed (bundle 14.05 → 14.72 MB) |
 
 ### Web-only (context for mobile parity)
 | # | Finding | File:line |
