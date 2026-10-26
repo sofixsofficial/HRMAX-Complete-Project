@@ -12,16 +12,19 @@ interface HeaderProps {
   subtitle?: string;
   onMenuPress: () => void;
   onNotificationPress?: () => void;
+  /** Opens the signed-in user's own profile from the avatar. */
+  onProfilePress?: () => void;
   navigation?: any;
 }
 
-export const Header: React.FC<HeaderProps> = ({ title, subtitle, onMenuPress, onNotificationPress }) => {
+export const Header: React.FC<HeaderProps> = ({ title, subtitle, onMenuPress, onNotificationPress, onProfilePress }) => {
   const { colors } = useTheme();
   const insets = useSafeAreaInsets();
   const { user } = useAuth();
   const { selectedCompanyName, availableCompanies } = useCompany();
   const isRestrictedMulti = (user?.role === 'executive' || user?.role === 'team-leader') && availableCompanies.length > 1;
   const [unreadCount, setUnreadCount] = useState(0);
+  const [avatarPressed, setAvatarPressed] = useState(false);
 
   // Brand slot (dashboard) stays the product name; the company this account
   // belongs to is shown as the chip on the right, next to the bell.
@@ -65,11 +68,22 @@ export const Header: React.FC<HeaderProps> = ({ title, subtitle, onMenuPress, on
               </View>
             )}
           </TouchableOpacity>
-          <View style={[styles.avatar, { backgroundColor: colors.accentBg }]}>
-            <Text style={[styles.avatarText, { color: colors.accent }]}>
-              {(user?.name || 'U').charAt(0).toUpperCase()}
-            </Text>
-          </View>
+          <TouchableOpacity
+            onPress={onProfilePress}
+            disabled={!onProfilePress}
+            accessibilityRole={onProfilePress ? 'button' : undefined}
+            accessibilityLabel="Open my profile"
+            hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+            onPressIn={() => setAvatarPressed(true)}
+            onPressOut={() => setAvatarPressed(false)}
+            style={[styles.avatarPress, avatarPressed && styles.avatarPressed]}
+          >
+            <View style={[styles.avatar, { backgroundColor: colors.accentBg }]}>
+              <Text style={[styles.avatarText, { color: colors.accent }]}>
+                {(user?.name || 'U').charAt(0).toUpperCase()}
+              </Text>
+            </View>
+          </TouchableOpacity>
         </View>
       </View>
     </View>
@@ -155,6 +169,12 @@ const styles = StyleSheet.create({
     color: '#fff',
     fontSize: 10,
     fontWeight: '700',
+  },
+  avatarPress: {
+    borderRadius: 8,
+  },
+  avatarPressed: {
+    opacity: 0.65,
   },
   avatar: {
     width: 32,

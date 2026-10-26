@@ -149,6 +149,7 @@ export const DashboardRouter: React.FC = () => {
               subtitle="Dashboard"
               onMenuPress={() => (navigation as any).openDrawer()}
               onNotificationPress={() => navigation.navigate('Notifications')}
+              onProfilePress={() => navigation.navigate('MyProfile')}
               navigation={navigation}
             />
           ),
