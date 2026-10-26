@@ -90,16 +90,19 @@ export const ShiftScheduleScreen: React.FC = () => {
 
   if (loading && !policy) return <ShimmerLoader count={4} height={90} style={{ padding: 16 }} />;
 
-  const weekendDays = (policy?.weekendDays ?? [0, 6]).map((d) => WEEKDAY_NAMES[d] ?? String(d));
-  const myStart = (employee?.shiftStart as string) || policy?.defaultShiftStart || '09:00';
-  const myEnd = (employee?.shiftEnd as string) || policy?.defaultShiftEnd || '18:00';
-  const myType = (employee?.shiftType as string) || 'General';
+  // Only show company-wide values that actually exist in the policy document —
+  // when no policy is configured we say so instead of printing code defaults.
+  const weekendDays = (policy?.weekendDays ?? []).map((d) => WEEKDAY_NAMES[d] ?? String(d));
+  const grace = policy ? `${policy.gracePeriodMinutes} minutes` : null;
+  const myStart = (employee?.shiftStart as string) || policy?.defaultShiftStart || null;
+  const myEnd = (employee?.shiftEnd as string) || policy?.defaultShiftEnd || null;
+  const myType = (employee?.shiftType as string) || null;
 
   const stats = [
-    { label: 'Start', value: myStart, color: '#10b981' },
-    { label: 'End', value: myEnd, color: '#3b82f6' },
-    { label: 'Grace', value: `${policy?.gracePeriodMinutes ?? 15}m`, color: '#f59e0b' },
-    { label: 'Weekly Off', value: weekendDays.length === 7 ? '—' : `${weekendDays.length}d`, color: '#8b5cf6' },
+    { label: 'Start', value: myStart ?? '—', color: '#10b981' },
+    { label: 'End', value: myEnd ?? '—', color: '#3b82f6' },
+    { label: 'Grace', value: policy ? `${policy.gracePeriodMinutes}m` : '—', color: '#f59e0b' },
+    { label: 'Weekly Off', value: weekendDays.length ? `${weekendDays.length}d` : '—', color: '#8b5cf6' },
   ];
 
   return (
@@ -122,10 +125,10 @@ export const ShiftScheduleScreen: React.FC = () => {
             <Icon name="time-outline" size={16} color="#FF6600" />
             <Text style={s.cardTitle}>My Shift</Text>
           </View>
-          <Row label="Shift" value={`${myStart} – ${myEnd}`} />
-          <Row label="Type" value={myType} />
+          <Row label="Shift" value={myStart && myEnd ? `${myStart} – ${myEnd}` : 'Not set — using company default below'} />
+          <Row label="Type" value={myType ?? 'General'} />
           <Row label="Weekly off" value={weekendDays.join(', ') || '—'} />
-          <Row label="Grace period" value={`${policy?.gracePeriodMinutes ?? 15} minutes (late after that)`} />
+          <Row label="Grace period" value={grace ? `${grace} (late after that)` : '—'} />
           <Row label="Timezone" value={timezone || 'Company default'} />
         </PremiumCard>
 
