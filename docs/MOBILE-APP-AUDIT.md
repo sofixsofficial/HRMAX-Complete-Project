@@ -135,9 +135,21 @@ counts** — `calcLeaveDays` (`leaveService.ts:203-210`) is a plain calendar-day
 | owner PATCHes `approverIds` | field stripped | ✅ 200 but stored approvers **unchanged** |
 | cleanup (owner `DELETE`) | 200 | ✅ **200** (both test rows removed) |
 
-Note: this company has no approver accounts, so `computeInitialApproval` skips every tier and the
-request auto-approves — a full multi-tier approval run needs a reporting-manager/company-admin
-account (open item).
+**Multi-tier approval chain — ✅ VERIFIED** (needed two approver accounts, since the company had none):
+created `test.companyadmin@hrmax.in` (company-admin) and `test.manager@hrmax.in` (reporting-manager),
+linked the test employee's `reportingManagerId`:
+
+| Step | Expected | Actual |
+|---|---|---|
+| apply with 2 approvers present | tiers Pending, status Pending | ✅ `reportingManager: Pending`, `companyAdmin: Pending`, `executive/teamLeader: Skipped`, **`status: Pending`** (no more auto-approve) |
+| employee approves own tier | 403 | ✅ **403** "You are not the approver for this tier" |
+| company-admin approves **before** the reporting manager | 412 out-of-order | ✅ **412** "Earlier tier (reportingManager) has not approved yet" |
+| reject without a note | 400 | ✅ **400** "A review note is required for rejection" |
+| reporting manager approves tier 1 | 200, still Pending | ✅ **200**, `reportingManager: Approved`, status `Pending` |
+| company-admin approves tier 2 | 200, status Approved | ✅ **200**, all decided → **`status: Approved`** |
+| cleanup | row removed | ✅ DELETE 200, `remaining: 0` |
+
+The two approver accounts were **kept** (named `test.*`) so future approval E2E can run.
 
 ## 5. Feature checklist vs mobile spec
 
@@ -165,7 +177,7 @@ account (open item).
 | Design tokens / dark mode | ⚠️ PARTIAL | `ThemeContext.tsx` = **colors only** (40 keys); no spacing/typography tokens; light+dark ✅ (`app.json:8 automatic`) |
 | Skeletons / empty states / error states | ✅ / ⚠️ | `SkeletonLoader.tsx`, `EmptyStateView` (25+ screens); **no shared `ErrorState` component** |
 | Safe areas | ✅ | `SafeAreaProvider`, iOS `infoPlist` strings (`app.json:17`), camera/location/notification permission plugins |
-| Tests | ✅ **DONE (Stage 4)** | backend **86/86** (`node --test`) + mobile **27/27** (jest-expo, `npm test`, `jest.config.js`); **frontend still has none**; mobile `lint` script exists but eslint isn't a dep |
+| Tests | ✅ **DONE (Stage 4)** | backend **86/86** (`node --test`) + mobile **27/27** (jest-expo) + web **33/33** (vitest) = **146 total**; mobile `lint` script exists but eslint isn't a dep |
 | Offline attendance queue | ❌ **MISSING** | no queue/retry anywhere — a failed punch is lost |
 
 **Role support:** 6 declared roles ✅ (all have dashboards). `hr-manager` exists only as an ad-hoc string in 8
@@ -187,6 +199,10 @@ mobile files (falls back to `EmployeeDashboard`); `regional-manager` does not ex
 - **Mobile: ✅ 27/27 pass, 4 suites** (Stage 4, `94ec880`) — `npm test` in `mobile-app` (jest-expo):
   `dayKey/addDays`, `companyScope` sentinels (regression), leave/working-day counting, and renders of
   `BrandHomeHero` + `MonthAttendanceCalendar` (honest empty state, today/future cells).
+- **Web: ✅ 33/33 pass, 3 suites** (Stage 4, `41d0e3a`) — `npm test` in `frontend` (vitest):
+  geofence maths, working-day rules, `companyScope` sentinels + chunking. Web bundle still builds
+  (`npm run build` ✅) and the sentinel fix was verified live on `/master-admin/employees`.
+- **Grand total: 146 tests** (86 backend + 27 mobile + 33 web).
 
 ## 7. Exact bugs found
 
@@ -222,6 +238,7 @@ mobile files (falls back to `EmployeeDashboard`); `regional-manager` does not ex
 | W6 | `detectMissedPunches()` **writes** `Miss Punch` from the browser on a 60 s timer | `attendanceService.ts:406`, `Attendance.tsx:396-405` |
 | W7 | `company-admin` is hard view-only yet counted as `canManage` | `AuthContext.tsx:115-118` vs `Attendance.tsx:134` |
 | W8 | Leave totals = calendar days, working-day helpers unused | `leaveService.ts:203-210` |
+| W9 | `scopedCompanyIds` had no platform sentinel, so master-admin pages scoped to `'global'` and showed an empty list | `frontend/src/utils/companyScope.ts:13` | ✅ **fixed** `41d0e3a`, live-verified (`/master-admin/employees` → 1 Total / Test Employee), deployed via `deploy-hosting.mjs` |
 
 ✅ **No "success without server response" found anywhere** (web or mobile) — every success message is set after
 `await` of the HTTP call (exceptions: fire-and-forget notification fan-outs, by design).
