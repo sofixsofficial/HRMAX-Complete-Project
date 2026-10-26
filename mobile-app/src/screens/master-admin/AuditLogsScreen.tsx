@@ -177,7 +177,11 @@ export const AuditLogsScreen: React.FC = () => {
                     </View>
                     <View style={{ flex: 1 }}>
                       <View style={s.cardHeader}>
-                        <Text style={s.action}>{actionLabel((log.actionType || log.action || '').toLowerCase())}</Text>
+                        {/* Web shows the descriptive action ("Checked in", "Sent email ...");
+                            showing only the type label threw that detail away. */}
+                        <Text style={s.action} numberOfLines={2}>
+                          {log.action || actionLabel((log.actionType || '').toLowerCase())}
+                        </Text>
                         <Text style={s.date}>{formatDate(log.timestamp)}</Text>
                       </View>
                       <Text style={s.user}>{log.userName} ({log.userRole})</Text>
@@ -185,6 +189,9 @@ export const AuditLogsScreen: React.FC = () => {
                       <View style={s.metaRow}>
                         <View style={[s.statusDot, { backgroundColor: badge.text }]} />
                         <Text style={[s.statusText, { color: badge.text }]}>{log.status || 'success'}</Text>
+                        {log.actionType && log.action ? (
+                          <Text style={s.typeChip}>{actionLabel(log.actionType.toLowerCase())}</Text>
+                        ) : null}
                       </View>
                       {(log.details || log.description) && <Text style={s.details}>{log.details || log.description}</Text>}
                     </View>
@@ -247,6 +254,7 @@ const createStyles = (c: ThemeColors) => StyleSheet.create({
   metaRow: { flexDirection: 'row', alignItems: 'center', gap: 4, marginBottom: 2 },
   statusDot: { width: 6, height: 6, borderRadius: 3 },
   statusText: { fontSize: 11, fontWeight: '600' },
+  typeChip: { fontSize: 10, fontWeight: '700', color: c.textTertiary, marginLeft: 4 },
   details: { color: c.textTertiary, fontSize: 11, marginTop: 2 },
   loadMore: { paddingVertical: 14, alignItems: 'center', backgroundColor: c.card, borderRadius: 10, marginTop: 4 },
   loadMoreText: { color: '#FF6600', fontWeight: '600', fontSize: 14 },
