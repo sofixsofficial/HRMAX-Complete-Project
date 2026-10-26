@@ -1,0 +1,107 @@
+.notfound {
+  min-height: 100vh;
+  padding: 110px 20px 60px;
+  background: #f9fafb;
+  display: flex;
+  justify-content: center;
+}
+
+.notfound-card {
+  width: 100%;
+  max-width: 760px;
+  background: #fff;
+  border: 1px solid #eef0f3;
+  border-radius: 18px;
+  box-shadow: 0 18px 44px -22px rgba(15, 23, 42, 0.24);
+  padding: 44px 40px;
+  text-align: center;
+}
+
+.notfound-icon {
+  width: 64px;
+  height: 64px;
+  margin: 0 auto 16px;
+  border-radius: 18px;
+  background: #fff7ed;
+  color: #f97316;
+  display: grid;
+  place-items: center;
+}
+
+.notfound-code {
+  margin: 0;
+  font-size: 13px;
+  font-weight: 700;
+  letter-spacing: 0.18em;
+  color: #f97316;
+}
+
+.notfound h1 {
+  margin: 6px 0 10px;
+  font-size: clamp(24px, 4vw, 32px);
+  color: #111827;
+}
+
+.notfound-text {
+  margin: 0 auto 26px;
+  max-width: 46ch;
+  font-size: 15.5px;
+  line-height: 1.7;
+  color: #4b5563;
+}
+
+.notfound-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  justify-content: center;
+  margin-bottom: 36px;
+}
+
+.notfound-links {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  gap: 24px;
+  text-align: left;
+  border-top: 1px solid #f3f4f6;
+  padding-top: 28px;
+}
+
+.notfound-links h2 {
+  margin: 0 0 10px;
+  font-size: 12px;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: #9ca3af;
+}
+
+.notfound-links ul {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 8px;
+}
+
+.notfound-links a {
+  font-size: 14px;
+  color: #4b5563;
+  text-decoration: none;
+}
+
+.notfound-links a:hover,
+.notfound-links a:focus-visible {
+  color: #ea580c;
+  outline: none;
+}
+
+@media (max-width: 640px) {
+  .notfound-card {
+    padding: 32px 22px;
+  }
+
+  .notfound-actions a {
+    width: 100%;
+    justify-content: center;
+  }
+}

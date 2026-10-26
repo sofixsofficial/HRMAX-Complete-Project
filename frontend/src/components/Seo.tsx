@@ -101,17 +101,29 @@ const titleFromPath = (path: string): string => {
     .join(' ')
 }
 
-export function Seo(): null {
+interface SeoProps {
+  /** Overrides the route-map title. */
+  title?: string
+  /** Overrides the route-map description. */
+  description?: string
+  /** Canonical path (defaults to the current location). */
+  path?: string
+  /** Force indexability on/off; defaults to the public-route lookup. */
+  index?: boolean
+  breadcrumbs?: string[]
+}
+
+export function Seo({ title, description, path, index, breadcrumbs }: SeoProps = {}): null {
   const location = useLocation()
 
   useEffect(() => {
-    const path = location.pathname.replace(/\/+$/, '') || '/'
-    const page = PUBLIC_PAGES[path]
-    const isPublic = Boolean(page)
+    const resolvedPath = (path ?? location.pathname).replace(/\/+$/, '') || '/'
+    const page = PUBLIC_PAGES[resolvedPath]
+    const isPublic = index ?? Boolean(page)
 
-    const meta = page ?? {
-      title: `${titleFromPath(path)} - HR MAX`,
-      description: DEFAULT_APP_META.description,
+    const meta = {
+      title: title ?? page?.title ?? `${titleFromPath(resolvedPath)} - HR MAX`,
+      description: description ?? page?.description ?? DEFAULT_APP_META.description,
     }
 
     document.title = meta.title
@@ -119,15 +131,16 @@ export function Seo(): null {
     upsertMeta('name', 'robots', isPublic ? 'index, follow, max-image-preview:large' : 'noindex, nofollow')
 
     // Canonical drops the query string; app routes noindex anyway.
-    upsertLink('canonical', `${ORIGIN}${path === '/' ? '/' : path}`)
+    upsertLink('canonical', `${ORIGIN}${resolvedPath === '/' ? '/' : resolvedPath}`)
 
     upsertMeta('property', 'og:title', meta.title)
     upsertMeta('property', 'og:description', meta.description)
-    upsertMeta('property', 'og:url', `${ORIGIN}${path === '/' ? '/' : path}`)
-    upsertMeta('property', 'og:type', isPublic ? 'website' : 'website')
+    upsertMeta('property', 'og:url', `${ORIGIN}${resolvedPath === '/' ? '/' : resolvedPath}`)
+    upsertMeta('property', 'og:type', 'website')
     upsertMeta('name', 'twitter:title', meta.title)
     upsertMeta('name', 'twitter:description', meta.description)
-  }, [location.pathname])
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [location.pathname, title, description, path, index])
 
   return null
 }

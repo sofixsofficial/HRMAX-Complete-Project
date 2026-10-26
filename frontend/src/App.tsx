@@ -77,6 +77,16 @@ import { About } from './pages/public/About'
 import { Contact } from './pages/public/Contact'
 import { Features } from './pages/public/Features'
 import { PrivacyPolicy } from './pages/public/PrivacyPolicy'
+import { ModulesIndex, ModulePage } from './pages/public/ModulePage'
+import { SolutionsIndex, SolutionPage } from './pages/public/SolutionsPage'
+import { HowItWorks } from './pages/public/HowItWorks'
+import { Pricing } from './pages/public/Pricing'
+import { Demo } from './pages/public/Demo'
+import { Enroll } from './pages/public/Enroll'
+import { Faq } from './pages/public/Faq'
+import { Security } from './pages/public/Security'
+import { Terms } from './pages/public/Terms'
+import { NotFound } from './pages/public/NotFound'
 import { DeleteAccount } from './pages/public/DeleteAccount'
 import './App.css'
 
@@ -155,6 +165,17 @@ function AppRoutes() {
         )
       } />
       <Route path="/features" element={<PublicLayout><Features /></PublicLayout>} />
+      <Route path="/modules" element={<PublicLayout><ModulesIndex /></PublicLayout>} />
+      <Route path="/modules/:slug" element={<PublicLayout><ModulePage /></PublicLayout>} />
+      <Route path="/solutions" element={<PublicLayout><SolutionsIndex /></PublicLayout>} />
+      <Route path="/solutions/:slug" element={<PublicLayout><SolutionPage /></PublicLayout>} />
+      <Route path="/how-it-works" element={<PublicLayout><HowItWorks /></PublicLayout>} />
+      <Route path="/pricing" element={<PublicLayout><Pricing /></PublicLayout>} />
+      <Route path="/demo" element={<PublicLayout><Demo /></PublicLayout>} />
+      <Route path="/enroll" element={<PublicLayout><Enroll /></PublicLayout>} />
+      <Route path="/faq" element={<PublicLayout><Faq /></PublicLayout>} />
+      <Route path="/security" element={<PublicLayout><Security /></PublicLayout>} />
+      <Route path="/terms-and-conditions" element={<PublicLayout><Terms /></PublicLayout>} />
       <Route path="/about" element={<PublicLayout><About /></PublicLayout>} />
       <Route path="/contact" element={<PublicLayout><Contact /></PublicLayout>} />
       <Route path="/privacy" element={<PublicLayout><PrivacyPolicy /></PublicLayout>} />
@@ -426,7 +447,9 @@ function AppRoutes() {
       } />
       
       {/* Catch all */}
-      <Route path="*" element={<Navigate to="/" replace />} />
+      {/* Unknown paths render a real 404 view instead of silently bouncing
+          to home, so a mistyped or outdated link is obvious to the visitor. */}
+      <Route path="*" element={<PublicLayout><NotFound /></PublicLayout>} />
     </Routes>
   );
 }

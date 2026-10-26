@@ -1,0 +1,391 @@
+/* Shared styles for the public demo / enrollment forms. */
+
+.form-layout {
+  display: grid;
+  grid-template-columns: minmax(0, 1.6fr) minmax(0, 1fr);
+  gap: 24px;
+  align-items: start;
+  margin-bottom: 40px;
+}
+
+.form-card {
+  background: #fff;
+  border: 1px solid #eef0f3;
+  border-radius: 16px;
+  box-shadow: 0 1px 3px rgba(15, 23, 42, 0.05);
+  padding: 28px;
+}
+
+.form-card h2 {
+  margin: 0 0 20px;
+  font-size: 20px;
+  color: #111827;
+}
+
+.form-row {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 16px;
+  margin-bottom: 16px;
+}
+
+.form-card label {
+  display: block;
+  margin-bottom: 16px;
+}
+
+.form-card label > span,
+.form-chips legend {
+  display: block;
+  font-size: 13.5px;
+  font-weight: 600;
+  color: #374151;
+  margin-bottom: 7px;
+}
+
+.form-card input[type='text'],
+.form-card input[type='email'],
+.form-card input[type='tel'],
+.form-card select,
+.form-card textarea {
+  width: 100%;
+  padding: 12px 14px;
+  font-family: inherit;
+  font-size: 15px;
+  color: #111827;
+  background: #f9fafb;
+  border: 1.5px solid #e5e7eb;
+  border-radius: 10px;
+  transition: border-color 0.15s, background 0.15s;
+}
+
+.form-card input:focus,
+.form-card select:focus,
+.form-card textarea:focus {
+  outline: none;
+  border-color: #f97316;
+  background: #fff;
+  box-shadow: 0 0 0 3px rgba(249, 115, 22, 0.14);
+}
+
+.form-card textarea {
+  resize: vertical;
+  min-height: 96px;
+  line-height: 1.6;
+}
+
+.form-chips {
+  border: none;
+  margin: 0 0 16px;
+  padding: 0;
+}
+
+.form-chips > div {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.form-chips button {
+  padding: 9px 14px;
+  font-family: inherit;
+  font-size: 13.5px;
+  font-weight: 500;
+  color: #4b5563;
+  background: #fff;
+  border: 1.5px solid #e5e7eb;
+  border-radius: 999px;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+
+.form-chips button:hover {
+  border-color: #fdba74;
+}
+
+.form-chips button.is-on {
+  background: #fff7ed;
+  border-color: #f97316;
+  color: #c2410c;
+  font-weight: 600;
+}
+
+.form-chips button:focus-visible {
+  outline: 2px solid #f97316;
+  outline-offset: 2px;
+}
+
+.form-check {
+  display: flex !important;
+  gap: 10px;
+  align-items: flex-start;
+  font-size: 13.5px;
+  line-height: 1.6;
+  color: #4b5563;
+}
+
+.form-check input {
+  margin-top: 3px;
+  accent-color: #f97316;
+  width: 16px;
+  height: 16px;
+  flex-shrink: 0;
+}
+
+.form-check a {
+  color: #ea580c;
+}
+
+.form-error {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0 0 16px;
+  padding: 12px 14px;
+  background: #fef2f2;
+  border: 1px solid #fecaca;
+  border-radius: 10px;
+  color: #b91c1c;
+  font-size: 14px;
+}
+
+.form-submit {
+  width: 100%;
+  border: none;
+  font-family: inherit;
+  cursor: pointer;
+}
+
+.form-submit:disabled {
+  opacity: 0.65;
+  cursor: not-allowed;
+}
+
+.form-note {
+  margin: 12px 0 0;
+  font-size: 12.5px;
+  color: #9ca3af;
+  text-align: center;
+}
+
+.spin {
+  animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+/* Aside */
+.form-aside {
+  display: grid;
+  gap: 16px;
+}
+
+.form-aside-card {
+  background: #f9fafb;
+  border: 1px solid #eef0f3;
+  border-radius: 14px;
+  padding: 20px;
+}
+
+.form-aside-card h3 {
+  margin: 10px 0 8px;
+  font-size: 15.5px;
+  color: #111827;
+}
+
+.form-aside-card p,
+.form-aside-card li {
+  font-size: 14px;
+  line-height: 1.7;
+  color: #4b5563;
+  margin: 0;
+}
+
+.form-aside-card ul {
+  margin: 0;
+  padding-left: 18px;
+}
+
+.form-aside-card a {
+  display: inline-block;
+  margin-top: 10px;
+  font-size: 14px;
+  font-weight: 600;
+  color: #ea580c;
+}
+
+.form-aside-card svg {
+  color: #f97316;
+}
+
+/* Success */
+.form-success {
+  text-align: center;
+  background: #fff;
+  border: 1px solid #eef0f3;
+  border-radius: 16px;
+  padding: 44px 28px;
+  margin-bottom: 40px;
+}
+
+.form-success svg {
+  color: #10b981;
+}
+
+.form-success h2 {
+  margin: 14px 0 10px;
+  font-size: 22px;
+  color: #111827;
+}
+
+.form-success p {
+  margin: 0 auto 22px;
+  max-width: 52ch;
+  font-size: 15.5px;
+  line-height: 1.7;
+  color: #4b5563;
+}
+
+.form-success-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  justify-content: center;
+}
+
+/* ── Multi-step ────────────────────────────────────────────── */
+.form-steps {
+  display: flex;
+  gap: 8px;
+  list-style: none;
+  margin: 0 0 24px;
+  padding: 0;
+  flex-wrap: wrap;
+}
+
+.form-steps li {
+  flex: 1;
+  min-width: 130px;
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  padding: 11px 14px;
+  border: 1.5px solid #e5e7eb;
+  border-radius: 10px;
+  font-size: 13.5px;
+  font-weight: 600;
+  color: #9ca3af;
+  background: #fff;
+}
+
+.form-steps li.is-active {
+  border-color: #f97316;
+  color: #c2410c;
+  background: #fff7ed;
+}
+
+.form-steps li.is-done {
+  border-color: #bbf7d0;
+  color: #15803d;
+  background: #f0fdf4;
+}
+
+.form-steps .step-index {
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  background: #e5e7eb;
+  color: #6b7280;
+  display: grid;
+  place-items: center;
+  font-size: 12px;
+  flex-shrink: 0;
+}
+
+.form-steps li.is-active .step-index {
+  background: #f97316;
+  color: #fff;
+}
+
+.form-steps li.is-done .step-index {
+  background: #10b981;
+  color: #fff;
+}
+
+.form-nav {
+  display: flex;
+  gap: 12px;
+  justify-content: space-between;
+  align-items: center;
+  margin-top: 8px;
+}
+
+.form-back {
+  padding: 12px 20px;
+  background: #fff;
+  border: 1.5px solid #d1d5db;
+  border-radius: 10px;
+  font-family: inherit;
+  font-size: 15px;
+  font-weight: 600;
+  color: #374151;
+  cursor: pointer;
+}
+
+.form-back:hover {
+  border-color: #9ca3af;
+}
+
+.form-review {
+  display: grid;
+  gap: 10px;
+  margin: 0 0 18px;
+  padding: 0;
+}
+
+.form-review div {
+  display: grid;
+  grid-template-columns: 200px 1fr;
+  gap: 12px;
+  padding: 11px 14px;
+  background: #f9fafb;
+  border: 1px solid #eef0f3;
+  border-radius: 10px;
+  font-size: 14.5px;
+}
+
+.form-review dt {
+  font-weight: 600;
+  color: #6b7280;
+}
+
+.form-review dd {
+  margin: 0;
+  color: #111827;
+  word-break: break-word;
+}
+
+@media (max-width: 900px) {
+  .form-layout {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 640px) {
+  .form-card {
+    padding: 22px 18px;
+  }
+
+  .form-review div {
+    grid-template-columns: 1fr;
+    gap: 2px;
+  }
+
+  .form-steps li {
+    min-width: calc(50% - 4px);
+  }
+}
