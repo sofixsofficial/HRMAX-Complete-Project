@@ -25,7 +25,13 @@ const TAB_META: Record<Exclude<TabKey, 'more'>, { label: string; icon: keyof typ
   reports: { label: 'Reports', icon: 'bar-chart-outline' },
 };
 
-function useAvailableTabs(): TabKey[] {
+/** Tabs this role may use, plus the screen the Leave tab should route to. */
+interface AvailableTabs {
+  tabs: TabKey[];
+  leaveScreen: string | null;
+}
+
+function useAvailableTabs(): AvailableTabs {
   const { user } = useAuth();
   return useMemo(() => {
     const sections = getSectionsByRole(user?.role);
@@ -33,12 +39,17 @@ function useAvailableTabs(): TabKey[] {
     const hasScreen = (screen: string) => items.some((i) => i.screen === screen && !i.params);
     const hasLabel = (label: string) => items.some((i) => i.label === label);
 
+    // A reporting manager reviews their own time off from
+    // MyLeavesAttendance rather than the company-wide Leaves screen - the
+    // Leave tab must appear for them too, and route to whichever they have.
+    const leaveScreen = hasScreen('Leaves') ? 'Leaves' : hasScreen('MyLeavesAttendance') ? 'MyLeavesAttendance' : null;
+
     const tabs: TabKey[] = ['home'];
     if (hasScreen('Attendance')) tabs.push('attendance');
-    if (hasScreen('Leaves')) tabs.push('leave');
+    if (leaveScreen) tabs.push('leave');
     if (hasLabel('Reports')) tabs.push('reports');
     tabs.push('more');
-    return tabs;
+    return { tabs, leaveScreen };
   }, [user?.role]);
 }
 
@@ -46,7 +57,7 @@ export const BottomNav: React.FC = () => {
   const { colors } = useTheme();
   const insets = useSafeAreaInsets();
   const navigation = useNavigation<any>();
-  const tabs = useAvailableTabs();
+  const { tabs, leaveScreen } = useAvailableTabs();
 
   // Active tab = the drawer route, or the nested stack route when Home is open.
   const state = useNavigationState((s) => s) as
@@ -72,9 +83,12 @@ export const BottomNav: React.FC = () => {
       navigation.openDrawer();
       return;
     }
-    if (key === 'home') navigation.navigate('Home');
+    // Each tab jumps to its own root. Home always targets DashboardHome
+    // explicitly - a bare navigate('Home') keeps whatever nested screen is
+    // already open, so tapping Home while deep in Reports did nothing.
+    if (key === 'home') navigation.navigate('Home', { screen: 'DashboardHome' });
     else if (key === 'attendance') navigation.navigate('Attendance');
-    else if (key === 'leave') navigation.navigate('Leaves');
+    else if (key === 'leave' && leaveScreen) navigation.navigate(leaveScreen);
     else if (key === 'reports') navigation.navigate('Home', { screen: 'Reports' });
   };
 
