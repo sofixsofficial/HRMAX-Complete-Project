@@ -17,6 +17,7 @@ import { TaskManagementScreen } from '../screens/master-admin/TaskManagementScre
 import { LeaveManagementScreen } from '../screens/master-admin/LeaveManagementScreen';
 import { AssetsScreen } from '../screens/master-admin/AssetsScreen';
 import { HolidayCalendarScreen } from '../screens/master-admin/HolidayCalendarScreen';
+import { ShiftScheduleScreen } from '../screens/modules/ShiftScheduleScreen';
 import { CompaniesScreen } from '../screens/master-admin/CompaniesScreen';
 import { ExecutivesScreen } from '../screens/master-admin/ExecutivesScreen';
 import { TeamLeadersScreen } from '../screens/master-admin/TeamLeadersScreen';
@@ -205,6 +206,7 @@ export const DashboardRouter: React.FC = () => {
       <Stack.Screen name="HandledCompanies" component={HandledCompaniesScreen} options={{ headerTitle: 'Handled Companies' }} />
       <Stack.Screen name="TeamOperations" component={TeamOperationsScreen} options={{ headerTitle: 'Team Operations' }} />
       <Stack.Screen name="MyLeavesAttendance" component={MyLeavesAttendanceScreen} options={{ headerTitle: 'My Leaves & Attendance' }} />
+      <Stack.Screen name="ShiftSchedule" component={ShiftScheduleScreen} options={{ headerTitle: 'Shift Schedule' }} />
     </Stack.Navigator>
   );
 };

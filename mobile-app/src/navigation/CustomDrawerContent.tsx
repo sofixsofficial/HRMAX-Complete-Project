@@ -53,6 +53,7 @@ export const getSectionsByRole = (userRole?: UserRole): DrawerSection[] => {
           title: 'Operations',
           items: [
             { label: 'Attendance', icon: 'clipboard-outline', screen: 'Attendance' },
+            { label: 'Shift Schedule', icon: 'time-outline', screen: 'ShiftSchedule' },
             { label: 'Leaves', icon: 'umbrella-outline', screen: 'Leaves' },
             { label: 'Payroll', icon: 'wallet-outline', ...home('SalarySlips') },
             { label: 'Run Payroll', icon: 'calculator-outline', ...home('RunPayroll') },
@@ -129,6 +130,7 @@ export const getSectionsByRole = (userRole?: UserRole): DrawerSection[] => {
           title: 'Operations',
           items: [
             { label: 'Attendance', icon: 'clipboard-outline', screen: 'Attendance' },
+            { label: 'Shift Schedule', icon: 'time-outline', screen: 'ShiftSchedule' },
             { label: 'Leaves', icon: 'umbrella-outline', screen: 'Leaves' },
             { label: 'Tasks', icon: 'checkmark-circle-outline', screen: 'Tasks' },
             { label: 'Payroll', icon: 'wallet-outline', ...home('SalarySlips') },
@@ -245,6 +247,7 @@ export const getSectionsByRole = (userRole?: UserRole): DrawerSection[] => {
           title: 'Team Management',
           items: [
             { label: 'Attendance', icon: 'clipboard-outline', screen: 'Attendance' },
+            { label: 'Shift Schedule', icon: 'time-outline', screen: 'ShiftSchedule' },
             { label: 'Leaves', icon: 'umbrella-outline', screen: 'Leaves' },
             { label: 'Birthdays', icon: 'gift-outline', ...home('Birthdays') },
             { label: 'Address Book', icon: 'book-outline', ...home('AddressBook') },
@@ -308,6 +311,7 @@ export const getSectionsByRole = (userRole?: UserRole): DrawerSection[] => {
           title: 'Operations',
           items: [
             { label: 'Attendance', icon: 'clipboard-outline', screen: 'Attendance' },
+            { label: 'Shift Schedule', icon: 'time-outline', screen: 'ShiftSchedule' },
           ],
         },
         {
@@ -333,6 +337,7 @@ export const getSectionsByRole = (userRole?: UserRole): DrawerSection[] => {
           title: 'Operations',
           items: [
             { label: 'Attendance', icon: 'clipboard-outline', screen: 'Attendance' },
+            { label: 'Shift Schedule', icon: 'time-outline', screen: 'ShiftSchedule' },
             { label: 'Leaves', icon: 'umbrella-outline', screen: 'Leaves' },
             { label: 'Payroll', icon: 'wallet-outline', ...home('SalarySlips') },
             { label: 'Tasks', icon: 'checkmark-circle-outline', screen: 'Tasks' },
