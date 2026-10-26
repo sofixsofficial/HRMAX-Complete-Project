@@ -6,7 +6,7 @@ import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { useAuth } from '../context/AuthContext';
 import { AuthNavigator } from './AuthNavigator';
 import { AppNavigator } from './AppNavigator';
-import { LoadingScreen } from '../screens/common/LoadingScreen';
+import { LoadingScreen, useSplashReady } from '../screens/common/LoadingScreen';
 import { navigationRef, navigateToNotificationLink } from './navigationRef';
 import { useNotifications } from '../hooks/useNotifications';
 import { safeStore } from '../utils/safeStorage';
@@ -19,6 +19,7 @@ const PUSH_PROMPT_KEY = 'hrmax_push_prompted';
 export const RootNavigator: React.FC = () => {
   const { isAuthenticated, isLoading, user } = useAuth();
   const { register } = useNotifications();
+  const splashReady = useSplashReady();
 
   // Push registration was previously manual-only (a Settings/Notifications
   // toggle nobody flips). After sign-in, register this device automatically:
@@ -70,7 +71,7 @@ export const RootNavigator: React.FC = () => {
     return () => sub.remove();
   }, [isAuthenticated, user?.role]);
 
-  if (isLoading) {
+  if (isLoading || !splashReady) {
     return <LoadingScreen />;
   }
 

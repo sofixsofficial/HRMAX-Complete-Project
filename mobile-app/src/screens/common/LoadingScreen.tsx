@@ -14,6 +14,24 @@ import { BrandMark } from '../../components/BrandMark';
  * "couldn't finish starting up" state with a Retry (re-fetches the session)
  * rather than pretending progress is still being made.
  */
+/**
+ * Minimum time the branded splash stays visible. The session can restore
+ * faster than the first frame paints (especially on web), which left the
+ * splash never actually shown - this floor guarantees it is seen.
+ */
+export const SPLASH_MIN_MS = 1000;
+const appStartAt = Date.now();
+
+export const useSplashReady = (): boolean => {
+  const [ready, setReady] = useState(() => Date.now() - appStartAt >= SPLASH_MIN_MS);
+  useEffect(() => {
+    if (ready) return;
+    const t = setTimeout(() => setReady(true), Math.max(50, appStartAt + SPLASH_MIN_MS - Date.now()));
+    return () => clearTimeout(t);
+  }, [ready]);
+  return ready;
+};
+
 export const LoadingScreen: React.FC = () => {
   const { colors } = useTheme();
   const { isLoading, refreshUser } = useAuth();

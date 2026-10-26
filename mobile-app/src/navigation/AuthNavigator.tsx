@@ -5,7 +5,7 @@ import { LoginScreen } from '../screens/auth/LoginScreen';
 import { ForgotPasswordScreen } from '../screens/auth/ForgotPasswordScreen';
 import { VerifyResetCodeScreen } from '../screens/auth/VerifyResetCodeScreen';
 import { OnboardingScreen, ONBOARDING_KEY } from '../screens/auth/OnboardingScreen';
-import { LoadingScreen } from '../screens/common/LoadingScreen';
+import { LoadingScreen, useSplashReady } from '../screens/common/LoadingScreen';
 import { safeStore } from '../utils/safeStorage';
 
 const Stack = createNativeStackNavigator();
@@ -14,6 +14,7 @@ export const AuthNavigator: React.FC = () => {
   const { colors } = useTheme();
   const [ready, setReady] = useState(false);
   const [firstRun, setFirstRun] = useState(false);
+  const splashReady = useSplashReady();
 
   // One-time intro: read the persisted flag before choosing the initial route,
   // so a returning user never sees the slides again after a logout.
@@ -33,7 +34,7 @@ export const AuthNavigator: React.FC = () => {
     };
   }, []);
 
-  if (!ready) return <LoadingScreen />;
+  if (!ready || !splashReady) return <LoadingScreen />;
 
   return (
     <Stack.Navigator
