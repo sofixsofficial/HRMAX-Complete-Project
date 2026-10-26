@@ -149,7 +149,12 @@ mobile files (falls back to `EmployeeDashboard`); `regional-manager` does not ex
   (`TIER_ORDER` 164-167, permission assertions 122-145). Run: `npm test` = `build:backend` + `node --test`.
 - **Coverage vs spec:** attendance = mounting only; leave = mounting + constants. ❌ No duplicate-check-in,
   geofence, state-machine, rectification, leave apply/approve/balance tests. ❌ No frontend/mobile tests at all.
-- **Execution this session: ⏳ PENDING** (Stage 0).
+- **Execution this session: ✅ 86/86 pass** (`npm test`, run twice back-to-back to prove stability)
+  - baseline before changes: **66/66**
+  - added `backend/aws/test/attendance-leave.test.js` (+20): status-machine boundaries, company-timezone
+    day/minute maths (the UTC/IST proof), `enableGeofence`→`requireGeofence` flag mapping, haversine distance,
+    leave date parsing / inclusive duration / overlap rules, `ConditionalWriteFailed` contract
+  - also fixed test isolation: tests no longer write live rate-limit counters (`HRMAX_DISABLE_RATE_LIMIT`)
 
 ## 7. Exact bugs found
 
@@ -160,19 +165,19 @@ mobile files (falls back to `EmployeeDashboard`); `regional-manager` does not ex
 | M2 | Master-admin drawer exposed "Self Service / My Leaves & Attendance" with no matching web route | `CustomDrawerContent.tsx:31` | commit `fa27411` ✅ |
 
 ### Backend (open — need justification + regression care)
-| # | Bug | File:line | Impact |
-|---|---|---|---|
-| B1 | **Geofence flag mismatch** — web writes `enableGeofence`, server reads `requireGeofence` | `AttendanceSettings.tsx:266` vs `attendance.ts:57,116` | **server-side geofence is always OFF**; only client check runs |
-| B2 | **Leave apply has no date-range, no overlap, no balance check**; `totalDays` trusted from client | `leave.ts:129-149` | invalid/duplicate leave accepted; balance bypass |
-| B3 | **No idempotency/conditional write on attendance** — read-then-put | `db.ts:121`, `attendance.ts:99-145` | concurrent double-tap can create duplicates |
-| B4 | `PATCH /api/leave-requests/:id` is a blind passthrough for anyone with `leave.approve` | `leave.ts:239-260` | approver can rewrite arbitrary fields |
-| B5 | Cancel semantics diverge: `DELETE` hard-deletes (web+backend) vs mobile sets `Cancelled` | `leave.ts:393-397` vs `legacy.ts:829-841` | data loss vs status change inconsistency |
-| B6 | **UTC vs Asia/Kolkata date-key split** — `todayKey()` UTC in handler, IST in sweeper; no company timezone anywhere in backend | `attendance.ts:28-30` vs `scheduler.ts:15-18`; `grep timezone` = 0 hits | day-boundary attendance bugs |
-| B7 | **`GET /api/salary-slips` registered twice**; payroll handler unreachable (first-match) | `index.ts:24` vs `:29`, `http.ts:92-95` | dead code path |
-| B8 | `POST /api/email/send` and `POST /api/broadcast` have **no role gate** (auth only) | `email.ts:46-73`, `broadcast.ts:18-24` | any authenticated user can email/broadcast |
-| B9 | Legacy callables with no role check (`mobileUpdatePayrollRun` "original had no role check", email CRUD, `mobileCreateTask/Announcement`) | `legacy.ts:1144-1145,1352-1379,873-880,940-948` | privilege escalation risk |
-| B10 | Approved-leave date-range check stubbed (`return true; // simplified`) → employee on leave *any* day excluded from `Absent` | `scheduler.ts:69-73` | wrong `Absent` rows |
-| B11 | Deploy workflow does not run tests | `.github/workflows/deploy.yml` | broken code can deploy |
+| # | Bug | File:line | Impact | Status |
+|---|---|---|---|---|
+| B1 | **Geofence flag mismatch** — web writes `enableGeofence`, server reads `requireGeofence` | `AttendanceSettings.tsx:266` vs `attendance.ts:57,116` | **server-side geofence is always OFF**; only client check runs | ✅ **fixed** `4b52638` — `normalizePolicyFlags()` accepts both spellings |
+| B2 | **Leave apply has no date-range, no overlap, no balance check**; `totalDays` trusted from client | `leave.ts:129-149` | invalid/duplicate leave accepted; balance bypass | ✅ **fixed** `4b52638` — date order + 366-day cap + server `totalDays` + overlap → 409. **Balance still client-side** (no server model exists — documented, not invented) |
+| B3 | **No idempotency/conditional write on attendance** — read-then-put | `db.ts:121`, `attendance.ts:99-145` | concurrent double-tap can create duplicates | ✅ **fixed** `4b52638` — `ConditionExpression` on check-in + check-out, `ConditionalWriteFailed` → 412 |
+| B4 | `PATCH /api/leave-requests/:id` is a blind passthrough for anyone with `leave.approve` (and **the requester could approve their own request**) | `leave.ts:239-260` | self-approval / chain bypass | ✅ **fixed** `4b52638` — decision fields require an approver; `userId`/`approverIds` stripped; owner cancel still allowed |
+| B5 | Cancel semantics diverge: `DELETE` hard-deletes (web+backend) vs mobile sets `Cancelled` | `leave.ts:393-397` vs `legacy.ts:829-841` | data loss vs status change inconsistency | ⚠️ open — both paths are reachable by design; needs a product decision (cancel vs delete) |
+| B6 | **UTC vs Asia/Kolkata date-key split** — `todayKey()` UTC in handler, IST in sweeper; no company timezone anywhere in backend | `attendance.ts:28-30` vs `scheduler.ts:15-18`; `grep timezone` = 0 hits | day-boundary attendance bugs; **lateness never detected** | ✅ **fixed** `4b52638` — `resolveCompanyTimezone()` + `dateKeyInZone()` + `minutesInZone()` |
+| B7 | **`GET /api/salary-slips` registered twice**; payroll handler unreachable (first-match) | `index.ts:24` vs `:29`, `http.ts:92-95` | dead code path | ✅ **fixed** `4b52638` — duplicate removed (generic CRUD was already the effective handler; behaviour unchanged) |
+| B8 | `POST /api/email/send` and `POST /api/broadcast` have **no role gate** (auth only) | `email.ts:46-73`, `broadcast.ts:18-24` | any authenticated user could email/broadcast the company | ✅ **fixed** `4b52638` — `support.view` / `assertRole(MA, CA)`; broadcast now returns 400 not 500 |
+| B9 | Legacy callables with no role check (`mobileUpdatePayrollRun` "original had no role check", email CRUD, `mobileCreateTask/Announcement`) | `legacy.ts:1144-1145,1352-1379,873-880,940-948` | privilege escalation risk | ⚠️ open — needs caller audit (web/mobile both route through `/fn/*`); not safe to gate blindly |
+| B10 | Approved-leave date-range check stubbed (`return true; // simplified`) → employee on leave *any* day excluded from `Absent` | `scheduler.ts:69-73` | wrong `Absent` rows | ✅ **fixed** `4b52638` — real range compare; malformed dates never suppress an Absent row |
+| B11 | Deploy workflow does not run tests | `.github/workflows/deploy.yml` | broken code can deploy | ✅ **fixed** `4b52638` — `Test backend (gate before deploy)` step added |
 
 ### Web-only (context for mobile parity)
 | # | Finding | File:line |
@@ -211,10 +216,15 @@ _None made. Candidates requiring explicit sign-off: B1-B6._
 ## 11. Files changed (this session)
 | Commit | Change |
 |---|---|
+| `4b52638` | **Backend correctness fixes B1/B2/B3/B4/B6/B7/B8/B10/B11** + 20 new tests (86/86 pass) |
+| `19752b6` | this audit report |
 | `fa27411` | mobile drawer: remove master-admin "Self Service / My Leaves & Attendance" (web parity) |
 | `9782ae3` | `DashboardHero`: run entrance animation (was stuck at opacity 0) + design upgrade |
 | `915b517`, `15f2a68` | website showcase + About/nav/GIF work (earlier in session) |
-| uncommitted | `docs/MOBILE-APP-AUDIT.md` (this report) |
+
+**Deployment status:** committed but **not yet deployed** — `sam deploy` (API) and
+`node scripts/deploy-hosting.mjs` (web) await a go/no-go: these change live behaviour
+(geofence enforcement, Late detection, leave overlap → 409).
 
 ## 12. Commands
 ```bash
