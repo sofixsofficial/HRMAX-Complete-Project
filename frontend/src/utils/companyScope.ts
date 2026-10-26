@@ -1,5 +1,8 @@
 import { where } from '../aws/firestore-compat'
 
+/** Platform-bucket companyIds that are never a real tenant. */
+const PLATFORM_SENTINELS = new Set(['master-admin', 'global'])
+
 /**
  * Company ids for the active scope: the selected company, or ALL authorized
  * companies when nothing is selected ("All Companies" mode).
@@ -10,7 +13,11 @@ export function scopedCompanyIds(
   effectiveCompanyId: string | null | undefined,
   availableCompanies: { id: string }[]
 ): string[] {
-  if (effectiveCompanyId) return [effectiveCompanyId]
+  // 'master-admin'/'global' are platform buckets, not tenants: this deployment
+  // stores the platform account's companyId as 'global', which made every
+  // scoped list query a non-existent partition and show an empty directory
+  // even though the API returned records (same fix as the mobile app).
+  if (effectiveCompanyId && !PLATFORM_SENTINELS.has(effectiveCompanyId)) return [effectiveCompanyId]
   return [...new Set(availableCompanies.map(c => c.id).filter(Boolean))]
 }
 
