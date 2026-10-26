@@ -7,7 +7,7 @@ import { useTheme } from '../context/ThemeContext';
 import { useAuth } from '../context/AuthContext';
 import type { UserRole } from '../types/user';
 
-interface DrawerItem {
+export interface DrawerItem {
   label: string;
   icon: string;
   screen: string;
@@ -15,14 +15,16 @@ interface DrawerItem {
   roles?: UserRole[];
 }
 
-interface DrawerSection {
+export interface DrawerSection {
   title: string;
   items: DrawerItem[];
 }
 
 const home = (screen: string) => ({ screen: 'Home' as const, params: { screen } });
 
-const getSectionsByRole = (userRole?: UserRole): DrawerSection[] => {
+/** Role → drawer sections. Exported so the bottom bar can offer only screens
+ *  this role actually has (a company admin has no Attendance screen, etc.). */
+export const getSectionsByRole = (userRole?: UserRole): DrawerSection[] => {
   switch (userRole) {
     // ── Master Admin: platform owner, full global control ──
     case 'master-admin':

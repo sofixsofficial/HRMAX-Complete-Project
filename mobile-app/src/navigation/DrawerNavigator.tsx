@@ -10,6 +10,7 @@ import { TasksScreen } from '../screens/modules/TasksScreen';
 import { PayrollScreen } from '../screens/modules/PayrollScreen';
 import { SettingsScreen } from '../screens/modules/SettingsScreen';
 import { NotificationsScreen } from '../screens/modules/NotificationsScreen';
+import { withBottomNav } from '../components/BottomNav';
 
 const Drawer = createDrawerNavigator();
 
@@ -26,16 +27,16 @@ export const DrawerNavigator: React.FC = () => {
         drawerLabelStyle: { fontSize: 14, marginLeft: -10 },
       }}
     >
-      <Drawer.Screen name="Home" component={DashboardRouter} />
-      <Drawer.Screen name="Attendance" component={AttendanceScreen} />
-      <Drawer.Screen name="Leaves" component={LeaveScreen} />
+      <Drawer.Screen name="Home" component={withBottomNav(DashboardRouter)} />
+      <Drawer.Screen name="Attendance" component={withBottomNav(AttendanceScreen)} />
+      <Drawer.Screen name="Leaves" component={withBottomNav(LeaveScreen)} />
       {/* headerShown follows screenOptions (false) — the screen renders its own
           ScreenHeader (back + title), keeping the bar uniform with other routes. */}
-      <Drawer.Screen name="MyLeavesAttendance" component={MyLeavesAttendanceScreen} options={{ title: 'My Leaves & Attendance' }} />
-      <Drawer.Screen name="Tasks" component={TasksScreen} />
-      <Drawer.Screen name="Payroll" component={PayrollScreen} />
-      <Drawer.Screen name="Settings" component={SettingsScreen} />
-      <Drawer.Screen name="Notifications" component={NotificationsScreen} />
+      <Drawer.Screen name="MyLeavesAttendance" component={withBottomNav(MyLeavesAttendanceScreen)} options={{ title: 'My Leaves & Attendance' }} />
+      <Drawer.Screen name="Tasks" component={withBottomNav(TasksScreen)} />
+      <Drawer.Screen name="Payroll" component={withBottomNav(PayrollScreen)} />
+      <Drawer.Screen name="Settings" component={withBottomNav(SettingsScreen)} />
+      <Drawer.Screen name="Notifications" component={withBottomNav(NotificationsScreen)} />
     </Drawer.Navigator>
   );
 };
