@@ -7,13 +7,19 @@
  * Firestore `in` query must chunk into groups of <= 10 themselves.
  */
 
+/** Platform-bucket companyIds that are never a real tenant. */
+const PLATFORM_SENTINELS = new Set(['master-admin', 'global']);
+
 export const scopedCompanyIds = (
   selectedCompanyId: string | null | undefined,
   availableCompanies: { id: string }[]
 ): string[] => {
-  // `'master-admin'` is a role-sentinel companyId, never a real company — treat
-  // it as "no selection" so master-admin stays unrestricted (web parity).
-  if (selectedCompanyId && selectedCompanyId !== 'master-admin') return [selectedCompanyId];
+  // `'master-admin'`/`'global'` are role-sentinel companyIds, never real
+  // companies — treat them as "no selection" so master-admin stays
+  // unrestricted (web parity). In this deployment the platform account's
+  // companyId is literally 'global', which previously scoped every list to a
+  // non-existent tenant and showed "No employees yet."
+  if (selectedCompanyId && !PLATFORM_SENTINELS.has(selectedCompanyId)) return [selectedCompanyId];
   return [...new Set(availableCompanies.map((c) => c.id).filter(Boolean))];
 };
 
@@ -41,10 +47,11 @@ export const scopedCompanyIdsForRole = (
   selectedCompanyId: string | null | undefined,
   availableCompanies: { id: string }[]
 ): string[] => {
-  // Never treat the `'master-admin'` sentinel as a selection: scope = ['master-admin']
-  // matched no real companyId, which emptied the Master Admin verification panel
-  // and the leave management queue on mobile while web (unscoped) showed everything.
-  if (selectedCompanyId && selectedCompanyId !== 'master-admin') return [selectedCompanyId];
+  // Never treat the platform sentinels ('master-admin' / 'global') as a
+  // selection: scope = ['global'] matched no real companyId, which emptied the
+  // Master Admin employee list, verification panel and leave queue on mobile
+  // while web (unscoped) showed everything.
+  if (selectedCompanyId && !PLATFORM_SENTINELS.has(selectedCompanyId)) return [selectedCompanyId];
   if (role === 'executive' || role === 'team-leader') {
     return [...new Set(availableCompanies.map((c) => c.id).filter(Boolean))];
   }

@@ -550,6 +550,30 @@ export const EmployeesScreen: React.FC<{ route?: any }> = ({ route }) => {
         </PermissionGate>
       </View>
 
+      {/* Reference-style status filter chips (HR MAX statuses: Active /
+          Inactive / On Leave — "Resigned" is not a status this product has.) */}
+      <View style={s.chipRow} accessibilityRole="tablist">
+        {[
+          { label: 'All', value: '' },
+          { label: 'Active', value: 'Active' },
+          { label: 'On Leave', value: 'On Leave' },
+          { label: 'Inactive', value: 'Inactive' },
+        ].map(c => {
+          const active = filterStatus === c.value;
+          return (
+            <TouchableOpacity
+              key={c.label}
+              style={[s.filterChip, active && s.filterChipActive]}
+              onPress={() => setFilterStatus(c.value)}
+              accessibilityRole="button"
+              accessibilityState={{ selected: active }}
+              accessibilityLabel={`Filter ${c.label}`}>
+              <Text style={[s.filterChipText, active && s.filterChipTextActive]}>{c.label}</Text>
+            </TouchableOpacity>
+          );
+        })}
+      </View>
+
       {showCompanyPicker && (
         <FilterChips
           options={companies.map(c => ({ label: c.name, value: c.id }))}
@@ -568,12 +592,20 @@ export const EmployeesScreen: React.FC<{ route?: any }> = ({ route }) => {
             ) : paginated.map(emp => (
               <View key={emp.id} style={s.card}>
                 <View style={s.cardTop}>
+                  {/* Avatar + status dot (reference layout) */}
+                  <View style={s.avatarWrap}>
+                    <View style={s.avatarCircle}>
+                      <Text style={s.avatarLetter}>{(emp.name || '?').trim().charAt(0).toUpperCase()}</Text>
+                    </View>
+                    <View style={[s.statusDotRing, { backgroundColor: STATUS_COLORS[emp.status || 'Active'] }]} />
+                  </View>
                   <View style={{ flex: 1 }}>
                     <Text style={s.empName}>{emp.name}</Text>
                     <Text style={s.designation}>{emp.designation || emp.employeeId || 'N/A'} • {emp.role}</Text>
                   </View>
-                  <View style={[s.badge, { backgroundColor: `${STATUS_COLORS[emp.status || 'Active']}20` }]}>
-                    <Text style={[s.badgeText, { color: STATUS_COLORS[emp.status || 'Active'] }]}>{emp.status}</Text>
+                  <View style={s.statusLabelRow}>
+                    <View style={[s.statusDot, { backgroundColor: STATUS_COLORS[emp.status || 'Active'] }]} />
+                    <Text style={[s.statusLabelText, { color: STATUS_COLORS[emp.status || 'Active'] }]}>{emp.status || 'Active'}</Text>
                   </View>
                 </View>
                 <Text style={s.deptText}>{emp.department || 'N/A'} • {emp.email}</Text>
@@ -880,6 +912,16 @@ const createStyles = (c: ThemeColors) => StyleSheet.create({
   statValue: { fontSize: 20, fontWeight: '700', color: c.text },
   statLabel: { fontSize: 11, color: c.textSecondary, marginTop: 2, textAlign: 'center' },
   searchRow: { marginHorizontal: 16, marginBottom: 12, flexDirection: 'row', gap: 8, alignItems: 'center' },
+  chipRow: {
+    flexDirection: 'row', gap: 8, marginHorizontal: 16, marginBottom: 12, flexWrap: 'wrap',
+  },
+  filterChip: {
+    paddingHorizontal: 16, paddingVertical: 8, borderRadius: 999,
+    backgroundColor: 'transparent', borderWidth: 1, borderColor: c.borderLight,
+  },
+  filterChipActive: { backgroundColor: c.accent, borderColor: c.accent },
+  filterChipText: { fontSize: 13, fontWeight: '600', color: c.textSecondary },
+  filterChipTextActive: { color: '#ffffff' },
   searchInputWrap: { flex: 1, minWidth: 0, backgroundColor: c.card, borderWidth: 1, borderColor: c.borderLight, borderRadius: 10, paddingHorizontal: 12, flexDirection: 'row', alignItems: 'center', gap: 8 },
   searchInput: { flex: 1, paddingVertical: 10, color: c.text, fontSize: 15 },
   addBtn: { backgroundColor: '#FF6600', borderRadius: 10, width: 44, height: 44, alignItems: 'center', justifyContent: 'center', flexShrink: 0 },
@@ -888,6 +930,20 @@ const createStyles = (c: ThemeColors) => StyleSheet.create({
   emptyText: { color: c.textTertiary, fontSize: 14, textAlign: 'center', marginTop: 40 },
   card: { backgroundColor: c.card, borderWidth: 1, borderColor: c.borderLight, borderRadius: 14, padding: 16, marginHorizontal: 16, marginBottom: 12 },
   cardTop: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 6 },
+  avatarWrap: { marginRight: 12, marginBottom: 2 },
+  avatarCircle: {
+    width: 44, height: 44, borderRadius: 22, backgroundColor: c.accentBg,
+    alignItems: 'center', justifyContent: 'center', borderWidth: 1, borderColor: c.borderLight,
+  },
+  avatarLetter: { fontSize: 17, fontWeight: '800', color: c.accent },
+  statusDotRing: {
+    position: 'absolute', right: -1, bottom: -1,
+    width: 13, height: 13, borderRadius: 7,
+    borderWidth: 2, borderColor: c.card,
+  },
+  statusLabelRow: { flexDirection: 'row', alignItems: 'center', gap: 6, paddingTop: 4 },
+  statusDot: { width: 8, height: 8, borderRadius: 4 },
+  statusLabelText: { fontSize: 12, fontWeight: '700' },
   empName: { fontSize: 16, fontWeight: '600', color: c.text },
   designation: { color: '#FF6600', fontSize: 13, marginTop: 2 },
   badge: { borderRadius: 6, paddingHorizontal: 10, paddingVertical: 3 },
