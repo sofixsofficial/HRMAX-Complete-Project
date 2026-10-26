@@ -10,8 +10,10 @@ import { useCompany } from '../../context/CompanyContext';
 import { getEmployeesByCompany, getAllEmployees } from '../../services/employeeService';
 import { getAllCompanies, getCompanyStats } from '../../services/companyService';
 import { getTicketsByCompany, getAllTickets } from '../../services/supportService';
-import { collection, getDocs } from '../../aws/firestore-compat';
+import { collection, getDocs, query, where } from '../../aws/firestore-compat';
 import { db } from '../../aws/clients';
+import { getLeaveRequestsByCompany, getAllLeaveRequests } from '../../services/leaveService';
+import { BarChart, SplitBar, type ChartDatum } from '../../components/ReportCharts';
 import { HeroBanner, PremiumCard, AnimatedStatCard, EmptyStateView, PremiumSearchBar } from '../../components/PremiumComponents';
 import { useNavigation } from '@react-navigation/native';
 import { ScreenHeader } from '../../components/ScreenHeader';
@@ -23,6 +25,36 @@ import { scopedCompanyIdsForRole } from '../../utils/companyScope';
 
 const TIME_RANGES = ['This Week', 'This Month', 'This Quarter', 'This Year'];
 const REPORT_TYPES = ['All Types', 'Attendance', 'Payroll', 'Performance', 'Analytics', 'HR'];
+
+/**
+ * Roles whose charts describe the whole company. Everyone else (employee,
+ * reporting-manager) only ever sees their OWN rows - the RBAC rule that a
+ * user only sees what they are allowed to applies to analytics too.
+ */
+const COMPANY_WIDE_ROLES = ['master-admin', 'company-admin', 'executive', 'team-leader'];
+
+const countBy = (rows: any[], keyOf: (r: any) => string): ChartDatum[] => {
+  const m = new Map<string, number>();
+  for (const r of rows) {
+    const k = keyOf(r) || 'Other';
+    m.set(k, (m.get(k) ?? 0) + 1);
+  }
+  return Array.from(m, ([label, value]) => ({ label, value }));
+};
+
+/** Stable colours per attendance status so the split reads the same every screen. */
+const ATTENDANCE_COLORS: Record<string, string> = {
+  Present: '#22c55e',
+  Absent: '#ef4444',
+  Late: '#f59e0b',
+  'On Leave': '#3b82f6',
+  Approved: '#3b82f6',
+  'Miss Punch': '#8b5cf6',
+  'Early Checkout': '#14b8a6',
+};
+
+const withAttendanceColors = (data: ChartDatum[]): ChartDatum[] =>
+  data.map((d) => ({ ...d, color: ATTENDANCE_COLORS[d.label] }));
 
 export default function ReportsScreen() {
   const navigation = useNavigation();
@@ -44,6 +76,13 @@ export default function ReportsScreen() {
   const [deptCount, setDeptCount] = useState(0);
   const [ticketCount, setTicketCount] = useState(0);
   const [companyCount, setCompanyCount] = useState(0);
+
+  const [deptChart, setDeptChart] = useState<ChartDatum[]>([]);
+  const [attendanceChart, setAttendanceChart] = useState<ChartDatum[]>([]);
+  const [leaveChart, setLeaveChart] = useState<ChartDatum[]>([]);
+  const [ticketChart, setTicketChart] = useState<ChartDatum[]>([]);
+
+  const companyWide = COMPANY_WIDE_ROLES.includes(user?.role ?? '');
 
   const isRestrictedScope = user?.role === 'executive' || user?.role === 'team-leader';
   const scopeIds = useMemo(
@@ -75,6 +114,50 @@ export default function ReportsScreen() {
       setDeptCount(depts);
       setTicketCount(tickets.length);
       setCompanyCount(companies.length);
+
+      // --- Charts ---------------------------------------------------------
+      // Management roles chart their companies; everyone else charts only
+      // their own rows, so opening Reports never widens what a role may read.
+      const scopedRows = async (name: string): Promise<any[]> => {
+        if (scopeIds.length > 0) {
+          const res = await Promise.all(
+            scopeIds.map((id) =>
+              getDocs(query(collection(db, name), where('companyId', '==', id)))
+                .then((snap) => snap.docs.map((d) => d.data() as any))
+                .catch(() => [] as any[])
+            )
+          );
+          return res.flat();
+        }
+        if (!isMaster) return [];
+        const snap = await getDocs(collection(db, name)).catch(() => null);
+        return snap ? snap.docs.map((d) => d.data() as any) : [];
+      };
+
+      let attendanceRows: any[] = [];
+      let leaveRows: any[] = [];
+      if (companyWide) {
+        attendanceRows = await scopedRows('attendance');
+        leaveRows = isMaster
+          ? await getAllLeaveRequests().catch(() => [] as any[])
+          : (await Promise.all(scopeIds.map((id) => getLeaveRequestsByCompany(id).catch(() => [])))).flat();
+      } else if (user?.id) {
+        const attSnap = await getDocs(query(collection(db, 'attendance'), where('userId', '==', user.id))).catch(() => null);
+        attendanceRows = attSnap ? attSnap.docs.map((d) => d.data() as any) : [];
+        const leaveSnap = await getDocs(query(collection(db, 'leaveRequests'), where('userId', '==', user.id))).catch(() => null);
+        leaveRows = leaveSnap ? leaveSnap.docs.map((d) => d.data() as any) : [];
+      }
+
+      setDeptChart(
+        companyWide
+          ? countBy(emps, (e: any) => e.department || 'Unassigned').sort((a, b) => b.value - a.value).slice(0, 8)
+          : []
+      );
+      setAttendanceChart(countBy(attendanceRows, (a: any) => a.status || 'Unknown'));
+      setLeaveChart(countBy(leaveRows, (l: any) => l.leaveType || 'Other'));
+      setTicketChart(
+        companyWide ? countBy(tickets, (t: any) => t.status || 'Open').slice(0, 6) : []
+      );
     } catch (err) {
       console.error('Reports fetch error:', err);
     }
@@ -215,6 +298,27 @@ export default function ReportsScreen() {
           <AnimatedStatCard icon="building-outline" label="Companies" value={companyCount} color="#8b5cf6" />
         </View>
 
+        {/* Charts: every role gets these. Management sees its companies, an
+            employee or reporting-manager sees only their own rows. */}
+        <View style={s.chartsWrap}>
+          <SplitBar
+            title={companyWide ? 'Attendance status' : 'My attendance'}
+            data={withAttendanceColors(attendanceChart)}
+            emptyText="No attendance recorded yet"
+          />
+          <BarChart
+            title={companyWide ? 'Leaves by type' : 'My leaves by type'}
+            data={leaveChart}
+            emptyText="No leave requests yet"
+          />
+          {companyWide && deptChart.length > 0 ? (
+            <BarChart title="Employees by department" data={deptChart} emptyText="No departments yet" />
+          ) : null}
+          {companyWide && ticketChart.length > 0 ? (
+            <BarChart title="Tickets by status" data={ticketChart} emptyText="No tickets yet" />
+          ) : null}
+        </View>
+
         <ScrollView horizontal showsHorizontalScrollIndicator={false} style={s.filterRow}>
           {TIME_RANGES.map(tr => (
             <TouchableOpacity
@@ -272,6 +376,7 @@ export default function ReportsScreen() {
 const createStyles = (c: ThemeColors) => StyleSheet.create({
   container: { flex: 1, backgroundColor: c.background },
   statsRow: { flexDirection: 'row', flexWrap: 'wrap', padding: 12, gap: 8 },
+  chartsWrap: { paddingHorizontal: 12, paddingBottom: 4 },
   filterRow: { paddingHorizontal: 16, marginBottom: 8 },
   filterChip: { paddingHorizontal: 14, paddingVertical: 8, borderRadius: 20, marginRight: 8, backgroundColor: '#F3F4F6' },
   filterChipActive: { backgroundColor: c.accent },

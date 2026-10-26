@@ -312,6 +312,11 @@ export const getSectionsByRole = (userRole?: UserRole): DrawerSection[] => {
           ],
         },
         {
+          title: 'Insights',
+          // Charts are scoped to this manager's own rows - see ReportsScreen.
+          items: [{ label: 'Reports', icon: 'bar-chart-outline', ...home('Reports') }],
+        },
+        {
           title: 'Operations',
           items: [
             { label: 'Attendance', icon: 'clipboard-outline', screen: 'Attendance' },
@@ -353,6 +358,12 @@ export const getSectionsByRole = (userRole?: UserRole): DrawerSection[] => {
             { label: 'Holidays', icon: 'calendar-outline', ...home('HolidayCalendar') },
             { label: 'Birthdays', icon: 'gift-outline', ...home('Birthdays') },
           ],
+        },
+        {
+          title: 'Insights',
+          // An employee's Reports contains only their own attendance and
+          // leaves - never company-wide figures.
+          items: [{ label: 'Reports', icon: 'bar-chart-outline', ...home('Reports') }],
         },
         {
           title: 'Resources',
