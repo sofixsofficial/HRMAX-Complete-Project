@@ -516,7 +516,7 @@ export const EmployeeDashboard: React.FC<{ navigation: any }> = ({ navigation })
                   <Text style={s.avatarText}>{(b.name || '?').charAt(0).toUpperCase()}</Text>
                 </View>
                 <Text style={{ fontSize: 13, color: colors.text, flex: 1 }} numberOfLines={1}>{b.name}</Text>
-                <Icon name="cake-outline" size={14} color="#ec4899" />
+                <Icon name="gift-outline" size={14} color="#ec4899" />
               </View>
             ))
           )}

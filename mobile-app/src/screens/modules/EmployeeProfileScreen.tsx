@@ -69,7 +69,7 @@ export const EmployeeProfileScreen: React.FC<{ route: any; navigation: any }> = 
     { label: 'Phone', value: employee.phone || 'Not set', icon: 'call-outline' },
     { label: 'Department', value: employee.department, icon: 'business-outline' },
     { label: 'Designation', value: employee.designation, icon: 'briefcase-outline' },
-    { label: 'Employee ID', value: employee.employeeId, icon: 'hash-outline' },
+    { label: 'Employee ID', value: employee.employeeId, icon: 'pricetag-outline' },
     { label: 'Employment Type', value: employee.employmentType, icon: 'briefcase-outline' },
     { label: 'Join Date', value: employee.joinDate ? new Date(employee.joinDate).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' }) : 'N/A', icon: 'calendar-outline' },
     { label: 'Shift', value: employee.shiftType || 'N/A', icon: 'time-outline' },

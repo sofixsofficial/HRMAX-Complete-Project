@@ -295,7 +295,7 @@ export default function ReportsScreen() {
           <AnimatedStatCard icon="people-outline" label="Employees" value={empCount} color="#3b82f6" />
           <AnimatedStatCard icon="business-outline" label="Departments" value={deptCount} color="#22c55e" />
           <AnimatedStatCard icon="chatbubbles-outline" label="Tickets" value={ticketCount} color="#f59e0b" />
-          <AnimatedStatCard icon="building-outline" label="Companies" value={companyCount} color="#8b5cf6" />
+          <AnimatedStatCard icon="business-outline" label="Companies" value={companyCount} color="#8b5cf6" />
         </View>
 
         {/* Charts: every role gets these. Management sees its companies, an

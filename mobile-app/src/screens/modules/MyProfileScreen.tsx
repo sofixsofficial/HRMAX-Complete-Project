@@ -50,7 +50,7 @@ export const MyProfileScreen: React.FC = () => {
     { label: 'Phone', value: employee?.phone || user?.phone || 'Not set', icon: 'call-outline' },
     { label: 'Department', value: employee?.department || 'Not assigned', icon: 'business-outline' },
     { label: 'Designation', value: employee?.designation || 'Not assigned', icon: 'briefcase-outline' },
-    { label: 'Employee ID', value: employee?.employeeId || 'N/A', icon: 'hash-outline' },
+    { label: 'Employee ID', value: employee?.employeeId || 'N/A', icon: 'pricetag-outline' },
     { label: 'Address', value: employee?.address || 'Not set', icon: 'location-outline' },
     { label: 'Emergency Contact', value: employee?.emergencyContact || 'Not set', icon: 'call-outline' },
     { label: 'Join Date', value: formatDateSafe(employee?.joinDate, 'en-IN', { day: '2-digit', month: 'short', year: 'numeric' }), icon: 'calendar-outline' },
