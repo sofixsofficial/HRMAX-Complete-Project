@@ -1,0 +1,136 @@
+/* ==========================================================================
+   Global responsive layer
+   --------------------------------------------------------------------------
+   Loaded after every page stylesheet (imported last from index.css) so these
+   rules win at equal specificity. Each selector is prefixed with `html` to
+   raise specificity instead of reaching for !important, which would make the
+   page styles impossible to override later.
+
+   Breakpoints used app-wide:
+     <= 1024px  tablet   - multi-column content grids settle at two columns
+     <= 640px   phone    - the same grids become a single column
+   ========================================================================== */
+
+/* --- Media is never wider than its box ---------------------------------- */
+html img,
+html video,
+html canvas,
+html svg {
+  max-width: 100%;
+  height: auto;
+}
+
+/* --- Wide data tables scroll inside their own wrapper --------------------
+   Several pages render a table with a fixed min-width (900-1200px). The
+   wrapper is what scrolls; without it the whole page overflows sideways on a
+   phone. These wrappers are declared per page, so they are also repeated
+   here to guarantee the rule exists no matter which page loaded first. */
+html .table-container,
+html .table-scroll,
+html .audit-table-wrapper,
+html .doc-table-wrapper,
+html .companies-table-wrapper,
+html [class$='-table-wrapper'] {
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+  max-width: 100%;
+}
+
+/* A min-width table only scrolls if it is not stretched back to 100%. */
+html .table-container > table,
+html .table-scroll > table,
+html .audit-table-wrapper > table,
+html .doc-table-wrapper > table {
+  max-width: none;
+}
+
+/* --- Form controls fit their column ------------------------------------- */
+html input,
+html select,
+html textarea {
+  max-width: 100%;
+  box-sizing: border-box;
+}
+
+html .form-grid,
+html .form-row {
+  gap: 14px;
+}
+
+/* Flex/grid children default to min-width:auto, which is what makes a long
+   input blow a two-column form apart on a narrow screen. */
+html .form-grid > *,
+html .form-row > * {
+  min-width: 0;
+}
+
+/* --- Tablet: content grids settle at two columns ------------------------ */
+@media (max-width: 1024px) {
+  html .address-stats,
+  html .audit-filters-grid,
+  html .audit-stats,
+  html .birthday-stats,
+  html .contact-section-grid,
+  html .doc-stats-grid,
+  html .emp-stats-grid,
+  html .emp-stats-row,
+  html .eom-live-cards,
+  html .eom-stats,
+  html .ep-fields-grid,
+  html .ep-stats-row,
+  html .features-grid,
+  html .holiday-stats,
+  html .reports-stats,
+  html .salary-stats,
+  html .sc-users-grid,
+  html .site-footer-grid,
+  html .stats-grid,
+  html .stats-grid-landing,
+  html .st-stats,
+  html .tm-stats {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+/* --- Phone: every content grid becomes a single column ------------------ */
+@media (max-width: 640px) {
+  html .address-filters,
+  html .address-stats,
+  html .asset-stats-row,
+  html .audit-filters-grid,
+  html .audit-stats,
+  html .birthday-filters,
+  html .birthday-stats,
+  html .contact-section-grid,
+  html .doc-stats-grid,
+  html .emp-stats-grid,
+  html .emp-stats-row,
+  html .eom-live-cards,
+  html .eom-stats,
+  html .ep-field-grid,
+  html .ep-fields-grid,
+  html .ep-stats-row,
+  html .features-grid,
+  html .form-grid,
+  html .holiday-filters,
+  html .holiday-stats,
+  html .pie-legend,
+  html .preview-cards,
+  html .quick-actions-grid,
+  html .reports-filters,
+  html .reports-grid,
+  html .reports-stats,
+  html .salary-filters,
+  html .salary-stats,
+  html .sc-protocols-grid,
+  html .sc-users-grid,
+  html .site-footer-grid,
+  html .skeleton-reports-grid,
+  html .sp-status-grid,
+  html .stats-grid,
+  html .stats-grid-landing,
+  html .st-stats,
+  html .tm-stats {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}

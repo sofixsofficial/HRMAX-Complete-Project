@@ -1,5 +1,9 @@
 @import "tailwindcss";
 
+/* Loaded last on purpose: the global responsive layer must override the
+   per-page stylesheets at equal specificity. */
+@import "./styles/responsive.css";
+
 body {
   background: #ffffff;
 }

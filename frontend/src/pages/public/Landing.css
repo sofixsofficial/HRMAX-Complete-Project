@@ -936,9 +936,8 @@
     gap: 40px;
   }
 
-  .hero-right {
-    order: -1;
-  }
+  /* Single column: the copy stays first, the dashboard mockup follows it.
+     No order override - DOM order already reads left then right. */
 
   .hero-left h1 {
     font-size: 36px;
