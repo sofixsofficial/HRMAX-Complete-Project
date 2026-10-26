@@ -94,6 +94,35 @@ interface StoreOptions {
    * that live in a shared partition (invitations → 'global').
    */
   keyCompanyId?: string;
+  /**
+   * Optional DynamoDB condition evaluated against the EXISTING item before the
+   * Put (create-only / punch-once guards). When it fails the write is rejected
+   * by DynamoDB and `ConditionalWriteFailed` is thrown, so callers can map it
+   * to a domain error instead of silently overwriting a concurrent write.
+   * Without this, duplicate prevention is a read-then-put race.
+   */
+  condition?: {
+    expression: string;
+    values?: Record<string, unknown>;
+    names?: Record<string, string>;
+  };
+}
+
+/**
+ * A `StoreOptions.condition` was not satisfied — the caller's assumption
+ * (e.g. "no punch recorded yet") lost a race with a concurrent writer.
+ * Handlers translate this into a 412/409 style ApiError.
+ */
+export class ConditionalWriteFailed extends Error {
+  constructor(message = 'Conditional write failed') {
+    super(message);
+    this.name = 'ConditionalWriteFailed';
+  }
+}
+
+function isConditionalCheckFailed(err: unknown): boolean {
+  const name = (err as { name?: string } | null)?.name ?? '';
+  return name === 'ConditionalCheckFailedException';
 }
 
 /** Write (upsert) an entity document. */
@@ -118,7 +147,22 @@ export async function putEntity<T>(doc_: T, opts: StoreOptions): Promise<T> {
   if (opts.entity === 'user' && rec.role) {
     Object.assign(item, roleGsi(String(rec.role), String(keyCompanyId), String(rec.id)));
   }
-  await doc.send(new PutCommand({ TableName: TABLE, Item: item }));
+  try {
+    await doc.send(new PutCommand({
+      TableName: TABLE,
+      Item: item,
+      ...(opts.condition
+        ? {
+            ConditionExpression: opts.condition.expression,
+            ...(opts.condition.values ? { ExpressionAttributeValues: opts.condition.values } : {}),
+            ...(opts.condition.names ? { ExpressionAttributeNames: opts.condition.names } : {}),
+          }
+        : {}),
+    }));
+  } catch (err) {
+    if (isConditionalCheckFailed(err)) throw new ConditionalWriteFailed();
+    throw err;
+  }
   return normalized;
 }
 
@@ -138,6 +182,24 @@ export async function getEntity<T>(
 export async function getUserDoc(uid: string): Promise<Record<string, unknown> | null> {
   const res = await doc.send(new GetCommand({ TableName: TABLE, Key: { PK: userPK(uid), SK: 'PROFILE' } }));
   return (res.Item?.data as Record<string, unknown>) ?? null;
+}
+
+/**
+ * Company profile row for a partition — the source of per-company settings the
+ * backend previously ignored (timezone, weekends). Falls back from the
+ * migration's COMPANY#META row to the CRUD-written `company#<id>` row so both
+ * storage layouts resolve.
+ */
+export async function getCompanyMeta(companyId: string): Promise<Record<string, unknown> | null> {
+  if (!companyId) return null;
+  try {
+    const res = await doc.send(new GetCommand({ TableName: TABLE, Key: { PK: companyPK(companyId), SK: 'COMPANY#META' } }));
+    if (res.Item?.data) return res.Item.data as Record<string, unknown>;
+  } catch {
+    // fall through to the CRUD row
+  }
+  const rows = await queryEntities<Record<string, unknown>>({ entity: 'company', companyId, limit: 1 });
+  return rows[0] ?? null;
 }
 
 /** Delete an entity. */

@@ -53,6 +53,11 @@ jobs:
       - name: Build backend (tsc → dist/)
         run: npm run build:backend
 
+      # Tests run against the built dist/ and MUST pass before anything ships —
+      # this workflow previously deployed without running them at all.
+      - name: Test backend (gate before deploy)
+        run: npm test --prefix backend/aws
+
       - uses: aws-actions/setup-sam@v2
 
       - name: Deploy API (SAM → CloudFormation, stack hrmax-api)

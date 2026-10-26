@@ -84,6 +84,37 @@ async function computeInitialApproval(
   };
 }
 
+/** Parse a date as clients send it (YYYY-MM-DD or a full ISO string) → UTC midnight. */
+export function parseLeaveDay(value: unknown): Date | null {
+  const s = String(value ?? '').trim();
+  if (!s) return null;
+  const d = /^\d{4}-\d{2}-\d{2}$/.test(s) ? new Date(`${s}T00:00:00Z`) : new Date(s);
+  return Number.isNaN(d.getTime()) ? null : d;
+}
+
+/** Inclusive calendar-day count — the same contract the web's calcLeaveDays uses. */
+export function inclusiveDays(start: Date, end: Date): number {
+  return Math.round((end.getTime() - start.getTime()) / 86400000) + 1;
+}
+
+/**
+ * An existing request that overlaps [start, end] and still blocks a new one.
+ * Only Pending/Approved count — Rejected/Cancelled history never blocks.
+ */
+export function findOverlappingLeave(
+  rows: LeaveRequestDoc[],
+  start: Date,
+  end: Date,
+): LeaveRequestDoc | undefined {
+  return rows.find((l) => {
+    if (l.status !== 'Pending' && l.status !== 'Approved') return false;
+    const s = parseLeaveDay(l.startDate);
+    const e = parseLeaveDay(l.endDate);
+    if (!s || !e) return false;
+    return s <= end && e >= start;
+  });
+}
+
 function deriveStatus(doc_: LeaveRequestDoc): Pick<LeaveRequestDoc, 'status' | 'approvalCount'> {
   const values = Object.values(doc_.approvalStatus ?? {});
   const decided = values.filter((v) => v === 'Approved' || v === 'Rejected').length;
@@ -134,6 +165,36 @@ export const leaveRoutes: Route[] = [
         throw new ApiError('permission-denied', 'Cannot apply leave for another user');
       }
 
+      // ── Server-side validation (the handler previously trusted the client
+      // completely: no date order, no overlap, and `totalDays` verbatim).
+      const start = parseLeaveDay(input.startDate);
+      const end = parseLeaveDay(input.endDate);
+      if (!start || !end) throw new ApiError('bad-request', 'startDate and endDate must be valid dates');
+      if (end.getTime() < start.getTime()) {
+        throw new ApiError('bad-request', 'endDate cannot be before startDate');
+      }
+      const computedDays = inclusiveDays(start, end);
+      if (computedDays < 1 || computedDays > 366) {
+        throw new ApiError('bad-request', 'Leave range must be between 1 and 366 days');
+      }
+      // Integer ranges are recomputed by the server; a fractional client value
+      // is a half-day request and is the only duration field still trusted.
+      const totalDays =
+        typeof input.totalDays === 'number' && !Number.isInteger(input.totalDays) && input.totalDays > 0
+          ? input.totalDays
+          : computedDays;
+
+      const existingForUser = await queryEntities<LeaveRequestDoc>({
+        entity: 'leaveRequest', companyId: input.companyId, userId: input.userId,
+      });
+      const clash = findOverlappingLeave(existingForUser, start, end);
+      if (clash) {
+        throw new ApiError(
+          'already-exists',
+          `Leave already ${String(clash.status).toLowerCase()} for ${clash.startDate} → ${clash.endDate}`,
+        );
+      }
+
       const stakeholders = await resolveStakeholders(input.companyId, input.userId);
       const approval = await computeInitialApproval(input, caller.role, stakeholders);
 
@@ -146,7 +207,7 @@ export const leaveRoutes: Route[] = [
         type: input.type,
         startDate: input.startDate,
         endDate: input.endDate,
-        totalDays: input.totalDays,
+        totalDays,
         reason: input.reason,
         departmentId: input.departmentId ?? null,
         appliedOn: isoNow(),
@@ -255,6 +316,38 @@ export const leaveRoutes: Route[] = [
       const patch = { ...req.body } as Record<string, unknown>;
       delete patch.id;
       delete patch.companyId;
+      // Identity and the approval chain are server-side facts — a body must
+      // never rewrite who applied or who may approve.
+      delete patch.userId;
+      delete patch.approverIds;
+
+      // Review outcomes may only be written by an actual approver. The owner
+      // passes the permission check above, so without this guard anyone could
+      // PATCH their own request to status 'Approved' (or edit approvalStatus)
+      // and skip the whole tier chain. Cancelling your own request stays legal.
+      const decisionFields = [
+        'status', 'approvalStatus', 'approvalLog', 'approvalCount',
+        'masterAdminApproveStatus', 'masterAdminApprovedBy', 'masterAdminNote',
+        'rejectedAt', 'reviewedBy', 'reviewedByName', 'reviewNote', 'reviewedOn',
+      ];
+      const changedDecisionFields = decisionFields.filter((f) => f in patch);
+      const ownerCancel =
+        changedDecisionFields.length === 1 &&
+        changedDecisionFields[0] === 'status' &&
+        String(patch.status) === 'Cancelled';
+      if (changedDecisionFields.length > 0 && !ownerCancel) {
+        const isApprover =
+          hasPermission(caller, 'leave.approve') ||
+          isSuperAdmin(caller) ||
+          Object.values(doc_.approverIds ?? {}).includes(caller.uid);
+        if (!isApprover) {
+          throw new ApiError(
+            'permission-denied',
+            'Only an approver can change a leave decision — use the review endpoints',
+          );
+        }
+      }
+
       const updated = await patchEntity<LeaveRequestDoc>('leaveRequest', found.companyId, doc_.id, patch, {
         entity: 'leaveRequest', userIdField: 'userId',
       });

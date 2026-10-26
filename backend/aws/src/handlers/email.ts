@@ -5,7 +5,7 @@
 
 import type { Route } from '../lib/http.js';
 import { must } from '../lib/http.js';
-import { assertRole } from '../lib/auth.js';
+import { assertRole, assertPermission } from '../lib/auth.js';
 import { queryEntities, patchEntity } from '../lib/db.js';
 import { sendEmailCentral, getEmailConfig } from '../lib/email.js';
 import type { EmailAttachment } from '../lib/email.js';
@@ -45,6 +45,11 @@ export const emailRoutes: Route[] = [
     path: '/api/email/send',
     handler: async (req) => {
       const caller = must(req);
+      // BUG FIXED: this route only authenticated, so ANY signed-in user
+      // (including an employee) could send arbitrary mail from the platform.
+      // Gate it with the same permission that gates the mailbox collection
+      // (`/api/emails` → support.view): MA/CA auto-grant it, employees don't.
+      assertPermission(caller, 'support.view');
       const { to, subject, html, text, companyId, body, cc, bcc, emailId, attachments } = req.body as {
         to: string; subject: string; html?: string; text?: string; companyId?: string;
         body?: string; cc?: string; bcc?: string; emailId?: string;

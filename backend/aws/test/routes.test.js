@@ -25,6 +25,11 @@ process.env.TABLE_NAME = process.env.TABLE_NAME ?? 'HRMAX';
 // instead of short-circuiting to 500. Malformed tokens still fail at
 // decodeProtectedHeader BEFORE any JWKS fetch → stays network-free.
 process.env.COGNITO_USER_POOL_ID ??= 'ap-southeast-2_TESTPOOL';
+// Rate limiting is a production control, not the unit under test: these routes
+// are called several times per run inside one fixed window, so the live counter
+// answered 429 where the tests assert 400 (and CI wrote counter rows as a side
+// effect). enforceRateLimit() skips entirely when this is set.
+process.env.HRMAX_DISABLE_RATE_LIMIT ??= '1';
 
 const { handler } = await import('../dist/index.js');
 

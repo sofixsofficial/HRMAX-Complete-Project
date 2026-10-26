@@ -7,7 +7,7 @@
 import type { Route } from '../lib/http.js';
 import { must, equalityFilters, parseOrderBy } from '../lib/http.js';
 import { assertCompanyScope, hasPermission, isSuperAdmin, readPartitions } from '../lib/auth.js';
-import { putEntity, patchEntity, deleteEntity, queryEntities, queryEntitiesAcross, locateEntityAcross, allPartitions } from '../lib/db.js';
+import { putEntity, patchEntity, deleteEntity, queryEntities, queryEntitiesAcross, locateEntityAcross, allPartitions, getCompanyMeta, ConditionalWriteFailed } from '../lib/db.js';
 import { resolveStakeholders } from '../lib/stakeholders.js';
 import { createNotification, fanOutNotifications } from '../lib/notify.js';
 import { ApiError, newId, isoNow, TIER_ORDER, type AttendanceDoc, type AttendanceStatus, type LeaveTier, type UserRole } from '../lib/types.js';
@@ -16,17 +16,57 @@ const GRACE_PERIOD_MINUTES = 15;
 const OVERTIME_THRESHOLD_MINUTES = 30;
 const EARTH_RADIUS_M = 6371000;
 
-function haversine(lat1: number, lon1: number, lat2: number, lon2: number): number {
+/** Product default zone — matches the nightly sweep and the web client default. */
+export const DEFAULT_TIMEZONE = 'Asia/Kolkata';
+
+export function isValidTimeZone(tz: string): boolean {
+  try {
+    new Intl.DateTimeFormat('en-US', { timeZone: tz });
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * Resolve the company's IANA timezone (company settings → product default).
+ * The backend previously had NO timezone concept at all: `todayKey()` used the
+ * Lambda's UTC clock while the sweeper used Asia/Kolkata, and lateness was
+ * computed from UTC hours — so a 09:15 IST check-in (03:45 UTC) was never late.
+ */
+export async function resolveCompanyTimezone(companyId: string): Promise<string> {
+  try {
+    const company = await getCompanyMeta(companyId);
+    const settings = (company?.settings ?? {}) as Record<string, unknown>;
+    const candidates = [settings.timeZone, settings.timezone, company?.timezone];
+    for (const c of candidates) {
+      if (typeof c === 'string' && c && isValidTimeZone(c)) return c;
+    }
+  } catch {
+    // fall through to the default zone
+  }
+  return DEFAULT_TIMEZONE;
+}
+
+/** Calendar date (YYYY-MM-DD) in the given zone — not the Lambda's UTC clock. */
+export function dateKeyInZone(d: Date, timeZone: string): string {
+  return new Intl.DateTimeFormat('en-CA', { timeZone, year: 'numeric', month: '2-digit', day: '2-digit' }).format(d);
+}
+
+/** Minutes since local midnight in the given zone — drives Present vs Late. */
+export function minutesInZone(d: Date, timeZone: string): number {
+  const parts = new Intl.DateTimeFormat('en-GB', { timeZone, hour: '2-digit', minute: '2-digit', hour12: false }).formatToParts(d);
+  const val = (type: string) => Number(parts.find((p) => p.type === type)?.value ?? '0');
+  return (val('hour') % 24) * 60 + val('minute');
+}
+
+export function haversine(lat1: number, lon1: number, lat2: number, lon2: number): number {
   const toRad = (d: number) => (d * Math.PI) / 180;
   const dLat = toRad(lat2 - lat1);
   const dLon = toRad(lon2 - lon1);
   const a =
     Math.sin(dLat / 2) ** 2 + Math.cos(toRad(lat1)) * Math.cos(toRad(lat2)) * Math.sin(dLon / 2) ** 2;
   return EARTH_RADIUS_M * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
-}
-
-function todayKey(): string {
-  return new Date().toISOString().slice(0, 10);
 }
 
 function hhmmToMinutes(hhmm: string): number {
@@ -43,22 +83,38 @@ interface AttendancePolicy {
   requireGeofence?: boolean;
 }
 
+/**
+ * Policy flags as the UI writes them vs as the server reads them.
+ * BUG FIXED: the settings screen writes `enableGeofence` while this handler
+ * read only `requireGeofence`, so the server-side geofence was ALWAYS off and
+ * only the (client-bypassable) check ran. Accept both spellings.
+ */
+export function normalizePolicyFlags(raw: (Partial<AttendancePolicy> & { enableGeofence?: boolean; enableSelfie?: boolean }) | undefined): {
+  requireSelfie: boolean;
+  requireGeofence: boolean;
+} {
+  return {
+    requireSelfie: Boolean(raw?.requireSelfie ?? raw?.enableSelfie ?? false),
+    requireGeofence: Boolean(raw?.requireGeofence ?? raw?.enableGeofence ?? false),
+  };
+}
+
 async function getPolicy(companyId: string): Promise<AttendancePolicy> {
-  const docs = await queryEntities<AttendancePolicy & { id: string }>({
+  const docs = await queryEntities<AttendancePolicy & { id: string; enableGeofence?: boolean; enableSelfie?: boolean }>({
     entity: 'attendanceSettings', companyId, limit: 1,
   });
   const doc_ = docs[0];
+  const flags = normalizePolicyFlags(doc_);
   return {
     defaultShiftStart: doc_?.defaultShiftStart ?? '09:00',
     defaultShiftEnd: doc_?.defaultShiftEnd ?? '18:00',
     gracePeriodMinutes: doc_?.gracePeriodMinutes ?? GRACE_PERIOD_MINUTES,
     officeLocation: doc_?.officeLocation,
-    requireSelfie: doc_?.requireSelfie ?? false,
-    requireGeofence: doc_?.requireGeofence ?? false,
+    ...flags,
   };
 }
 
-function determineStatus(checkInMin: number, shiftStartMin: number, grace: number): { status: AttendanceStatus; lateMinutes: number } {
+export function determineStatus(checkInMin: number, shiftStartMin: number, grace: number): { status: AttendanceStatus; lateMinutes: number } {
   if (checkInMin <= shiftStartMin) return { status: 'Present', lateMinutes: 0 };
   if (checkInMin - shiftStartMin <= grace) return { status: 'Present', lateMinutes: 0 };
   return { status: 'Late', lateMinutes: checkInMin - shiftStartMin };
@@ -91,10 +147,11 @@ export const attendanceRoutes: Route[] = [
       assertCompanyScope(caller, companyId);
 
       const policy = await getPolicy(companyId);
-      const today = todayKey();
       const now = new Date();
+      const tz = await resolveCompanyTimezone(companyId);
+      const today = dateKeyInZone(now, tz);
       const nowIso = now.toISOString();
-      const nowMin = now.getHours() * 60 + now.getMinutes();
+      const nowMin = minutesInZone(now, tz);
 
       const existingList = await queryEntities<AttendanceDoc>({
         entity: 'attendance', companyId, filters: { userId: caller.uid, date: today }, limit: 1,
@@ -142,7 +199,22 @@ export const attendanceRoutes: Route[] = [
           isAutoApproved: true, approved: true, approvedByName: 'System (Auto-Approved)',
           createdAt: existing?.createdAt ?? isoNow(), updatedAt: isoNow(),
         };
-        await putEntity<AttendanceDoc>(doc_, { entity: 'attendance', userIdField: 'userId', tsField: 'date' });
+        try {
+          // Punch-once guard: the write only lands if no check-in exists yet
+          // (or the row is a null/absent one the nightly sweep created). Two
+          // concurrent taps → the loser gets ConditionalCheckFailed → 412,
+          // instead of both "succeeding" on a read-then-put race.
+          await putEntity<AttendanceDoc>(doc_, {
+            entity: 'attendance', userIdField: 'userId', tsField: 'date',
+            condition: {
+              expression: 'attribute_not_exists(PK) OR attribute_not_exists(data.checkIn) OR data.checkIn = :noPunch',
+              values: { ':noPunch': { NULL: true } },
+            },
+          });
+        } catch (err) {
+          if (err instanceof ConditionalWriteFailed) return fail('ALREADY_CHECKED_IN', 'Already checked in today');
+          throw err;
+        }
         await writeLog({ companyId, userId: caller.uid, action: 'check-in', status: 'success', date: today });
 
         if (status === 'Late') {
@@ -166,12 +238,26 @@ export const attendanceRoutes: Route[] = [
       const overtimeMinutes = Math.max(0, nowMin - shiftEndMin - OVERTIME_THRESHOLD_MINUTES);
       const isEarly = nowMin < shiftEndMin - 30 && existing.status !== 'Late';
 
-      const updated = await patchEntity<AttendanceDoc>('attendance', companyId, existing.id, {
-        checkOut: nowIso,
-        workHours: Math.round((workMinutes / 60) * 100) / 100,
-        overtimeHours: Math.round((overtimeMinutes / 60) * 100) / 100,
-        status: isEarly ? 'Early Checkout' : existing.status,
-      }, { entity: 'attendance', userIdField: 'userId', tsField: 'date' });
+      let updated: AttendanceDoc | null;
+      try {
+        // Close-once guard: even if two requests both read "not checked out",
+        // DynamoDB rejects the second write (same race as check-in above).
+        updated = await patchEntity<AttendanceDoc>('attendance', companyId, existing.id, {
+          checkOut: nowIso,
+          workHours: Math.round((workMinutes / 60) * 100) / 100,
+          overtimeHours: Math.round((overtimeMinutes / 60) * 100) / 100,
+          status: isEarly ? 'Early Checkout' : existing.status,
+        }, {
+          entity: 'attendance', userIdField: 'userId', tsField: 'date',
+          condition: {
+            expression: 'attribute_not_exists(data.checkOut) OR data.checkOut = :noOut',
+            values: { ':noOut': { NULL: true } },
+          },
+        });
+      } catch (err) {
+        if (err instanceof ConditionalWriteFailed) return fail('ALREADY_CHECKED_OUT', 'Already checked out today');
+        throw err;
+      }
       await writeLog({ companyId, userId: caller.uid, action: 'check-out', status: 'success', date: today });
       return { attendance: updated };
     },

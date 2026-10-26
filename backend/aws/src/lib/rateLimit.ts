@@ -13,6 +13,10 @@ import { doc, TABLE } from './db.js';
 import { ApiError } from './types.js';
 
 export async function enforceRateLimit(bucket: string, limit: number, windowSeconds: number): Promise<void> {
+  // Test escape hatch: `node --test` runs these auth routes repeatedly inside a
+  // single fixed window, so the live counter returned 429 where the test asserts
+  // 400. Tests must exercise validation, not the throttle.
+  if (process.env.HRMAX_DISABLE_RATE_LIMIT === '1') return;
   const windowId = Math.floor(Date.now() / (windowSeconds * 1000));
   const res = await doc.send(
     new UpdateCommand({

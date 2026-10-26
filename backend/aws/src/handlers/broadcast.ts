@@ -5,11 +5,11 @@
 
 import type { Route } from '../lib/http.js';
 import { must } from '../lib/http.js';
-import { assertCompanyScope } from '../lib/auth.js';
+import { assertCompanyScope, assertRole } from '../lib/auth.js';
 import { putEntity, queryEntities } from '../lib/db.js';
 import { sendEmailCentral, templates } from '../lib/email.js';
 import { fanOutNotifications } from '../lib/notify.js';
-import { newId, isoNow } from '../lib/types.js';
+import { ApiError, newId, isoNow } from '../lib/types.js';
 
 export const broadcastRoutes: Route[] = [
   {
@@ -17,10 +17,14 @@ export const broadcastRoutes: Route[] = [
     path: '/api/broadcast',
     handler: async (req) => {
       const caller = must(req);
+      // BUG FIXED: only the platform/company admins may broadcast mail + push
+      // to every user — this route previously authenticated but authorized no
+      // one, so any signed-in employee could mail the whole company.
+      assertRole(caller, ['master-admin', 'company-admin']);
       const { companyId, title, message, sendEmail, sendPush } = req.body as {
         companyId: string; title: string; message: string; sendEmail?: boolean; sendPush?: boolean;
       };
-      if (!title || !message) throw new ApiErrorLike('title and message required');
+      if (!title || !message) throw new ApiError('bad-request', 'title and message required');
       assertCompanyScope(caller, companyId);
 
       const jobId = newId();
@@ -63,11 +67,3 @@ export const broadcastRoutes: Route[] = [
     },
   },
 ];
-
-// Small local error to avoid importing ApiError at top for one use
-class ApiErrorLike extends Error {
-  constructor(message: string) {
-    super(message);
-    this.name = 'ApiError';
-  }
-}

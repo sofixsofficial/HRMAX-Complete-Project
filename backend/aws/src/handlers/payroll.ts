@@ -337,22 +337,4 @@ export const payrollRoutes: Route[] = [
       return { run: updated, sent, failed };
     },
   },
-
-  // ------------------------------------------------------- salary slips
-  {
-    method: 'GET',
-    path: '/api/salary-slips',
-    handler: async (req) => {
-      const caller = must(req);
-      assertPermission(caller, 'payroll.view');
-      const companyId = req.query.companyId ?? caller.companyId;
-      const q: Parameters<typeof queryEntities>[0] = { entity: 'salarySlip', companyId, orderBy: { field: 'createdAt', desc: true } };
-      if (req.query.userId) q.userId = req.query.userId;
-      if (!isSuperAdmin(caller)) assertCompanyScope(caller, companyId);
-      const slips = await queryEntities<Record<string, unknown>>(q);
-      // Employees only see their own
-      const visible = caller.role === 'employee' ? slips.filter((s) => s.userId === caller.uid) : slips;
-      return { salarySlips: visible };
-    },
-  },
 ];

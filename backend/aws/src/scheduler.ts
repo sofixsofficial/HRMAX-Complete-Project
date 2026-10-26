@@ -17,6 +17,14 @@ function todayKey(): string {
   return new Date(Date.now() + (330 + new Date().getTimezoneOffset()) * 60000).toISOString().slice(0, 10);
 }
 
+/** Day key for a leave date as clients store it (YYYY-MM-DD or ISO). */
+function dayKeyOf(value: unknown): string | null {
+  const s = String(value ?? '').trim();
+  if (!s) return null;
+  const d = /^\d{4}-\d{2}-\d{2}$/.test(s) ? new Date(`${s}T00:00:00Z`) : new Date(s);
+  return Number.isNaN(d.getTime()) ? null : d.toISOString().slice(0, 10);
+}
+
 async function dailyAttendanceSweep(): Promise<{ missPunch: number; absentCreated: number }> {
   const today = todayKey();
   const companies = await listCompanies();
@@ -62,14 +70,21 @@ async function dailyAttendanceSweep(): Promise<{ missPunch: number; absentCreate
     if (holidays.length) continue;
 
     const employees = await queryEntities<Record<string, unknown>>({ entity: 'employee', companyId });
-    const approvedLeaves = await queryEntities<{ userId: string }>({
+    const approvedLeaves = await queryEntities<{ userId: string; startDate?: string; endDate?: string }>({
       entity: 'leaveRequest', companyId, filters: { status: 'Approved' },
     });
     const onLeaveIds = new Set(
-      approvedLeaves.filter((l) => {
-        // leave covers today
-        return true; // date range check simplified — full check happens in payroll
-      }).map((l) => l.userId),
+      approvedLeaves
+        .filter((l) => {
+          // Leave only suppresses Absent on the days it actually covers —
+          // the previous `return true` excluded everyone with any approved
+          // leave in the company, for every date, forever.
+          const s = dayKeyOf(l.startDate);
+          const e = dayKeyOf(l.endDate);
+          if (!s || !e) return false; // malformed range must not hide an Absent row
+          return s <= today && e >= today;
+        })
+        .map((l) => l.userId),
     );
 
     for (const emp of employees) {
