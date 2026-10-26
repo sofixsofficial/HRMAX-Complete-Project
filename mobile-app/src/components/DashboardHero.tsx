@@ -326,6 +326,15 @@ const periodIconName = (period: DayPeriod): string => {
   return 'sunny-outline';
 };
 
+/** '#10b981' + 0.2 → 'rgba(16,185,129,0.2)' — tint for stat badges. */
+const withAlpha = (hex: string, alpha: number): string => {
+  const h = hex.replace('#', '');
+  const full = h.length === 3 ? h.split('').map((c) => c + c).join('') : h;
+  const n = parseInt(full, 16);
+  if (Number.isNaN(n)) return `rgba(255,255,255,${alpha})`;
+  return `rgba(${(n >> 16) & 255}, ${(n >> 8) & 255}, ${n & 255}, ${alpha})`;
+};
+
 interface StatusStyle {
   color: string;
   borderColor: string;
@@ -685,6 +694,31 @@ export const DashboardHero: React.FC<DashboardHeroProps> = ({
 
   const fadeAnim = useRef(new Animated.Value(0)).current;
   const slideAnim = useRef(new Animated.Value(20)).current;
+  // One value per stat tile — filled during render, driven by the stagger below.
+  const statAnims = useRef<Animated.Value[]>([]).current;
+  const [reduceMotion, setReduceMotion] = useState(false);
+
+  useEffect(() => {
+    AccessibilityInfo.isReduceMotionEnabled()
+      .then(setReduceMotion)
+      .catch(() => {});
+    const sub = AccessibilityInfo.addEventListener('reduceMotionChanged', setReduceMotion);
+    return () => sub.remove();
+  }, []);
+
+  // Entrance: the header fades/slides up once. (These values previously stayed
+  // at opacity 0 / translateY 20 forever — nothing ever animated them.)
+  useEffect(() => {
+    if (reduceMotion) {
+      fadeAnim.setValue(1);
+      slideAnim.setValue(0);
+      return;
+    }
+    Animated.parallel([
+      Animated.timing(fadeAnim, { toValue: 1, duration: 420, useNativeDriver: true }),
+      Animated.timing(slideAnim, { toValue: 0, duration: 420, useNativeDriver: true }),
+    ]).start();
+  }, [reduceMotion, fadeAnim, slideAnim]);
 
   // Company timezone (one cached read); falls back to the device zone.
   useEffect(() => {
@@ -701,11 +735,32 @@ export const DashboardHero: React.FC<DashboardHeroProps> = ({
     return () => clearInterval(id);
   }, []);
 
+  // Stat tiles reveal one after another once the header has landed.
+  const statCount = stats?.length ?? 0;
+  useEffect(() => {
+    while (statAnims.length < statCount) statAnims.push(new Animated.Value(0));
+    const tiles = statAnims.slice(0, statCount);
+    if (reduceMotion) {
+      tiles.forEach((v) => v.setValue(1));
+      return;
+    }
+    tiles.forEach((v) => v.setValue(0));
+    Animated.stagger(
+      70,
+      tiles.map((v) => Animated.timing(v, { toValue: 1, duration: 340, useNativeDriver: true })),
+    ).start();
+  }, [statCount, reduceMotion, statAnims]);
+
   const tz = effectiveTimezone(companyTz);
   const { period, greeting } = getHeroScene(now, tz);
 
   const time = formatInZone(now, tz, { hour: '2-digit', minute: '2-digit', hour12: true });
   const dateStr = `${formatInZone(now, tz, { month: 'short', day: 'numeric', year: 'numeric' })} · ${formatInZone(now, tz, { weekday: 'short' })}`;
+  const initial = ((name || 'U').trim().charAt(0) || 'U').toUpperCase();
+  const periodLabel = period.charAt(0).toUpperCase() + period.slice(1);
+  // Synchronous fill so the map below always has a value (the effect below
+  // is what actually drives them).
+  while (statAnims.length < statCount) statAnims.push(new Animated.Value(0));
 
   return (
     <LinearGradient
@@ -723,9 +778,19 @@ export const DashboardHero: React.FC<DashboardHeroProps> = ({
 
       <Animated.View style={[styles.container, { opacity: fadeAnim, transform: [{ translateY: slideAnim }] }]}>
         <View style={styles.topRow}>
-          <View style={styles.leftCol}>
-            <Text style={styles.welcome}>Welcome back,</Text>
-            <Text style={styles.name} numberOfLines={1}>{name}</Text>
+          <View style={styles.identityCol}>
+            {/* Avatar + greeting + name */}
+            <View style={styles.identityRow}>
+              <View style={styles.avatarRing}>
+                <View style={styles.avatar}>
+                  <Text style={styles.avatarText}>{initial}</Text>
+                </View>
+              </View>
+              <View style={styles.identityText}>
+                <Text style={styles.greeting} numberOfLines={1}>{greeting}</Text>
+                <Text style={styles.name} numberOfLines={1}>{name}</Text>
+              </View>
+            </View>
 
             <View style={styles.tagRow}>
               {roleLabel ? (
@@ -733,14 +798,12 @@ export const DashboardHero: React.FC<DashboardHeroProps> = ({
                   <Text style={styles.rolePillText} numberOfLines={1}>{roleLabel}</Text>
                 </View>
               ) : null}
-              {showAttendance ? (
-                <HeroAttendance
-                  now={now}
-                  tz={tz}
-                  companyId={effectiveCompanyId || user?.companyId || ''}
-                  showPunchActions={showPunchActions}
-                />
-              ) : null}
+              <View style={styles.datePill}>
+                <Icon name="calendar-outline" size={12} color="#cbd5e1" />
+                <Text style={styles.datePillText} numberOfLines={1}>
+                  {formatInZone(now, tz, { weekday: 'short', month: 'short', day: 'numeric' })}
+                </Text>
+              </View>
             </View>
 
             {subtitle ? (
@@ -748,31 +811,54 @@ export const DashboardHero: React.FC<DashboardHeroProps> = ({
             ) : null}
           </View>
 
-          {/* Clock block — right, slightly below the top edge */}
-          <View style={styles.clockCol}>
+          {/* Clock card — glass panel, right */}
+          <View style={styles.clockCard}>
             <View style={styles.clockTimeRow}>
-              <Icon name={periodIconName(period)} size={20} color={period === 'night' ? '#dbe6ff' : '#fde68a'} />
+              <Icon name={periodIconName(period)} size={18} color={period === 'night' ? '#dbe6ff' : '#fde68a'} />
               <Text style={styles.clockTime}>{time}</Text>
             </View>
-            <Text style={styles.clockDate}>{dateStr}</Text>
-            <View style={styles.greetRow}>
-              <Icon name="location-outline" size={13} color="#93c5fd" />
-              <Text style={styles.greetText}>{greeting}</Text>
+            <Text style={styles.clockDate} numberOfLines={1}>{dateStr}</Text>
+            <View style={styles.periodPill}>
+              <View style={styles.periodDot} />
+              <Text style={styles.periodPillText}>{periodLabel}</Text>
             </View>
           </View>
         </View>
 
+        {showAttendance ? (
+          <View style={styles.attendanceWrap}>
+            <HeroAttendance
+              now={now}
+              tz={tz}
+              companyId={effectiveCompanyId || user?.companyId || ''}
+              showPunchActions={showPunchActions}
+            />
+          </View>
+        ) : null}
+
         {stats && stats.length > 0 && (
           <View style={styles.statsRow}>
-            {stats.map((st, i) => (
-              <View key={`${st.label}-${i}`} style={[styles.statItem, i > 0 && styles.statDivider]}>
-                <Text style={[styles.statValue, { color: st.color || '#10b981' }]}>{st.value}</Text>
-                <View style={styles.statLabelRow}>
-                  <Icon name={statIconName(st.label)} size={12} color="rgba(148,163,184,0.95)" />
-                  <Text style={styles.statLabel} numberOfLines={2}>{st.label}</Text>
-                </View>
-              </View>
-            ))}
+            {stats.map((st, i) => {
+              const v = statAnims[i];
+              return (
+                <Animated.View
+                  key={`${st.label}-${i}`}
+                  style={[
+                    styles.statTile,
+                    {
+                      opacity: v,
+                      transform: [{ translateY: v.interpolate({ inputRange: [0, 1], outputRange: [12, 0] }) }],
+                    },
+                  ]}
+                >
+                  <View style={[styles.statBadge, { backgroundColor: withAlpha(st.color || '#10b981', 0.2) }]}>
+                    <Icon name={statIconName(st.label)} size={14} color={st.color || '#10b981'} />
+                  </View>
+                  <Text style={[styles.statValue, { color: st.color || '#10b981' }]}>{st.value}</Text>
+                  <Text style={styles.statLabel} numberOfLines={1}>{st.label}</Text>
+                </Animated.View>
+              );
+            })}
           </View>
         )}
       </Animated.View>
@@ -781,16 +867,41 @@ export const DashboardHero: React.FC<DashboardHeroProps> = ({
 };
 
 const styles = StyleSheet.create({
-  gradient: { overflow: 'hidden' },
+  gradient: { overflow: 'hidden', borderBottomLeftRadius: 26, borderBottomRightRadius: 26 },
   scrim: {
-    backgroundColor: 'rgba(2,6,23,0.28)',
+    backgroundColor: 'rgba(2,6,23,0.30)',
   },
-  container: { paddingHorizontal: 20, paddingVertical: 22 },
-  topRow: { flexDirection: 'row', alignItems: 'flex-start', justifyContent: 'space-between' },
-  leftCol: { flex: 1, minWidth: 0, marginRight: 12 },
-  welcome: { fontSize: 16, color: 'rgba(148,163,184,0.95)', fontWeight: '500', letterSpacing: 0.3 },
-  name: { fontSize: 26, fontWeight: '800', color: '#fff', marginTop: 2, letterSpacing: -0.3 },
-  tagRow: { flexDirection: 'row', alignItems: 'center', flexWrap: 'wrap', gap: 8, marginTop: 12 },
+  container: { paddingHorizontal: 18, paddingTop: 20, paddingBottom: 20 },
+  topRow: { flexDirection: 'row', alignItems: 'flex-start', justifyContent: 'space-between', gap: 10 },
+  identityCol: { flex: 1, minWidth: 0 },
+  identityRow: { flexDirection: 'row', alignItems: 'center', gap: 12 },
+  avatarRing: {
+    width: 52,
+    height: 52,
+    borderRadius: 26,
+    borderWidth: 1.5,
+    borderColor: 'rgba(255,255,255,0.42)',
+    padding: 3,
+    backgroundColor: 'rgba(2,6,23,0.25)',
+  },
+  avatar: {
+    flex: 1,
+    borderRadius: 23,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: 'rgba(255,255,255,0.20)',
+  },
+  avatarText: { fontSize: 19, fontWeight: '800', color: '#fff', letterSpacing: 0.4 },
+  identityText: { flex: 1, minWidth: 0 },
+  greeting: {
+    fontSize: 11.5,
+    color: 'rgba(203,213,225,0.95)',
+    fontWeight: '700',
+    textTransform: 'uppercase',
+    letterSpacing: 1.1,
+  },
+  name: { fontSize: 24, fontWeight: '800', color: '#fff', marginTop: 2, letterSpacing: -0.3 },
+  tagRow: { flexDirection: 'row', alignItems: 'center', flexWrap: 'wrap', gap: 8, marginTop: 11 },
   rolePill: {
     paddingHorizontal: 13,
     paddingVertical: 5,
@@ -800,6 +911,28 @@ const styles = StyleSheet.create({
     borderColor: 'rgba(251,191,36,0.75)',
   },
   rolePillText: { fontSize: 12.5, fontWeight: '700', color: '#fbbf24' },
+  datePill: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 5,
+    paddingHorizontal: 11,
+    paddingVertical: 5,
+    borderRadius: 100,
+    backgroundColor: 'rgba(2,6,23,0.42)',
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.18)',
+  },
+  datePillText: { fontSize: 11.5, fontWeight: '600', color: '#cbd5e1' },
+  attendanceWrap: {
+    marginTop: 14,
+    borderRadius: 16,
+    backgroundColor: 'rgba(2,6,23,0.30)',
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.14)',
+    paddingHorizontal: 14,
+    paddingTop: 12,
+    paddingBottom: 10,
+  },
   statusChip: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -842,38 +975,77 @@ const styles = StyleSheet.create({
   punchBtnText: { color: '#fff', fontSize: 13.5, fontWeight: '700' },
   punchMsg: { fontSize: 12.5, fontWeight: '600', flexShrink: 1 },
 
-  clockCol: { alignItems: 'flex-end', marginTop: 4 },
-  clockTimeRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  clockCard: {
+    alignItems: 'flex-end',
+    backgroundColor: 'rgba(2,6,23,0.38)',
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.16)',
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    maxWidth: 165,
+  },
+  clockTimeRow: { flexDirection: 'row', alignItems: 'center', gap: 7 },
   clockTime: {
-    fontSize: 23,
+    fontSize: 21,
     fontWeight: '800',
     color: '#fff',
     fontVariant: ['tabular-nums'],
     letterSpacing: 0.4,
   },
-  clockDate: { fontSize: 12.5, color: 'rgba(226,232,240,0.92)', marginTop: 3 },
-  greetRow: { flexDirection: 'row', alignItems: 'center', gap: 5, marginTop: 10 },
-  greetText: { fontSize: 14, fontWeight: '700', color: '#fff' },
+  clockDate: { fontSize: 11, color: 'rgba(226,232,240,0.92)', marginTop: 4 },
+  periodPill: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 5,
+    marginTop: 8,
+    paddingHorizontal: 9,
+    paddingVertical: 3,
+    borderRadius: 100,
+    backgroundColor: 'rgba(255,255,255,0.14)',
+  },
+  periodDot: { width: 6, height: 6, borderRadius: 3, backgroundColor: '#fbbf24' },
+  periodPillText: {
+    fontSize: 10,
+    fontWeight: '700',
+    color: '#e2e8f0',
+    textTransform: 'uppercase',
+    letterSpacing: 0.6,
+  },
 
   worker: { alignSelf: 'flex-end', width: 190, marginTop: 6, marginBottom: -4 },
 
   statsRow: {
     flexDirection: 'row',
+    gap: 8,
     marginTop: 16,
-    paddingTop: 14,
-    borderTopWidth: 1,
-    borderTopColor: 'rgba(255,255,255,0.16)',
   },
-  statItem: { flex: 1, alignItems: 'center', paddingHorizontal: 4, gap: 3 },
-  statDivider: { borderLeftWidth: 1, borderLeftColor: 'rgba(255,255,255,0.14)' },
-  statValue: { fontSize: 24, fontWeight: '800', fontVariant: ['tabular-nums'] },
-  statLabelRow: { flexDirection: 'row', alignItems: 'center', gap: 5 },
+  statTile: {
+    flex: 1,
+    minWidth: 0,
+    alignItems: 'center',
+    gap: 5,
+    paddingVertical: 11,
+    paddingHorizontal: 3,
+    borderRadius: 14,
+    backgroundColor: 'rgba(2,6,23,0.34)',
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.14)',
+  },
+  statBadge: {
+    width: 26,
+    height: 26,
+    borderRadius: 13,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  statValue: { fontSize: 21, fontWeight: '800', fontVariant: ['tabular-nums'] },
   statLabel: {
-    fontSize: 9.5,
+    fontSize: 9,
     fontWeight: '700',
     color: 'rgba(203,213,225,0.95)',
     textTransform: 'uppercase',
-    letterSpacing: 0.5,
+    letterSpacing: 0.4,
     textAlign: 'center',
   },
 
