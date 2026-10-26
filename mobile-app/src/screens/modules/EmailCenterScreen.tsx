@@ -1033,7 +1033,7 @@ export default function EmailCenterScreen() {
             ListFooterComponent={renderPagination}
           />
 
-          <FloatingActionButton icon="create-outline" onPress={() => setShowCompose(true)} />
+          <FloatingActionButton icon="create-outline" onPress={() => setShowCompose(true)} label="Compose email" />
         </>
       )}
 

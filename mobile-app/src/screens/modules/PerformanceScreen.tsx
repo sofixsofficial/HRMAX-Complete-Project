@@ -190,7 +190,7 @@ export default function PerformanceScreen() {
         </ScrollView>
       )}
 
-      <FloatingActionButton icon="add" onPress={() => setShowReview(true)} />
+      <FloatingActionButton icon="add" onPress={() => setShowReview(true)} label="New performance review" />
 
       <PremiumBottomSheet visible={showReview} onClose={() => setShowReview(false)} title="New Review">
         <Text style={[styles.fieldLabel, { color: colors.textSecondary }]}>Employee</Text>

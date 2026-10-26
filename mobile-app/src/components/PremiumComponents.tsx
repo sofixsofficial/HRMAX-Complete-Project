@@ -200,12 +200,14 @@ const searchStyles = StyleSheet.create({
   input: { flex: 1, fontSize: 14, padding: 0 },
 });
 
-export const FloatingActionButton: React.FC<{ icon: string; onPress: () => void; color?: string }> = ({ icon: iconName, onPress, color }) => {
+export const FloatingActionButton: React.FC<{ icon: string; onPress: () => void; color?: string; label?: string }> = ({ icon: iconName, onPress, color, label }) => {
   const { colors } = useTheme();
   return (
     <TouchableOpacity
       onPress={onPress}
       activeOpacity={0.8}
+      accessibilityRole="button"
+      accessibilityLabel={label}
       style={[fabStyles.btn, { backgroundColor: color || colors.accent }]}>
       <Icon name={iconName} size={24} color="#fff" />
     </TouchableOpacity>

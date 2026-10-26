@@ -220,7 +220,7 @@ export default function TransferManagementScreen() {
         />
       )}
 
-      <FloatingActionButton icon="git-branch-outline" onPress={() => setShowTransfer(true)} />
+      <FloatingActionButton icon="git-branch-outline" onPress={() => setShowTransfer(true)} label="New transfer" />
 
       <PremiumBottomSheet visible={showTransfer} onClose={() => setShowTransfer(false)} title="New Transfer">
         <Text style={[styles.fieldLabel, { color: colors.textSecondary }]}>Select Employee</Text>

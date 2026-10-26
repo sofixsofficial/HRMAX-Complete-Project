@@ -258,7 +258,7 @@ export default function SupportTicketsScreen() {
         ListFooterComponent={renderPagination}
       />
 
-      <FloatingActionButton icon="add" onPress={() => setShowCreate(true)} />
+      <FloatingActionButton icon="add" onPress={() => setShowCreate(true)} label="Create support ticket" />
 
       <PremiumModal visible={showDetail} onClose={() => setShowDetail(false)} title={selectedTicket?.title || ''}>
         {selectedTicket && (

@@ -200,7 +200,7 @@ export default function DocumentsManagementScreen() {
         />
       )}
 
-      <FloatingActionButton icon="add" onPress={() => setShowUpload(true)} />
+      <FloatingActionButton icon="add" onPress={() => setShowUpload(true)} label="Upload document" />
 
       <PremiumBottomSheet visible={showUpload} onClose={() => setShowUpload(false)} title="Add Document">
         <Text style={[styles.fieldLabel, { color: colors.textSecondary }]}>Document Name</Text>
