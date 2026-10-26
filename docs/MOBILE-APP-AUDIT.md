@@ -122,14 +122,14 @@ counts** — `calcLeaveDays` (`leaveService.ts:203-210`) is a plain calendar-day
 | Multi-company selection | ✅ EXISTS | `CompanyContext.tsx` |
 | Dashboard per role | ✅ 6 dashboards | `src/screens/dashboards/*` + `DashboardRouter.tsx:125-133` |
 | Attendance module | ✅ **mostly** | My Attendance `AttendanceScreen.tsx:710`, history `:839-873`, detail modal `:1040-1070`, working hours `:746`, late `:597-599`, miss-punch + correction `attendanceApi.ts:83-182`, team attendance `:217-241`, CSV export `:521-524`, admin dashboards |
-| … monthly calendar **grid** | ❌ **MISSING** | only month stats (`AttendanceScreen.tsx:204-212,801-820`) |
+| … monthly calendar **grid** | ✅ **DONE (Stage 2)** | `src/components/MonthAttendanceCalendar.tsx` — per-day cells from real records, today/future treatment, legend, honest empty state, theme-aware; verified live ("October 2026" grid) |
 | … shift schedule screen | ❌ **MISSING** | only `defaultShiftStart` read (`useAttendanceGate.ts:141-143`) |
-| … early-departure flag | ❌ **MISSING** on mobile | backend writes `Early Checkout` (`attendance.ts:167,173`); not in mobile status list |
+| … early-departure flag | ✅ **DONE (Stage 2)** | backend writes `Early Checkout`; mobile history filter now offers it (was unreachable) |
 | Leave module | ✅ **mostly** | balance `LeaveScreen.tsx:381-404`, apply `ApplyLeaveScreen.tsx:129`, my requests `:424-470`, details `:519-610`, approvals `LeaveApprovalsPanel.tsx`, MA gate |
 | … cancel leave | ⚠️ **inconsistent** | mobile writes Firestore directly (`LeaveScreen.tsx:212`) while create/review go through backend |
 | … team leave calendar | ❌ missing as a dedicated screen (only inside `CalendarCenterScreen.tsx:129-136`) |
 | Employee directory | ✅ EXISTS | `AddressBookScreen.tsx` (search `:57-68`, A-Z `:75-78`, detail `:178-190`, CSV `:85`) + admin CRUD `master-admin/EmployeesScreen.tsx:540+` |
-| Notifications | ✅ EXISTS + ⚠️ | inbox `NotificationsScreen.tsx:50-69`, read/unread `:117-69`, push token `useNotifications.ts:24-52` — **not auto-registered on login** (manual toggle only) |
+| Notifications | ✅ EXISTS + ✅ **push auto-register (Stage 2)** | inbox `NotificationsScreen.tsx:50-69`, read/unread `:117-69`, push token `useNotifications.ts:24-52`; now auto-registered after sign-in on native (`RootNavigator`) with the permission asked **at most once** — declined users are never nagged again (Settings toggle stays). **Logout does NOT clear `pushToken`** — the model has a single field per user, so a web logout would kill the phone's token; documented as a known limitation |
 | Profile / settings / more | ✅ EXISTS | `SettingsScreen.tsx`, `MyProfileScreen.tsx` |
 | Reports + payslip PDF | ✅ EXISTS | `ReportsScreen.tsx:90-95` (incl. Attendance Summary) + CSV `:104-175`; `utils/payslipPdf.ts:341` |
 | **Bottom navigation (Home/Attendance/Leave/Reports/More)** | ✅ **DONE (Stage 1)** | `src/components/BottomNav.tsx` + `withBottomNav()` wraps every drawer screen (layout sibling, nothing covered); items derived from `getSectionsByRole` so a role never gets a dead tab; verified live (active indicator, More → drawer) |
