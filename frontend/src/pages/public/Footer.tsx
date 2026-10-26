@@ -76,7 +76,8 @@ export function Footer() {
             © {year} HR MAX by Sofixs. All rights reserved.
           </p>
           <p className="site-footer-note">
-            Product screenshots and demo content are illustrative and contain no real employee data.
+            HR MAX — the all-in-one HR management platform for people, attendance, leave and
+            payroll. Powered by Sofixs.
           </p>
         </div>
       </div>

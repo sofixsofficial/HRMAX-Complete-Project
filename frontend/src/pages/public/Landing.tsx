@@ -83,51 +83,67 @@ function ScrollReveal({ children, className = '' }: { children: React.ReactNode;
 }
 
 /**
- * Animated product walkthrough.
+ * Animated product walkthroughs.
  *
- * Tries the real recorded GIF first (`/hrmax-walkthrough.gif`). If the file
- * is not present or fails to load, a representative dashboard preview built
- * from the app's own design tokens is shown instead — so the section never
- * renders a broken image or claims a recording that does not exist.
+ * Two real assets are supported and each degrades honestly:
+ *  - /hrmax-mobile-walkthrough.gif       mobile app screens
+ *  - /hrmax-walkthrough.gif              recorded web dashboard tour
+ * If a file is missing, its figure falls back to the representative dashboard
+ * preview rather than rendering a broken image or claiming a recording that
+ * does not exist.
  */
-function WalkthroughShowcase() {
-  const [gifState, setGifState] = useState<'loading' | 'ready' | 'fallback'>('loading')
+function GifPlayer({
+  src,
+  alt,
+  caption,
+  fallback,
+}: {
+  src: string
+  alt: string
+  caption: string
+  fallback?: React.ReactNode
+}) {
+  const [state, setState] = useState<'loading' | 'ready' | 'fallback'>('loading')
   const [playing, setPlaying] = useState(true)
-  const gifRef = useRef<HTMLImageElement>(null)
+  const ref = useRef<HTMLImageElement>(null)
 
   useEffect(() => {
     const img = new Image()
-    img.onload = () => setGifState('ready')
-    img.onerror = () => setGifState('fallback')
-    img.src = '/hrmax-walkthrough.gif'
+    img.onload = () => setState('ready')
+    img.onerror = () => setState('fallback')
+    img.src = src
     return () => {
       img.onload = null
       img.onerror = null
     }
-  }, [])
+  }, [src])
 
   const toggle = () => {
-    if (gifState !== 'ready' || !gifRef.current) return
-    // GIFs can be paused by swapping to a static first-frame render.
-    if (playing) {
-      gifRef.current.src = '/hrmax-walkthrough.gif#paused'
-    } else {
-      gifRef.current.src = '/hrmax-walkthrough.gif'
-    }
+    if (state !== 'ready' || !ref.current) return
+    ref.current.src = playing ? `${src}#paused` : src
     setPlaying(!playing)
+  }
+
+  if (state === 'fallback') {
+    return fallback ? (
+      <figure className="showcase-figure">
+        <div className="showcase-frame">{fallback}</div>
+        <figcaption>Representative preview built from the HR MAX design system.</figcaption>
+      </figure>
+    ) : null
   }
 
   return (
     <figure className="showcase-figure">
       <div className="showcase-frame">
-        {gifState === 'ready' ? (
+        {state === 'ready' ? (
           <>
             <img
-              ref={gifRef}
-              src="/hrmax-walkthrough.gif"
-              width={1200}
-              height={750}
-              alt="Animated walkthrough of the HR MAX dashboard: overview cards, company and department structure, employee records, attendance, leave requests and reports."
+              ref={ref}
+              src={src}
+              width={720}
+              height={1110}
+              alt={alt}
               loading="lazy"
               decoding="async"
             />
@@ -135,20 +151,32 @@ function WalkthroughShowcase() {
               <PlayCircle size={18} aria-hidden="true" /> {playing ? 'Pause' : 'Replay'}
             </button>
           </>
-        ) : gifState === 'loading' ? (
+        ) : (
           <div className="showcase-preview" aria-hidden="true">
             <div className="mock-bar" />
           </div>
-        ) : (
-          <DashboardPreview />
         )}
       </div>
-      <figcaption>
-        {gifState === 'ready'
-          ? 'Product walkthrough of the HR MAX dashboard. Demonstration data only — no real employee records.'
-          : 'Representative dashboard preview. A recorded walkthrough is added here once captured.'}
-      </figcaption>
+      <figcaption>{caption}</figcaption>
     </figure>
+  )
+}
+
+function WalkthroughShowcase() {
+  return (
+    <div className="showcase-figures">
+      <GifPlayer
+        src="/hrmax-mobile-walkthrough.gif"
+        alt="Animated preview of the HR MAX mobile app: sign-in, dashboard summary cards, employee directory, attendance check-in and leave requests."
+        caption="Mobile app — sign-in, dashboard, employees, attendance and leave. Illustrative preview of the app's screens."
+      />
+      <GifPlayer
+        src="/hrmax-walkthrough.gif"
+        alt="Recorded walkthrough of the HR MAX web dashboard: overview cards, company and department structure, employee records and attendance."
+        caption="Web dashboard — recorded walkthrough. Demonstration data only, no real employee records."
+        fallback={<DashboardPreview />}
+      />
+    </div>
   )
 }
 

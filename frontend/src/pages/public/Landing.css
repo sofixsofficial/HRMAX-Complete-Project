@@ -1184,6 +1184,14 @@
   margin: 0;
 }
 
+/* Two walkthroughs side by side: mobile app + web dashboard. */
+.showcase-figures {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+  gap: 20px;
+  align-items: start;
+}
+
 .showcase-frame {
   position: relative;
   background: #0f172a;
