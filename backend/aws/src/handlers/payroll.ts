@@ -9,6 +9,7 @@ import { must } from '../lib/http.js';
 import { assertCompanyScope, assertPermission, isSuperAdmin } from '../lib/auth.js';
 import { putEntity, patchEntity, queryEntities } from '../lib/db.js';
 import { sendEmailCentral, templates } from '../lib/email.js';
+import { generatePayslipPdf } from '../lib/payslipPdf.js';
 import { createNotification, fanOutNotifications } from '../lib/notify.js';
 import { ApiError, newId, isoNow } from '../lib/types.js';
 
@@ -283,13 +284,49 @@ export const payrollRoutes: Route[] = [
       const run = runs[0];
       if (!run) throw new ApiError('not-found', 'Payroll run not found');
 
+      // Spec §D: every payslip email carries the PDF attachment and CCs the
+      // company admin (previously the template claimed "attached" with no
+      // attachment, and admins only got a separate summary email).
+      const adminEmails = (
+        await queryEntities<Record<string, unknown>>({ entity: 'user', companyId, filters: { role: 'company-admin' }, limit: 50 })
+      )
+        .map((a) => String(a.email ?? '').trim().toLowerCase())
+        .filter(Boolean);
+
       let sent = 0;
       let failed = 0;
       for (const item of run.items) {
         if (!item.employeeEmail) { failed++; continue; }
         const t = templates.payslip(item.employeeName, run.month, run.year, item.netSalary);
+        let attachment: { filename: string; content: Buffer; contentType: string } | undefined;
+        try {
+          attachment = {
+            filename: `Payslip-${run.month}-${run.year}-${item.employeeId || item.userId}.pdf`,
+            content: generatePayslipPdf({
+              employeeName: item.employeeName,
+              employeeId: item.employeeId,
+              designation: item.designation,
+              employeeEmail: item.employeeEmail,
+              month: run.month,
+              year: run.year,
+              netSalary: item.netSalary,
+              grossSalary: item.grossSalary,
+              breakdown: { basic: item.grossSalary, overtimePay: item.overtimePay, pf: item.pf, tax: item.professionalTax, absentDeduction: item.absentDeduction },
+              payroll: { workingDays: item.workingDays, presentDays: item.presentDays, paidLeaveDays: item.paidLeaveDays, unpaidLeaveDays: item.unpaidLeaveDays, holidayDays: item.holidayDays, absentDays: Math.max(0, item.workingDays - item.totalPayableDays), overtimeHours: item.overtimeHours, totalPayableDays: item.totalPayableDays },
+            }),
+            contentType: 'application/pdf',
+          };
+        } catch {
+          // A PDF failure must not block the dispatch — the email still goes
+          // out and the slip is marked by the send result, not the attachment.
+          attachment = undefined;
+        }
+        const ownEmail = String(item.employeeEmail).trim().toLowerCase();
         const res = await sendEmailCentral({
-          companyId, to: item.employeeEmail, subject: t.subject, html: t.html,
+          companyId, to: item.employeeEmail,
+          cc: adminEmails.filter((e) => e !== ownEmail),
+          subject: t.subject, html: t.html,
+          ...(attachment ? { attachments: [attachment] } : {}),
           type: 'payroll', dedupKey: `payslip-${item.userId}-${run.month}-${run.year}`,
           triggeredBy: caller.uid,
         });
