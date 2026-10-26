@@ -19,6 +19,7 @@ import { getCurrentPosition, isWithinRadius } from '../utils/geoUtils'
 import { getNetworkInfo, getDeviceId } from '../utils/networkUtils'
 import { isDate } from '../utils/dateUtils'
 import { isActiveMissedPunchRecord } from '../utils/attendanceStatus'
+import { matchesAttendanceSearch } from '../utils/attendanceSearch'
 import { scopedCompanyIds, companyIdWhere, chunkCompanyIds } from '../utils/companyScope'
 import { notifyTlAction } from '../services/notificationService'
 import { notifyAttendanceCascade } from '../services/attendanceNotifier'
@@ -431,8 +432,9 @@ const [submittingRectify, setSubmittingRectify] = useState(false)
 
   const todayOnly = searchParams.get('period') === 'today'
   const filtered = visibleRecords.filter(r => {
-    const q = searchTerm.toLowerCase()
-    const matchesSearch = r.name?.toLowerCase().includes(q) || r.department?.toLowerCase().includes(q)
+    // Server-written records carry employeeName (no name/department) — an
+    // empty search must still match them (see utils/attendanceSearch.ts).
+    const matchesSearch = matchesAttendanceSearch(r, searchTerm)
     const matchesStatus = statusFilter === 'All' || r.status === statusFilter
     const matchesPeriod = !todayOnly || (() => {
       const now = new Date()

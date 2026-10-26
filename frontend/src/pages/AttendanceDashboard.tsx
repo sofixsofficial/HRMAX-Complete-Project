@@ -5,6 +5,7 @@ import {
   Activity, TrendingUp, PieChart
 } from 'lucide-react'
 import { Header } from '../components/Header'
+import { matchesAttendanceSearch } from '../utils/attendanceSearch'
 import { useAuth } from '../context/AuthContext'
 import { useCompany } from '../context/CompanyContext'
 import { usePermissionScope } from '../hooks/usePermissionScope'
@@ -112,8 +113,8 @@ export function AttendanceDashboard() {
   })
 
   const filtered = dateFiltered.filter(r => {
-    const q = searchTerm.toLowerCase()
-    const matchesSearch = r.name?.toLowerCase().includes(q) || r.department?.toLowerCase().includes(q)
+    // Empty search must match: server records carry employeeName, not name.
+    const matchesSearch = matchesAttendanceSearch(r, searchTerm)
     const matchesStatus = statusFilter === 'All' || r.status === statusFilter
     return matchesSearch && matchesStatus
   })
