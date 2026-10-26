@@ -53,8 +53,11 @@ export const getSectionsByRole = (userRole?: UserRole): DrawerSection[] => {
           title: 'Operations',
           items: [
             { label: 'Attendance', icon: 'clipboard-outline', screen: 'Attendance' },
-            { label: 'Shift Schedule', icon: 'time-outline', screen: 'ShiftSchedule' },
-            { label: 'Leaves', icon: 'umbrella-outline', screen: 'Leaves' },
+            { label: 'Shift Schedule', icon: 'time-outline', ...home('ShiftSchedule') },
+            // Web maps this role's /leaves to the LeaveManagement approval
+            // screen, so the drawer must too — otherwise the approver has no
+            // way to reach the multi-tier chain from the app.
+            { label: 'Leave Management', icon: 'umbrella-outline', ...home('LeaveManagement') },
             { label: 'Payroll', icon: 'wallet-outline', ...home('SalarySlips') },
             { label: 'Run Payroll', icon: 'calculator-outline', ...home('RunPayroll') },
             { label: 'Payroll History', icon: 'time-outline', ...home('PayrollHistory') },
@@ -130,8 +133,8 @@ export const getSectionsByRole = (userRole?: UserRole): DrawerSection[] => {
           title: 'Operations',
           items: [
             { label: 'Attendance', icon: 'clipboard-outline', screen: 'Attendance' },
-            { label: 'Shift Schedule', icon: 'time-outline', screen: 'ShiftSchedule' },
-            { label: 'Leaves', icon: 'umbrella-outline', screen: 'Leaves' },
+            { label: 'Shift Schedule', icon: 'time-outline', ...home('ShiftSchedule') },
+            { label: 'Leave Management', icon: 'umbrella-outline', ...home('LeaveManagement') },
             { label: 'Tasks', icon: 'checkmark-circle-outline', screen: 'Tasks' },
             { label: 'Payroll', icon: 'wallet-outline', ...home('SalarySlips') },
             { label: 'Run Payroll', icon: 'calculator-outline', ...home('RunPayroll') },
@@ -187,6 +190,7 @@ export const getSectionsByRole = (userRole?: UserRole): DrawerSection[] => {
         {
           title: 'Operations',
           items: [
+            { label: 'Leave Management', icon: 'umbrella-outline', ...home('LeaveManagement') },
             { label: 'Payroll', icon: 'wallet-outline', ...home('SalarySlips') },
           ],
         },
@@ -247,8 +251,8 @@ export const getSectionsByRole = (userRole?: UserRole): DrawerSection[] => {
           title: 'Team Management',
           items: [
             { label: 'Attendance', icon: 'clipboard-outline', screen: 'Attendance' },
-            { label: 'Shift Schedule', icon: 'time-outline', screen: 'ShiftSchedule' },
-            { label: 'Leaves', icon: 'umbrella-outline', screen: 'Leaves' },
+            { label: 'Shift Schedule', icon: 'time-outline', ...home('ShiftSchedule') },
+            { label: 'Leave Management', icon: 'umbrella-outline', ...home('LeaveManagement') },
             { label: 'Birthdays', icon: 'gift-outline', ...home('Birthdays') },
             { label: 'Address Book', icon: 'book-outline', ...home('AddressBook') },
             { label: 'Emails', icon: 'mail-outline', ...home('EmailCenter') },
@@ -311,7 +315,7 @@ export const getSectionsByRole = (userRole?: UserRole): DrawerSection[] => {
           title: 'Operations',
           items: [
             { label: 'Attendance', icon: 'clipboard-outline', screen: 'Attendance' },
-            { label: 'Shift Schedule', icon: 'time-outline', screen: 'ShiftSchedule' },
+            { label: 'Shift Schedule', icon: 'time-outline', ...home('ShiftSchedule') },
           ],
         },
         {
@@ -337,7 +341,7 @@ export const getSectionsByRole = (userRole?: UserRole): DrawerSection[] => {
           title: 'Operations',
           items: [
             { label: 'Attendance', icon: 'clipboard-outline', screen: 'Attendance' },
-            { label: 'Shift Schedule', icon: 'time-outline', screen: 'ShiftSchedule' },
+            { label: 'Shift Schedule', icon: 'time-outline', ...home('ShiftSchedule') },
             { label: 'Leaves', icon: 'umbrella-outline', screen: 'Leaves' },
             { label: 'Payroll', icon: 'wallet-outline', ...home('SalarySlips') },
             { label: 'Tasks', icon: 'checkmark-circle-outline', screen: 'Tasks' },

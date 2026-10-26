@@ -128,6 +128,9 @@ export const sendAndDeliverEmail = async (data: Omit<Email, 'id'>): Promise<{ id
       bcc: data.bcc || undefined,
       companyId: data.companyId,
       emailId: id,
+      // Same { filename, content, contentType } contract the web compose uses —
+      // without this the stored record carried the files but SMTP did not.
+      attachments: data.attachments?.length ? data.attachments : undefined,
     });
     return { id, delivered: !!res?.data?.delivered };
   } catch (err) {

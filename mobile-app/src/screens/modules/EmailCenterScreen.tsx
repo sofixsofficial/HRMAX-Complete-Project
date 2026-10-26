@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import {
   View, Text, StyleSheet, ScrollView, TouchableOpacity, TextInput,
-  ActivityIndicator, Alert, FlatList, Dimensions
+  ActivityIndicator, Alert, FlatList, Dimensions, Platform
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
@@ -18,6 +18,10 @@ import { HeroBanner, PremiumCard, PremiumSearchBar, StatusBadge, EmptyStateView,
 import { ScreenHeader } from '../../components/ScreenHeader';
 import { useTheme } from '../../context/ThemeContext';
 import { Paths, File } from 'expo-file-system';
+// Legacy reader for staged picker files: on native the document picker hands
+// back a file:// uri (the base64 option is web-only), so we read it here.
+import { readAsStringAsync, writeAsStringAsync, EncodingType } from 'expo-file-system/legacy';
+import * as DocumentPicker from 'expo-document-picker';
 import * as Sharing from 'expo-sharing';
 import { Icon } from '../../utils/icons';
 import { getSalarySlipsByCompany, dispatchPayslips, retryFailedPayslips, DispatchPayslipsResult } from '../../services/salaryService';
@@ -107,6 +111,11 @@ export default function EmailCenterScreen() {
   const [composeSubject, setComposeSubject] = useState('');
   const [composeBody, setComposeBody] = useState('');
   const [composeScheduled, setComposeScheduled] = useState('');
+  // Staged external attachments — same base64 contract the web compose sends
+  // ({ filename, content, contentType }) so the backend renders identical MIME.
+  const [composeAttachments, setComposeAttachments] = useState<
+    Array<{ filename: string; content: string; contentType?: string; size?: number }>
+  >([]);
   const [selectedTemplate, setSelectedTemplate] = useState<string | null>(null);
   const [selectedGroup, setSelectedGroup] = useState<string | null>(null);
   const [activeFormats, setActiveFormats] = useState<Set<string>>(new Set());
@@ -398,6 +407,68 @@ export default function EmailCenterScreen() {
     );
   };
 
+  const MAX_ATTACHMENT_BYTES = 5 * 1024 * 1024;
+
+  /** Stage external files (PDF/doc/image) for the outgoing message. */
+  const pickAttachments = async () => {
+    try {
+      const result = await DocumentPicker.getDocumentAsync({
+        type: '*/*',
+        multiple: true,
+        copyToCacheDirectory: true,
+        base64: true,
+      });
+      if (result.canceled || !result.assets?.length) return;
+      const staged: Array<{ filename: string; content: string; contentType?: string; size?: number }> = [];
+      for (const asset of result.assets) {
+        if (asset.size && asset.size > MAX_ATTACHMENT_BYTES) {
+          Alert.alert('File too large', `${asset.name} is larger than 5 MB.`);
+          continue;
+        }
+        // Native returns a file uri (base64 option is web-only) — read it here.
+        const content = asset.base64 ?? (await readAsStringAsync(asset.uri, { encoding: EncodingType.Base64 }));
+        staged.push({
+          filename: asset.name,
+          content,
+          contentType: asset.mimeType || 'application/octet-stream',
+          size: asset.size,
+        });
+      }
+      if (staged.length) setComposeAttachments((prev) => [...prev, ...staged]);
+    } catch {
+      Alert.alert('Attachments', 'Could not read the selected file.');
+    }
+  };
+
+  const removeAttachment = (index: number) =>
+    setComposeAttachments((prev) => prev.filter((_, i) => i !== index));
+
+  /** Open a stored attachment: download in the browser, share on device. */
+  const openAttachment = async (att: any) => {
+    const name = att?.filename || 'attachment';
+    const contentType = att?.contentType || 'application/octet-stream';
+    try {
+      if (Platform.OS === 'web') {
+        const binary = atob(String(att.content).replace(/\s/g, ''));
+        const bytes = new Uint8Array(binary.length);
+        for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
+        const url = URL.createObjectURL(new Blob([bytes], { type: contentType }));
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = name;
+        a.click();
+        window.setTimeout(() => URL.revokeObjectURL(url), 10000);
+        return;
+      }
+      const uri = `${Paths.cache.uri}${Paths.cache.uri.endsWith('/') ? '' : '/'}${name}`;
+      await writeAsStringAsync(uri, String(att.content), { encoding: EncodingType.Base64 });
+      if (await Sharing.isAvailableAsync()) await Sharing.shareAsync(uri);
+      else Alert.alert('Saved', `Attachment saved to ${uri}`);
+    } catch {
+      Alert.alert('Attachment', `Could not open ${name}`);
+    }
+  };
+
   const handleSend = async () => {
     if (!composeTo.trim() || !composeSubject.trim()) {
       Alert.alert('Required', 'Recipient and subject are required');
@@ -417,6 +488,9 @@ export default function EmailCenterScreen() {
         companyId: effectiveCompanyId || '',
         recipientGroup: 'Individual Employee',
         scheduledFor: composeScheduled || undefined,
+        attachments: composeAttachments.length
+          ? composeAttachments.map((a) => ({ filename: a.filename, content: a.content, contentType: a.contentType }))
+          : undefined,
       };
       if (composeScheduled) {
         // Scheduled = save the record only (matches web — no immediate SMTP).
@@ -449,6 +523,9 @@ export default function EmailCenterScreen() {
         read: false, starred: false,
         companyId: effectiveCompanyId || '',
         recipientGroup: 'Individual Employee',
+        attachments: composeAttachments.length
+          ? composeAttachments.map((a) => ({ filename: a.filename, content: a.content, contentType: a.contentType }))
+          : undefined,
       });
       setShowCompose(false);
       resetCompose();
@@ -461,6 +538,7 @@ export default function EmailCenterScreen() {
   const resetCompose = () => {
     setComposeTo(''); setComposeCc(''); setComposeBcc('');
     setComposeSubject(''); setComposeBody(''); setComposeScheduled('');
+    setComposeAttachments([]);
     setSelectedTemplate(null); setSelectedGroup(null); setActiveFormats(new Set());
   };
 
@@ -999,6 +1077,33 @@ export default function EmailCenterScreen() {
               </View>
             )}
 
+            {/* Attachments carried with this message */}
+            {Array.isArray(selectedEmail.attachments) && selectedEmail.attachments.length > 0 && (
+              <View style={{ marginTop: 12 }}>
+                <Text style={[styles.fieldLabel, { color: colors.textSecondary }]}>
+                  Attachments ({selectedEmail.attachments.length})
+                </Text>
+                {selectedEmail.attachments.map((att: any, i: number) => (
+                  <View
+                    key={`${att?.filename || 'att'}-${i}`}
+                    style={{
+                      flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 8,
+                      backgroundColor: isDark ? '#1e293b' : '#f5f3ff', borderWidth: 1, borderColor: '#ddd6fe',
+                      borderRadius: 6, paddingHorizontal: 10, paddingVertical: 8,
+                    }}
+                  >
+                    <Ionicons name="document-text-outline" size={15} color="#6d28d9" />
+                    <Text style={{ flex: 1, color: '#6d28d9', fontSize: 12.5 }} numberOfLines={1}>
+                      {att?.filename || 'attachment'}
+                    </Text>
+                    <TouchableOpacity onPress={() => openAttachment(att)} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+                      <Text style={{ color: '#2563eb', fontSize: 12, fontWeight: '700' }}>Open</Text>
+                    </TouchableOpacity>
+                  </View>
+                ))}
+              </View>
+            )}
+
             {/* Delivery Tracking */}
             {(selectedEmail.tracking || ['Sent', 'Delivered', 'Opened', 'Clicked'].includes(selectedEmail.status)) && (
               <View style={[styles.trackingContainer, { backgroundColor: colors.card, borderColor: colors.borderLight }]}>
@@ -1225,6 +1330,38 @@ export default function EmailCenterScreen() {
             placeholder="YYYY-MM-DD HH:mm"
             placeholderTextColor={colors.textSecondary}
           />
+          <Text style={[styles.fieldLabel, { color: colors.textSecondary }]}>Attachments</Text>
+          <TouchableOpacity
+            onPress={pickAttachments}
+            style={{
+              flexDirection: 'row', alignItems: 'center', gap: 6, alignSelf: 'flex-start',
+              backgroundColor: isDark ? '#1e293b' : '#f5f3ff', borderWidth: 1, borderColor: '#ddd6fe',
+              borderRadius: 6, paddingHorizontal: 10, paddingVertical: 6,
+            }}
+          >
+            <Ionicons name="attach-outline" size={16} color="#6d28d9" />
+            <Text style={{ color: '#6d28d9', fontSize: 12, fontWeight: '600' }}>
+              Attach file{composeAttachments.length ? ` (${composeAttachments.length})` : ''}
+            </Text>
+          </TouchableOpacity>
+          {composeAttachments.map((att, i) => (
+            <View
+              key={`${att.filename}-${i}`}
+              style={{
+                flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 8,
+                backgroundColor: isDark ? '#1e293b' : '#f5f3ff', borderWidth: 1, borderColor: '#ddd6fe',
+                borderRadius: 6, paddingHorizontal: 10, paddingVertical: 7,
+              }}
+            >
+              <Ionicons name="document-text-outline" size={14} color="#6d28d9" />
+              <Text style={{ flex: 1, color: '#6d28d9', fontSize: 12 }} numberOfLines={1}>
+                {att.filename}{att.size ? ` · ${Math.max(1, Math.round(att.size / 1024))} KB` : ''}
+              </Text>
+              <TouchableOpacity onPress={() => removeAttachment(i)} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+                <Ionicons name="close-circle" size={16} color="#94a3b8" />
+              </TouchableOpacity>
+            </View>
+          ))}
           <View style={{ flexDirection: 'row', gap: 8, marginTop: 12 }}>
             <TouchableOpacity
               style={[styles.saveDraftBtn, sending && { opacity: 0.6 }]}
