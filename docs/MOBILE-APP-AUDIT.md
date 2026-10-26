@@ -165,7 +165,7 @@ account (open item).
 | Design tokens / dark mode | ⚠️ PARTIAL | `ThemeContext.tsx` = **colors only** (40 keys); no spacing/typography tokens; light+dark ✅ (`app.json:8 automatic`) |
 | Skeletons / empty states / error states | ✅ / ⚠️ | `SkeletonLoader.tsx`, `EmptyStateView` (25+ screens); **no shared `ErrorState` component** |
 | Safe areas | ✅ | `SafeAreaProvider`, iOS `infoPlist` strings (`app.json:17`), camera/location/notification permission plugins |
-| Tests | ❌ **NONE** | 0 test files, no jest, no `test` script, no eslint config (`lint` script exists but eslint isn't a dep) |
+| Tests | ✅ **DONE (Stage 4)** | backend **86/86** (`node --test`) + mobile **27/27** (jest-expo, `npm test`, `jest.config.js`); **frontend still has none**; mobile `lint` script exists but eslint isn't a dep |
 | Offline attendance queue | ❌ **MISSING** | no queue/retry anywhere — a failed punch is lost |
 
 **Role support:** 6 declared roles ✅ (all have dashboards). `hr-manager` exists only as an ad-hoc string in 8
@@ -176,14 +176,17 @@ mobile files (falls back to `EmployeeDashboard`); `regional-manager` does not ex
 - **Existing:** `backend/aws/test/routes.test.js` (route mounting, 401-for-anonymous on
   `GET /api/attendance`, `POST /api/attendance/mark`, `GET /api/leave-requests`) and `smoke.test.js`
   (`TIER_ORDER` 164-167, permission assertions 122-145). Run: `npm test` = `build:backend` + `node --test`.
-- **Coverage vs spec:** attendance = mounting only; leave = mounting + constants. ❌ No duplicate-check-in,
-  geofence, state-machine, rectification, leave apply/approve/balance tests. ❌ No frontend/mobile tests at all.
+- **Coverage vs spec:** attendance = mounting only (logic covered by the new unit tests below);
+  leave = mounting + constants. **Mobile suite added (Stage 4)**; **frontend/web still has no tests**.
 - **Execution this session: ✅ 86/86 pass** (`npm test`, run twice back-to-back to prove stability)
   - baseline before changes: **66/66**
   - added `backend/aws/test/attendance-leave.test.js` (+20): status-machine boundaries, company-timezone
     day/minute maths (the UTC/IST proof), `enableGeofence`→`requireGeofence` flag mapping, haversine distance,
     leave date parsing / inclusive duration / overlap rules, `ConditionalWriteFailed` contract
   - also fixed test isolation: tests no longer write live rate-limit counters (`HRMAX_DISABLE_RATE_LIMIT`)
+- **Mobile: ✅ 27/27 pass, 4 suites** (Stage 4, `94ec880`) — `npm test` in `mobile-app` (jest-expo):
+  `dayKey/addDays`, `companyScope` sentinels (regression), leave/working-day counting, and renders of
+  `BrandHomeHero` + `MonthAttendanceCalendar` (honest empty state, today/future cells).
 
 ## 7. Exact bugs found
 
@@ -253,6 +256,9 @@ _None made. Candidates requiring explicit sign-off: B1-B6._
 ## 11. Files changed (this session)
 | Commit | Change |
 |---|---|
+| `96d3be2` | Brand + success colours: orange wordmark everywhere, green punch circle for success |
+| `94ec880` | **Mobile Stage 4**: jest suite — 27 tests / 4 suites passing |
+| `f91dfaf` | Drawer wordmark orange |
 | `03439ea` | **Unified dark-navy hero background** across all heroes (Home, role dashboards, attendance banner) |
 | `1a3ef0a` | Employees screen: status chips + avatar/status dot + `'global'` scope-sentinel fix |
 | `708a7b9` | Attendance screen: status circle, headline, date/time/work-location rows |
