@@ -28,12 +28,9 @@ const getSectionsByRole = (userRole?: UserRole): DrawerSection[] => {
     case 'master-admin':
       return [
         { title: 'Main', items: [{ label: 'Dashboard', icon: 'grid-outline', screen: 'Home' }] },
-        {
-          title: 'Self Service',
-          items: [
-            { label: 'My Leaves & Attendance', icon: 'briefcase-outline', screen: 'MyLeavesAttendance' },
-          ],
-        },
+        // No "Self Service": an admin has no employee record of their own, so
+        // "My Leaves & Attendance" does not apply — matching the web sidebar,
+        // which only exposes it to executive / team-leader / reporting-manager.
         {
           title: 'Organization',
           items: [
