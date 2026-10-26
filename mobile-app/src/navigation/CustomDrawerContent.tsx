@@ -415,7 +415,8 @@ export const CustomDrawerContent: React.FC<DrawerContentComponentProps> = (props
       <View style={{ paddingTop: insets.top + 20, paddingHorizontal: 20, paddingBottom: 20 }}>
         <View style={{ flexDirection: 'row', alignItems: 'center' }}>
           <Image source={require('../../assets/icon.png')} style={{ width: 40, height: 40, borderRadius: 10, backgroundColor: '#FF6600' }} resizeMode="cover" />
-          <Text style={{ marginLeft: 12, fontSize: 20, fontWeight: '700', color: '#fff' }}>HR MAX</Text>
+          {/* Brand wordmark in the HR MAX orange (was plain white) */}
+          <Text style={{ marginLeft: 12, fontSize: 20, fontWeight: '700', color: '#FF6600' }}>HR MAX</Text>
         </View>
       </View>
 
