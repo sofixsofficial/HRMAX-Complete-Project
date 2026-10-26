@@ -195,11 +195,13 @@ export async function getCompanyMeta(companyId: string): Promise<Record<string, 
   try {
     const res = await doc.send(new GetCommand({ TableName: TABLE, Key: { PK: companyPK(companyId), SK: 'COMPANY#META' } }));
     if (res.Item?.data) return res.Item.data as Record<string, unknown>;
+    const rows = await queryEntities<Record<string, unknown>>({ entity: 'company', companyId, limit: 1 });
+    return rows[0] ?? null;
   } catch {
-    // fall through to the CRUD row
+    // Timezone resolution must never be able to fail a punch — callers fall
+    // back to the default zone when this returns null.
+    return null;
   }
-  const rows = await queryEntities<Record<string, unknown>>({ entity: 'company', companyId, limit: 1 });
-  return rows[0] ?? null;
 }
 
 /** Delete an entity. */
