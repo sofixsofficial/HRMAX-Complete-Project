@@ -7,6 +7,7 @@ import { useAttendanceGate } from '../../hooks/useAttendanceGate';
 import { markCheckIn, markCheckOut, requestPunchRectification, reviewMissedPunchTier, reviewMasterAdminMissedPunch, getNextPendingMissedPunchTier, getActionableMissedPunchTier, getRecordEffectiveMissedPunchTiers, computeMissedPunchProgress, computeMissedPunchTotalTiers, MISSED_PUNCH_TIER_LABELS, MISSED_PUNCH_MASTER_ADMIN_LABEL, missedPunchTierLabel } from '../../services/attendanceApi';
 import { SelfieCaptureModal } from '../../components/SelfieCaptureModal';
 import { ScreenHeader } from '../../components/ScreenHeader';
+import { MonthAttendanceCalendar } from '../../components/MonthAttendanceCalendar';
 import { db } from '../../aws/clients';
 import { collection, query, where, getDocs, orderBy, limit, doc, getDoc } from '../../aws/firestore-compat';
 import { Icon } from '../../utils/icons';
@@ -56,6 +57,7 @@ export const AttendanceScreen: React.FC<{ navigation: any }> = ({ navigation }) 
   const [todayRecord, setTodayRecord] = useState<any>(null);
   const [history, setHistory] = useState<any[]>([]);
   const [monthStats, setMonthStats] = useState({ present: 0, absent: 0, late: 0, total: 0 });
+  const [monthRecords, setMonthRecords] = useState<any[]>([]);
   const [refreshing, setRefreshing] = useState(false);
   const [checkedIn, setCheckedIn] = useState(false);
   const [checkingIn, setCheckingIn] = useState(false);
@@ -206,6 +208,7 @@ export const AttendanceScreen: React.FC<{ navigation: any }> = ({ navigation }) 
         query(collection(db, 'attendance'), where('userId', '==', user.id), where('date', '>=', monthStart), where('date', '<', tomorrow))
       );
       const mData = monthSnap.docs.map((d) => d.data());
+      setMonthRecords(mData);
       setMonthStats({
         total: mData.length, present: mData.filter((r: any) => r.status === 'Present' || r.status === 'Approved').length,
         absent: mData.filter((r: any) => r.status === 'Absent').length, late: mData.filter((r: any) => r.status === 'Late').length,
@@ -821,6 +824,9 @@ export const AttendanceScreen: React.FC<{ navigation: any }> = ({ navigation }) 
               )}
             </View>
 
+            {/* ── MONTHLY CALENDAR (per-day status from real records) ── */}
+            <MonthAttendanceCalendar records={monthRecords} />
+
             {/* ── ROLE ROUTING INFO (matching web's SelfAttendanceCard) ── */}
             {getRoleRoutingNote(user?.role) && (
               <View style={s.routingInfoCard}>
@@ -841,6 +847,9 @@ export const AttendanceScreen: React.FC<{ navigation: any }> = ({ navigation }) 
                   { label: 'Late', count: history.filter(r => r.status === 'Late').length, color: '#f59e0b' },
                   { label: 'Absent', count: history.filter(r => r.status === 'Absent').length, color: '#ef4444' },
                   { label: 'Miss Punch', count: history.filter(r => r.status === 'Miss Punch').length, color: '#9333ea' },
+                  // Backend writes 'Early Checkout' on early check-outs (attendance.ts) but the
+                  // mobile filter never offered it, so those days were unreachable by filter.
+                  { label: 'Early Checkout', count: history.filter(r => r.status === 'Early Checkout').length, color: '#06b6d4' },
                 ].map(chip => (
                   <TouchableOpacity
                     key={chip.label}
