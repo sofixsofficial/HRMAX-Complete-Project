@@ -5,8 +5,8 @@
 
 import type { Route } from '../lib/http.js';
 import { must } from '../lib/http.js';
-import { assertRole, assertPermission } from '../lib/auth.js';
-import { queryEntities, patchEntity } from '../lib/db.js';
+import { assertRole, assertPermission, readPartitions } from '../lib/auth.js';
+import { queryEntities, queryEntitiesAcross, locateEntityAcross, patchEntity } from '../lib/db.js';
 import { sendEmailCentral, getEmailConfig } from '../lib/email.js';
 import type { EmailAttachment } from '../lib/email.js';
 import { ApiError } from '../lib/types.js';
@@ -85,14 +85,25 @@ export const emailRoutes: Route[] = [
       const caller = must(req);
       assertRole(caller, ['master-admin', 'company-admin']);
       const limit = Math.min(Number(req.query.limit ?? 50), 200);
-      const logs = await queryEntities<Record<string, unknown>>({
-        entity: 'emailLog',
-        companyId: caller.role === 'master-admin' ? 'global' : caller.companyId,
-        global: caller.role === 'master-admin',
-        orderBy: { field: 'createdAt', desc: true },
-        limit,
-      });
-      return { logs };
+      // BUG FIXED: master-admin read only the GSI3 "global" index, but
+      // logEmail writes rows into the company partition without GSI3 — so the
+      // log list was permanently empty (verified live: dispatch reported
+      // sent=1 while GET /api/email/logs returned []).
+      let logs: Record<string, unknown>[];
+      if (caller.role === 'master-admin') {
+        logs = await queryEntitiesAcross<Record<string, unknown>>(
+          { entity: 'emailLog', orderBy: { field: 'createdAt', desc: true }, limit },
+          await readPartitions(caller),
+        );
+      } else {
+        logs = await queryEntities<Record<string, unknown>>({
+          entity: 'emailLog',
+          companyId: caller.companyId,
+          orderBy: { field: 'createdAt', desc: true },
+          limit,
+        });
+      }
+      return { logs: logs.slice(0, limit) };
     },
   },
 
@@ -102,14 +113,14 @@ export const emailRoutes: Route[] = [
     handler: async (req) => {
       const caller = must(req);
       assertRole(caller, ['master-admin', 'company-admin']);
-      const logs = await queryEntities<Record<string, unknown>>({
-        entity: 'emailLog', companyId: 'global', filters: { id: req.params.id }, limit: 1,
-      }).catch(() => [] as Record<string, unknown>[]);
-      let log = logs[0];
-      if (!log) {
-        const all = await queryEntities<Record<string, unknown>>({ entity: 'emailLog', companyId: caller.companyId, filters: { id: req.params.id }, limit: 1 });
-        log = all[0];
-      }
+      // Resolve across every partition the caller can read — the log may live
+      // in a company partition (the 'global' lookup alone missed those).
+      const located = await locateEntityAcross<Record<string, unknown>>(
+        'emailLog',
+        req.params.id,
+        await readPartitions(caller),
+      );
+      const log = located?.doc;
       if (!log) throw new ApiError('not-found', 'Log not found');
       const to = ([] as string[]).concat(log.to as string[]);
       const res = await sendEmailCentral({

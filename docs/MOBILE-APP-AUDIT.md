@@ -149,6 +149,11 @@ linked the test employee's `reportingManagerId`:
 | company-admin approves tier 2 | 200, status Approved | ✅ **200**, all decided → **`status: Approved`** |
 | cleanup | row removed | ✅ DELETE 200, `remaining: 0` |
 
+**Web owner cancel (UI path) — ✅ VERIFIED**: row → `Cancel` button → `confirm("Cancel this leave request?")`
+→ `PATCH status:'Cancelled'` → server `status: Cancelled`, UI toast "Cancelled", cell `Cancelled0/4`
+(the counter now reads `0/2` after B14 ships). A stray `/employee/` 404 appeared once during automation but
+has no matching route or navigation target in the code and could not be reproduced — recorded as **not confirmed**.
+
 The two approver accounts were **kept** (named `test.*`) so future approval E2E can run.
 
 ## 5. Feature checklist vs mobile spec
@@ -227,6 +232,8 @@ mobile files (falls back to `EmployeeDashboard`); `regional-manager` does not ex
 | B10 | Approved-leave date-range check stubbed (`return true; // simplified`) → employee on leave *any* day excluded from `Absent` | `scheduler.ts:69-73` | wrong `Absent` rows | ✅ **fixed** `4b52638` — real range compare; malformed dates never suppress an Absent row |
 | B11 | Deploy workflow does not run tests | `.github/workflows/deploy.yml` | broken code can deploy | ✅ **fixed** `4b52638` — `Test backend (gate before deploy)` step added |
 | B12 | **Payslip email claimed "Please find attached" but sent no attachment**; company admin never CC'd (spec §D requires both) | `payroll.ts:288-336` vs `email.ts:373-381` | ✅ **fixed** `53341b7` — server-side jsPDF generator (`lib/payslipPdf.ts`, same DejaVu font as the web download → identical ₹ rendering), per-employee PDF attachment + CC to every company admin (recipient excluded). Status `Pending→Emailed` already correct. Verified: package ships fonts, local smoke 291,928 bytes `%PDF-`, deployed (bundle 14.05 → 14.72 MB) |
+| B13 | **`GET /api/email/logs` always empty for master-admin** — it read only the GSI3 "global" index while `logEmail` writes rows into the company partition with no GSI3 entry (live proof: dispatch `sent=1` yet `logs: []`) | `handlers/email.ts:88-94` vs `lib/email.ts:275-302` | ✅ **fixed** — MA now reads across every readable partition (`queryEntitiesAcross`), company-admin keeps its own partition, retry resolves via `locateEntityAcross`, and new log rows also index on GSI3 |
+| B14 | **Leave progress counter counted SKIPPED tiers** → an employee chain with only 2 live approvers showed `2/4` forever, even after status became Approved | `LeaveManagement.tsx:71`, `MasterAdminApprovalsPanel.tsx:313`, mobile `LeaveScreen.tsx:38`, `LeaveApprovalsPanel.tsx:233` | ✅ **fixed** `9424b8e` — `getLiveTiers()` (effective minus Skipped) in both codebases + regression tests (web 40/40, mobile 5/5) |
 
 ### Web-only (context for mobile parity)
 | # | Finding | File:line |

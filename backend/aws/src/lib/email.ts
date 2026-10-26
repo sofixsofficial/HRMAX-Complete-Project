@@ -298,7 +298,10 @@ async function logEmail(
       createdAt: new Date().toISOString(),
       sentAt: opts.status === 'success' ? new Date().toISOString() : undefined,
     },
-    { entity: 'emailLog' },
+    // Also index on GSI3 so an unscoped/global reader (the endpoint's
+    // original contract) can see it; the row still lives in its company
+    // partition, which is what the fixed endpoint reads.
+    { entity: 'emailLog', globalList: true },
   );
 }
 
