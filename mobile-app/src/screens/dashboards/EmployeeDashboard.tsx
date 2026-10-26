@@ -17,12 +17,13 @@ import { StatCard } from '../../components/StatCard';
 import { StatsGrid } from '../../components/StatsGrid';
 import { MissedPunchAlertCard } from '../../components/MissedPunchAlertCard';
 import { PremiumCard } from '../../components/PremiumComponents';
-import { DashboardHero } from '../../components/DashboardHero';
+import { BrandHomeHero, type HeroStat } from '../../components/BrandHomeHero';
+import Svg, { Circle } from 'react-native-svg';
 import type { AttendanceRecord } from '../../types/user';
 
 const QUICK_ACTIONS = [
-  { label: 'Apply Leave', icon: 'add-circle-outline', screen: 'ApplyLeave', color: '#3b82f6' },
-  { label: 'Attendance', icon: 'clipboard-outline', screen: 'Attendance', color: '#10b981' },
+  { label: 'Check In / Out', icon: 'log-in-outline', screen: 'Attendance', color: '#FF6600' },
+  { label: 'Apply Leave', icon: 'calendar-outline', screen: 'ApplyLeave', color: '#3b82f6' },
   { label: 'My Tasks', icon: 'checkmark-circle-outline', screen: 'Tasks', color: '#ec4899' },
   { label: 'Salary Slips', icon: 'wallet-outline', screen: 'SalarySlips', color: '#8b5cf6' },
 ];
@@ -59,6 +60,25 @@ export const EmployeeDashboard: React.FC<{ navigation: any }> = ({ navigation })
   const [managers, setManagers] = useState<string[]>([]);
 
   const { todayRecord, checkedIn, monthStats, monthRecords, pendingLeaves, activeTasks, upcomingHolidays, todayBirthdays, salarySlips, attendanceRate, loading } = stats;
+
+  // Real punch events, newest first — never invented activity.
+  const recentActivity = useMemo(() => {
+    const rows = [...monthRecords]
+      .filter((r: any) => r?.checkIn || r?.checkOut)
+      .sort((a: any, b: any) => new Date(b?.date).getTime() - new Date(a?.date).getTime());
+    return rows
+      .flatMap((r: any) => {
+        const out: Array<{ key: string; title: string; when: string; icon: any; color: string }> = [];
+        if (r.checkOut) {
+          out.push({ key: `${r.id}-out`, title: 'Checked out', when: `${formatDate(r.date)} · ${formatTime(r.checkOut)}`, icon: 'log-out-outline', color: '#3b82f6' });
+        }
+        if (r.checkIn) {
+          out.push({ key: `${r.id}-in`, title: 'Checked in', when: `${formatDate(r.date)} · ${formatTime(r.checkIn)}`, icon: 'log-in-outline', color: '#10b981' });
+        }
+        return out;
+      })
+      .slice(0, 5);
+  }, [monthRecords]);
 
   useEffect(() => {
     if (!user?.id) return;
@@ -143,7 +163,7 @@ export const EmployeeDashboard: React.FC<{ navigation: any }> = ({ navigation })
   const handleCheckIn = async () => {
     if (!user?.id || checking) return;
     if (!user.companyId) {
-      Alert.alert('Error', 'No company assigned to your account.');
+      setActionMsg({ type: 'error', text: 'No company assigned to your account.' });
       return;
     }
     setChecking(true);
@@ -155,16 +175,21 @@ export const EmployeeDashboard: React.FC<{ navigation: any }> = ({ navigation })
           setShowSelfieCapture(true);
           return;
         }
-        Alert.alert('Check-in blocked', res.reason || 'Attendance policy not satisfied.');
+        // On-screen banner, not Alert.alert: RN-web's Alert is a no-op, which
+        // made every blocked/failed punch look like "nothing happened".
+        setActionMsg({ type: 'error', text: res.reason || 'Attendance policy not satisfied.' });
         return;
       }
       const result = await markCheckIn(user.companyId, {
         selfieUri: selfieUriRef.current || undefined,
       });
       selfieUriRef.current = null;
-      Alert.alert('Checked in', result.message || 'Your attendance has been marked.');
+      setActionMsg({ type: 'success', text: result.message || 'Checked in.' });
+      // Re-read the record the SERVER just wrote — the dashboard previously
+      // kept showing "Not Checked In" after a successful punch.
+      setRefreshKey((k) => k + 1);
     } catch (err: any) {
-      Alert.alert('Error', err?.message || 'Check-in failed');
+      setActionMsg({ type: 'error', text: err?.message || 'Check-in failed' });
     } finally {
       setChecking(false);
     }
@@ -182,13 +207,14 @@ export const EmployeeDashboard: React.FC<{ navigation: any }> = ({ navigation })
     try {
       const res = await validateCheckOut();
       if (!res.ok) {
-        Alert.alert('Check-out blocked', res.reason || 'Attendance policy not satisfied.');
+        setActionMsg({ type: 'error', text: res.reason || 'Attendance policy not satisfied.' });
         return;
       }
       const result = await markCheckOut(user.companyId, todayRecord.id);
-      Alert.alert('Checked out', result.message || 'See you tomorrow!');
+      setActionMsg({ type: 'success', text: result.message || 'Checked out.' });
+      setRefreshKey((k) => k + 1);
     } catch (err: any) {
-      Alert.alert('Error', err?.message || 'Check-out failed');
+      setActionMsg({ type: 'error', text: err?.message || 'Check-out failed' });
     } finally {
       setChecking(false);
     }
@@ -205,17 +231,19 @@ export const EmployeeDashboard: React.FC<{ navigation: any }> = ({ navigation })
 
   return (
     <ScrollView style={s.container} refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor="#FF6600" />}>
-      <DashboardHero
+      <BrandHomeHero
         name={user?.name || 'Employee'}
-        roleLabel={designation || 'Employee'}
-        subtitle="Here's your personal summary for today."
-        showPunchActions={false}
+        subtitle={designation || 'Employee'}
+        unread={0}
+        onAvatarPress={() => navigation?.navigate('MyProfile')}
+        onBellPress={() => navigation?.navigate('Notifications')}
         stats={[
-          { label: 'Month %', value: attendanceRate === null ? '—' : `${attendanceRate}%`, color: '#10b981' },
-          { label: 'Leaves', value: pendingLeaves, color: '#f59e0b' },
-          { label: 'Tasks', value: activeTasks, color: '#ec4899' },
-          { label: 'Slips', value: salarySlips, color: '#8b5cf6' },
+          { label: 'Present', value: monthStats.present, icon: 'checkmark-circle-outline', color: '#10b981' },
+          { label: 'Absent', value: monthStats.absent, icon: 'close-circle-outline', color: '#ef4444' },
+          { label: 'On Leave', value: monthStats.onLeave, icon: 'umbrella-outline', color: '#8b5cf6' },
+          { label: 'Total', value: monthStats.total, icon: 'people-outline', color: '#3b82f6' },
         ]}
+        onPressStat={() => navigation?.navigate('Attendance')}
       />
 
       {actionMsg && (
@@ -231,39 +259,62 @@ export const EmployeeDashboard: React.FC<{ navigation: any }> = ({ navigation })
         onPress={() => navigation?.navigate('Attendance')}
       />
 
-      <LinearGradient
-        colors={['#1F2937', '#111827']}
-        start={{ x: 0, y: 0 }}
-        end={{ x: 1, y: 1 }}
-        style={s.checkInCard}>
-        <View style={s.checkInTop}>
-          <View style={[s.statusDot, { backgroundColor: statusColor(todayRecord?.status) }]} />
-          <View style={{ flex: 1, marginLeft: 12 }}>
-            <Text style={s.checkInLabel}>Today's Status</Text>
-            <Text style={[s.checkInStatus, { color: statusColor(todayRecord?.status) }]}>
-              {completed ? 'Completed' : todayRecord?.status || (canCheckIn ? 'Not Checked In' : 'Checked In')}
+      {/* Today's status — white card with the green checked-in state, date/time
+          rows and a full-width punch button (reference layout). */}
+      <View style={s.checkInCard}>
+        <View style={s.statusHead}>
+          <View
+            style={[
+              s.statusCircle,
+              { backgroundColor: todayRecord && !completed ? '#10b981' : completed ? '#3b82f6' : '#94a3b8' },
+            ]}>
+            <Icon
+              name={completed ? 'checkmark-done' : todayRecord ? 'checkmark' : 'time-outline'}
+              size={26}
+              color="#fff"
+            />
+          </View>
+          <View style={{ flex: 1 }}>
+            <Text style={s.statusHeadline}>
+              {completed ? 'Day Complete' : todayRecord ? 'Checked In' : 'Not Checked In'}
             </Text>
-            <Text style={s.checkInTime}>
-              In: {formatTime(todayRecord?.checkIn)}
-              {todayRecord?.checkIn ? '  |  ' : ''}Out: {formatTime(todayRecord?.checkOut)}
+            <Text style={s.statusSub} numberOfLines={1}>
+              {todayRecord?.status ? `${todayRecord.status} · ` : ''}
+              {formatDate(todayRecord?.date)}
             </Text>
           </View>
         </View>
 
-        <View style={{ alignItems: 'center', paddingVertical: 14 }}>
-          <Animated.View style={{ transform: [{ scale: pulseAnim }] }}>
-            <TouchableOpacity
-              style={[s.checkInBtn, (checking || completed) && { opacity: 0.6 }]}
-              onPress={canCheckOut ? handleCheckOut : canCheckIn ? handleCheckIn : undefined}
-              disabled={checking || completed}
-              activeOpacity={0.85}>
-              <Icon name={canCheckOut ? 'exit-outline' : 'enter-outline'} size={30} color="#fff" />
-              <Text style={s.checkInBtnText}>
-                {checking ? 'Please wait...' : canCheckOut ? 'Check Out' : canCheckIn ? 'Check In' : 'Completed'}
-              </Text>
-            </TouchableOpacity>
-          </Animated.View>
+        <View style={s.statusRows}>
+          <View style={s.statusRow}>
+            <Icon name="calendar-outline" size={15} color={colors.textSecondary} />
+            <Text style={s.statusRowText}>{formatDate(todayRecord?.date)}</Text>
+          </View>
+          <View style={s.statusRow}>
+            <Icon name="time-outline" size={15} color={colors.textSecondary} />
+            <Text style={s.statusRowText}>
+              {formatTime(todayRecord?.checkIn) || '—'}
+              {todayRecord?.checkOut ? `  →  ${formatTime(todayRecord.checkOut)}` : ''}
+            </Text>
+          </View>
         </View>
+
+        <TouchableOpacity
+          style={[s.checkInWideBtn, (checking || completed) && { opacity: 0.6 }]}
+          onPress={canCheckOut ? handleCheckOut : canCheckIn ? handleCheckIn : undefined}
+          disabled={checking || completed}
+          activeOpacity={0.85}
+          accessibilityRole="button"
+          accessibilityLabel={canCheckOut ? 'Check out' : 'Check in'}>
+          <Icon
+            name={canCheckOut ? 'log-out-outline' : canCheckIn ? 'log-in-outline' : 'checkmark-circle-outline'}
+            size={18}
+            color="#fff"
+          />
+          <Text style={s.checkInWideBtnText}>
+            {checking ? 'Please wait…' : canCheckOut ? 'Check Out' : canCheckIn ? 'Check In' : 'Completed'}
+          </Text>
+        </TouchableOpacity>
 
         {policyHints.length > 0 && (
           <View style={s.policyRow}>
@@ -288,20 +339,93 @@ export const EmployeeDashboard: React.FC<{ navigation: any }> = ({ navigation })
           <Text style={s.historyLinkText}>View full attendance history</Text>
           <Icon name="chevron-forward-outline" size={14} color={colors.accent} />
         </TouchableOpacity>
-      </LinearGradient>
+      </View>
 
       <View style={s.sectionHeader}>
         <Icon name="flash-outline" size={16} color={colors.accent} />
         <Text style={s.sectionTitle}>Quick Actions</Text>
       </View>
-      <ScrollView horizontal showsHorizontalScrollIndicator={false} style={s.quickRow}>
+      <View style={s.quickGrid}>
         {QUICK_ACTIONS.map((q) => (
-          <TouchableOpacity key={q.label} style={[s.quickCard, { backgroundColor: `${q.color}10`, borderColor: `${q.color}30` }]} onPress={() => navigation?.navigate(q.screen)}>
-            <Icon name={q.icon} size={20} color={q.color} />
-            <Text style={[s.quickLabel, { color: q.color }]}>{q.label}</Text>
+          <TouchableOpacity
+            key={q.label}
+            style={s.quickCardGrid}
+            onPress={() => navigation?.navigate(q.screen)}
+            accessibilityRole="button"
+            accessibilityLabel={q.label}>
+            <View style={[s.quickIconWrap, { backgroundColor: `${q.color}1a` }]}>
+              <Icon name={q.icon as any} size={20} color={q.color} />
+            </View>
+            <Text style={s.quickLabelGrid}>{q.label}</Text>
           </TouchableOpacity>
         ))}
-      </ScrollView>
+      </View>
+
+      {/* ── TODAY'S ATTENDANCE: real monthly figures behind a progress ring ── */}
+      <View style={s.sectionHeader}>
+        <Icon name="pie-chart-outline" size={16} color={colors.accent} />
+        <Text style={s.sectionTitle}>Today's Attendance</Text>
+      </View>
+      <View style={s.ringCard}>
+        <View style={s.ringWrap}>
+          <Svg width={104} height={104} viewBox="0 0 104 104">
+            <Circle cx="52" cy="52" r="44" stroke={`${colors.borderLight}`} strokeWidth="11" fill="none" />
+            <Circle
+              cx="52"
+              cy="52"
+              r="44"
+              stroke="#10b981"
+              strokeWidth="11"
+              strokeLinecap="round"
+              fill="none"
+              strokeDasharray={`${2 * Math.PI * 44}`}
+              strokeDashoffset={`${2 * Math.PI * 44 * (1 - (attendanceRate ?? 0) / 100)}`}
+              transform="rotate(-90 52 52)"
+            />
+          </Svg>
+          <View style={s.ringCenter}>
+            <Text style={s.ringValue}>{attendanceRate === null ? '—' : `${attendanceRate}%`}</Text>
+            <Text style={s.ringLabel}>Present</Text>
+          </View>
+        </View>
+
+        <View style={{ flex: 1, gap: 10 }}>
+          {[
+            { label: 'Present', value: monthStats.present, color: '#10b981', icon: 'checkmark-circle-outline' },
+            { label: 'Absent', value: monthStats.absent, color: '#ef4444', icon: 'close-circle-outline' },
+            { label: 'On Leave', value: monthStats.onLeave, color: '#8b5cf6', icon: 'umbrella-outline' },
+          ].map((row) => (
+            <View key={row.label} style={s.ringRow}>
+              <View style={[s.ringDot, { backgroundColor: row.color }]} />
+              <Text style={s.ringRowLabel}>{row.label}</Text>
+              <Text style={s.ringRowValue}>{row.value}</Text>
+            </View>
+          ))}
+        </View>
+      </View>
+
+      {/* ── RECENT ACTIVITY: real punch events, never fabricated ── */}
+      <View style={s.sectionHeader}>
+        <Icon name="pulse-outline" size={16} color={colors.accent} />
+        <Text style={s.sectionTitle}>Recent Activity</Text>
+      </View>
+      <View style={s.activityCard}>
+        {recentActivity.length === 0 ? (
+          <Text style={s.activityEmpty}>No punch activity yet this month.</Text>
+        ) : (
+          recentActivity.map((a) => (
+            <View key={a.key} style={s.activityRow}>
+              <View style={[s.activityIcon, { backgroundColor: `${a.color}1a` }]}>
+                <Icon name={a.icon} size={15} color={a.color} />
+              </View>
+              <View style={{ flex: 1 }}>
+                <Text style={s.activityTitle}>{a.title}</Text>
+                <Text style={s.activityWhen}>{a.when}</Text>
+              </View>
+            </View>
+          ))
+        )}
+      </View>
 
       <View style={s.sectionHeader}>
         <Icon name="stats-chart-outline" size={16} color={colors.accent} />
@@ -485,20 +609,38 @@ const createStyles = (c: ThemeColors) => StyleSheet.create({
     borderRadius: 18,
     borderWidth: 1,
     borderColor: c.borderLight,
+    backgroundColor: c.card,
     padding: 16,
   },
-  checkInTop: { flexDirection: 'row', alignItems: 'center' },
-  statusDot: { width: 12, height: 12, borderRadius: 6 },
-  checkInLabel: { fontSize: 11, color: c.textSecondary, textTransform: 'uppercase', letterSpacing: 0.5 },
-  checkInStatus: { fontSize: 18, fontWeight: '700', marginTop: 1 },
-  checkInTime: { fontSize: 12, color: c.textSecondary, marginTop: 2 },
-  checkInBtn: {
-    width: 118, height: 118, borderRadius: 59,
-    backgroundColor: '#FF6600',
-    alignItems: 'center', justifyContent: 'center',
-    elevation: 8, shadowColor: '#FF6600', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.35, shadowRadius: 10,
+  statusHead: { flexDirection: 'row', alignItems: 'center', gap: 12 },
+  statusCircle: {
+    width: 52,
+    height: 52,
+    borderRadius: 26,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
-  checkInBtnText: { color: '#fff', fontSize: 15, fontWeight: '700', marginTop: 4 },
+  statusHeadline: { fontSize: 18, fontWeight: '800', color: c.text },
+  statusSub: { fontSize: 12.5, color: c.textSecondary, marginTop: 2 },
+  statusRows: { gap: 8, marginTop: 14 },
+  statusRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  statusRowText: { fontSize: 13.5, color: c.text, fontWeight: '600' },
+  checkInWideBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    backgroundColor: '#FF6600',
+    borderRadius: 14,
+    paddingVertical: 14,
+    marginTop: 16,
+    shadowColor: '#FF6600',
+    shadowOpacity: 0.3,
+    shadowRadius: 10,
+    shadowOffset: { width: 0, height: 5 },
+    elevation: 4,
+  },
+  checkInWideBtnText: { color: '#fff', fontSize: 15.5, fontWeight: '700' },
   policyRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginTop: 6 },
   policyChip: { flexDirection: 'row', alignItems: 'center', gap: 5, borderWidth: 1, borderRadius: 20, paddingHorizontal: 10, paddingVertical: 5 },
   historyLink: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 4, marginTop: 12 },
@@ -508,13 +650,71 @@ const createStyles = (c: ThemeColors) => StyleSheet.create({
     paddingHorizontal: 20, paddingTop: 20, paddingBottom: 10,
   },
   sectionTitle: { fontSize: 16, fontWeight: '600', color: c.text },
-  quickRow: { paddingLeft: 20, marginBottom: 4 },
-  quickCard: {
-    paddingHorizontal: 16, paddingVertical: 10, marginRight: 10,
-    flexDirection: 'row', alignItems: 'center', gap: 8,
-    borderWidth: 1, borderRadius: 14,
+  quickGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 10,
+    paddingHorizontal: 16,
   },
-  quickLabel: { fontSize: 13, fontWeight: '600' },
+  quickCardGrid: {
+    width: '48%',
+    flexGrow: 1,
+    backgroundColor: c.card,
+    borderWidth: 1,
+    borderColor: c.borderLight,
+    borderRadius: 16,
+    paddingVertical: 14,
+    paddingHorizontal: 12,
+    alignItems: 'center',
+    gap: 8,
+  },
+  quickIconWrap: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  quickLabelGrid: { fontSize: 12.5, fontWeight: '700', color: c.text, textAlign: 'center' },
+  ringCard: {
+    marginHorizontal: 16,
+    backgroundColor: c.card,
+    borderWidth: 1,
+    borderColor: c.borderLight,
+    borderRadius: 18,
+    padding: 16,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 18,
+  },
+  ringWrap: { width: 104, height: 104, alignItems: 'center', justifyContent: 'center' },
+  ringCenter: { position: 'absolute', alignItems: 'center' },
+  ringValue: { fontSize: 22, fontWeight: '800', color: c.text },
+  ringLabel: { fontSize: 11, color: c.textSecondary, marginTop: 1 },
+  ringRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  ringDot: { width: 9, height: 9, borderRadius: 5 },
+  ringRowLabel: { flex: 1, fontSize: 13.5, color: c.textSecondary, fontWeight: '600' },
+  ringRowValue: { fontSize: 15, fontWeight: '800', color: c.text },
+  activityCard: {
+    marginHorizontal: 16,
+    backgroundColor: c.card,
+    borderWidth: 1,
+    borderColor: c.borderLight,
+    borderRadius: 18,
+    padding: 14,
+    gap: 12,
+  },
+  activityEmpty: { fontSize: 13, color: c.textTertiary, textAlign: 'center', paddingVertical: 6 },
+  activityRow: { flexDirection: 'row', alignItems: 'center', gap: 10 },
+  activityIcon: {
+    width: 30,
+    height: 30,
+    borderRadius: 15,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  activityTitle: { fontSize: 13.5, fontWeight: '700', color: c.text },
+  activityWhen: { fontSize: 11.5, color: c.textTertiary, marginTop: 1 },
   todayRow: { flexDirection: 'row', gap: 12, paddingHorizontal: 16 },
   avatarCircle: { width: 28, height: 28, borderRadius: 14, backgroundColor: '#ec489920', alignItems: 'center', justifyContent: 'center' },
   avatarText: { fontSize: 12, fontWeight: '700', color: '#ec4899' },
