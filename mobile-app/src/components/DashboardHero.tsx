@@ -758,8 +758,6 @@ export const DashboardHero: React.FC<DashboardHeroProps> = ({
   const { period, greeting } = getHeroScene(now, tz);
 
   const time = formatInZone(now, tz, { hour: '2-digit', minute: '2-digit', hour12: true });
-  const dateStr = `${formatInZone(now, tz, { month: 'short', day: 'numeric', year: 'numeric' })} · ${formatInZone(now, tz, { weekday: 'short' })}`;
-  const initial = ((name || 'U').trim().charAt(0) || 'U').toUpperCase();
   const periodLabel = period.charAt(0).toUpperCase() + period.slice(1);
   // Synchronous fill so the map below always has a value (the effect below
   // is what actually drives them).
@@ -785,13 +783,8 @@ export const DashboardHero: React.FC<DashboardHeroProps> = ({
       <Animated.View style={[styles.container, { opacity: fadeAnim, transform: [{ translateY: slideAnim }] }]}>
         <View style={styles.topRow}>
           <View style={styles.identityCol}>
-            {/* Avatar + greeting + name */}
+            {/* greeting + name (the initial-letter avatar was removed on request) */}
             <View style={styles.identityRow}>
-              <View style={styles.avatarRing}>
-                <View style={styles.avatar}>
-                  <Text style={styles.avatarText}>{initial}</Text>
-                </View>
-              </View>
               <View style={styles.identityText}>
                 <Text style={styles.greeting} numberOfLines={1}>{greeting}</Text>
                 <Text style={styles.name} numberOfLines={1}>{name}</Text>
@@ -823,7 +816,6 @@ export const DashboardHero: React.FC<DashboardHeroProps> = ({
               <Icon name={periodIconName(period)} size={18} color={period === 'night' ? '#dbe6ff' : '#fde68a'} />
               <Text style={styles.clockTime}>{time}</Text>
             </View>
-            <Text style={styles.clockDate} numberOfLines={1}>{dateStr}</Text>
             <View style={styles.periodPill}>
               <View style={styles.periodDot} />
               <Text style={styles.periodPillText}>{periodLabel}</Text>
@@ -878,23 +870,6 @@ const styles = StyleSheet.create({
   topRow: { flexDirection: 'row', alignItems: 'flex-start', justifyContent: 'space-between', gap: 10 },
   identityCol: { flex: 1, minWidth: 0 },
   identityRow: { flexDirection: 'row', alignItems: 'center', gap: 12 },
-  avatarRing: {
-    width: 52,
-    height: 52,
-    borderRadius: 26,
-    borderWidth: 1.5,
-    borderColor: 'rgba(255,255,255,0.42)',
-    padding: 3,
-    backgroundColor: 'rgba(2,6,23,0.25)',
-  },
-  avatar: {
-    flex: 1,
-    borderRadius: 23,
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: 'rgba(255,255,255,0.20)',
-  },
-  avatarText: { fontSize: 19, fontWeight: '800', color: '#fff', letterSpacing: 0.4 },
   identityText: { flex: 1, minWidth: 0 },
   greeting: {
     fontSize: 11.5,
@@ -996,7 +971,6 @@ const styles = StyleSheet.create({
     fontVariant: ['tabular-nums'],
     letterSpacing: 0.4,
   },
-  clockDate: { fontSize: 11, color: 'rgba(226,232,240,0.92)', marginTop: 4 },
   periodPill: {
     flexDirection: 'row',
     alignItems: 'center',
