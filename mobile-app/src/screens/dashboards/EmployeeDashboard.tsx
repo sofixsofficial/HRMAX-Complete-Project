@@ -239,7 +239,9 @@ export const EmployeeDashboard: React.FC<{ navigation: any }> = ({ navigation })
         onAvatarPress={() => navigation?.navigate('MyProfile')}
         onBellPress={() => navigation?.navigate('Notifications')}
         stats={[
-          { label: 'Present', value: monthStats.present, icon: 'checkmark-circle-outline', color: '#10b981' },
+          // Present includes Late, same as the ring's percentage — one number,
+          // two places, never disagreeing.
+          { label: 'Present', value: monthStats.present + monthStats.late, icon: 'checkmark-circle-outline', color: '#10b981' },
           { label: 'Absent', value: monthStats.absent, icon: 'close-circle-outline', color: '#ef4444' },
           { label: 'On Leave', value: monthStats.onLeave, icon: 'umbrella-outline', color: '#8b5cf6' },
           { label: 'Total', value: monthStats.total, icon: 'people-outline', color: '#3b82f6' },

@@ -68,7 +68,10 @@ type PunchUiState =
   | 'checked_out'
   | 'on_leave';
 
-/* ── Scene gradients (one per local-time period) ───────────────────── */
+/* ── Shared hero background: the app-wide dark navy card ───────────── */
+export const HERO_BG = ['#1e293b', '#334155', '#475569'] as const;
+
+/* ── Scene gradients (retained for reference; the hero now uses HERO_BG) ─ */
 const SCENE_COLORS = {
   morning: ['#1c5fb0', '#3a86d4', '#7cc0ee', '#ffe6a8'],
   afternoon: ['#0d47a1', '#1f6fd0', '#5fa8e8'],
@@ -764,15 +767,18 @@ export const DashboardHero: React.FC<DashboardHeroProps> = ({
 
   return (
     <LinearGradient
-      colors={SCENE_COLORS[period]}
+      colors={[...HERO_BG]}
       start={{ x: 0, y: 0 }}
       end={{ x: 1, y: 1 }}
       style={styles.gradient}
     >
-      {/* Scene environment (no worker) */}
-      <View pointerEvents="none" style={StyleSheet.absoluteFill}>
-        <SceneDecor period={period} />
-      </View>
+      {/* Scene environment — kept only for the night scene, which belongs on
+          the navy card (the bright day/evening decor fought the shared look). */}
+      {period === 'night' && (
+        <View pointerEvents="none" style={StyleSheet.absoluteFill}>
+          <SceneDecor period={period} />
+        </View>
+      )}
       {/* Contrast scrim for white text on bright scenes */}
       <View pointerEvents="none" style={[StyleSheet.absoluteFill, styles.scrim]} />
 
@@ -851,9 +857,6 @@ export const DashboardHero: React.FC<DashboardHeroProps> = ({
                     },
                   ]}
                 >
-                  <View style={[styles.statBadge, { backgroundColor: withAlpha(st.color || '#10b981', 0.2) }]}>
-                    <Icon name={statIconName(st.label)} size={14} color={st.color || '#10b981'} />
-                  </View>
                   <Text style={[styles.statValue, { color: st.color || '#10b981' }]}>{st.value}</Text>
                   <Text style={styles.statLabel} numberOfLines={1}>{st.label}</Text>
                 </Animated.View>
@@ -1019,18 +1022,16 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     gap: 8,
     marginTop: 16,
+    paddingTop: 14,
+    borderTopWidth: 1,
+    borderTopColor: 'rgba(255,255,255,0.14)',
   },
   statTile: {
     flex: 1,
     minWidth: 0,
     alignItems: 'center',
-    gap: 5,
-    paddingVertical: 11,
-    paddingHorizontal: 3,
-    borderRadius: 14,
-    backgroundColor: 'rgba(2,6,23,0.34)',
-    borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.14)',
+    gap: 3,
+    paddingVertical: 2,
   },
   statBadge: {
     width: 26,
@@ -1041,11 +1042,11 @@ const styles = StyleSheet.create({
   },
   statValue: { fontSize: 21, fontWeight: '800', fontVariant: ['tabular-nums'] },
   statLabel: {
-    fontSize: 9,
+    fontSize: 10.5,
     fontWeight: '700',
-    color: 'rgba(203,213,225,0.95)',
+    color: '#94a3b8',
     textTransform: 'uppercase',
-    letterSpacing: 0.4,
+    letterSpacing: 0.5,
     textAlign: 'center',
   },
 

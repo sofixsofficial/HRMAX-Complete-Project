@@ -1365,11 +1365,11 @@ const createStyles = (c: ThemeColors) => StyleSheet.create({
   // ── Orange Punch Banner (matching web's AttendancePunchBanner) ──
   punchBanner: {
     marginHorizontal: 16, marginTop: 12, borderRadius: 16,
-    backgroundColor: '#f97316', overflow: 'hidden',
-    // Gradient approximation with flat orange (RN doesn't have linear-gradient natively)
-    // The actual gradient would use expo-linear-gradient; flat orange is a solid fallback
+    // Same dark navy as every other hero (HeroBanner / DashboardHero /
+    // BrandHomeHero) — the orange punch button inside stays the accent.
+    backgroundColor: '#1e293b', overflow: 'hidden',
     ...Platform.select({
-      ios: { shadowColor: '#f97316', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.3, shadowRadius: 8 },
+      ios: { shadowColor: '#0f172a', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.3, shadowRadius: 8 },
       android: { elevation: 6 },
     }),
   },

@@ -53,7 +53,7 @@ export const BrandHomeHero: React.FC<{
 
   return (
     <LinearGradient
-      colors={['#FF9A4D', '#FF7A1A', '#F2600C']}
+      colors={['#1e293b', '#334155', '#475569']}
       start={{ x: 0, y: 0 }}
       end={{ x: 1, y: 1 }}
       style={s.hero}
@@ -99,11 +99,8 @@ export const BrandHomeHero: React.FC<{
                 {...(onPressStat ? { onPress: () => onPressStat(st), accessibilityRole: 'button' as const } : {})}
                 style={[s.tile, onPressStat && s.tilePressable]}
               >
-                <View style={[s.tileIcon, { backgroundColor: st.color }]}>
-                  <Ionicons name={st.icon} size={15} color="#fff" />
-                </View>
+                <Text style={[s.tileValue, { color: st.color }]}>{st.value}</Text>
                 <Text style={s.tileLabel} numberOfLines={1}>{st.label}</Text>
-                <Text style={s.tileValue}>{st.value}</Text>
               </Tile>
             );
           })}
@@ -117,13 +114,13 @@ const s = StyleSheet.create({
   hero: {
     marginHorizontal: 16,
     marginTop: 14,
-    borderRadius: 22,
-    paddingHorizontal: 16,
-    paddingTop: 14,
-    paddingBottom: 16,
-    shadowColor: '#F2600C',
-    shadowOpacity: 0.32,
-    shadowRadius: 16,
+    borderRadius: 20,
+    paddingHorizontal: 18,
+    paddingTop: 16,
+    paddingBottom: 18,
+    shadowColor: '#0f172a',
+    shadowOpacity: 0.35,
+    shadowRadius: 14,
     shadowOffset: { width: 0, height: 8 },
     elevation: 5,
   },
@@ -174,21 +171,17 @@ const s = StyleSheet.create({
   tile: {
     flex: 1,
     minWidth: 0,
-    backgroundColor: 'rgba(255,255,255,0.96)',
-    borderRadius: 14,
-    paddingVertical: 10,
-    paddingHorizontal: 6,
     alignItems: 'center',
-    gap: 4,
+    gap: 2,
+    paddingVertical: 4,
   },
-  tilePressable: { transform: [{ scale: 1 }] },
-  tileIcon: {
-    width: 28,
-    height: 28,
-    borderRadius: 14,
-    alignItems: 'center',
-    justifyContent: 'center',
+  tilePressable: {},
+  tileValue: { fontSize: 20, fontWeight: '800' },
+  tileLabel: {
+    fontSize: 10.5,
+    fontWeight: '600',
+    color: '#94a3b8',
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
   },
-  tileLabel: { fontSize: 10.5, fontWeight: '600', color: '#6b7280' },
-  tileValue: { fontSize: 19, fontWeight: '800', color: '#111827' },
 });
