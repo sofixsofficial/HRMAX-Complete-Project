@@ -61,25 +61,6 @@ export const EmployeeDashboard: React.FC<{ navigation: any }> = ({ navigation })
 
   const { todayRecord, checkedIn, monthStats, monthRecords, pendingLeaves, activeTasks, upcomingHolidays, todayBirthdays, salarySlips, attendanceRate, loading } = stats;
 
-  // Real punch events, newest first — never invented activity.
-  const recentActivity = useMemo(() => {
-    const rows = [...monthRecords]
-      .filter((r: any) => r?.checkIn || r?.checkOut)
-      .sort((a: any, b: any) => new Date(b?.date).getTime() - new Date(a?.date).getTime());
-    return rows
-      .flatMap((r: any) => {
-        const out: Array<{ key: string; title: string; when: string; icon: any; color: string }> = [];
-        if (r.checkOut) {
-          out.push({ key: `${r.id}-out`, title: 'Checked out', when: `${formatDate(r.date)} · ${formatTime(r.checkOut)}`, icon: 'log-out-outline', color: '#3b82f6' });
-        }
-        if (r.checkIn) {
-          out.push({ key: `${r.id}-in`, title: 'Checked in', when: `${formatDate(r.date)} · ${formatTime(r.checkIn)}`, icon: 'log-in-outline', color: '#10b981' });
-        }
-        return out;
-      })
-      .slice(0, 5);
-  }, [monthRecords]);
-
   useEffect(() => {
     if (!user?.id) return;
     getDoc(doc(db, 'employees', user.id))
@@ -153,6 +134,26 @@ export const EmployeeDashboard: React.FC<{ navigation: any }> = ({ navigation })
     const date = d.toDate ? d.toDate() : new Date(d);
     return date.toLocaleDateString('en-IN', { day: '2-digit', month: 'short' });
   };
+
+  // Real punch events, newest first — never invented activity. (Declared after
+  // formatDate/formatTime: a useMemo above them hits the temporal dead zone.)
+  const recentActivity = useMemo(() => {
+    const rows = [...monthRecords]
+      .filter((r: any) => r?.checkIn || r?.checkOut)
+      .sort((a: any, b: any) => new Date(b?.date).getTime() - new Date(a?.date).getTime());
+    return rows
+      .flatMap((r: any) => {
+        const out: Array<{ key: string; title: string; when: string; icon: any; color: string }> = [];
+        if (r.checkOut) {
+          out.push({ key: `${r.id}-out`, title: 'Checked out', when: `${formatDate(r.date)} · ${formatTime(r.checkOut)}`, icon: 'log-out-outline', color: '#3b82f6' });
+        }
+        if (r.checkIn) {
+          out.push({ key: `${r.id}-in`, title: 'Checked in', when: `${formatDate(r.date)} · ${formatTime(r.checkIn)}`, icon: 'log-in-outline', color: '#10b981' });
+        }
+        return out;
+      })
+      .slice(0, 5);
+  }, [monthRecords]);
 
   const onRefresh = () => { setRefreshing(true); setRefreshKey((k) => k + 1); };
 
@@ -391,7 +392,9 @@ export const EmployeeDashboard: React.FC<{ navigation: any }> = ({ navigation })
 
         <View style={{ flex: 1, gap: 10 }}>
           {[
-            { label: 'Present', value: monthStats.present, color: '#10b981', icon: 'checkmark-circle-outline' },
+            // Present includes Late — the same numerator the ring's % uses
+            // (present + late) / total, so the two never disagree.
+            { label: 'Present', value: monthStats.present + monthStats.late, color: '#10b981', icon: 'checkmark-circle-outline' },
             { label: 'Absent', value: monthStats.absent, color: '#ef4444', icon: 'close-circle-outline' },
             { label: 'On Leave', value: monthStats.onLeave, color: '#8b5cf6', icon: 'umbrella-outline' },
           ].map((row) => (

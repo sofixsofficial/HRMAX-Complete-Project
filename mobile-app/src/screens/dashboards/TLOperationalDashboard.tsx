@@ -6,6 +6,7 @@ import {
 import { collection, query, where, onSnapshot, getDocs, orderBy, limit } from '../../aws/firestore-compat';
 import { db } from '../../aws/clients';
 import { useAuth } from '../../context/AuthContext';
+import { dayKey } from '../../utils/attendanceDate';
 import { useTheme, ThemeColors } from '../../context/ThemeContext';
 import { useDashboardStats } from '../../hooks/useDashboardStats';
 import { useCompany } from '../../context/CompanyContext';
@@ -194,7 +195,7 @@ export const TLOperationalDashboard: React.FC<{ navigation: any }> = ({ navigati
           const [tasksSnap, leavesSnap, attSnap] = await Promise.all([
             getDocs(query(collection(db, 'tasks'), where('companyId', '==', cid), orderBy('createdAt', 'desc'), limit(15))).catch(() => null),
             getDocs(query(collection(db, 'leaveRequests'), where('companyId', '==', cid), orderBy('appliedOn', 'desc'), limit(15))).catch(() => null),
-            getDocs(query(collection(db, 'attendance'), where('companyId', '==', cid), where('date', '>=', today), limit(10))).catch(() => null),
+            getDocs(query(collection(db, 'attendance'), where('companyId', '==', cid), where('date', '>=', dayKey(today)), limit(10))).catch(() => null),
           ]);
           const out: any[] = [];
           tasksSnap?.forEach((d) => {

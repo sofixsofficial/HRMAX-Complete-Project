@@ -3,6 +3,7 @@ import { View, Text, ScrollView, StyleSheet, RefreshControl, TextInput, Touchabl
 import { useNavigation } from '@react-navigation/native';
 import { db } from '../../aws/clients';
 import { collection, getDocs, query, where, Timestamp } from '../../aws/firestore-compat';
+import { dayKey } from '../../utils/attendanceDate';
 import { useCompany } from '../../context/CompanyContext';
 import { useAuth } from '../../context/AuthContext';
 import { useTheme, ThemeColors } from '../../context/ThemeContext';
@@ -84,8 +85,9 @@ export const AttendanceOverviewScreen: React.FC<{ route?: any }> = ({ route }) =
         if (isRestrictedScope) { setRecords([]); return; }
         const snap = await getDocs(query(
           collection(db, 'attendance'),
-          where('date', '>=', Timestamp.fromDate(start)),
-          where('date', '<', Timestamp.fromDate(end))
+          // day keys, not Timestamps — attendance.date is stored as 'YYYY-MM-DD'
+          where('date', '>=', dayKey(start)),
+          where('date', '<', dayKey(end))
         ));
         setRecords(snap.docs.map((d) => ({ id: d.id, ...d.data() })));
         return;
@@ -95,8 +97,8 @@ export const AttendanceOverviewScreen: React.FC<{ route?: any }> = ({ route }) =
           getDocs(query(
             collection(db, 'attendance'),
             where('companyId', '==', id),
-            where('date', '>=', Timestamp.fromDate(start)),
-            where('date', '<', Timestamp.fromDate(end))
+            where('date', '>=', dayKey(start)),
+            where('date', '<', dayKey(end))
           )).catch(() => ({ docs: [] as any[] }))
         )
       );

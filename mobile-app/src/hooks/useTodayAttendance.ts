@@ -3,6 +3,7 @@ import { AppState } from 'react-native';
 import { collection, query, where, onSnapshot } from '../aws/firestore-compat';
 import { db } from '../aws/clients';
 import { useAuth } from '../context/AuthContext';
+import { dayKey } from '../utils/attendanceDate';
 import type { AttendanceRecord } from '../types/user';
 
 /**
@@ -55,8 +56,9 @@ export function useTodayAttendance(): TodayAttendance {
       query(
         collection(db, 'attendance'),
         where('userId', '==', user.id),
-        where('date', '>=', today),
-        where('date', '<', tomorrow),
+        // day keys, not Dates — see utils/attendanceDate.ts
+        where('date', '>=', dayKey(today)),
+        where('date', '<', dayKey(tomorrow)),
       ),
       (snap) => {
         const rec =

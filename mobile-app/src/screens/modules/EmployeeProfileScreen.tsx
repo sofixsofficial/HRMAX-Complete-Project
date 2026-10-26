@@ -4,6 +4,7 @@ import { doc, getDoc, collection, query, where, getDocs } from '../../aws/firest
 import { db } from '../../aws/clients';
 import { useTheme, ThemeColors } from '../../context/ThemeContext';
 import { Icon } from '../../utils/icons';
+import { dayKey } from '../../utils/attendanceDate';
 import { Employee, AttendanceRecord } from '../../types/user';
 import { HeroBanner, PremiumCard, ShimmerLoader, AnimatedStatCard } from '../../components/PremiumComponents';
 import { useNavigation } from '@react-navigation/native';
@@ -28,11 +29,13 @@ export const EmployeeProfileScreen: React.FC<{ route: any; navigation: any }> = 
 
       const today = new Date();
       const monthStart = new Date(today.getFullYear(), today.getMonth(), 1);
+      const tomorrow = new Date(today); tomorrow.setDate(tomorrow.getDate() + 1);
       const emp = snap.exists() ? ({ id: snap.id, ...snap.data() } as Employee) : null;
       const personId = emp?.userId || employeeId;
 
       const attSnap = await getDocs(
-        query(collection(db, 'attendance'), where('userId', '==', personId), where('date', '>=', monthStart), where('date', '<', today))
+        // day keys, not Dates/Timestamps — see utils/attendanceDate.ts
+        query(collection(db, 'attendance'), where('userId', '==', personId), where('date', '>=', dayKey(monthStart)), where('date', '<', dayKey(tomorrow)))
       );
       const records = attSnap.docs.map(d => d.data() as AttendanceRecord);
       setAttendanceStats({

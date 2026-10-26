@@ -50,6 +50,17 @@ const getDate = (value: any): Date | null => {
 const isSameDay = (a: Date, b: Date) =>
   a.getFullYear() === b.getFullYear() && a.getMonth() === b.getMonth() && a.getDate() === b.getDate();
 
+/**
+ * Range filters must use the SAME representation the server writes.
+ *
+ * The API stores `date` as 'YYYY-MM-DD' (attendance.ts todayKey) while some
+ * older rows hold a full instant — both compare correctly as strings, whereas
+ * a JS Date serialises to '2026-10-26T00:00:00.000Z', which never satisfies
+ * '2026-10-26' >= date. That made today's own punch invisible on the dashboard.
+ */
+const dayKey = (d: Date): string =>
+  `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+
 const isWithinNext30Days = (date: Date) => {
   const now = new Date();
   const thirtyDays = new Date(now.getTime() + 30 * 24 * 60 * 60 * 1000);
@@ -86,7 +97,7 @@ export function useEmployeePersonalStats(refreshKey?: number): EmployeePersonalS
     const unsubscribers: (() => void)[] = [];
 
     const unsubToday = onSnapshot(
-      query(collection(db, 'attendance'), where('userId', '==', userId), where('date', '>=', today), where('date', '<', tomorrow)),
+      query(collection(db, 'attendance'), where('userId', '==', userId), where('date', '>=', dayKey(today)), where('date', '<', dayKey(tomorrow))),
       (snap) => {
         const rec = snap.docs.length > 0 ? ({ id: snap.docs[0].id, ...snap.docs[0].data() } as AttendanceRecord) : null;
         setStats((prev) => ({
@@ -101,7 +112,7 @@ export function useEmployeePersonalStats(refreshKey?: number): EmployeePersonalS
     unsubscribers.push(unsubToday);
 
     const unsubMonth = onSnapshot(
-      query(collection(db, 'attendance'), where('userId', '==', userId), where('date', '>=', monthStart), where('date', '<', tomorrow)),
+      query(collection(db, 'attendance'), where('userId', '==', userId), where('date', '>=', dayKey(monthStart)), where('date', '<', dayKey(tomorrow))),
       (snap) => {
         const docs = snap.docs.map((d) => ({ id: d.id, ...d.data() }) as AttendanceRecord);
         const present = docs.filter((r) => r.status === 'Present').length;

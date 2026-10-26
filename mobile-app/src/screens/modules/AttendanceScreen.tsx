@@ -8,6 +8,7 @@ import { markCheckIn, markCheckOut, requestPunchRectification, reviewMissedPunch
 import { SelfieCaptureModal } from '../../components/SelfieCaptureModal';
 import { ScreenHeader } from '../../components/ScreenHeader';
 import { MonthAttendanceCalendar } from '../../components/MonthAttendanceCalendar';
+import { dayKey } from '../../utils/attendanceDate';
 import { db } from '../../aws/clients';
 import { collection, query, where, getDocs, orderBy, limit, doc, getDoc } from '../../aws/firestore-compat';
 import { Icon } from '../../utils/icons';
@@ -185,7 +186,8 @@ export const AttendanceScreen: React.FC<{ navigation: any }> = ({ navigation }) 
       const tomorrow = new Date(today); tomorrow.setDate(tomorrow.getDate() + 1);
 
       const todaySnap = await getDocs(
-        query(collection(db, 'attendance'), where('userId', '==', user.id), where('date', '>=', today), where('date', '<', tomorrow))
+        // day keys, not Dates — see utils/attendanceDate.ts
+        query(collection(db, 'attendance'), where('userId', '==', user.id), where('date', '>=', dayKey(today)), where('date', '<', dayKey(tomorrow)))
       );
       if (!todaySnap.empty) {
         const data = todaySnap.docs[0].data() as any;
@@ -205,7 +207,7 @@ export const AttendanceScreen: React.FC<{ navigation: any }> = ({ navigation }) 
 
       const monthStart = new Date(today.getFullYear(), today.getMonth(), 1);
       const monthSnap = await getDocs(
-        query(collection(db, 'attendance'), where('userId', '==', user.id), where('date', '>=', monthStart), where('date', '<', tomorrow))
+        query(collection(db, 'attendance'), where('userId', '==', user.id), where('date', '>=', dayKey(monthStart)), where('date', '<', dayKey(tomorrow)))
       );
       const mData = monthSnap.docs.map((d) => d.data());
       setMonthRecords(mData);
@@ -231,7 +233,7 @@ export const AttendanceScreen: React.FC<{ navigation: any }> = ({ navigation }) 
         query(
           collection(db, 'attendance'),
           where('companyId', '==', effectiveCompanyId),
-          where('date', '>=', since),
+          where('date', '>=', dayKey(since)),
           orderBy('date', 'desc'),
           limit(300)
         )
