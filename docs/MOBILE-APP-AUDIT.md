@@ -123,7 +123,21 @@ Apply (web `leaveService.ts:606-706`, mobile `leaveService.ts:198-288` → `mobi
 mobile `:713`). Working-day helpers exist (`frontend/src/utils/workingDays.ts`) but are **not used for leave day
 counts** — `calcLeaveDays` (`leaveService.ts:203-210`) is a plain calendar-day diff.
 
-**Live E2E test: ⏳ PENDING** (Stage 0).
+**Live E2E test: ✅ VERIFIED** on the designated test account (all test data created was deleted afterwards):
+
+| Step | Expected | Actual |
+|---|---|---|
+| valid apply, client lies `totalDays: 99` | server recomputes | ✅ **200**, stored `totalDays: 3` |
+| overlapping range | 409 | ✅ **409** "Leave already … for 2026-11-12 → 2026-11-14" |
+| reversed range (`end < start`) | 400 | ✅ **400** "endDate cannot be before startDate" |
+| review-tier on an already decided request | 412 | ✅ **412** "Request already Approved" |
+| **owner PATCHes `status:'Rejected'` on own request** | 403 | ✅ **403** "Only an approver can change a leave decision — use the review endpoints" |
+| owner PATCHes `approverIds` | field stripped | ✅ 200 but stored approvers **unchanged** |
+| cleanup (owner `DELETE`) | 200 | ✅ **200** (both test rows removed) |
+
+Note: this company has no approver accounts, so `computeInitialApproval` skips every tier and the
+request auto-approves — a full multi-tier approval run needs a reporting-manager/company-admin
+account (open item).
 
 ## 5. Feature checklist vs mobile spec
 
@@ -230,14 +244,18 @@ _None made. Candidates requiring explicit sign-off: B1-B6._
 
 ## 10. Remaining blockers
 1. **iOS signing** — interactive Apple ID + 2FA (owner).
-2. **Live E2E attendance/leave test** — ✅ **attendance DONE** on the designated test account
-   (results in §3). **Leave overlap/409 and approval flow still to be exercised** with the same account.
+2. **Live E2E attendance/leave test** — ✅ **BOTH DONE** (attendance §3, leave §4) on the designated
+   test account, with test rows deleted afterwards. A full multi-tier approval run still needs a
+   reporting-manager/company-admin account (this company has none).
 3. Backend fixes B1-B6 need sign-off (they affect the running web app).
 4. No test infrastructure on mobile (jest not installed) — required by spec §18.
 
 ## 11. Files changed (this session)
 | Commit | Change |
 |---|---|
+| `03439ea` | **Unified dark-navy hero background** across all heroes (Home, role dashboards, attendance banner) |
+| `1a3ef0a` | Employees screen: status chips + avatar/status dot + `'global'` scope-sentinel fix |
+| `708a7b9` | Attendance screen: status circle, headline, date/time/work-location rows |
 | `f52b7f4` | **Mobile**: day-key attendance queries (6 screens) + TDZ fix + ring/Present-Late alignment |
 | `b090b44` | **Backend**: condition-expression constants (reserved-word aliases + JS null) + 4 regression tests |
 | `d026f24` | **Reference home UI** (`BrandHomeHero`, status card, quick actions, ring, activity) + refresh/banner fixes |
