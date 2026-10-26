@@ -582,7 +582,9 @@ export const AttendanceScreen: React.FC<{ navigation: any }> = ({ navigation }) 
   const punchStarted = !!todayRecord?.checkIn && !todayRecord?.checkOut;
   const punchHeadline = punchDone ? 'Day Complete' : punchStarted ? 'Checked In' : 'Not Checked In';
   const punchSub = punchStarted || punchDone ? 'You are all set for today!' : 'Mark your attendance for today';
-  const punchCircleColor = punchStarted ? '#10b981' : punchDone ? '#3b82f6' : '#94a3b8';
+  // Success states (checked in / day complete) are green; only the untouched
+  // "not checked in" state uses the neutral slate.
+  const punchCircleColor = punchStarted || punchDone ? '#10b981' : '#94a3b8';
   const punchCircleIcon = punchStarted ? 'checkmark' : punchDone ? 'checkmark-done' : 'time-outline';
   const todayLabel = new Date().toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric', year: 'numeric' });
   const punchTimeLabel = todayRecord

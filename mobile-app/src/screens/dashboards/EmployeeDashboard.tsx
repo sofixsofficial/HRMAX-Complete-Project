@@ -269,7 +269,9 @@ export const EmployeeDashboard: React.FC<{ navigation: any }> = ({ navigation })
           <View
             style={[
               s.statusCircle,
-              { backgroundColor: todayRecord && !completed ? '#10b981' : completed ? '#3b82f6' : '#94a3b8' },
+              // Green for every success state (checked in / day complete),
+              // neutral slate until the first punch of the day.
+              { backgroundColor: todayRecord ? '#10b981' : '#94a3b8' },
             ]}>
             <Icon
               name={completed ? 'checkmark-done' : todayRecord ? 'checkmark' : 'time-outline'}

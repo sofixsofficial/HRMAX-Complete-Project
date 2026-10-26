@@ -135,7 +135,7 @@ const s = StyleSheet.create({
     justifyContent: 'center',
   },
   logoText: { fontSize: 13, fontWeight: '900', color: '#F2600C' },
-  brandText: { fontSize: 16, fontWeight: '800', color: '#fff', letterSpacing: 0.6 },
+  brandText: { fontSize: 16, fontWeight: '800', color: '#FF6600', letterSpacing: 0.6 },
   topRight: { flexDirection: 'row', alignItems: 'center' },
   bell: {
     width: 34,

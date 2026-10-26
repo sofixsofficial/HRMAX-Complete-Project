@@ -38,7 +38,9 @@ export const Header: React.FC<HeaderProps> = ({ title, subtitle, onMenuPress, on
           </TouchableOpacity>
           <Image source={require('../../assets/icon.png')} style={styles.brandIcon} resizeMode="cover" />
           <View style={styles.titleArea}>
-            <Text style={[styles.title, { color: colors.text }]}>{title}</Text>
+            {/* Brand title in HR MAX orange; other screens pass normal titles
+                (Employees, Attendance, …) and keep the theme text colour. */}
+            <Text style={[styles.title, { color: title === 'HR MAX' ? '#FF6600' : colors.text }]}>{title}</Text>
             {subtitle && <Text style={[styles.subtitle, { color: colors.textSecondary }]}>{subtitle}</Text>}
           </View>
         </View>
