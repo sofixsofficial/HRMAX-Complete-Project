@@ -234,6 +234,10 @@ mobile files (falls back to `EmployeeDashboard`); `regional-manager` does not ex
 | B12 | **Payslip email claimed "Please find attached" but sent no attachment**; company admin never CC'd (spec §D requires both) | `payroll.ts:288-336` vs `email.ts:373-381` | ✅ **fixed** `53341b7` — server-side jsPDF generator (`lib/payslipPdf.ts`, same DejaVu font as the web download → identical ₹ rendering), per-employee PDF attachment + CC to every company admin (recipient excluded). Status `Pending→Emailed` already correct. Verified: package ships fonts, local smoke 291,928 bytes `%PDF-`, deployed (bundle 14.05 → 14.72 MB) |
 | B13 | **`GET /api/email/logs` always empty for master-admin** — it read only the GSI3 "global" index while `logEmail` writes rows into the company partition with no GSI3 entry (live proof: dispatch `sent=1` yet `logs: []`) | `handlers/email.ts:88-94` vs `lib/email.ts:275-302` | ✅ **fixed** — MA now reads across every readable partition (`queryEntitiesAcross`), company-admin keeps its own partition, retry resolves via `locateEntityAcross`, and new log rows also index on GSI3 |
 | B14 | **Leave progress counter counted SKIPPED tiers** → an employee chain with only 2 live approvers showed `2/4` forever, even after status became Approved | `LeaveManagement.tsx:71`, `MasterAdminApprovalsPanel.tsx:313`, mobile `LeaveScreen.tsx:38`, `LeaveApprovalsPanel.tsx:233` | ✅ **fixed** `9424b8e` — `getLiveTiers()` (effective minus Skipped) in both codebases + regression tests (web 40/40, mobile 5/5) |
+| B15 | **Attendance screen showed 0 records / 0 stats while the API returned rows** — the search filter `r.name?.toLowerCase().includes(q) \|\| r.department?…` short-circuits to `undefined` (falsy) for server records that carry `employeeName`, so an EMPTY search hid everything | `Attendance.tsx:435`, `AttendanceDashboard.tsx:116` | ✅ **fixed** `f03e805` + `7718db3` — shared `matchesAttendanceSearch()` (empty term matches; name/employeeName/department/userId), `name` normalised at snapshot mapping, mobile search parity. Live: `Total=1, Late=1`, row shows "Test Employee" |
+| B16 | **CI "Build APK" always failed** at `Setup Android SDK` — `android-actions/setup-android@v3` runs `sdkmanager tools`, a package that no longer exists in cmdline-tools 16 | `.github/workflows/build-apk.yml` | ✅ **fixed** `c71eadb` — step replaced with a preinstalled-SDK check + explicit `ANDROID_HOME`; live run 40281530344: **`✓ Build APK` (48 min)** |
+| B17 | **CI artifact uploads fail**: "Artifact storage quota has been hit" (account-level, recalculates every 6-12h) — killed both Build and Test and the APK upload step | GitHub Actions storage | ⚠️ open/waiting — all 30 repos' artifacts deleted (0 MB visible); re-run after recalculation |
+| B18 | **CI "Deploy to AWS" fails in 10s** — repo has **zero secrets** (`AWS_DEPLOY_ROLE_ARN`, `VITE_*` missing) so OIDC credentials never load; the signed-AAB workflow also has no keystore secrets | repo secrets | ❌ open — needs secret setup (+ an OIDC-trusted IAM role) and a keystore |
 
 ### Web-only (context for mobile parity)
 | # | Finding | File:line |
@@ -261,9 +265,11 @@ _None made. Candidates requiring explicit sign-off: B1-B6._
 - **Post-deploy smoke (read-only):** `GET /api/health` → 200 · `POST /api/attendance/mark`,
   `/api/leave-requests`, `/api/email/send`, `/api/broadcast` (anonymous) → **401** ·
   `GET /api/me` (Bearer) → 200 `master-admin` · `GET /api/attendance`, `GET /api/leave-requests` → 200.
-- Android debug: **not run**
-- Android release/AAB: **not run** (prebuilt `artifacts/*.aab` exist; CI `build-apk.yml`, `android-build.yml` exist;
-  `eas.json` production → app-bundle, Google Play service-account key present)
+- Android debug: CI **`Build APK` step passes** (run 40281530344, 48 min — prebuild + `assembleRelease`)
+  after the `setup-android` fix; **artifact upload blocked** by the account storage quota (B17)
+- Android release/APK: **local build running** (`expo prebuild` + `gradlew assembleRelease` on the
+  installed SDK: android-35/36, build-tools 35/36, JDK 17) — result pending
+- Signed AAB: **blocked** — no keystore in the repo and no EAS login (B18)
 - iOS archive: **BLOCKED** — `eas credentials --platform ios` requires interactive Apple ID + 2FA (owner must run)
 - Config facts: `app.json` → name "HR MAX", version **1.4.3**, iOS `com.hrmax.app` build 4, Android
   `com.hrmax.app` versionCode 10, EAS project `e640ec9d-…`, owner `sofixscompany`
