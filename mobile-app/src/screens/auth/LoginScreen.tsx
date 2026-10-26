@@ -63,7 +63,7 @@ export const LoginScreen: React.FC<Props> = ({ navigation }) => {
     >
       <View style={s.inner}>
         <View style={s.logoWrap}>
-          <BrandMark iconSize={72} wordmarkColor="#FF6600" />
+          <BrandMark iconSize={72} wordmarkColor="#FF6600" textOnly />
         </View>
         <Text style={s.subtitle}>Sign in to your account</Text>
 

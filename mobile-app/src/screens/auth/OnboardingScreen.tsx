@@ -12,6 +12,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useTheme } from '../../context/ThemeContext';
 import { safeStore } from '../../utils/safeStorage';
+import { OnboardingArt } from '../../components/OnboardingArt';
 
 /** Set once the user has seen the intro — the auth stack then starts at Login. */
 export const ONBOARDING_KEY = 'hrmax_onboarding_done';
@@ -113,7 +114,7 @@ export const OnboardingScreen: React.FC<{ navigation: { replace: (name: string) 
               style={s.artWrap}
             >
               <View style={s.artCircle}>
-                <Ionicons name={slide.icon} size={54} color="#FFFFFF" />
+                <OnboardingArt slideKey={slide.key} />
               </View>
               <View style={s.artBadge}>
                 <Ionicons name="shield-checkmark-outline" size={16} color="#FF6600" />
