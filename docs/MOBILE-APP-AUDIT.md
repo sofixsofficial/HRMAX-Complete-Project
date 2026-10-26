@@ -97,7 +97,22 @@ Early Checkout | Approved | Half Day`. Nightly sweep (`scheduler.ts:31-92`): ope
 Success shown only after server response (`AttendanceScreen.tsx:267-291`) ✅. Buttons disabled while in-flight
 (`:660,:669`) ✅.
 
-**Live E2E test: ⏳ PENDING** (Stage 0 — needs a test account + API reachability check).
+**Live E2E test: ✅ VERIFIED** on a designated test account
+(`test.employee@hrmax.in` / `Test@1234`, company `digital hr`, employee record `isTestAccount: true`):
+
+| Step | Expected | Actual |
+|---|---|---|
+| `check-in` #1 | 200 | ✅ **200** saved, `status: Late`, `lateMinutes: 51` (company timezone) |
+| `check-in` #2 | 412 duplicate | ✅ **412** "Already checked in today" |
+| `check-out` #1 | 200 | ✅ **200**, `workHours: 0.12` computed server-side |
+| `check-out` #2 | 412 duplicate | ✅ **412** "Already checked out today" |
+| history read-back | one row, in+out | ✅ `2026-10-26 / Late / in ✓ / out ✓` |
+| dashboard after reload | shows the day | ✅ "Day Complete", Recent Activity "Checked in 09:51" + "Checked out 09:58", ring 100% |
+
+The test run surfaced two production-outage bugs that unit tests had missed
+(both fixed with regression tests in `b090b44`): DynamoDB reserved words in the
+condition expression (500 on every check-in) and the `{NULL:true}` wire form
+rejected every legitimate check-out.
 
 ## 4. Leave management audit results
 
@@ -185,7 +200,7 @@ mobile files (falls back to `EmployeeDashboard`); `regional-manager` does not ex
 | W1 | Selfie captured on web but **never sent** in either payload → `SELFIE_REQUIRED` if policy on | `Attendance.tsx:122-123,495-508,574-586` vs `attendance.ts:127-128` |
 | W2 | Wi-Fi SSID allow-list dead — `wifiSsid` hardcoded `null` | `utils/networkUtils.ts:26` |
 | W3 | Status/late/on-leave/workHours computed **client-side** (employee shift) while backend uses company default shift | `attendanceService.ts:184-206,259-277,61-73` vs `attendance.ts:135` |
-| W4 | `date` stored as full local instant by web vs `YYYY-MM-DD` UTC string by backend | `attendanceService.ts:218` vs `attendance.ts:94,138` |
+| W4 | `date` stored as full local instant by web vs `YYYY-MM-DD` UTC string by backend | `attendanceService.ts:218` vs `attendance.ts:94,138` | ⚠️ **web still affected**; **mobile FIXED** `f52b7f4` — six screens now query with day keys (`utils/attendanceDate.ts`), which matches both representations |
 | W5 | `Early Checkout` missing from `AttendanceRecord` union + status filter | `types/user.ts:204`, `Attendance.tsx:1176-1183` |
 | W6 | `detectMissedPunches()` **writes** `Miss Punch` from the browser on a 60 s timer | `attendanceService.ts:406`, `Attendance.tsx:396-405` |
 | W7 | `company-admin` is hard view-only yet counted as `canManage` | `AuthContext.tsx:115-118` vs `Attendance.tsx:134` |
@@ -215,13 +230,17 @@ _None made. Candidates requiring explicit sign-off: B1-B6._
 
 ## 10. Remaining blockers
 1. **iOS signing** — interactive Apple ID + 2FA (owner).
-2. **Live E2E attendance/leave test** — needs a designated test account; must not touch real records.
+2. **Live E2E attendance/leave test** — ✅ **attendance DONE** on the designated test account
+   (results in §3). **Leave overlap/409 and approval flow still to be exercised** with the same account.
 3. Backend fixes B1-B6 need sign-off (they affect the running web app).
 4. No test infrastructure on mobile (jest not installed) — required by spec §18.
 
 ## 11. Files changed (this session)
 | Commit | Change |
 |---|---|
+| `f52b7f4` | **Mobile**: day-key attendance queries (6 screens) + TDZ fix + ring/Present-Late alignment |
+| `b090b44` | **Backend**: condition-expression constants (reserved-word aliases + JS null) + 4 regression tests |
+| `d026f24` | **Reference home UI** (`BrandHomeHero`, status card, quick actions, ring, activity) + refresh/banner fixes |
 | `f1b0db2` | **Mobile Stage 1**: JS splash handoff + branded loading with offline retry, one-time 3-slide onboarding, role-aware bottom tab bar |
 | `4b52638` | **Backend correctness fixes B1/B2/B3/B4/B6/B7/B8/B10/B11** + 20 new tests (86/86 pass) |
 | `19752b6` | this audit report |
