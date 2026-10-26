@@ -12,8 +12,9 @@ import { formatDateSafe } from '../../utils/dateUtils';
 import { SalarySlip } from '../../types/user';
 import {
   getSalarySlipsByCompany, getSalarySlipsByUser, getAllSalarySlips,
-  getSalaryStats, markAsPaid, retryFailedPayslips, getCompanyPayslipOptions,
+  getSalaryStats, salaryStatsFromSlips, markAsPaid, retryFailedPayslips, getCompanyPayslipOptions,
 } from '../../services/salaryService';
+import { scopedCompanyIdsForRole } from '../../utils/companyScope';
 import { generatePayslipPdf } from '../../utils/payslipPdf';
 import { HeroBanner, PremiumCard, ShimmerLoader, SegmentControl, EmptyStateView, StatusBadge } from '../../components/PremiumComponents';
 import { ScreenHeader } from '../../components/ScreenHeader';
@@ -59,14 +60,26 @@ export const SalarySlipsScreen: React.FC = () => {
       let data: SalarySlip[] = [];
       if (user?.role === 'employee') {
         data = await getSalarySlipsByUser(user.id);
-      } else if (companyId) {
-        data = await getSalarySlipsByCompany(companyId);
-      } else if (user?.role === 'master-admin') {
-        data = await getAllSalarySlips();
+      } else {
+        // 'global' / 'master-admin' are platform sentinels, not tenants:
+        // scoping to them matched a partition that does not exist and the
+        // master admin saw zero slips while the API listed them (web parity).
+        const ids = scopedCompanyIdsForRole(user?.role, companyId, availableCompanies);
+        if (ids.length === 0) {
+          data = await getAllSalarySlips();
+        } else {
+          const results = await Promise.all(
+            ids.map((id) => getSalarySlipsByCompany(id).catch(() => [] as SalarySlip[]))
+          );
+          data = results.flat();
+        }
       }
       setSlips(data);
 
-      const st = await getSalaryStats(companyId || undefined);
+      const isPlatformScope = !companyId || companyId === 'global' || companyId === 'master-admin';
+      const st = isPlatformScope
+        ? salaryStatsFromSlips(data)
+        : await getSalaryStats(companyId || undefined);
       setStats(st);
     } catch { /* ignore */ }
     setLoading(false);

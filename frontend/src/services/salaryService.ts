@@ -127,6 +127,15 @@ export const getSalaryStats = async (companyId?: string) => {
   if (!companyId) return { total: 0, paid: 0, pending: 0, processing: 0, emailed: 0, totalAmount: 0 };
   let slips = await getSalarySlipsByCompany(companyId);
 
+  return salaryStatsFromSlips(slips);
+};
+
+/**
+ * Stats computed from slips already in hand. 'global' / 'master-admin' are
+ * platform sentinels rather than tenants, so a companyId-scoped stats query
+ * reports zeros while the list on screen shows rows.
+ */
+export const salaryStatsFromSlips = (slips: SalarySlip[]) => {
   const totalAmount = slips.reduce((sum, s) => sum + (s.netSalary || 0), 0);
 
   return {

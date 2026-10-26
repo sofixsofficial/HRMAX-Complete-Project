@@ -70,6 +70,15 @@ export const deleteSalarySlip = async (id: string): Promise<void> => {
 export const getSalaryStats = async (companyId?: string) => {
   if (!companyId) return { total: 0, paid: 0, pending: 0, processing: 0, emailed: 0, totalAmount: 0 };
   const slips = await getSalarySlipsByCompany(companyId);
+  return salaryStatsFromSlips(slips);
+};
+
+/**
+ * Stats computed from slips already in hand. The platform sentinels
+ * ('global' / 'master-admin') are not tenants, so `getSalaryStats` cannot be
+ * scoped to them - it would report zeros while the list below shows rows.
+ */
+export const salaryStatsFromSlips = (slips: SalarySlip[]) => {
   const totalAmount = slips.reduce((sum, s) => sum + (s.netSalary || 0), 0);
   return {
     total: slips.length,

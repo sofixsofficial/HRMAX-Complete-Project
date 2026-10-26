@@ -10,7 +10,7 @@ import { usePermissionScope } from '../hooks/usePermissionScope'
 import { useAccessControl } from '../context/AccessControlContext'
 import { ScopeIndicator } from '../components/ScopeIndicator'
 import { useRoleBasedStats, useRoleBasedTitle } from '../hooks/useRoleBasedData'
-import { getAllSalarySlips, getSalarySlipsByCompany, getSalaryStats, retryFailedPayslips } from '../services/salaryService'
+import { getAllSalarySlips, getSalarySlipsByCompany, getSalaryStats, salaryStatsFromSlips, retryFailedPayslips } from '../services/salaryService'
 import { generatePayslip } from '../utils/payslip'
 import { scopedCompanyIds } from '../utils/companyScope'
 import { downloadPayslipPdf } from '../utils/payslipPdf'
@@ -59,20 +59,26 @@ export function SalarySlips() {
       setError(null)
       let data: SalarySlip[]
 
-      if (companyId) {
+      // 'global' / 'master-admin' are platform sentinels, not tenants: scoping
+      // to them queried a companyId that no slip carries, so master-admin saw
+      // an empty list while the API held the records.
+      const isPlatformScope = !companyId || companyId === 'global' || companyId === 'master-admin'
+
+      if (isPlatformScope && user?.role !== 'executive' && user?.role !== 'team-leader') {
+        data = await getAllSalarySlips()
+      } else if (companyId) {
         data = await getSalarySlipsByCompany(companyId)
       } else if (user?.role === 'executive' || user?.role === 'team-leader') {
         // All Companies mode — slips across authorized companies
         const ids = scopedCompanyIds(null, availableCompanies)
         const results = await Promise.all(ids.map(id => getSalarySlipsByCompany(id).catch(() => [] as SalarySlip[])))
         data = results.flat()
-      } else if (user?.role === 'master-admin') {
-        data = await getAllSalarySlips()
       } else {
         data = []
       }
       
       setSalarySlips(data)
+      if (isPlatformScope) setStats(salaryStatsFromSlips(data))
       setError(null)
     } catch (err: any) {
       console.error('Error fetching salary slips:', err)
@@ -90,6 +96,10 @@ export function SalarySlips() {
 
   const fetchStats = async () => {
     try {
+      // Platform-scope stats come from the loaded list (see fetchSalarySlips):
+      // a companyId query against the 'global' sentinel would report all zeros.
+      const isPlatformScope = !companyId || companyId === 'global' || companyId === 'master-admin'
+      if (isPlatformScope) return
       const statsData = await getSalaryStats(companyId || undefined)
       setStats(statsData)
     } catch (err) {

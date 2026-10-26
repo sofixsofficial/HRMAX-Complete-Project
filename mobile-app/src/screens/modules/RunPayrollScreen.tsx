@@ -13,7 +13,7 @@ import {
   getPayrollRunsByCompany, previewBulkPayroll, generateBulkPayroll,
   deletePayrollRun, updatePayrollRun, disbursePayrollRun,
 } from '../../services/payrollService';
-import { getSalarySlipsByCompany, deleteSalarySlip } from '../../services/salaryService';
+import { getSalarySlipsByCompany, getAllSalarySlips, deleteSalarySlip } from '../../services/salaryService';
 import { getEmployeesByCompany } from '../../services/employeeService';
 import { logAudit } from '../../services/auditLogService';
 import { HeroBanner, PremiumCard, ShimmerLoader, EmptyStateView, StatusBadge } from '../../components/PremiumComponents';
@@ -157,7 +157,12 @@ export const RunPayrollScreen: React.FC = () => {
       // Remove old non-final run + its salary slips so the period stays unique.
       if (existingRun) {
         try {
-          const slips = await getSalarySlipsByCompany(companyId);
+          // 'global'/'master-admin' is the platform scope, not a tenant:
+          // scoping to it found no slips, so the old run's slips were never
+          // removed and the period stayed "already generated".
+          const slips = (companyId === 'global' || companyId === 'master-admin' || !companyId)
+            ? await getAllSalarySlips()
+            : await getSalarySlipsByCompany(companyId);
           const runSlips = slips.filter(s => (s.payrollRunId === existingRun.id) || ((s as any).runId === existingRun.id));
           for (const s of runSlips) {
             try { await deleteSalarySlip(s.id); } catch { /* ignore */ }
