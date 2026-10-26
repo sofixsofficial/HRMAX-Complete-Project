@@ -53,7 +53,7 @@ export const BrandHomeHero: React.FC<{
 
   return (
     <LinearGradient
-      colors={['#1e293b', '#334155', '#475569']}
+      colors={['#0b1120', '#152e56']}
       start={{ x: 0, y: 0 }}
       end={{ x: 1, y: 1 }}
       style={s.hero}

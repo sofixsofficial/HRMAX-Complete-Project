@@ -70,78 +70,15 @@ type PunchUiState =
   | 'on_leave';
 
 /* ── Shared hero background: the app-wide dark navy card ───────────── */
-export const HERO_BG = ['#1e293b', '#334155', '#475569'] as const;
+/**
+ * Shared hero background for EVERY role dashboard (and the employee hero,
+ * which hardcodes the same pair): a simple black-to-blue gradient.
+ *
+ * Kept to two flat stops with no scene art so the card reads as a plain,
+ * calm surface on all screens rather than a different illustration per role.
+ */
+export const HERO_BG = ['#0b1120', '#152e56'] as const;
 
-/* ── Scene gradients (retained for reference; the hero now uses HERO_BG) ─ */
-const SCENE_COLORS = {
-  morning: ['#1c5fb0', '#3a86d4', '#7cc0ee', '#ffe6a8'],
-  afternoon: ['#0d47a1', '#1f6fd0', '#5fa8e8'],
-  evening: ['#221a4d', '#5b2a68', '#b34a4e', '#f08a3c'],
-  night: ['#070d1f', '#101a38', '#1b2752'],
-} as const;
-
-const STAR_POSITIONS: Array<{ left: `${number}%`; top: number; size: number }> = [
-  { left: '6%', top: 10, size: 3 }, { left: '18%', top: 26, size: 2 },
-  { left: '30%', top: 8, size: 3 }, { left: '44%', top: 22, size: 2 },
-  { left: '57%', top: 6, size: 3 }, { left: '68%', top: 28, size: 2 },
-  { left: '80%', top: 12, size: 3 }, { left: '91%', top: 24, size: 2 },
-  { left: '25%', top: 40, size: 2 }, { left: '74%', top: 44, size: 2 },
-];
-
-const SKYLINE_BARS = [
-  { w: 34, h: 38 }, { w: 24, h: 54 }, { w: 30, h: 30 }, { w: 22, h: 46 },
-  { w: 38, h: 26 }, { w: 26, h: 50 }, { w: 20, h: 34 }, { w: 30, h: 58 },
-  { w: 32, h: 30 }, { w: 26, h: 42 },
-];
-
-/** Time-appropriate environment (no worker) — cheap Views, no images. */
-const SceneDecor: React.FC<{ period: DayPeriod }> = ({ period }) => {
-  if (period === 'night') {
-    return (
-      <>
-        {STAR_POSITIONS.map((s, i) => (
-          <View key={`star-${i}`} style={[styles.star, { left: s.left, top: s.top, width: s.size, height: s.size }]} />
-        ))}
-        {/* Moon with crescent bite */}
-        <View style={styles.moonWrap}>
-          <View style={styles.moon} />
-          <View style={styles.moonBite} />
-        </View>
-        {/* City skyline with a couple of lit windows */}
-        <View style={styles.skyline}>
-          {SKYLINE_BARS.map((b, i) => (
-            <View key={`bar-${i}`} style={[styles.skylineBar, { width: b.w, height: b.h }]}>
-              {i % 3 === 0 && <View style={styles.windowLight} />}
-            </View>
-          ))}
-        </View>
-      </>
-    );
-  }
-
-  if (period === 'evening') {
-    return (
-      <>
-        <View style={[styles.sunHalo, { backgroundColor: '#ffb347', bottom: 24, left: 28 }]} />
-        <View style={[styles.sun, { backgroundColor: '#ffb347', bottom: 40, left: 44 }]} />
-        <View style={[styles.cloud, { top: 30, left: 40, width: 74, height: 16 }]} />
-        <View style={[styles.cloud, { top: 22, left: 92, width: 48, height: 13, opacity: 0.4 }]} />
-        {/* Distant ridge */}
-        <View style={[styles.ridge, { backgroundColor: '#2c1e4e' }]} />
-      </>
-    );
-  }
-
-  // morning / afternoon — bright sky, sun high right, soft clouds
-  return (
-    <>
-      <View style={[styles.sunHalo, { backgroundColor: '#fff6c8', top: 8, right: 24 }]} />
-      <View style={[styles.sunSmall, { backgroundColor: '#fffbe8', top: 22, right: 38 }]} />
-      <View style={[styles.cloud, { top: 44, left: 30, width: 84, height: 16 }]} />
-      <View style={[styles.cloud, { top: 34, left: 96, width: 52, height: 13, opacity: 0.5 }]} />
-    </>
-  );
-};
 
 /* ── Employee character — one identity, five poses (SECTION 5B) ────── */
 
@@ -792,13 +729,8 @@ export const DashboardHero: React.FC<DashboardHeroProps> = ({
       end={{ x: 1, y: 1 }}
       style={styles.gradient}
     >
-      {/* Scene environment — kept only for the night scene, which belongs on
-          the navy card (the bright day/evening decor fought the shared look). */}
-      {period === 'night' && (
-        <View pointerEvents="none" style={StyleSheet.absoluteFill}>
-          <SceneDecor period={period} />
-        </View>
-      )}
+      {/* The hero is a plain black-to-blue surface for every role - no scene
+          art, so the card stays identical across all dashboards. */}
       {/* Contrast scrim for white text on bright scenes */}
       <View pointerEvents="none" style={[StyleSheet.absoluteFill, styles.scrim]} />
 
