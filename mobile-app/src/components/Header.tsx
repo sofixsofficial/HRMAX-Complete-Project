@@ -23,12 +23,9 @@ export const Header: React.FC<HeaderProps> = ({ title, subtitle, onMenuPress, on
   const isRestrictedMulti = (user?.role === 'executive' || user?.role === 'team-leader') && availableCompanies.length > 1;
   const [unreadCount, setUnreadCount] = useState(0);
 
-  // Brand slot (dashboard): show WHICH company this account belongs to rather
-  // than the generic product name. Platform scope (master admin) has no single
-  // company, so it keeps the product name.
+  // Brand slot (dashboard) stays the product name; the company this account
+  // belongs to is shown as the chip on the right, next to the bell.
   const isBrandSlot = title === 'HR MAX';
-  const companyInTitle = isBrandSlot ? selectedCompanyName : null;
-  const displayTitle = companyInTitle || title;
 
   useEffect(() => {
     if (!user?.id) return;
@@ -45,15 +42,15 @@ export const Header: React.FC<HeaderProps> = ({ title, subtitle, onMenuPress, on
           </TouchableOpacity>
           <Image source={require('../../assets/icon.png')} style={styles.brandIcon} resizeMode="cover" />
           <View style={styles.titleArea}>
-            {/* Brand slot (orange): shows WHICH company this account belongs
-                to when the scope is a single company, product name otherwise. */}
-            <Text style={[styles.title, { color: isBrandSlot ? '#FF6600' : colors.text }]} numberOfLines={1}>{displayTitle}</Text>
+            {/* Brand slot stays the product name in HR MAX orange; other
+                screens pass normal titles (Employees, Attendance, ...). */}
+            <Text style={[styles.title, { color: isBrandSlot ? '#FF6600' : colors.text }]} numberOfLines={1}>{title}</Text>
             {subtitle && <Text style={[styles.subtitle, { color: colors.textSecondary }]}>{subtitle}</Text>}
           </View>
         </View>
         <View style={styles.right}>
-          {/* Chip skipped when the title already names this company. */}
-          {(selectedCompanyName || isRestrictedMulti) && !companyInTitle && (
+          {/* Company name, sitting left of the bell. */}
+          {(selectedCompanyName || isRestrictedMulti) && (
             <View style={[styles.companyChip, { backgroundColor: colors.accentBg }]}>
               <Text style={[styles.companyText, { color: colors.accent }]}>
                 {selectedCompanyName || 'All Companies'}
