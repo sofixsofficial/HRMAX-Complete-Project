@@ -64,11 +64,9 @@ export const markAllNotificationsAsRead = async (userId: string): Promise<void> 
   invalidateSnapshots();
 };
 
-export const deleteNotification = async (notificationId: string): Promise<void> => {
-  const callableFn = httpsCallable(functions, 'mobileDeleteNotification');
-  await callableFn({ notificationId });
-  invalidateSnapshots();
-};
+// Notifications are a permanent record: the server refuses deletion for
+// everyone (mobileDeleteNotification answers 403), so there is no client
+// delete helper by design.
 
 export const getUnreadNotificationCount = async (userId: string): Promise<number> => {
   const q = query(notificationsRef, where('userId', '==', userId), where('read', '==', false));

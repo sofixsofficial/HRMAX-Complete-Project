@@ -653,16 +653,12 @@ export const notificationRoutes: Route[] = [
     method: 'DELETE',
     path: '/api/notifications/:id',
     handler: async (req) => {
-      const caller = must(req);
-      // Locate across partitions (same rationale as PATCH): a 'global'-only
-      // lookup silently no-op'd deletes of company-partitioned notifications.
-      const found = await locateEntityAcross<{ userId: string }>('notification', req.params.id, await allPartitions());
-      if (!found) return { success: true }; // Firestore delete is idempotent
-      if (!isSuperAdmin(caller) && found.doc.userId !== caller.uid) {
-        throw new ApiError('permission-denied', 'Not your notification');
-      }
-      await deleteEntity('notification', found.companyId, req.params.id);
-      return { success: true };
+      // Notifications are a permanent record: nobody (employees, company
+      // admins, even master admins) may delete them. Keeping the route and
+      // answering 403 - rather than 404 - makes the rule explicit to any
+      // client that still sends the old delete call.
+      must(req);
+      throw new ApiError('permission-denied', 'Notifications cannot be deleted');
     },
   },
 ];

@@ -81,10 +81,8 @@ export async function markAllNotificationsAsRead(userId: string): Promise<void> 
   void userId; // server scopes to the authenticated caller
 }
 
-// Delete a notification
-export async function deleteNotification(notificationId: string): Promise<void> {
-  await deleteDoc(doc(db, 'notifications', notificationId));
-}
+// Notifications are a permanent record: DELETE /api/notifications/:id answers
+// 403 for everyone, so there is no client delete helper by design.
 
 // Get unread notification count
 export async function getUnreadNotificationCount(userId: string): Promise<number> {

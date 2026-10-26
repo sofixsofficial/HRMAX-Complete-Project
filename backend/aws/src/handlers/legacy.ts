@@ -971,18 +971,11 @@ export const legacyRoutes: Route[] = [
     return { success: true, id };
   }),
   fn('mobileDeleteNotification', async (req) => {
-    const caller = must(req);
-    const raw = bodyOf(req);
-    // The mobile client sends { notificationId }; older builds sent { id }.
-    const id = String(raw.id ?? raw.notificationId ?? '');
-    // Rows may live in any company partition ('global' on POST, legacy
-    // runtime writes elsewhere) — locate before touching, and treat a miss
-    // as already-deleted (parity with deleteDoc's 404 tolerance).
-    const found = await locateEntityAcross<Body>('notification', id, await allPartitions());
-    if (!found) return { success: true };
-    if (!isSuperAdmin(caller) && String(found.doc.userId) !== caller.uid) throw new ApiError('permission-denied', 'Not your notification');
-    await deleteEntity('notification', found.companyId, id);
-    return { success: true };
+    // Notifications are a permanent record - nobody may delete them, not even
+    // a master admin. Answer 403 so older app builds that still call this get
+    // a clear refusal instead of a silent success.
+    must(req);
+    throw new ApiError('permission-denied', 'Notifications cannot be deleted');
   }),
   fn('mobileMarkNotificationRead', async (req) => {
     const caller = must(req);
