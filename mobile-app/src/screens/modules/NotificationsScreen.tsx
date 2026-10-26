@@ -1,5 +1,5 @@
 import React, { useEffect, useState, useCallback } from 'react';
-import { View, Text, Switch, StyleSheet, FlatList, TouchableOpacity, ActivityIndicator } from 'react-native';
+import { View, Text, Switch, StyleSheet, FlatList, TouchableOpacity, ActivityIndicator, Alert } from 'react-native';
 import { useTheme } from '../../context/ThemeContext';
 import { useAuth } from '../../context/AuthContext';
 import { useNotifications } from '../../hooks/useNotifications';
@@ -70,7 +70,13 @@ export const NotificationsScreen: React.FC = () => {
   }, [user?.id]);
 
   const handleDelete = useCallback(async (n: AppNotification) => {
-    await deleteNotification(n.id);
+    try {
+      await deleteNotification(n.id);
+    } catch {
+      // The row only disappears after the server confirms - surface failures
+      // instead of silently doing nothing.
+      Alert.alert('Could not delete', 'The notification could not be deleted. Please try again.');
+    }
   }, []);
 
   return (
@@ -104,25 +110,35 @@ export const NotificationsScreen: React.FC = () => {
             ) : null
           }
           renderItem={({ item }) => (
-            <TouchableOpacity
-              onPress={() => handlePress(item)}
-              style={[styles.notifCard, { backgroundColor: colors.card, borderColor: item.read ? colors.border : colors.accent }]}
-            >
-              <View style={[styles.iconBox, { backgroundColor: `${colors.accent}15` }]}>
-                <Icon name={iconForType(item.type)} size={20} color={colors.accent} />
-              </View>
-              <View style={styles.content}>
-                <View style={styles.titleRow}>
-                  <Text style={[styles.title, { color: colors.text }]} numberOfLines={1}>{item.title}</Text>
-                  {!item.read && <View style={[styles.unreadDot, { backgroundColor: colors.accent }]} />}
+            <View style={styles.notifRow}>
+              <TouchableOpacity
+                onPress={() => handlePress(item)}
+                style={[styles.notifCard, { backgroundColor: colors.card, borderColor: item.read ? colors.border : colors.accent }]}
+              >
+                <View style={[styles.iconBox, { backgroundColor: `${colors.accent}15` }]}>
+                  <Icon name={iconForType(item.type)} size={20} color={colors.accent} />
                 </View>
-                <Text style={[styles.body, { color: colors.textSecondary }]} numberOfLines={2}>{item.body}</Text>
-                <Text style={[styles.time, { color: colors.textTertiary }]}>{timeAgo(item.createdAt)}</Text>
-              </View>
-              <TouchableOpacity onPress={() => handleDelete(item)} style={styles.deleteBtn} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+                <View style={styles.content}>
+                  <View style={styles.titleRow}>
+                    <Text style={[styles.title, { color: colors.text }]} numberOfLines={1}>{item.title}</Text>
+                    {!item.read && <View style={[styles.unreadDot, { backgroundColor: colors.accent }]} />}
+                  </View>
+                  <Text style={[styles.body, { color: colors.textSecondary }]} numberOfLines={2}>{item.body}</Text>
+                  <Text style={[styles.time, { color: colors.textTertiary }]}>{timeAgo(item.createdAt)}</Text>
+                </View>
+              </TouchableOpacity>
+              {/* Sibling of the card, not nested: the card's press handler
+                  must not fire (mark-read + navigate) when deleting. */}
+              <TouchableOpacity
+                onPress={() => handleDelete(item)}
+                style={styles.deleteBtn}
+                hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                accessibilityRole="button"
+                accessibilityLabel={`Delete notification: ${item.title}`}
+              >
                 <Icon name="trash-outline" size={18} color={colors.textTertiary} />
               </TouchableOpacity>
-            </TouchableOpacity>
+            </View>
           )}
         />
       )}
@@ -174,13 +190,18 @@ const styles = StyleSheet.create({
     marginBottom: 12,
   },
   markAllText: { fontSize: 13, fontWeight: '600' },
+  notifRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 10,
+  },
   notifCard: {
+    flex: 1,
     flexDirection: 'row',
     alignItems: 'center',
     borderRadius: 14,
     borderWidth: 1,
     padding: 12,
-    marginBottom: 10,
   },
   iconBox: {
     width: 42,
@@ -190,7 +211,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     marginRight: 12,
   },
-  content: { flex: 1, marginRight: 12 },
+  content: { flex: 1 },
   titleRow: { flexDirection: 'row', alignItems: 'center', gap: 6 },
   title: { fontSize: 14, fontWeight: '600', flex: 1 },
   unreadDot: { width: 8, height: 8, borderRadius: 4 },

@@ -1,8 +1,8 @@
 import { useState, useEffect, useRef } from 'react'
-import { Bell, CheckCheck, Loader2 } from 'lucide-react'
+import { Bell, CheckCheck, Loader2, Trash2 } from 'lucide-react'
 import { useNavigate } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext'
-import { subscribeToNotifications, markNotificationAsRead, markAllNotificationsAsRead } from '../services/notificationService'
+import { subscribeToNotifications, markNotificationAsRead, markAllNotificationsAsRead, deleteNotification } from '../services/notificationService'
 import type { AppNotification } from '../types/user'
 
 export function NotificationBell() {
@@ -10,6 +10,7 @@ export function NotificationBell() {
   const navigate = useNavigate()
   const [notifications, setNotifications] = useState<AppNotification[]>([])
   const [open, setOpen] = useState(false)
+  const [deletingId, setDeletingId] = useState<string | null>(null)
   const ref = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
@@ -36,6 +37,21 @@ export function NotificationBell() {
 
   const handleMarkAllRead = async () => {
     if (user?.id) await markAllNotificationsAsRead(user.id)
+  }
+
+  // Deleting must not trigger the row's navigate/mark-read click handler.
+  const handleDelete = async (n: AppNotification, e: React.MouseEvent) => {
+    e.stopPropagation()
+    if (deletingId) return
+    setDeletingId(n.id)
+    try {
+      await deleteNotification(n.id)
+      setNotifications(prev => prev.filter(x => x.id !== n.id))
+    } catch {
+      // Keep the row: the subscription will resync it if the delete failed.
+    } finally {
+      setDeletingId(null)
+    }
   }
 
   const timeAgo = (date: Date) => {
@@ -77,14 +93,34 @@ export function NotificationBell() {
                 <div key={n.id} onClick={() => handleNotificationClick(n)}
                   style={{
                     padding: '10px 14px', cursor: 'pointer', borderBottom: '1px solid #f9fafb',
-                    background: n.read ? '#fff' : '#fff7ed', transition: 'background 0.1s'
+                    background: n.read ? '#fff' : '#fff7ed', transition: 'background 0.1s',
+                    display: 'flex', gap: 8, alignItems: 'flex-start'
                   }}
                   onMouseEnter={e => e.currentTarget.style.background = '#f8fafc'}
                   onMouseLeave={e => e.currentTarget.style.background = n.read ? '#fff' : '#fff7ed'}
                 >
-                  <div style={{ fontSize: 13, fontWeight: n.read ? 400 : 600, color: '#0f172a', marginBottom: 2 }}>{n.title}</div>
-                  <div style={{ fontSize: 12, color: '#64748b', marginBottom: 4 }}>{n.body}</div>
-                  <div style={{ fontSize: 11, color: '#9ca3af' }}>{timeAgo(n.createdAt)}</div>
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <div style={{ fontSize: 13, fontWeight: n.read ? 400 : 600, color: '#0f172a', marginBottom: 2 }}>{n.title}</div>
+                    <div style={{ fontSize: 12, color: '#64748b', marginBottom: 4 }}>{n.body}</div>
+                    <div style={{ fontSize: 11, color: '#9ca3af' }}>{timeAgo(n.createdAt)}</div>
+                  </div>
+                  <button
+                    onClick={(e) => handleDelete(n, e)}
+                    title="Delete notification"
+                    aria-label="Delete notification"
+                    disabled={deletingId !== null}
+                    style={{
+                      background: 'none', border: 'none', cursor: deletingId ? 'wait' : 'pointer',
+                      padding: 4, borderRadius: 6, color: '#9ca3af', flexShrink: 0,
+                      display: 'flex', alignItems: 'center', marginTop: 2
+                    }}
+                    onMouseEnter={e => { e.currentTarget.style.color = '#ef4444'; e.currentTarget.style.background = '#fef2f2' }}
+                    onMouseLeave={e => { e.currentTarget.style.color = '#9ca3af'; e.currentTarget.style.background = 'none' }}
+                  >
+                    {deletingId === n.id
+                      ? <Loader2 size={14} className="animate-spin" />
+                      : <Trash2 size={14} />}
+                  </button>
                 </div>
               ))
             )}
