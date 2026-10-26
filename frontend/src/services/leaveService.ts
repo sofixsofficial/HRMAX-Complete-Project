@@ -407,6 +407,23 @@ export const getEffectiveTiers = (applicantRole?: string): ApprovalTier[] => {
 };
 
 /**
+ * Tiers that still have to decide: the applicant's effective tiers minus the
+ * ones the company SKIPPED (no approver assigned).
+ *
+ * Counting skipped tiers in an "x/y" progress left the counter permanently
+ * stuck — e.g. an employee request where only a reporting manager and a
+ * company admin exist showed 2/4 forever, even after the request reached
+ * Approved. Denominator = live tiers (+ the Master Admin gate when present).
+ */
+export const getLiveTiers = (leave: {
+  applicantRole?: string;
+  approvalStatus?: Partial<Record<string, string>> | Record<string, unknown> | null;
+}): ApprovalTier[] => {
+  const status = (leave.approvalStatus ?? {}) as Record<string, unknown>;
+  return getEffectiveTiers(leave.applicantRole).filter((t) => String(status[t] ?? '') !== 'Skipped');
+};
+
+/**
  * True when this applicant's role routes the request through the Master Admin
  * final-verification gate after the tier chain (TL & Exec self-apps).
  * Single source of truth for the apply-form tiers preview.

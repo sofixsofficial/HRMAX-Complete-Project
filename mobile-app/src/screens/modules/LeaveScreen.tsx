@@ -11,7 +11,7 @@ import { Icon } from '../../utils/icons';
 import { HeroBanner } from '../../components/PremiumComponents';
 import { ScreenHeader } from '../../components/ScreenHeader';
 import { isWithinAttendanceCorrectionWindow, parseWeekendDays, toDateKey } from '../../utils/workingDays';
-import { TIER_ORDER, TIER_LABELS, getEffectiveTiers, isAwaitingMasterAdmin, computeLeaveBalance, resolveEmployeeLeaveEntitlementsFull } from '../../services/leaveService';
+import { TIER_ORDER, TIER_LABELS, getEffectiveTiers, getLiveTiers, isAwaitingMasterAdmin, computeLeaveBalance, resolveEmployeeLeaveEntitlementsFull } from '../../services/leaveService';
 import { logAudit } from '../../services/auditLogService';
 import type { ApprovalTier, LeaveRequest, LeaveType, ApprovalLevel } from '../../types/user';
 
@@ -34,20 +34,22 @@ const toDate = (v: any): Date | null => {
   return null;
 };
 
-/** Compute approval progress respecting effective tiers + Master Admin gate */
+/** Compute approval progress respecting effective tiers + Master Admin gate.
+ *  Only LIVE tiers count: skipped ones have no approver, and counting them
+ *  left the counter stuck (e.g. 2/4) even after the request was Approved. */
 const approvalProgressOf = (l: LeaveRequest) => {
-  const tiers = getEffectiveTiers(l.applicantRole);
+  const tiers = getLiveTiers(l);
   if (l.masterAdminRequired) {
     const total = tiers.length + 1;
     const done =
       tiers.filter((t) => l.approvalStatus?.[t] === 'Approved').length +
       (l.masterAdminApproveStatus === 'Approved' || l.masterAdminApproveStatus === 'Rejected' ? 1 : 0);
-    return { label: `${done}/${total}`, pct: (done / total) * 100, total, done };
+    return { label: `${done}/${total}`, pct: total ? (done / total) * 100 : 100, total, done };
   }
   const resolved = tiers.filter((t) => l.approvalStatus?.[t] === 'Approved').length;
   if (tiers.length === 0) {
-    const maDone = l.masterAdminApproveStatus === 'Approved' || l.masterAdminApproveStatus === 'Rejected';
-    return { label: maDone ? '1/1' : '0/1', pct: maDone ? 100 : 0, total: 1, done: maDone ? 1 : 0 };
+    // No live approver → every tier was skipped and the server auto-approved.
+    return { label: '1/1', pct: 100, total: 1, done: 1 };
   }
   return { label: `${resolved}/${tiers.length}`, pct: (resolved / tiers.length) * 100, total: tiers.length, done: resolved };
 };

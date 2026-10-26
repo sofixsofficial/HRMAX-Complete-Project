@@ -3,7 +3,7 @@ import { Loader2, Check, X, ShieldAlert, Eye, AlertCircle } from 'lucide-react'
 import { collection, query, where, onSnapshot } from '../aws/firestore-compat'
 import { db } from '../aws/clients'
 import { errText } from '../aws/errors'
-import { getEffectiveTiers, TIER_LABELS, reviewMasterAdminLeaveRequest } from '../services/leaveService'
+import { getEffectiveTiers, getLiveTiers, TIER_LABELS, reviewMasterAdminLeaveRequest } from '../services/leaveService'
 import { reviewMasterAdminMissedPunch, getEffectiveMissedPunchTiers, getRecordEffectiveMissedPunchTiers, MISSED_PUNCH_TIER_LABELS } from '../services/attendanceService'
 import { logAudit } from '../services/auditLogService'
 import { Modal } from './Modal'
@@ -310,7 +310,9 @@ export function MasterAdminApprovalsPanel({ scopedCompanyIds, userId, userName }
         {viewItem && (() => {
           const p = viewItem.payload
           const isLeave = viewItem.kind === 'leave'
-          const effective = isLeave ? getEffectiveTiers(p.applicantRole) : getRecordEffectiveMissedPunchTiers(p)
+          // Live tiers only — skipped tiers have no approver, so they must not
+          // sit in the denominator (otherwise x/y never reaches completion).
+          const effective = isLeave ? getLiveTiers(p) : getRecordEffectiveMissedPunchTiers(p)
           const labels = isLeave ? TIER_LABELS : MISSED_PUNCH_TIER_LABELS
           const approvalStatus = p.approvalStatus || {}
           const approvalLog = (p.approvalLog || []) as Array<{ tier: string; status: string; approvedBy: string; approvedByName: string; note?: string }>

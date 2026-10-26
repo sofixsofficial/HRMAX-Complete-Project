@@ -30,6 +30,7 @@ import {
   getNextPendingTier,
   isAwaitingMasterAdmin,
   getEffectiveTiers,
+  getLiveTiers,
 } from '../services/leaveService'
 import { getEmployeesByCompany, getEmployeeByUserId } from '../services/employeeService'
 import { scopedCompanyIds } from '../utils/companyScope'
@@ -65,22 +66,25 @@ const isMasterAdminPending = (l: LeaveRequest) =>
   && getEffectiveTiers((l as any).applicantRole).every(t => l.approvalStatus[t] === 'Approved')
 
 // Progress display that respects the applicant's effective tiers plus the
-// Master Admin final gate. An Executive self-app counts the managing Team
-// Leader and the Master Admin (2 steps); a Team Leader self-app counts only
-// the Master Admin (1 step). Normal employees keep the 4-tier display.
+// Master Admin final gate — and only counts tiers that actually have to
+// decide (Skipped tiers have no approver, so counting them left the counter
+// stuck at e.g. 2/4 forever even after the request reached Approved).
+// An Executive self-app counts the managing Team Leader and the Master Admin
+// (2 steps); a Team Leader self-app counts only the Master Admin (1 step).
 const approvalProgressOf = (l: LeaveRequest) => {
-  const tiers = getEffectiveTiers((l as any).applicantRole)
+  const tiers = getLiveTiers(l as any)
   if (l.masterAdminRequired) {
     const total = tiers.length + 1
     const done =
       tiers.filter(t => l.approvalStatus[t] === 'Approved').length +
       (l.masterAdminApproveStatus === 'Approved' || l.masterAdminApproveStatus === 'Rejected' ? 1 : 0)
-    return { label: `${done}/${total}`, width: (done / total) * 100 }
+    return { label: `${done}/${total}`, width: total ? (done / total) * 100 : 100 }
   }
   const resolved = tiers.filter(t => l.approvalStatus[t] === 'Approved').length
   if (tiers.length === 0) {
-    const maDone = l.masterAdminApproveStatus === 'Approved' || l.masterAdminApproveStatus === 'Rejected'
-    return { label: maDone ? '1/1' : '0/1', width: maDone ? 100 : 0 }
+    // No live approver at all → every tier was skipped and the server
+    // auto-approved the request: the chain is resolved.
+    return { label: '1/1', width: 100 }
   }
   return { label: `${resolved}/${tiers.length}`, width: (resolved / tiers.length) * 100 }
 }

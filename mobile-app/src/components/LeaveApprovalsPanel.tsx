@@ -10,6 +10,7 @@ import { scopedCompanyIdsForRole } from '../utils/companyScope';
 import {
   TIER_LABELS,
   getEffectiveTiers,
+  getLiveTiers,
   getActionableLeaveTier,
   reviewTierLeaveRequest,
   reviewMasterAdminLeaveRequest,
@@ -229,13 +230,15 @@ export const LeaveApprovalsPanel: React.FC<LeaveApprovalsPanelProps> = ({ mode =
 
   const rowsWithTier = rows as Array<PanelItem & { tier?: ApprovalTier }>;
 
-  // x/y progress for a leave chain (effective tiers + optional MA final gate)
+  // x/y progress for a leave chain — live tiers only (skipped tiers have no
+  // approver; counting them left the counter stuck below 100% forever)
   const leaveProgress = (l: any) => {
-    const effective = getEffectiveTiers(l.applicantRole);
+    const effective = getLiveTiers(l);
     const maStep = l.masterAdminRequired ? 1 : 0;
     const total = effective.length + maStep;
     const resolved = effective.filter((t: ApprovalTier) => l.approvalStatus?.[t] === 'Approved').length;
     const done = resolved + (l.masterAdminRequired && l.masterAdminApproveStatus && l.masterAdminApproveStatus !== 'Pending' ? 1 : 0);
+    if (total === 0) return { total: 1, done: 1 }; // every tier skipped → auto-approved
     return { total, done };
   };
 
