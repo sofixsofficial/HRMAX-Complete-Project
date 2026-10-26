@@ -9,7 +9,12 @@ import { ThemeProvider, useTheme } from './src/context/ThemeContext';
 import { RootNavigator } from './src/navigation/RootNavigator';
 import { ErrorBoundary } from './src/components/ErrorBoundary';
 import { NetworkStatus } from './src/components/NetworkStatus';
+import { installWebAlert } from './src/utils/webAlert';
 import { View } from 'react-native';
+
+// react-native-web's Alert.alert is a no-op: replace it with a browser dialog
+// so submit/validation feedback is actually visible on web (B25).
+installWebAlert();
 
 // Keep the native splash (app.json: logo + #111827) on screen until the auth
 // session has been restored, instead of flashing an empty frame while the
