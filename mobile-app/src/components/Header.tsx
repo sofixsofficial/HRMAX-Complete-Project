@@ -23,6 +23,13 @@ export const Header: React.FC<HeaderProps> = ({ title, subtitle, onMenuPress, on
   const isRestrictedMulti = (user?.role === 'executive' || user?.role === 'team-leader') && availableCompanies.length > 1;
   const [unreadCount, setUnreadCount] = useState(0);
 
+  // Brand slot (dashboard): show WHICH company this account belongs to rather
+  // than the generic product name. Platform scope (master admin) has no single
+  // company, so it keeps the product name.
+  const isBrandSlot = title === 'HR MAX';
+  const companyInTitle = isBrandSlot ? selectedCompanyName : null;
+  const displayTitle = companyInTitle || title;
+
   useEffect(() => {
     if (!user?.id) return;
     const unsub = subscribeToUnreadCount(user.id, setUnreadCount);
@@ -38,14 +45,15 @@ export const Header: React.FC<HeaderProps> = ({ title, subtitle, onMenuPress, on
           </TouchableOpacity>
           <Image source={require('../../assets/icon.png')} style={styles.brandIcon} resizeMode="cover" />
           <View style={styles.titleArea}>
-            {/* Brand title in HR MAX orange; other screens pass normal titles
-                (Employees, Attendance, …) and keep the theme text colour. */}
-            <Text style={[styles.title, { color: title === 'HR MAX' ? '#FF6600' : colors.text }]}>{title}</Text>
+            {/* Brand slot (orange): shows WHICH company this account belongs
+                to when the scope is a single company, product name otherwise. */}
+            <Text style={[styles.title, { color: isBrandSlot ? '#FF6600' : colors.text }]} numberOfLines={1}>{displayTitle}</Text>
             {subtitle && <Text style={[styles.subtitle, { color: colors.textSecondary }]}>{subtitle}</Text>}
           </View>
         </View>
         <View style={styles.right}>
-          {(selectedCompanyName || isRestrictedMulti) && (
+          {/* Chip skipped when the title already names this company. */}
+          {(selectedCompanyName || isRestrictedMulti) && !companyInTitle && (
             <View style={[styles.companyChip, { backgroundColor: colors.accentBg }]}>
               <Text style={[styles.companyText, { color: colors.accent }]}>
                 {selectedCompanyName || 'All Companies'}
