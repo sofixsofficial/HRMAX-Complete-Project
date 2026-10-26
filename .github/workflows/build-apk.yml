@@ -12,6 +12,10 @@ concurrency:
 jobs:
   build:
     runs-on: ubuntu-latest
+    env:
+      # Preinstalled SDK path on GitHub-hosted ubuntu images.
+      ANDROID_HOME: /usr/local/lib/android/sdk
+      ANDROID_SDK_ROOT: /usr/local/lib/android/sdk
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -29,8 +33,16 @@ jobs:
           distribution: 'temurin'
           java-version: '17'
 
-      - name: Setup Android SDK
-        uses: android-actions/setup-android@v3
+      # The hosted ubuntu-24.04 image already ships the Android SDK with the
+      # licenses accepted. android-actions/setup-android@v3 hard-fails on it:
+      # it runs `sdkmanager tools`, and the legacy `tools` package no longer
+      # exists in cmdline-tools 16 ("Failed to find package 'tools'" → exit 1),
+      # which is exactly why every previous APK run died at this step.
+      - name: Android SDK (preinstalled on runner)
+        run: |
+          echo "ANDROID_HOME=${ANDROID_HOME:-/usr/local/lib/android/sdk}"
+          test -d "${ANDROID_HOME:-/usr/local/lib/android/sdk}"
+          ls "${ANDROID_HOME:-/usr/local/lib/android/sdk}"
 
       - name: Install dependencies
         working-directory: mobile-app
