@@ -206,7 +206,17 @@ export const sendCorporateInquiry = async (params: {
 }): Promise<{ success: boolean; delivered: boolean }> => {
   const functions = getFunctions()
   const inquiryFn = httpsCallable(functions, 'corporateInquiry')
-  const result = await inquiryFn(params)
+  // UI field names -> backend contract. legacy.ts#corporateInquiry reads
+  // name/email/company/phone/message and REQUIRES `email`; the form collected
+  // companyName/fullName/workEmail/..., so every submission died with
+  // "email is required" before an email was ever sent.
+  const result = await inquiryFn({
+    name: params.fullName,
+    email: params.workEmail,
+    company: params.companyName,
+    phone: params.phoneNumber,
+    message: `Estimated team size: ${params.estimatedTeamSize}`,
+  })
   return result.data as { success: boolean; delivered: boolean }
 }
 
@@ -223,7 +233,23 @@ export const sendSupportTicket = async (params: {
 }): Promise<{ success: boolean; delivered: boolean; ticketId?: string }> => {
   const functions = getFunctions()
   const ticketFn = httpsCallable(functions, 'sendSupportTicket')
-  const result = await ticketFn(params)
+  // UI field names -> backend contract. legacy.ts#sendSupportTicket reads
+  // email/name/subject/message and REQUIRES `email`; both callers passed
+  // userEmail/userName/description, so every contact/support submission
+  // failed with "email is required" and no mail ever went out.
+  const meta = [
+    params.category ? `Category: ${params.category}` : '',
+    params.priority ? `Priority: ${params.priority}` : '',
+    params.companyName ? `Company: ${params.companyName}` : '',
+    params.phone ? `Phone: ${params.phone}` : '',
+  ].filter(Boolean).join('\n')
+  const body = params.description ?? ''
+  const result = await ticketFn({
+    email: params.userEmail,
+    name: params.userName,
+    subject: params.subject,
+    message: meta ? `${meta}\n\n${body}` : body,
+  })
   return result.data as { success: boolean; delivered: boolean; ticketId?: string }
 }
 

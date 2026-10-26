@@ -5,7 +5,7 @@
 
 import { getIdToken } from './auth';
 import { AWS_CONFIG } from './config';
-import { FriendlyError, ERROR_CODES, ERROR_MESSAGES, markSessionExpired, networkError, toFriendlyError } from './errors';
+import { networkError, toFriendlyError } from './errors';
 
 interface Callable<T, R> {
   (data?: T): Promise<{ data: R }>;
@@ -49,13 +49,19 @@ export function httpsCallable<T = any, R = any>(functions: unknown, name: string
   void functions;
   return async (data?: T) => {
     const route = ROUTE_MAP[name] ?? { path: `/fn/${name}`, method: 'POST' as const };
-    let token: string;
+    // No session? Send the request UNAUTHENTICATED instead of failing locally.
+    // Routes marked `public: true` on the backend (contact form, corporate
+    // inquiry, forgot-password) deliberately skip the auth check, so an
+    // anonymous visitor must be able to reach them — previously getIdToken()
+    // threw "session expired" here and those forms never submitted at all.
+    // getIdToken() already marks a session expired when a real token refresh
+    // fails; genuinely protected routes then answer 401, which
+    // toFriendlyError() below maps to the same correct message.
+    let token: string | undefined;
     try {
       token = await getIdToken();
-    } catch (err) {
-      if (err instanceof FriendlyError) throw err; // already normalized (session expired)
-      markSessionExpired();
-      throw new FriendlyError(ERROR_CODES.sessionExpired, ERROR_MESSAGES.sessionExpired);
+    } catch {
+      token = undefined;
     }
     const method = route.method ?? 'POST';
 
@@ -76,7 +82,7 @@ export function httpsCallable<T = any, R = any>(functions: unknown, name: string
         method,
         headers: {
           'content-type': 'application/json',
-          authorization: `Bearer ${token}`,
+          ...(token ? { authorization: `Bearer ${token}` } : {}),
         },
         ...(method === 'GET' ? {} : { body: JSON.stringify(data ?? {}) }),
       });
