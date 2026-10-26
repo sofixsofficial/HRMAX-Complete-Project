@@ -114,8 +114,8 @@ counts** — `calcLeaveDays` (`leaveService.ts:203-210`) is a plain calendar-day
 
 | Spec area | Status | Evidence |
 |---|---|---|
-| Splash | ⚠️ **PARTIAL** | native config only (`app.json:38-46`, `assets/splash.png`); **no JS splash** — no `preventAutoHideAsync/hideAsync` anywhere; `LoadingScreen.tsx` is the stand-in |
-| Onboarding (3 slides) | ❌ **MISSING** | no file/route/state/dep |
+| Splash | ✅ **DONE (Stage 1)** | native config + JS handoff (`App.tsx` `preventAutoHideAsync`/`hideAsync` held until session restore); branded `LoadingScreen` with tagline, version, Sofixs footer and an 8s "Still connecting" + Try again state |
+| Onboarding (3 slides) | ✅ **DONE (Stage 1)** | `src/screens/auth/OnboardingScreen.tsx` — workday / attendance / everything-in-one, dots + Skip/Next/Get Started, `hrmax_onboarding_done` persisted via `safeStore`; `AuthNavigator` picks the initial route |
 | Login / forgot / reset / change pw / edit profile | ✅ EXISTS | `auth/LoginScreen.tsx`, `ForgotPasswordScreen.tsx`, `VerifyResetCodeScreen.tsx`, `SettingsScreen.tsx:66-97`, `MyProfileScreen.tsx:34-44` |
 | Session restore + secure token storage | ✅ EXISTS | `AuthContext.tsx:65-76`, `safeStorage.ts:13-45` (SecureStore), token refresh `aws/auth.ts:138-149` |
 | Account-disabled / pending-approval states | ⚠️ PARTIAL | backend rejects `Suspended`/`Rejected` (`auth.ts:93-96`); mobile shows generic error text |
@@ -132,7 +132,7 @@ counts** — `calcLeaveDays` (`leaveService.ts:203-210`) is a plain calendar-day
 | Notifications | ✅ EXISTS + ⚠️ | inbox `NotificationsScreen.tsx:50-69`, read/unread `:117-69`, push token `useNotifications.ts:24-52` — **not auto-registered on login** (manual toggle only) |
 | Profile / settings / more | ✅ EXISTS | `SettingsScreen.tsx`, `MyProfileScreen.tsx` |
 | Reports + payslip PDF | ✅ EXISTS | `ReportsScreen.tsx:90-95` (incl. Attendance Summary) + CSV `:104-175`; `utils/payslipPdf.ts:341` |
-| **Bottom navigation (Home/Attendance/Leave/Reports/More)** | ❌ **MISSING** | `bottom-tabs` installed, **0 imports**; nav = drawer + stack |
+| **Bottom navigation (Home/Attendance/Leave/Reports/More)** | ✅ **DONE (Stage 1)** | `src/components/BottomNav.tsx` + `withBottomNav()` wraps every drawer screen (layout sibling, nothing covered); items derived from `getSectionsByRole` so a role never gets a dead tab; verified live (active indicator, More → drawer) |
 | Design tokens / dark mode | ⚠️ PARTIAL | `ThemeContext.tsx` = **colors only** (40 keys); no spacing/typography tokens; light+dark ✅ (`app.json:8 automatic`) |
 | Skeletons / empty states / error states | ✅ / ⚠️ | `SkeletonLoader.tsx`, `EmptyStateView` (25+ screens); **no shared `ErrorState` component** |
 | Safe areas | ✅ | `SafeAreaProvider`, iOS `infoPlist` strings (`app.json:17`), camera/location/notification permission plugins |
@@ -198,7 +198,13 @@ mobile files (falls back to `EmployeeDashboard`); `regional-manager` does not ex
 _None made. Candidates requiring explicit sign-off: B1-B6._
 
 ## 9. Build status
-- Android debug: **not run this session**
+- **Backend: ✅ DEPLOYED** (`sam build && sam deploy` → stack `hrmax-api` UPDATE_COMPLETE,
+  `ApiUrl https://u2y0p4665a.execute-api.ap-southeast-2.amazonaws.com`). Build runs the test suite
+  (`NodejsNpmBuilder:NpmTest`) before packaging.
+- **Post-deploy smoke (read-only):** `GET /api/health` → 200 · `POST /api/attendance/mark`,
+  `/api/leave-requests`, `/api/email/send`, `/api/broadcast` (anonymous) → **401** ·
+  `GET /api/me` (Bearer) → 200 `master-admin` · `GET /api/attendance`, `GET /api/leave-requests` → 200.
+- Android debug: **not run**
 - Android release/AAB: **not run** (prebuilt `artifacts/*.aab` exist; CI `build-apk.yml`, `android-build.yml` exist;
   `eas.json` production → app-bundle, Google Play service-account key present)
 - iOS archive: **BLOCKED** — `eas credentials --platform ios` requires interactive Apple ID + 2FA (owner must run)
@@ -216,15 +222,17 @@ _None made. Candidates requiring explicit sign-off: B1-B6._
 ## 11. Files changed (this session)
 | Commit | Change |
 |---|---|
+| `f1b0db2` | **Mobile Stage 1**: JS splash handoff + branded loading with offline retry, one-time 3-slide onboarding, role-aware bottom tab bar |
 | `4b52638` | **Backend correctness fixes B1/B2/B3/B4/B6/B7/B8/B10/B11** + 20 new tests (86/86 pass) |
 | `19752b6` | this audit report |
 | `fa27411` | mobile drawer: remove master-admin "Self Service / My Leaves & Attendance" (web parity) |
 | `9782ae3` | `DashboardHero`: run entrance animation (was stuck at opacity 0) + design upgrade |
 | `915b517`, `15f2a68` | website showcase + About/nav/GIF work (earlier in session) |
 
-**Deployment status:** committed but **not yet deployed** — `sam deploy` (API) and
-`node scripts/deploy-hosting.mjs` (web) await a go/no-go: these change live behaviour
-(geofence enforcement, Late detection, leave overlap → 409).
+**Deployment status: ✅ API deployed** (`sam deploy` → `hrmax-api` UPDATE_COMPLETE) and verified
+read-only (health 200, four auth gates 401, `/api/me` 200). The web bundle is unchanged by these
+backend fixes, so no hosting re-deploy was required. **Write-path E2E (real check-in/out, leave
+overlap 409) still pending a designated test account** — not run against real employee records.
 
 ## 12. Commands
 ```bash
