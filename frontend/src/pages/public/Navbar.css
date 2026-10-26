@@ -17,6 +17,7 @@
 }
 
 .site-nav-inner {
+  position: relative; /* anchor for the mega-menu panels */
   max-width: 1200px;
   margin: 0 auto;
   padding: 0 24px;
@@ -87,8 +88,12 @@
 }
 
 /* ── Dropdown panel ────────────────────────────────────────── */
+/* Panels are centred on the whole header bar, NOT on their own trigger.
+   Trigger-relative centring pushed the leftmost panel (Product) 61px off
+   screen at 1062px wide; bar-relative centring cannot leave the viewport
+   because the panel max-width is clamped to 100vw - 48px. */
 .site-nav-item {
-  position: relative;
+  position: static;
 }
 
 .site-nav-panel {
@@ -130,8 +135,13 @@
   margin: 0;
   padding: 0;
   display: grid;
-  grid-template-columns: repeat(2, minmax(240px, 1fr));
+  /* minmax(0, 1fr): a fixed 240px minimum could force the panel wider than
+     the viewport edge cases; 0 lets columns shrink instead of overflowing. */
+  grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 4px;
+  /* Safety valve: never let a long menu exceed the visible viewport. */
+  max-height: calc(100vh - 120px);
+  overflow-y: auto;
 }
 
 .site-nav-panel-link {
@@ -363,7 +373,10 @@
 }
 
 /* ── Breakpoint ────────────────────────────────────────────── */
-@media (max-width: 960px) {
+/* Panels are centred on the header bar (see above), which is viewport-wide,
+   so a 760px cap can never be clipped at any width where the desktop nav is
+   visible (>1000px). No per-width overrides are needed. */
+@media (max-width: 1000px) {
   .site-nav-links,
   .site-nav-actions {
     display: none;

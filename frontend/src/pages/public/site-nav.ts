@@ -78,7 +78,7 @@ export const mainNav: NavGroup[] = [
     label: 'Company',
     to: '/about',
     items: [
-      { label: 'About Sofixs & HR MAX', to: '/about', desc: 'Who builds HR MAX' },
+      { label: 'About HR MAX', to: '/about', desc: 'HR MAX and Sofixs — who builds it' },
       { label: 'Contact', to: '/contact', desc: 'Sales, support and general enquiries' },
       { label: 'Enroll Your Organization', to: '/enroll', desc: 'Start the onboarding request' },
     ],
@@ -114,7 +114,7 @@ export const footerNav: NavGroup[] = [
   {
     label: 'Company',
     items: [
-      { label: 'About Sofixs', to: '/about' },
+      { label: 'About HR MAX', to: '/about' },
       { label: 'Contact', to: '/contact' },
       { label: 'Book a Demo', to: '/demo' },
       { label: 'Enroll Your Organization', to: '/enroll' },

@@ -59,8 +59,9 @@ export function Navbar() {
   }, [])
 
   // Close the drawer when we cross into desktop layout.
+  // NOTE: must match the CSS breakpoint at max-width:1000px in Navbar.css.
   useEffect(() => {
-    const mq = window.matchMedia('(min-width: 961px)')
+    const mq = window.matchMedia('(min-width: 1001px)')
     const onChange = () => {
       if (mq.matches) setDrawer(false)
     }
