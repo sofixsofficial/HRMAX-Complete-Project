@@ -7,6 +7,7 @@
     "android": "expo run:android",
     "ios": "expo run:ios",
     "web": "expo start --web",
+    "test": "jest",
     "lint": "eslint .",
     "postinstall": "node scripts/fix-packages.js"
   },
@@ -51,7 +52,10 @@
   },
   "devDependencies": {
     "@babel/core": "^7.25.0",
+    "@types/jest": "^29.5.14",
     "@types/react": "~19.2.4",
+    "jest": "^29.7.0",
+    "jest-expo": "~57.0.0",
     "patch-package": "^8.0.1",
     "typescript": "~6.0.3"
   },
