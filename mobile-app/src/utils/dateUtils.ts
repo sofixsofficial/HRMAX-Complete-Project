@@ -12,5 +12,16 @@ export function toDateSafe(value: any): Date | null {
 
 export function formatDateSafe(value: any, locale = 'en-IN', options?: Intl.DateTimeFormatOptions): string {
   const d = toDateSafe(value);
-  return d ? d.toLocaleDateString(locale, options) : 'N/A';
+  if (!d) return 'N/A';
+  // toLocaleDateString rejects dateStyle/timeStyle ("Invalid option : timeStyle"),
+  // which crashed the Payroll History and Support screens the moment they rendered
+  // a timestamp - Intl.DateTimeFormat accepts the same options.
+  if (options) {
+    try {
+      return new Intl.DateTimeFormat(locale, options).format(d);
+    } catch {
+      return d.toLocaleDateString(locale);
+    }
+  }
+  return d.toLocaleDateString(locale);
 }
