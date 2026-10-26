@@ -512,7 +512,7 @@ export const AttendanceScreen: React.FC<{ navigation: any }> = ({ navigation }) 
   const filtered = activeList.filter(r => {
     if (!search) return true;
     const q = search.toLowerCase();
-    return (r.status || '').toLowerCase().includes(q) || (r.name || '').toLowerCase().includes(q) || (r.department || '').toLowerCase().includes(q);
+    return (r.status || '').toLowerCase().includes(q) || (r.name || '').toLowerCase().includes(q) || (r.employeeName || '').toLowerCase().includes(q) || (r.department || '').toLowerCase().includes(q);
   });
 
   const totalPages = Math.max(1, Math.ceil(filtered.length / pageSize));

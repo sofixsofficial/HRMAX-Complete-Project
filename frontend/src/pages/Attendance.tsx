@@ -253,6 +253,9 @@ const [submittingRectify, setSubmittingRectify] = useState(false)
         return {
           id: d.id,
           ...raw,
+          // Server-written records carry employeeName, web-written rows carry
+          // name — normalise so every column/render site sees `name`.
+          name: raw.name ?? raw.employeeName ?? '',
           date: raw.date?.toDate ? raw.date.toDate() : raw.date,
           checkIn: raw.checkIn?.toDate ? raw.checkIn.toDate() : raw.checkIn,
           checkOut: raw.checkOut?.toDate ? raw.checkOut.toDate() : raw.checkOut,
@@ -297,6 +300,7 @@ const [submittingRectify, setSubmittingRectify] = useState(false)
             mergedMap.set(d.id, {
               id: d.id,
               ...raw,
+              name: raw.name ?? raw.employeeName ?? '',
               date: raw.date?.toDate ? raw.date.toDate() : raw.date,
               checkIn: raw.checkIn?.toDate ? raw.checkIn.toDate() : raw.checkIn,
               checkOut: raw.checkOut?.toDate ? raw.checkOut.toDate() : raw.checkOut,
