@@ -294,17 +294,25 @@ export const LeaveApprovalsPanel: React.FC<LeaveApprovalsPanelProps> = ({ mode =
     mode === 'masterAdmin'
       ? `${rows.length} awaiting Master Admin`
       : `${rows.length} awaiting your verification`;
+  const tint = mode === 'masterAdmin' ? '#c2410c' : '#8b5cf6';
 
   return (
     <View style={{ marginBottom: 12 }}>
       {/* Header */}
       <View style={styles.headerRow}>
+        <View style={[styles.headerIcon, { backgroundColor: `${tint}14` }]}>
+          <Icon
+            name={mode === 'masterAdmin' ? 'shield-checkmark-outline' : 'checkmark-done-outline'}
+            size={15}
+            color={tint}
+          />
+        </View>
         <Text style={[styles.headerTitle, { color: colors.text }]}>{panelTitle}</Text>
-        {!closed && rows.length > 0 && (
-          <View style={[styles.countPill, { backgroundColor: `${mode === 'masterAdmin' ? '#c2410c' : '#8b5cf6'}15` }]}>
-            <Text style={[styles.countPillText, { color: mode === 'masterAdmin' ? '#c2410c' : '#8b5cf6' }]}>{countLabel}</Text>
-          </View>
-        )}
+        {/* Count is always shown — an empty header looked unfinished, and the
+            number is the whole point of a verification queue. */}
+        <View style={[styles.countPill, { backgroundColor: `${tint}15` }]}>
+          <Text style={[styles.countPillText, { color: tint }]}>{countLabel}</Text>
+        </View>
         <TouchableOpacity
           style={[styles.collapseBtn, { borderColor: colors.border }]}
           onPress={() => setClosed((c) => !c)}
@@ -321,11 +329,17 @@ export const LeaveApprovalsPanel: React.FC<LeaveApprovalsPanelProps> = ({ mode =
               <Text style={[styles.emptyText, { color: colors.textTertiary }]}>Loading leave requests...</Text>
             </View>
           ) : rows.length === 0 ? (
-            <Text style={[styles.emptyText, { color: colors.textTertiary, paddingVertical: 14 }]}>
-              {mode === 'masterAdmin'
-                ? 'No requests awaiting Master Admin verification.'
-                : 'No leave requests awaiting your verification.'}
-            </Text>
+            <View style={styles.emptyBlock}>
+              <View style={[styles.emptyIcon, { backgroundColor: `${tint}14` }]}>
+                <Icon name="checkmark-done-outline" size={20} color={tint} />
+              </View>
+              <Text style={[styles.emptyTitle, { color: colors.text }]}>All caught up</Text>
+              <Text style={[styles.emptyText, { color: colors.textTertiary }]}>
+                {mode === 'masterAdmin'
+                  ? 'No leave requests or missed-punch corrections are awaiting Master Admin verification.'
+                  : 'No leave requests are awaiting your verification.'}
+              </Text>
+            </View>
           ) : (
             rowsWithTier.map((item) => {
               const isLeave = item.kind === 'leave';
@@ -541,12 +555,16 @@ export const LeaveApprovalsPanel: React.FC<LeaveApprovalsPanelProps> = ({ mode =
 
 const styles = StyleSheet.create({
   headerRow: { flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 8, paddingHorizontal: 2 },
+  headerIcon: { width: 26, height: 26, borderRadius: 8, alignItems: 'center', justifyContent: 'center' },
   headerTitle: { fontSize: 15, fontWeight: '700', flexShrink: 1 },
   countPill: { borderRadius: 10, paddingHorizontal: 8, paddingVertical: 3 },
   countPillText: { fontSize: 10, fontWeight: '700' },
   collapseBtn: { marginLeft: 'auto', borderWidth: 1, borderRadius: 8, width: 28, height: 28, alignItems: 'center', justifyContent: 'center' },
   card: { borderRadius: 14, borderWidth: 1, overflow: 'hidden' },
   emptyWrap: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, paddingVertical: 18 },
+  emptyBlock: { alignItems: 'center', paddingVertical: 22, paddingHorizontal: 18, gap: 6 },
+  emptyIcon: { width: 40, height: 40, borderRadius: 12, alignItems: 'center', justifyContent: 'center', marginBottom: 2 },
+  emptyTitle: { fontSize: 14, fontWeight: '700' },
   emptyText: { fontSize: 13, textAlign: 'center', paddingHorizontal: 16 },
   row: { flexDirection: 'row', gap: 10, padding: 12, borderBottomWidth: StyleSheet.hairlineWidth, alignItems: 'flex-start' },
   rowName: { fontSize: 14, fontWeight: '700' },
