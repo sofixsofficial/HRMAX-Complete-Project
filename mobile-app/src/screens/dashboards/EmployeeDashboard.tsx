@@ -15,6 +15,7 @@ import { SelfieCaptureModal } from '../../components/SelfieCaptureModal';
 import { Icon } from '../../utils/icons';
 import { StatCard } from '../../components/StatCard';
 import { StatsGrid } from '../../components/StatsGrid';
+import { logAudit } from '../../services/auditLogService';
 import { MissedPunchAlertCard } from '../../components/MissedPunchAlertCard';
 import { PremiumCard } from '../../components/PremiumComponents';
 import { BrandHomeHero, type HeroStat } from '../../components/BrandHomeHero';
@@ -186,6 +187,16 @@ export const EmployeeDashboard: React.FC<{ navigation: any }> = ({ navigation })
       });
       selfieUriRef.current = null;
       setActionMsg({ type: 'success', text: result.message || 'Checked in.' });
+      logAudit({
+        userId: user.id,
+        userName: user.name || 'Employee',
+        userRole: user.role || '',
+        action: 'Checked in',
+        actionType: 'create',
+        module: 'Attendance',
+        targetEntity: 'Attendance',
+        status: 'success',
+      }).catch(() => {});
       // Re-read the record the SERVER just wrote — the dashboard previously
       // kept showing "Not Checked In" after a successful punch.
       setRefreshKey((k) => k + 1);
@@ -214,6 +225,16 @@ export const EmployeeDashboard: React.FC<{ navigation: any }> = ({ navigation })
       const result = await markCheckOut(user.companyId, todayRecord.id);
       setActionMsg({ type: 'success', text: result.message || 'Checked out.' });
       setRefreshKey((k) => k + 1);
+      logAudit({
+        userId: user.id,
+        userName: user.name || 'Employee',
+        userRole: user.role || '',
+        action: 'Checked out',
+        actionType: 'create',
+        module: 'Attendance',
+        targetEntity: 'Attendance',
+        status: 'success',
+      }).catch(() => {});
     } catch (err: any) {
       setActionMsg({ type: 'error', text: err?.message || 'Check-out failed' });
     } finally {

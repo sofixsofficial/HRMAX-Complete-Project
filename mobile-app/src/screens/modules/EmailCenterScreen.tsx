@@ -15,6 +15,7 @@ import { subscribeEmails, subscribeEmailsScoped, saveEmail, sendAndDeliverEmail,
 import { subscribeEmployees, subscribeEmployeesScoped } from '../../services/employeeService';
 import { scopedCompanyIdsForRole } from '../../utils/companyScope';
 import { HeroBanner, PremiumCard, PremiumSearchBar, StatusBadge, EmptyStateView, FloatingActionButton, PremiumBottomSheet, PremiumModal } from '../../components/PremiumComponents';
+import { logAudit } from '../../services/auditLogService';
 import { ScreenHeader } from '../../components/ScreenHeader';
 import { useTheme } from '../../context/ThemeContext';
 import { Paths, File } from 'expo-file-system';
@@ -305,6 +306,18 @@ export default function EmailCenterScreen() {
         slipIds: selectedSlipIds.size < salarySlips.length ? Array.from(selectedSlipIds) : undefined,
       });
       if (result.success) {
+        // Audit trail (spec): payroll dispatch emails slips to the employee and
+        // CCs the company admin, moving each slip Pending -> Emailed.
+        logAudit({
+          userId: user?.id || '',
+          userName: user?.name || 'User',
+          userRole: user?.role || '',
+          action: `Dispatched ${result.dispatched || 0} salary slip(s) for ${payrollYear}-${String(payrollMonth + 1).padStart(2, '0')}`,
+          actionType: 'export',
+          module: 'Payroll',
+          targetEntity: 'SalarySlip',
+          status: result.failed ? 'warning' : 'success',
+        }).catch(() => {});
         Alert.alert(
           'Done',
           result.message || `Dispatched ${result.dispatched || 0} salary slip(s).${(result.failed ?? 0) > 0 ? ` ${result.failed} failed.` : ''}`
@@ -498,6 +511,20 @@ export default function EmailCenterScreen() {
       } else {
         await sendAndDeliverEmail(payload);
       }
+      // Audit trail (spec): an outbound email (with any attachments) is a
+      // recorded action — only after the server accepted it.
+      logAudit({
+        userId: user?.id || '',
+        userName: user?.name || 'User',
+        userRole: user?.role || '',
+        action: composeScheduled
+          ? `Scheduled email "${composeSubject}"`
+          : `Sent email "${composeSubject}" to ${composeTo}`,
+        actionType: 'create',
+        module: 'Emails',
+        targetEntity: composeTo,
+        status: 'success',
+      }).catch(() => {});
       setShowCompose(false);
       resetCompose();
     } catch (err) {

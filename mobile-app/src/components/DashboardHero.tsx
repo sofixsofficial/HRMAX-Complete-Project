@@ -9,6 +9,7 @@ import { useCompany } from '../context/CompanyContext';
 import { useTodayAttendance } from '../hooks/useTodayAttendance';
 import { useAttendanceGate } from '../hooks/useAttendanceGate';
 import { markCheckIn, markCheckOut } from '../services/attendanceApi';
+import { logAudit } from '../services/auditLogService';
 import type { Holiday, LeaveRequest } from '../types/user';
 import {
   effectiveTimezone,
@@ -555,6 +556,17 @@ const HeroAttendance: React.FC<{
       const result = await markCheckIn(companyId);
       refresh();
       setPunchMsg({ type: 'success', text: result.message || 'Checked in successfully!' });
+      // Audit trail (spec): a punch is a state change on the attendance record.
+      logAudit({
+        userId: user?.id || '',
+        userName: user?.name || 'Employee',
+        userRole: user?.role || '',
+        action: 'Checked in',
+        actionType: 'create',
+        module: 'Attendance',
+        targetEntity: 'Attendance',
+        status: 'success',
+      }).catch(() => {});
     } catch (err) {
       setPunchMsg({
         type: 'error',
@@ -563,7 +575,7 @@ const HeroAttendance: React.FC<{
     } finally {
       setBusy(null);
     }
-  }, [busy, companyId, validateCheckIn, refresh]);
+  }, [busy, companyId, validateCheckIn, refresh, user]);
 
   const handleCheckOut = useCallback(async () => {
     if (busy || !todayRecord?.checkIn || todayRecord?.checkOut) return;
@@ -582,6 +594,16 @@ const HeroAttendance: React.FC<{
       const result = await markCheckOut(companyId, todayRecord.id);
       refresh();
       setPunchMsg({ type: 'success', text: result.message || 'Checked out successfully!' });
+      logAudit({
+        userId: user?.id || '',
+        userName: user?.name || 'Employee',
+        userRole: user?.role || '',
+        action: 'Checked out',
+        actionType: 'create',
+        module: 'Attendance',
+        targetEntity: 'Attendance',
+        status: 'success',
+      }).catch(() => {});
     } catch (err) {
       setPunchMsg({
         type: 'error',
@@ -590,7 +612,7 @@ const HeroAttendance: React.FC<{
     } finally {
       setBusy(null);
     }
-  }, [busy, todayRecord, companyId, validateCheckOut, refresh]);
+  }, [busy, todayRecord, companyId, validateCheckOut, refresh, user]);
 
   const statusStyle = STATUS_STYLES[statusKey] || STATUS_STYLES.loading;
 
