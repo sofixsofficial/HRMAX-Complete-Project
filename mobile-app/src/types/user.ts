@@ -362,6 +362,8 @@ export interface SalarySlip {
   allowances: number;
   deductions: number;
   netSalary: number;
+  /** Gross before deductions; backend-generated slips carry this, legacy ones may not. */
+  grossSalary?: number;
   status: 'Paid' | 'Pending' | 'Processing' | 'Emailed';
   paidOn: Date | null;
   companyId: string;
@@ -373,6 +375,9 @@ export interface SalarySlip {
     otherDeductions: number;
     absentDeduction?: number;
     leaveEncashment?: number;
+    /** Backend payroll runs write this; older client-side slips do not. */
+    overtimePay?: number;
+    basic?: number;
   };
   createdAt?: Date;
   updatedAt?: Date;

@@ -397,7 +397,18 @@ export const SalarySlipsScreen: React.FC = () => {
                     {selectedSlip.breakdown?.hra ? <DetailRow label="HRA" value={fmt(selectedSlip.breakdown.hra)} colors={colors} /> : null}
                     {selectedSlip.breakdown?.da ? <DetailRow label="DA" value={fmt(selectedSlip.breakdown.da)} colors={colors} /> : null}
                     {selectedSlip.breakdown?.leaveEncashment ? <DetailRow label="Leave Encashment" value={`+${fmt(selectedSlip.breakdown.leaveEncashment)}`} colors={colors} valueColor="#059669" /> : null}
+                    {selectedSlip.breakdown?.overtimePay ? <DetailRow label="Overtime Pay" value={`+${fmt(selectedSlip.breakdown.overtimePay)}`} colors={colors} valueColor="#059669" /> : null}
                     <DetailRow label="Allowances" value={fmt(selectedSlip.allowances)} colors={colors} />
+                    {/* Gross so the invoice reconciles: gross - deductions = net */}
+                    <DetailRow
+                      label="Gross Salary"
+                      value={fmt(
+                        (selectedSlip.basicSalary || 0) + (selectedSlip.allowances || 0) +
+                        (selectedSlip.breakdown?.leaveEncashment || 0) + (selectedSlip.breakdown?.overtimePay || 0)
+                      )}
+                      colors={colors}
+                      bold
+                    />
                   </View>
 
                   {/* Deductions */}

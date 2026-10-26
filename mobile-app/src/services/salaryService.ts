@@ -6,8 +6,18 @@ import { SalarySlip } from '../types/user';
 const COLLECTION_NAME = 'salarySlips';
 const ref = collection(db, COLLECTION_NAME);
 
+const num = (v: unknown): number => (typeof v === 'number' && isFinite(v) ? v : 0);
+
 const mapSlip = (d: any): SalarySlip => {
   const data = d.data();
+  // Backend-generated slips carry grossSalary + a breakdown, never the legacy
+  // basicSalary/allowances/deductions trio - reading those straight showed
+  // 0 basic and 0 deductions next to a non-zero net on the invoice (mobile
+  // and web rendered the same wrong numbers). Derive them when absent.
+  const bd = data.breakdown || {};
+  const gross = num(data.grossSalary) || num(bd.basic) || 0;
+  const earnings = num(bd.hra) + num(bd.da) + num(bd.leaveEncashment) + num(bd.overtimePay);
+  const deductionsTotal = num(bd.absentDeduction) + num(bd.pf) + num(bd.tax) + num(bd.otherDeductions);
   return {
     id: d.id,
     userId: data.userId || '',
@@ -19,14 +29,15 @@ const mapSlip = (d: any): SalarySlip => {
     departmentColor: data.departmentColor || '',
     month: data.month || '',
     year: data.year || 0,
-    basicSalary: data.basicSalary || 0,
-    allowances: data.allowances || 0,
-    deductions: data.deductions || 0,
+    basicSalary: data.basicSalary != null ? num(data.basicSalary) : gross,
+    allowances: data.allowances != null ? num(data.allowances) : earnings,
+    deductions: data.deductions != null ? num(data.deductions) : deductionsTotal,
     netSalary: data.netSalary || 0,
     status: data.status || 'Pending',
     paidOn: data.paidOn?.toDate?.() || data.paidOn || null,
     companyId: data.companyId || '',
     breakdown: data.breakdown,
+    grossSalary: gross || undefined,
     createdAt: data.createdAt?.toDate?.() || data.createdAt,
     updatedAt: data.updatedAt?.toDate?.() || data.updatedAt,
     payrollRef: data.payrollRef || '',

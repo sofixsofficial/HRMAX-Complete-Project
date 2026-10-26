@@ -62,10 +62,14 @@ export const generatePayslipPdf = async (slip: SalarySlip, options: PayslipOptio
   const da = breakdown.da || 0;
   const tax = breakdown.tax || 0;
   const otherDed = breakdown.otherDeductions || 0;
+  const overtime = breakdown.overtimePay || 0;
   const allowances = slip.allowances || 0;
-  const deductions = slip.deductions || (tax + otherDed + breakdown.pf);
+  // Total must equal the itemised rows above it, absent deduction included -
+  // the fallback used to drop it and the footer disagreed with the lines.
+  const deductions = slip.deductions ||
+    (tax + otherDed + (breakdown.pf || 0) + (breakdown.absentDeduction || 0));
   const net = slip.netSalary || 0;
-  const gross = basic + allowances + (breakdown.leaveEncashment || 0);
+  const gross = basic + allowances + (breakdown.leaveEncashment || 0) + overtime;
   const fixedAllow = Math.max(0, allowances - hra - da);
 
   const paidOn = safeDate(slip.paidOn) || new Date();
@@ -85,7 +89,9 @@ export const generatePayslipPdf = async (slip: SalarySlip, options: PayslipOptio
   const earnings: [string, number][] = [
     ['Basic', basic],
     hra > 0 ? ['House Rent Allowance', hra] : null,
+    da > 0 ? ['Dearness Allowance', da] : null,
     fixedAllow > 0 ? ['Fixed Allowance', fixedAllow] : null,
+    overtime > 0 ? ['Overtime Pay', overtime] : null,
     (breakdown.leaveEncashment || 0) > 0 ? ['Leave Encashment', breakdown.leaveEncashment || 0] : null,
   ].filter((r): r is [string, number] => !!r);
 

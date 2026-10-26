@@ -19,6 +19,14 @@ const salaryRef = collection(db, COLLECTION_NAME);
 
 const mapSlip = (doc: { id: string; data: () => any }): SalarySlip => {
   const data = doc.data();
+  // Backend-generated slips carry grossSalary + a breakdown, never the legacy
+  // basicSalary/allowances/deductions trio - reading those straight put
+  // "Basic: 0 / Deductions: 0" next to a non-zero net on the invoice.
+  const bd = data.breakdown || {};
+  const num = (v: unknown) => (typeof v === 'number' && isFinite(v) ? v : 0);
+  const gross = num(data.grossSalary) || num(bd.basic) || 0;
+  const earnings = num(bd.hra) + num(bd.da) + num(bd.leaveEncashment) + num(bd.overtimePay);
+  const deductionsTotal = num(bd.absentDeduction) + num(bd.pf) + num(bd.tax) + num(bd.otherDeductions);
   return {
     id: doc.id,
     userId: data.userId,
@@ -31,9 +39,10 @@ const mapSlip = (doc: { id: string; data: () => any }): SalarySlip => {
     designation: data.designation,
     month: data.month,
     year: data.year,
-    basicSalary: data.basicSalary,
-    allowances: data.allowances,
-    deductions: data.deductions,
+    basicSalary: data.basicSalary != null ? num(data.basicSalary) : gross,
+    allowances: data.allowances != null ? num(data.allowances) : earnings,
+    deductions: data.deductions != null ? num(data.deductions) : deductionsTotal,
+    grossSalary: gross || undefined,
     netSalary: data.netSalary,
     status: data.status,
     paidOn: data.paidOn?.toDate ? data.paidOn.toDate() : data.paidOn || null,
