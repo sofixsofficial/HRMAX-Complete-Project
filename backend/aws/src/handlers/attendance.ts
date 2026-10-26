@@ -120,6 +120,28 @@ export function determineStatus(checkInMin: number, shiftStartMin: number, grace
   return { status: 'Late', lateMinutes: checkInMin - shiftStartMin };
 }
 
+/**
+ * Punch-once / close-once guards.
+ *
+ * Two traps live here, both hit in production before being caught:
+ *  - `data` and `PK` are DynamoDB RESERVED WORDS → must be aliased (#d/#pk),
+ *    otherwise the request fails with ValidationException (HTTP 500).
+ *  - values must be JS `null` (the DocumentClient marshals it to NULL). The
+ *    wire form `{ NULL: true }` gets marshalled as a Map, so the equality never
+ *    matches and every check-out was wrongly rejected as "already checked out".
+ */
+export const CHECK_IN_CONDITION = {
+  expression: 'attribute_not_exists(#pk) OR attribute_not_exists(#d.checkIn) OR #d.checkIn = :noPunch',
+  names: { '#pk': 'PK', '#d': 'data' },
+  values: { ':noPunch': null as unknown },
+};
+
+export const CHECK_OUT_CONDITION = {
+  expression: 'attribute_not_exists(#d.checkOut) OR #d.checkOut = :noOut',
+  names: { '#d': 'data' },
+  values: { ':noOut': null as unknown },
+};
+
 async function writeLog(entry: Record<string, unknown>): Promise<void> {
   await putEntity(
     { id: newId(), companyId: String(entry.companyId ?? 'global'), createdAt: isoNow(), timestamp: isoNow(), ...entry },
@@ -204,12 +226,11 @@ export const attendanceRoutes: Route[] = [
           // (or the row is a null/absent one the nightly sweep created). Two
           // concurrent taps → the loser gets ConditionalCheckFailed → 412,
           // instead of both "succeeding" on a read-then-put race.
+          // NOTE: `data` and `PK` are DynamoDB reserved words — they MUST be
+          // aliased, otherwise the condition is rejected with a ValidationException.
           await putEntity<AttendanceDoc>(doc_, {
             entity: 'attendance', userIdField: 'userId', tsField: 'date',
-            condition: {
-              expression: 'attribute_not_exists(PK) OR attribute_not_exists(data.checkIn) OR data.checkIn = :noPunch',
-              values: { ':noPunch': { NULL: true } },
-            },
+            condition: CHECK_IN_CONDITION,
           });
         } catch (err) {
           if (err instanceof ConditionalWriteFailed) return fail('ALREADY_CHECKED_IN', 'Already checked in today');
@@ -249,10 +270,7 @@ export const attendanceRoutes: Route[] = [
           status: isEarly ? 'Early Checkout' : existing.status,
         }, {
           entity: 'attendance', userIdField: 'userId', tsField: 'date',
-          condition: {
-            expression: 'attribute_not_exists(data.checkOut) OR data.checkOut = :noOut',
-            values: { ':noOut': { NULL: true } },
-          },
+          condition: CHECK_OUT_CONDITION,
         });
       } catch (err) {
         if (err instanceof ConditionalWriteFailed) return fail('ALREADY_CHECKED_OUT', 'Already checked out today');

@@ -162,3 +162,38 @@ test('ConditionalWriteFailed is an Error with a stable name (handlers map it to 
   assert.ok(err instanceof Error);
   assert.equal(err.name, 'ConditionalWriteFailed');
 });
+
+// ---------------------------------------------------------------------------
+// Condition expressions (regression: two production-outage bugs)
+// ---------------------------------------------------------------------------
+
+test('attendance conditions alias the reserved words data/PK', () => {
+  for (const cond of [attendance.CHECK_IN_CONDITION, attendance.CHECK_OUT_CONDITION]) {
+    assert.ok(
+      !/(^|[^#\w.])data\./.test(cond.expression),
+      `bare "data." must never appear (reserved word): ${cond.expression}`,
+    );
+    assert.ok(
+      !/attribute_not_exists\(\s*PK\s*\)/.test(cond.expression),
+      `bare PK must be aliased: ${cond.expression}`,
+    );
+    assert.equal(cond.names['#d'], 'data');
+  }
+  assert.equal(attendance.CHECK_IN_CONDITION.names['#pk'], 'PK');
+});
+
+test('attendance condition values are JS null, not the {NULL:true} wire form', () => {
+  // DocumentClient marshals JS null → DynamoDB NULL. {NULL:true} would be
+  // marshalled as a Map, so the equality never matches and a legitimate
+  // check-out was rejected with "Already checked out today".
+  for (const cond of [attendance.CHECK_IN_CONDITION, attendance.CHECK_OUT_CONDITION]) {
+    for (const v of Object.values(cond.values)) {
+      assert.equal(v, null, 'condition values must be JS null');
+    }
+  }
+});
+
+test('conditions reference the exact attribute paths the write stores', () => {
+  assert.match(attendance.CHECK_IN_CONDITION.expression, /#d\.checkIn/);
+  assert.match(attendance.CHECK_OUT_CONDITION.expression, /#d\.checkOut/);
+});
