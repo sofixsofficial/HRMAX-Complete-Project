@@ -577,6 +577,20 @@ export const AttendanceScreen: React.FC<{ navigation: any }> = ({ navigation }) 
 
   if (loading) return <ShimmerLoader count={5} height={90} style={{ padding: 16 }} />;
 
+  // Reference-style punch state: big status circle + headline + subline.
+  const punchDone = !!(todayRecord?.checkIn && todayRecord?.checkOut);
+  const punchStarted = !!todayRecord?.checkIn && !todayRecord?.checkOut;
+  const punchHeadline = punchDone ? 'Day Complete' : punchStarted ? 'Checked In' : 'Not Checked In';
+  const punchSub = punchStarted || punchDone ? 'You are all set for today!' : 'Mark your attendance for today';
+  const punchCircleColor = punchStarted ? '#10b981' : punchDone ? '#3b82f6' : '#94a3b8';
+  const punchCircleIcon = punchStarted ? 'checkmark' : punchDone ? 'checkmark-done' : 'time-outline';
+  const todayLabel = new Date().toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric', year: 'numeric' });
+  const punchTimeLabel = todayRecord
+    ? `${formatTimeShort(todayRecord.checkIn)}${todayRecord.checkOut ? `  →  ${formatTimeShort(todayRecord.checkOut)}` : ''}`
+    : '—';
+  const officeLocation = policy?.officeLocation as { name?: string; address?: string } | undefined;
+  const locationLabel = officeLocation?.name || officeLocation?.address || 'No office location configured';
+
   return (
     <View style={{ flex: 1, backgroundColor: colors.background }}>
       <ScreenHeader title="Attendance" />
@@ -587,6 +601,34 @@ export const AttendanceScreen: React.FC<{ navigation: any }> = ({ navigation }) 
             managers punch from My Attendance self-service instead). */}
         {tab === 'my' && isEmployeeRole && (
           <View style={s.punchBanner}>
+            {/* Reference layout: status circle + headline, then date / time /
+                work-location rows above the punch controls. */}
+            <View style={s.punchHeroRow}>
+              <View style={[s.punchCircle, { backgroundColor: punchCircleColor }]}>
+                <Icon name={punchCircleIcon} size={26} color="#fff" />
+              </View>
+              <View style={{ flex: 1 }}>
+                <Text style={s.punchHeadline}>{punchHeadline}</Text>
+                <Text style={s.punchHeadlineSub}>{punchSub}</Text>
+              </View>
+            </View>
+
+            <View style={s.punchInfoBox}>
+              <View style={s.punchInfoRow}>
+                <Icon name="calendar-outline" size={15} color="#f59e0b" />
+                <Text style={s.punchInfoText}>{todayLabel}</Text>
+              </View>
+              <View style={s.punchInfoRow}>
+                <Icon name="time-outline" size={15} color="#f59e0b" />
+                <Text style={s.punchInfoText}>{punchTimeLabel}</Text>
+              </View>
+              <View style={s.punchInfoRow}>
+                <Icon name="location-outline" size={15} color="#10b981" />
+                <Text style={[s.punchInfoText, { flex: 1 }]} numberOfLines={1}>{locationLabel}</Text>
+                <Icon name="chevron-forward-outline" size={15} color="rgba(255,255,255,0.7)" />
+              </View>
+            </View>
+
             <View style={s.punchBannerContent}>
               <View style={{ flex: 1 }}>
                 <Text style={s.punchBannerTitle}>
@@ -1334,6 +1376,24 @@ const createStyles = (c: ThemeColors) => StyleSheet.create({
   punchBannerContent: {
     padding: 24, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 16,
   },
+  punchHeroRow: {
+    flexDirection: 'row', alignItems: 'center', gap: 14,
+    paddingHorizontal: 20, paddingTop: 20,
+  },
+  punchCircle: {
+    width: 56, height: 56, borderRadius: 28,
+    alignItems: 'center', justifyContent: 'center',
+    borderWidth: 3, borderColor: 'rgba(255,255,255,0.55)',
+  },
+  punchHeadline: { fontSize: 20, fontWeight: '800', color: '#fff' },
+  punchHeadlineSub: { fontSize: 13, color: 'rgba(255,255,255,0.92)', marginTop: 2 },
+  punchInfoBox: {
+    marginHorizontal: 20, marginTop: 14, borderRadius: 12,
+    backgroundColor: 'rgba(17,24,39,0.22)', paddingVertical: 10,
+    paddingHorizontal: 12, gap: 9,
+  },
+  punchInfoRow: { flexDirection: 'row', alignItems: 'center', gap: 10 },
+  punchInfoText: { fontSize: 13.5, color: '#fff', fontWeight: '600' },
   punchBannerTitle: { fontSize: 20, fontWeight: '700', color: '#fff', marginBottom: 4 },
   punchBannerSubtitle: { fontSize: 14, color: '#fff', opacity: 0.85, marginBottom: 2 },
   punchBannerLate: { fontSize: 13, color: '#fff', opacity: 0.85, marginTop: 4 },
