@@ -62,6 +62,11 @@ jobs:
         run: |
           ./gradlew bundleRelease --no-daemon --stacktrace
 
+      # Expected Play upload-key fingerprint. The previous keystore lived in
+      # the gitignored android/ tree and was lost to an `expo prebuild`, so a
+      # fresh upload key was generated and registered in the repo secrets -
+      # if this app already has an upload key in Play Console, reset it to the
+      # new certificate (or restore the old keystore) before publishing.
       - name: Verify AAB signature
         working-directory: mobile-app/android
         run: |
@@ -69,8 +74,8 @@ jobs:
           ls -la "$AAB"
           SHA1=$(keytool -printcert -jarfile "$AAB" | sed -n 's/^[[:space:]]*SHA1: //p' | tr -d ':' | tr 'A-F' 'a-f')
           echo "Cert SHA1: $SHA1"
-          if [ "$SHA1" != "45251c026d92a4a4ce19b061c68787663a724336" ]; then
-            echo "::error::AAB SHA1 fingerprint mismatch — expected 45251c026d92a4a4ce19b061c68787663a724336"
+          if [ "$SHA1" != "e89e6222cf24592cbcc6c23e1cc9ff41a24ee401" ]; then
+            echo "::error::AAB SHA1 fingerprint mismatch — expected e89e6222cf24592cbcc6c23e1cc9ff41a24ee401"
             exit 1
           fi
           echo "AAB signed with expected Play upload key. OK"
