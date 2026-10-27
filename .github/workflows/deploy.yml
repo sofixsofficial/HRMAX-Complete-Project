@@ -35,6 +35,10 @@ jobs:
         with:
           role-to-assume: ${{ secrets.AWS_DEPLOY_ROLE_ARN }}
           aws-region: ap-southeast-2
+          # Must be in the OIDC provider's client-ID list; the provider was set
+          # up outside this repo and cannot be inspected from the account
+          # (SCP denies iam:GetOpenIDConnectProvider).
+          audience: token.actions.githubusercontent.com
 
       - name: Install dependencies
         run: |
