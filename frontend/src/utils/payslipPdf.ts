@@ -178,6 +178,22 @@ export const downloadPayslipPdf = async (slip: SalarySlip, options: PayslipOptio
     return t
   }
 
+  /**
+   * Money is never truncated: a cut "₹ 60,0..." misstates the payslip. When a
+   * column is too narrow for the full amount the type shrinks to fit instead
+   * of dropping digits.
+   */
+  const drawAmount = (text: string, rightX: number, baseline: number, maxWidth: number, size: number) => {
+    let s = size
+    doc.setFontSize(s)
+    while (s > 5.5 && doc.getTextWidth(text) > maxWidth) {
+      s -= 0.5
+      doc.setFontSize(s)
+    }
+    doc.text(text, rightX, baseline, { align: 'right' })
+    doc.setFontSize(size)
+  }
+
   // Logo on left - fitted into a fixed box so a tall or wide mark both stay
   // inside the header band, then the company name starts after it.
   let logoW = 0
@@ -365,15 +381,15 @@ export const downloadPayslipPdf = async (slip: SalarySlip, options: PayslipOptio
       if (earnings[i]) {
         doc.text(truncate(earnings[i][0], colWidths[0] - 8), mg + 3, ry + ROW_HEIGHT / 2 + 1)
         const earnAmt = fmtMoney(earnings[i][1], c.currency, c.country)
-        doc.text(truncate(earnAmt, colWidths[1] - 5), mg + colWidths[0] + colWidths[1] - 3, ry + ROW_HEIGHT / 2 + 1, { align: 'right' })
-        doc.text(truncate(earnAmt, colWidths[2] - 5), mg + colWidths[0] + colWidths[1] + colWidths[2] - 3, ry + ROW_HEIGHT / 2 + 1, { align: 'right' })
+        drawAmount(earnAmt, mg + colWidths[0] + colWidths[1] - 3, ry + ROW_HEIGHT / 2 + 1, colWidths[1] - 5, 7.5)
+        drawAmount(earnAmt, mg + colWidths[0] + colWidths[1] + colWidths[2] - 3, ry + ROW_HEIGHT / 2 + 1, colWidths[2] - 5, 7.5)
       }
       if (deductionsList[i]) {
         const dx = mg + colWidths[0] + colWidths[1] + colWidths[2]
         doc.text(truncate(deductionsList[i][0], colWidths[3] - 8), dx + 3, ry + ROW_HEIGHT / 2 + 1)
         const dedAmt = fmtMoney(deductionsList[i][1], c.currency, c.country)
-        doc.text(truncate(dedAmt, colWidths[4] - 5), dx + colWidths[3] + colWidths[4] - 3, ry + ROW_HEIGHT / 2 + 1, { align: 'right' })
-        doc.text(truncate(dedAmt, colWidths[5] - 5), dx + colWidths[3] + colWidths[4] + colWidths[5] - 3, ry + ROW_HEIGHT / 2 + 1, { align: 'right' })
+        drawAmount(dedAmt, dx + colWidths[3] + colWidths[4] - 3, ry + ROW_HEIGHT / 2 + 1, colWidths[4] - 5, 7.5)
+        drawAmount(dedAmt, dx + colWidths[3] + colWidths[4] + colWidths[5] - 3, ry + ROW_HEIGHT / 2 + 1, colWidths[5] - 5, 7.5)
       }
     }
 
@@ -395,13 +411,13 @@ export const downloadPayslipPdf = async (slip: SalarySlip, options: PayslipOptio
     setFont(10, 'bold', C.headerText)
     doc.text('Gross Earnings', mg + 3, totalY + ROW_HEIGHT / 2 + 1.2)
     const grossAmt = fmtMoney(gross, c.currency, c.country)
-    doc.text(truncate(grossAmt, colWidths[1] - 5), mg + colWidths[0] + colWidths[1] - 3, totalY + ROW_HEIGHT / 2 + 1.2, { align: 'right' })
-    doc.text(truncate(grossAmt, colWidths[2] - 5), mg + colWidths[0] + colWidths[1] + colWidths[2] - 3, totalY + ROW_HEIGHT / 2 + 1.2, { align: 'right' })
+    drawAmount(grossAmt, mg + colWidths[0] + colWidths[1] - 3, totalY + ROW_HEIGHT / 2 + 1.2, colWidths[1] - 5, 10)
+    drawAmount(grossAmt, mg + colWidths[0] + colWidths[1] + colWidths[2] - 3, totalY + ROW_HEIGHT / 2 + 1.2, colWidths[2] - 5, 10)
     const dx = mg + colWidths[0] + colWidths[1] + colWidths[2]
     doc.text('Total Deductions', dx + 3, totalY + ROW_HEIGHT / 2 + 1.2)
     const dedAmt = fmtMoney(deductions, c.currency, c.country)
-    doc.text(truncate(dedAmt, colWidths[4] - 5), dx + colWidths[3] + colWidths[4] - 3, totalY + ROW_HEIGHT / 2 + 1.2, { align: 'right' })
-    doc.text(truncate(dedAmt, colWidths[5] - 5), dx + colWidths[3] + colWidths[4] + colWidths[5] - 3, totalY + ROW_HEIGHT / 2 + 1.2, { align: 'right' })
+    drawAmount(dedAmt, dx + colWidths[3] + colWidths[4] - 3, totalY + ROW_HEIGHT / 2 + 1.2, colWidths[4] - 5, 10)
+    drawAmount(dedAmt, dx + colWidths[3] + colWidths[4] + colWidths[5] - 3, totalY + ROW_HEIGHT / 2 + 1.2, colWidths[5] - 5, 10)
 
     // Outer border
     doc.setDrawColor(...C.borderStrong)
@@ -442,8 +458,8 @@ export const downloadPayslipPdf = async (slip: SalarySlip, options: PayslipOptio
       setFont(7.5, 'normal', C.bodyText)
       doc.text(truncate(earnings[i][0], colWidths[0] - 8), mg + 3, ry + ROW_HEIGHT / 2 + 1)
       const earnAmt = fmtMoney(earnings[i][1], c.currency, c.country)
-      doc.text(truncate(earnAmt, colWidths[1] - 5), mg + colWidths[0] + colWidths[1] - 3, ry + ROW_HEIGHT / 2 + 1, { align: 'right' })
-      doc.text(truncate(earnAmt, colWidths[2] - 5), mg + colWidths[0] + colWidths[1] + colWidths[2] - 3, ry + ROW_HEIGHT / 2 + 1, { align: 'right' })
+      drawAmount(earnAmt, mg + colWidths[0] + colWidths[1] - 3, ry + ROW_HEIGHT / 2 + 1, colWidths[1] - 5, 7.5)
+      drawAmount(earnAmt, mg + colWidths[0] + colWidths[1] + colWidths[2] - 3, ry + ROW_HEIGHT / 2 + 1, colWidths[2] - 5, 7.5)
     }
 
     // Total row
@@ -461,8 +477,8 @@ export const downloadPayslipPdf = async (slip: SalarySlip, options: PayslipOptio
     setFont(10, 'bold', C.headerText)
     doc.text('Gross Earnings', mg + 3, totalY + ROW_HEIGHT / 2 + 1.2)
     const grossAmt = fmtMoney(gross, c.currency, c.country)
-    doc.text(truncate(grossAmt, colWidths[1] - 5), mg + colWidths[0] + colWidths[1] - 3, totalY + ROW_HEIGHT / 2 + 1.2, { align: 'right' })
-    doc.text(truncate(grossAmt, colWidths[2] - 5), mg + colWidths[0] + colWidths[1] + colWidths[2] - 3, totalY + ROW_HEIGHT / 2 + 1.2, { align: 'right' })
+    drawAmount(grossAmt, mg + colWidths[0] + colWidths[1] - 3, totalY + ROW_HEIGHT / 2 + 1.2, colWidths[1] - 5, 10)
+    drawAmount(grossAmt, mg + colWidths[0] + colWidths[1] + colWidths[2] - 3, totalY + ROW_HEIGHT / 2 + 1.2, colWidths[2] - 5, 10)
 
     // Outer border
     doc.setDrawColor(...C.borderStrong)
