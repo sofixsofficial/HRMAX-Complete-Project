@@ -74,8 +74,12 @@ export function ClockProvider({ children }: { children: ReactNode }) {
       dateLong: `${formatInZone(now, tz, { month: 'short', day: 'numeric', year: 'numeric' })} · ${formatInZone(now, tz, { weekday: 'short' })}`,
       dateShort: formatInZone(now, tz, { weekday: 'short', month: 'short', day: 'numeric' }),
       greeting: HOUR_OVERRIDE !== null ? greetingForPeriod(theme) : greeting,
-      location: sky.locationLabel ?? null,
-      tempC: sky.tempC ?? null,
+      // Location + temperature are shown ONLY when they come from the user's
+      // own device (`source === 'device'`). The New Delhi baseline exists just
+      // to paint the hero scene/timezone while permission is pending — it is
+      // never presented as the user's location ("Delhi wala nahi dikhana").
+      location: sky.source === 'device' ? sky.locationLabel ?? null : null,
+      tempC: sky.source === 'device' ? sky.tempC ?? null : null,
       tz,
       now,
       sky,

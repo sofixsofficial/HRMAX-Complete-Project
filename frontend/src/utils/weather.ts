@@ -2,21 +2,21 @@
  * Live sky conditions + place context for the dashboard hero background
  * (visual layer only).
  *
- * Two-phase resolution so the hero always has a place:
+ * Two places, one rule:
  *
- *   1. DEFAULT PLACE (New Delhi, India) — fetched immediately, no permission
- *      needed: real current weather + the Asia/Kolkata timezone. This is the
- *      "by default India" behaviour.
- *   2. USER'S LOCATION — if the browser geolocation permission is granted (the
- *      same permission the attendance punch already asks for), conditions and
- *      IANA timezone upgrade to the user's actual place, so the hero clock and
- *      the background always belong to ONE location ("jahan ka time, wahi ka
- *      mausam").
+ *   1. PERMISSION IS ASKED ON OPEN — `fetchUserSky()` runs the moment the app
+ *      mounts (in parallel with the baseline), so the browser's location
+ *      prompt appears immediately instead of after a network round-trip.
+ *      Granted → the user's REAL city, real temperature and IANA timezone
+ *      ("jahan ka time, wahi ka mausam").
+ *   2. THE NEW DELHI BASELINE IS SCENE-ONLY — it paints the hero sky/timezone
+ *      while permission is pending or when it is denied, but `source` stays
+ *      `'default'` and ClockContext deliberately does NOT expose its label or
+ *      temperature, so a default place is never shown as the user's location.
  *
  * Weather comes from the free Open-Meteo API (no key, no backend call); the
- * city label from the free BigDataCloud reverse-geocode endpoint. Every failure
- * path degrades gracefully to the India baseline (time-of-day scene). This
- * never touches attendance, payroll, or any backend record.
+ * city label from the free BigDataCloud reverse-geocode endpoint. This never
+ * touches attendance, payroll, or any backend record.
  */
 
 export type SkyWeather = 'unknown' | 'clear' | 'clouds' | 'rain' | 'storm' | 'snow'

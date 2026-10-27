@@ -12,11 +12,14 @@ const INITIAL: SkyConditions = {
 /**
  * Live sky conditions for the hero background — always resolves to a place:
  *
- *   1. New Delhi baseline (real weather + Asia/Kolkata) loads instantly, no
- *      location permission needed.
- *   2. If the browser location permission is granted, everything upgrades to
- *      the user's actual place — its weather and its IANA timezone — so the
- *      hero clock and the background always belong to the same location.
+ *   1. The location permission is requested IMMEDIATELY on mount (parallel to
+ *      the baseline fetch), so the browser prompt appears the moment the app
+ *      opens instead of after the baseline network call resolves.
+ *   2. Granted → the user's real place: its weather, its city label and its
+ *      IANA timezone (this is the ONLY source ever shown as "your location").
+ *   3. Denied/unavailable → the New Delhi baseline still paints the hero
+ *      scene/timezone, but the header keeps location/temp hidden (ClockContext
+ *      only exposes `source === 'device'`).
  *
  * Re-checks every 30 minutes so a changing sky (clear → rain) is picked up
  * without a reload. Never throws.
@@ -28,10 +31,15 @@ export function useHeroSky(): SkyConditions {
     let dead = false
 
     const refresh = async () => {
-      const baseline = await fetchDefaultSky()
-      if (!dead) setSky(baseline)
-      const mine = await fetchUserSky()
-      if (mine && !dead) setSky(mine)
+      // Both at once: the prompt fires immediately, and the hero never sits on
+      // an empty sky while the geolocation/weather calls round-trip.
+      const [baseline, mine] = await Promise.allSettled([fetchDefaultSky(), fetchUserSky()])
+      if (dead) return
+      if (mine.status === 'fulfilled' && mine.value) {
+        setSky(mine.value)
+      } else if (baseline.status === 'fulfilled') {
+        setSky(baseline.value)
+      }
     }
 
     void refresh()
