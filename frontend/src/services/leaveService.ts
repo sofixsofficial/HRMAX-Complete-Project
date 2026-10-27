@@ -586,7 +586,7 @@ const mapLeave = (d: any): LeaveRequest => {
     department: data.department,
     departmentId: data.departmentId,
     companyId: data.companyId,
-    leaveType: data.leaveType,
+    leaveType: data.leaveType ?? data.type,
     startDate: data.startDate?.toDate() || new Date(),
     endDate: data.endDate?.toDate() || new Date(),
     totalDays: data.totalDays || 0,

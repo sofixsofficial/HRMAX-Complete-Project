@@ -175,6 +175,7 @@ const [submittingRectify, setSubmittingRectify] = useState(false)
     if (approverId) return null
     if (!scopedCompanyIds(companyId, availableCompanies).includes(r.companyId)) return null
     if ((role === 'reporting-manager' || role === 'hr-manager') && next === 'reportingManager') return next
+    if (role === 'hr' && next === 'hr') return next
     if (role === 'company-admin' && next === 'companyAdmin') return next
     if (role === 'executive' && next === 'executive') return next
     if (role === 'team-leader' && next === 'teamLeader') return next

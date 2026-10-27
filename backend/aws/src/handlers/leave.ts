@@ -8,7 +8,7 @@
 import type { Route } from '../lib/http.js';
 import { must, equalityFilters, parseOrderBy } from '../lib/http.js';
 import { assertCompanyScope, hasPermission, isSuperAdmin, readPartitions } from '../lib/auth.js';
-import { putEntity, getEntity, patchEntity, queryEntities, queryEntitiesAcross, locateEntityAcross, allPartitions } from '../lib/db.js';
+import { putEntity, getEntity, patchEntity, queryEntities, queryEntitiesAcross, locateEntityAcross, allPartitions, getUserDoc } from '../lib/db.js';
 import { resolveStakeholders } from '../lib/stakeholders.js';
 import { createNotification, fanOutNotifications } from '../lib/notify.js';
 import { ApiError, newId, isoNow, TIER_ORDER, type LeaveRequestDoc, type LeaveTier, type UserRole } from '../lib/types.js';
@@ -230,14 +230,19 @@ export const leaveRoutes: Route[] = [
       }
 
       const stakeholders = await resolveStakeholders(input.companyId, input.userId);
-      const approval = await computeInitialApproval(input, caller.role, stakeholders);
+      // The chain (and the recorded requester) belongs to the LEAVE'S SUBJECT,
+      // not whoever filled the form — an admin filing on behalf of an employee
+      // must not produce the admin's own chain or name.
+      const targetDoc = await getUserDoc(input.userId).catch(() => null);
+      const applicantRole = (targetDoc?.role as UserRole) || caller.role;
+      const approval = await computeInitialApproval(input, applicantRole, stakeholders);
 
       const id = newId();
       const doc_: LeaveRequestDoc = {
         id,
         companyId: input.companyId,
         userId: input.userId,
-        employeeName: caller.name,
+        employeeName: String(targetDoc?.name ?? caller.name),
         type: input.type,
         startDate: input.startDate,
         endDate: input.endDate,

@@ -205,6 +205,7 @@ export function LeaveManagement() {
         case 'company-admin':
         case 'team-leader':
         case 'executive':
+        case 'hr':
           if (effectiveCompanyId) {
             data = await getLeaveRequestsByCompany(effectiveCompanyId)
           } else {
@@ -325,6 +326,9 @@ export function LeaveManagement() {
     // working Approve/Reject control instead of hiding the actions entirely.
     if (!l.approverIds[nextTier]) {
       if (user.role === 'reporting-manager' && nextTier === 'reportingManager') return nextTier
+      if (user.role === 'hr' && nextTier === 'hr') {
+        if (!effectiveCompanyId || l.companyId === effectiveCompanyId) return nextTier
+      }
       if (user.role === 'company-admin' && nextTier === 'companyAdmin') {
         if (!effectiveCompanyId || l.companyId === effectiveCompanyId) return nextTier
       }
@@ -345,7 +349,7 @@ export function LeaveManagement() {
 
   // ── role-based visibility ───────────────────────────────────
   const visibleLeaves = leaves.filter(l => {
-    if (user?.role === 'master-admin' || user?.role === 'company-admin') return true
+    if (user?.role === 'master-admin' || user?.role === 'company-admin' || user?.role === 'hr') return true
     if (user?.role === 'executive') {
       // Executives manage ALL companies (CompanyContext model): the management
       // table mirrors the dashboard card scope (active top-nav companies)
@@ -614,7 +618,7 @@ export function LeaveManagement() {
           <div className="section-header-companies">
             <h3>{isExecutive ? 'My Leave Requests' : 'Leave Requests'}</h3>
             <div className="section-actions">
-              {user?.role !== 'company-admin' && canPerform('create', 'leave') && (
+              {user?.role !== 'company-admin' && user?.role !== 'master-admin' && canPerform('create', 'leave') && (
                 <button className="btn-primary" onClick={() => { setApplyData(INITIAL_APPLY); setApplyMode('self'); setApplyError(null); setIsApplyOpen(true) }}>
                   <Plus size={16} />Apply for Leave
                 </button>
