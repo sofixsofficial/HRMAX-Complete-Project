@@ -7,7 +7,7 @@
  * reset by code (custom flow kept for web parity), and /me.
  */
 
-import { CognitoIdentityProviderClient, AdminCreateUserCommand, AdminSetUserPasswordCommand, AdminDeleteUserCommand, AdminUpdateUserAttributesCommand, AdminGetUserCommand, AdminInitiateAuthCommand, AuthFlowType, AdminRespondToAuthChallengeCommand, ChallengeNameType } from '@aws-sdk/client-cognito-identity-provider';
+import { CognitoIdentityProviderClient, AdminCreateUserCommand, AdminSetUserPasswordCommand, AdminDeleteUserCommand, AdminUpdateUserAttributesCommand, AdminGetUserCommand, InitiateAuthCommand, AuthFlowType, AdminRespondToAuthChallengeCommand, ChallengeNameType } from '@aws-sdk/client-cognito-identity-provider';
 import { createHash, randomBytes } from 'node:crypto';
 import { must, type Route } from '../lib/http.js';
 import { assertRole, assertPermission, scopedCompanyIds } from '../lib/auth.js';
@@ -230,11 +230,16 @@ function mapCognitoCreateError(err: unknown, email: string): ApiError {
 
 /** Issue a JWT pair via Cognito (used by server-to-server flows; clients normally authenticate directly). */
 export async function cognitoSignIn(email: string, password: string) {
+  // USER_PASSWORD_AUTH (client-side flow enabled on the app client), NOT
+  // AdminInitiateAuth: the pool only allows ALLOW_USER_PASSWORD_AUTH /
+  // ALLOW_USER_SRP_AUTH / ALLOW_REFRESH_TOKEN_AUTH, so an ADMIN_USER_PASSWORD
+  // auth attempt throws and every change-password reported "Current password
+  // is incorrect" no matter what the user typed. This authenticates the same
+  // credentials the sign-in screen uses.
   const res = await cognito.send(
-    new AdminInitiateAuthCommand({
-      UserPoolId: POOL_ID(),
+    new InitiateAuthCommand({
       ClientId: CLIENT_ID(),
-      AuthFlow: AuthFlowType.ADMIN_USER_PASSWORD_AUTH,
+      AuthFlow: AuthFlowType.USER_PASSWORD_AUTH,
       AuthParameters: { USERNAME: email, PASSWORD: password },
     }),
   );
