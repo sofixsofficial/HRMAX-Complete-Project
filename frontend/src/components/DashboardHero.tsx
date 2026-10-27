@@ -417,7 +417,7 @@ export function DashboardHero({ stats, badge, showAttendance = true }: Dashboard
   const { user } = useAuth()
   // Shared clock context — ONE time source for the header AND the hero, so
   // the two can never drift apart (hrmax-hero reference wiring).
-  const { theme, greeting } = useClock()
+  const { theme } = useClock()
   const roleBadge = badge || roleDepartmentLabel(user)
   const stars = useSkyStars()
 
@@ -458,7 +458,6 @@ export function DashboardHero({ stats, badge, showAttendance = true }: Dashboard
           <small>Welcome to,</small>
           <h2>
             {user?.name || roleDepartmentLabel(user) || 'User'}
-            <span className="greet-inline">{greeting}</span>
           </h2>
 
           {showAttendance ? (
