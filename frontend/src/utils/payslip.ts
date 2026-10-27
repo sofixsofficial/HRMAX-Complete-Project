@@ -52,6 +52,7 @@ export const generatePayslip = (slip: SalarySlip, options: PayslipOptions = {}) 
     address: options.companyAddress || '',
     city: options.companyCity || '',
     state: options.companyState || '',
+    zip: options.companyZip || '',
     country: options.companyCountry || '',
     logo: options.companyLogo || '',
     currency: options.companyCurrency || 'INR',
@@ -128,7 +129,7 @@ export const generatePayslip = (slip: SalarySlip, options: PayslipOptions = {}) 
     }
   }
 
-  const addressLine = [c.address, c.city, c.state, c.country].filter(Boolean).join(', ')
+  const addressLine = [c.address, c.city, c.state, c.zip, c.country].filter(Boolean).join(', ')
   const logoHtml = c.logo ? `<img src="${c.logo}" class="company-logo" alt="logo" />` : ''
 
   const combinedTableHeader = hasDeductions ? `
@@ -212,7 +213,10 @@ export const generatePayslip = (slip: SalarySlip, options: PayslipOptions = {}) 
       print-color-adjust: exact;
     }
     .page {
-      width: 210mm;
+      /* Fluid on screen: a fixed 210mm sheet pushed the money columns past
+         the edge whenever the window (or browser zoom) was narrower than A4.
+         Print still gets the exact sheet from @media print below. */
+      width: min(210mm, 100%);
       min-height: 297mm;
       margin: 0 auto;
       padding: 18mm 20mm;
@@ -239,7 +243,7 @@ export const generatePayslip = (slip: SalarySlip, options: PayslipOptions = {}) 
       align-items: flex-end;
     }
     .brand-name {
-      font-size: 20px;
+      font-size: 16px;
       font-weight: 800;
       color: var(--primary);
       letter-spacing: 0;
@@ -471,6 +475,52 @@ export const generatePayslip = (slip: SalarySlip, options: PayslipOptions = {}) 
       font-family: inherit;
     }
     .print-btn:hover { background: var(--primary-dark); }
+
+    /* On screen the sheet follows the window. Below A4 the six-column
+       earnings table is where the money used to spill out, so the cells are
+       allowed to wrap and the summary/header are free to stack. */
+    @media screen and (max-width: 900px) {
+      .page {
+        width: 100%;
+        min-height: 0;
+        padding: 18px 14px;
+      }
+      .header {
+        flex-wrap: wrap;
+        gap: 14px;
+      }
+      .brand-right {
+        align-items: flex-start;
+        text-align: left;
+      }
+      .company-name { font-size: 22px; }
+      .summary-box {
+        flex-wrap: wrap;
+        gap: 18px;
+        padding: 16px;
+      }
+      .summary-divider { display: none; }
+      .summary-right { text-align: left; }
+      table { font-size: 12px; }
+      th, td {
+        padding: 9px 7px;
+        overflow-wrap: anywhere;
+      }
+      /* Six uppercase header words in a 465px sheet: the amount and YTD
+         columns only leave ~45px, so the label has to shrink instead of
+         being clipped mid-word. */
+      th {
+        font-size: 10px;
+        letter-spacing: 0;
+        padding: 8px 5px;
+        height: auto;
+      }
+      td.currency,
+      .net-table td:last-child { white-space: normal; overflow-wrap: anywhere; }
+      .net-table tr:last-child td { font-size: 15px; }
+      .words { font-size: 12px; }
+    }
+
     @media print {
       body { background: #fff; }
       .page { width: 210mm; min-height: 297mm; padding: 18mm 20mm; }

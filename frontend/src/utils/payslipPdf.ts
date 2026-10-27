@@ -106,6 +106,30 @@ export const downloadPayslipPdf = async (slip: SalarySlip, options: PayslipOptio
     currency: options.companyCurrency || 'INR',
   }
 
+  // Company profile logos live in S3 and arrive as an https URL, but jsPDF
+  // only embeds data URIs - so the mark used to vanish from every generated
+  // payslip. Inline it here; a CORS or network failure just drops the logo
+  // instead of breaking the document.
+  if (c.logo && !c.logo.startsWith('data:')) {
+    try {
+      const res = await fetch(c.logo)
+      if (res.ok) {
+        const type = (res.headers.get('content-type') || '').split(';')[0]
+        const bytes = new Uint8Array(await res.arrayBuffer())
+        let bin = ''
+        for (let i = 0; i < bytes.length; i += 0x8000) {
+          const chunk = bytes.subarray(i, i + 0x8000)
+          bin += String.fromCharCode.apply(null, chunk as unknown as number[])
+        }
+        c.logo = `data:${type || 'image/png'};base64,${btoa(bin)}`
+      } else {
+        c.logo = ''
+      }
+    } catch {
+      c.logo = ''
+    }
+  }
+
   const breakdown = slip.breakdown || { hra: 0, da: 0, pf: 0, tax: 0, otherDeductions: 0 }
   const basic = slip.basicSalary || 0
   const hra = breakdown.hra || 0
@@ -186,7 +210,7 @@ export const downloadPayslipPdf = async (slip: SalarySlip, options: PayslipOptio
   const nameW = pw - mg - brandReserve - nameX
   setFont(20, 'bold', C.headerText)
   doc.text(truncate(c.name, nameW), nameX, y + 14)
-  const addressLine = [c.address, c.city, c.state, c.country].filter(Boolean).join(', ')
+  const addressLine = [c.address, c.city, c.state, c.zip, c.country].filter(Boolean).join(', ')
   if (addressLine) {
     setFont(8, 'normal', C.bodyText)
     doc.text(truncate(addressLine, nameW), nameX, y + 18)
