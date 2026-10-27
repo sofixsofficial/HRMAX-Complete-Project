@@ -10,7 +10,7 @@
 import { CognitoIdentityProviderClient, AdminCreateUserCommand, AdminSetUserPasswordCommand, AdminDeleteUserCommand, AdminUpdateUserAttributesCommand, AdminGetUserCommand, AdminInitiateAuthCommand, AuthFlowType, AdminRespondToAuthChallengeCommand, ChallengeNameType } from '@aws-sdk/client-cognito-identity-provider';
 import { createHash, randomBytes } from 'node:crypto';
 import { must, type Route } from '../lib/http.js';
-import { assertRole, assertPermission } from '../lib/auth.js';
+import { assertRole, assertPermission, scopedCompanyIds } from '../lib/auth.js';
 import { PutCommand } from '@aws-sdk/lib-dynamodb';
 import { putEntity, getUserDoc, queryEntities, deleteUserDoc, patchEntity, doc, TABLE, userPK } from '../lib/db.js';
 import { sendEmailCentral, templates } from '../lib/email.js';
@@ -163,27 +163,69 @@ export async function writeUserDoc(uid: string, data: WriteUserInput): Promise<U
   return doc_;
 }
 
-/** Admin-create a Cognito user + set password + custom attributes. */
+/** Admin-create a Cognito user + set password + custom attributes.
+ *
+ * Cognito's client errors are translated into ApiError so the caller sees an
+ * actionable message instead of the generic 500 "Internal server error".
+ * The one that bit us in production: UsernameExistsException (an email that is
+ * already registered) surfaced as a bare 500 on every Add Team Leader /
+ * Add Employee / Add Executive / Add Company Admin attempt, because the raw
+ * SDK error escaped the handler's own error mapping.
+ */
 export async function cognitoCreateUser(email: string, password: string, name: string, role: string, companyId: string): Promise<string> {
-  const res = await cognito.send(
-    new AdminCreateUserCommand({
-      UserPoolId: POOL_ID(),
-      Username: email,
-      MessageAction: 'SUPPRESS',
-      UserAttributes: [
-        { Name: 'email', Value: email },
-        { Name: 'email_verified', Value: 'true' },
-        { Name: 'name', Value: name },
-        { Name: 'custom:role', Value: role },
-        { Name: 'custom:companyId', Value: companyId },
-      ],
-    }),
-  );
+  let res: { User?: { Username?: string } };
+  try {
+    res = await cognito.send(
+      new AdminCreateUserCommand({
+        UserPoolId: POOL_ID(),
+        Username: email,
+        MessageAction: 'SUPPRESS',
+        UserAttributes: [
+          { Name: 'email', Value: email },
+          { Name: 'email_verified', Value: 'true' },
+          { Name: 'name', Value: name },
+          { Name: 'custom:role', Value: role },
+          { Name: 'custom:companyId', Value: companyId },
+        ],
+      }),
+    );
+  } catch (err) {
+    throw mapCognitoCreateError(err, email);
+  }
   const uid = res.User?.Username ?? email;
-  await cognito.send(
-    new AdminSetUserPasswordCommand({ UserPoolId: POOL_ID(), Username: uid, Password: password, Permanent: true }),
-  );
+  try {
+    await cognito.send(
+      new AdminSetUserPasswordCommand({ UserPoolId: POOL_ID(), Username: uid, Password: password, Permanent: true }),
+    );
+  } catch (err) {
+    // The account now exists but has no usable password - clean it up so a
+    // retry with the same email is not blocked by a half-created user.
+    await cognito.send(new AdminDeleteUserCommand({ UserPoolId: POOL_ID(), Username: uid })).catch(() => undefined);
+    throw mapCognitoCreateError(err, email);
+  }
   return uid;
+}
+
+/** Turn Cognito's SDK errors during account creation into actionable ApiErrors. */
+function mapCognitoCreateError(err: unknown, email: string): ApiError {
+  const name = (err as { name?: string; __type?: string }).name
+    ?? (err as { __type?: string }).__type
+    ?? '';
+  const message = err instanceof Error ? err.message : '';
+  if (name.includes('UsernameExists') || name.includes('AliasExists')) {
+    return new ApiError(
+      'bad-request',
+      `An account with ${email} already exists. Use Reset Password for that user, or change their role in Access Management.`,
+    );
+  }
+  if (name.includes('InvalidPassword') || name.includes('PasswordInvalid')) {
+    return new ApiError('bad-request', message || 'Password does not meet the requirements.');
+  }
+  if (name.includes('InvalidParameter')) {
+    return new ApiError('bad-request', message || 'Some account details are not valid.');
+  }
+  console.error('[auth] cognito create failed:', name, message);
+  return new ApiError('internal', 'Could not create the account right now. Please try again.');
 }
 
 /** Issue a JWT pair via Cognito (used by server-to-server flows; clients normally authenticate directly). */
@@ -597,6 +639,97 @@ export const authRoutes: Route[] = [
         title: `${name} account created`, message: `${role} account for ${name} is ready.`,
       });
       return { success: true, uid, user: doc_ };
+    },
+  },
+
+  // --------------------------- admin-triggered password reset (any role)
+  // One flow for every role an admin can manage (employee, company admin,
+  // executive, team leader): the TARGET gets the same 6-digit code the
+  // self-service /forgot-password page issues, so the code always works on
+  // /verify-reset-code. (The old per-page buttons either wrote a fake
+  // `password` field that Cognito never saw, or sent Cognito's own
+  // ForgotPassword code, which this app's verify page cannot validate.)
+  {
+    method: 'POST',
+    path: '/api/users/reset-password',
+    handler: async (req) => {
+      const caller = must(req);
+      assertRole(caller, ['master-admin', 'company-admin', 'executive', 'team-leader']);
+      const email = String(req.body.email ?? '').trim().toLowerCase();
+      if (!email) throw new ApiError('bad-request', 'email required');
+      await enforceRateLimit(`adminreset#${email}`, 5, 600);
+      await enforceRateLimit(`adminreset-ip#${sourceIp(req)}`, 20, 600);
+
+      const account = await cognitoGetUserByEmail(email);
+      if (!account) throw new ApiError('not-found', `No HR MAX account exists for ${email}.`);
+
+      const targetDoc = await getUserDoc(account.uid).catch(() => null);
+      if (!isSuper(caller)) {
+        const scope = scopedCompanyIds(caller);
+        const targetCompany = String((targetDoc?.companyId as string) ?? '');
+        if (targetCompany && scope.length > 0 && !scope.includes(targetCompany)) {
+          throw new ApiError('permission-denied', 'You can only reset passwords for users in your assigned companies.');
+        }
+      }
+
+      // Same single-active-code rule as the self-service flow: retire every
+      // older unused code first so a stale one cannot race this one.
+      try {
+        const old = await queryEntities<ResetCodeDoc>({ entity: 'resetCode', companyId: 'global', filters: { email, used: false }, limit: 10 });
+        for (const c of old) {
+          await patchEntity('resetCode', 'global', String(c.id), { used: true }, { entity: 'resetCode' }).catch(() => undefined);
+        }
+      } catch (e) {
+        console.warn('[auth] retiring old reset codes failed (best-effort):', e instanceof Error ? e.message : String(e));
+      }
+
+      const code = String(Math.floor(100000 + Math.random() * 900000));
+      await putEntity<ResetCodeDoc>(
+        {
+          id: newId(),
+          companyId: 'global',
+          email,
+          code: createHash('sha256').update(code).digest('hex'),
+          expiresAt: new Date(Date.now() + 10 * 60_000).toISOString(),
+          used: false,
+        },
+        { entity: 'resetCode' },
+      );
+      const t = templates.resetCode(code, { email, requestedBy: caller.name });
+      const result = await sendEmailCentral({ to: email, subject: t.subject, html: t.html, type: 'otp', dedupKey: `reset-code-${email}-${code}` });
+      if (!result.success) {
+        console.warn('[auth] admin reset-code email not delivered:', result.error ?? result.skipped);
+      }
+
+      // Tell the account holder - never the code itself.
+      await createNotification({
+        userId: account.uid,
+        companyId: String((targetDoc?.companyId as string) ?? 'global'),
+        type: 'security',
+        title: 'Password reset code requested',
+        message: `${caller.name || 'Your administrator'} asked us to reset your password. A 6-digit code was emailed to ${email} - open the link in that email to set a new one.`,
+        link: `/verify-reset-code?email=${encodeURIComponent(email)}`,
+      }).catch(() => undefined);
+
+      // Audit trail: who initiated it, against whom.
+      await putEntity(
+        {
+          id: newId(),
+          companyId: caller.companyId || 'global',
+          action: 'PASSWORD_RESET_REQUESTED',
+          actorId: caller.uid,
+          actorName: caller.name ?? '',
+          targetId: account.uid,
+          details: `Admin-initiated reset code emailed to ${email}`,
+          ip: sourceIp(req),
+          userAgent: '',
+          createdAt: isoNow(),
+          timestamp: isoNow(),
+        },
+        { entity: 'auditLog', globalList: true, tsField: 'createdAt' },
+      ).catch((e) => console.warn('[auth] admin reset audit failed (best-effort):', e instanceof Error ? e.message : String(e)));
+
+      return { success: true, email };
     },
   },
 

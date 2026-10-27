@@ -9,7 +9,7 @@ import { z } from 'zod'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { collection, doc, onSnapshot, query, updateDoc, deleteDoc, serverTimestamp, getDocs, getDoc, where } from '../aws/firestore-compat'
 import { ref as storageRef, uploadBytes, getDownloadURL } from '../aws/storage-compat'
-import { sendPasswordResetEmail } from '../aws/auth-compat'
+import { sendAdminResetCode } from '../services/authService'
 import { httpsCallable } from '../aws/functions-compat'
 import { createAdminAlert, createNotification } from '../services/notificationService'
 import { auth, db, storage, functions } from '../aws/clients'
@@ -888,11 +888,18 @@ export function Executives() {
   }
 
   const handleResetPassword = async (u: User) => {
-    const confirmReset = window.confirm(`Reset password for ${u.name}? A password reset email will be sent to ${u.email}.`)
+    const email = (u.email || '').trim().toLowerCase()
+    if (!email) {
+      setToast({ type: 'error', message: 'This account has no email on file' })
+      return
+    }
+    const confirmReset = window.confirm(`Reset password for ${u.name}? A 6-digit reset code will be sent to ${email}, and ${u.name} sets the new password from the link in that email.`)
     if (!confirmReset) return
     try {
-      await updateDoc(doc(db, 'users', u.id), { updatedAt: serverTimestamp() })
-      await sendPasswordResetEmail(auth, u.email)
+      // Same server-issued code the self-service /verify-reset-code page
+      // accepts. (This used to call Cognito's ForgotPassword, whose code this
+      // app has no screen to enter — so the flow could never be completed.)
+      await sendAdminResetCode(email)
       await logAudit({
         userId: authUser?.id || '',
         userName: authUser?.name || '',
@@ -902,19 +909,19 @@ export function Executives() {
         module: 'Executive Profile',
         targetEntity: u.name,
         status: 'success',
-        details: `Password reset email sent to ${u.email}`,
+        details: `Password reset code sent to ${email}`,
       })
       if (authUser) {
         await createNotification(
           authUser.id, 'general', 'Password Reset',
-          `Password reset email sent to ${u.name} (${u.email})`,
+          `Password reset code sent to ${u.name} (${email})`,
           `/executives`, u.companyId || ''
         )
       }
-      setToast({ type: 'success', message: `Password reset email sent to ${u.email}` })
+      setToast({ type: 'success', message: `Reset code sent to ${email} — ${u.name} sets the new password from that email` })
     } catch (err) {
       console.error('Password reset error:', err)
-      setToast({ type: 'error', message: 'Failed to send password reset email' })
+      setToast({ type: 'error', message: errText(err, 'Failed to send the reset code') })
     }
   }
 

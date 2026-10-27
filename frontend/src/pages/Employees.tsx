@@ -28,7 +28,7 @@ import { ScopeIndicator } from '../components/ScopeIndicator'
 import { createEmployee, updateEmployee, getReportingManagersByCompany, getCompanyAdmins, deleteEmployee } from '../services/employeeService'
 import { logAudit } from '../services/auditLogService'
 import { getAllRoles } from '../services/roleService'
-import { getAllUsers, updateUserRole } from '../services/authService'
+import { getAllUsers, updateUserRole, sendAdminResetCode } from '../services/authService'
 import { createNotification, createAdminAlert } from '../services/notificationService'
 import { isDate } from '../utils/dateUtils'
 import { scopedCompanyIds, companyIdWhere, chunkCompanyIds } from '../utils/companyScope'
@@ -1425,19 +1425,28 @@ export function Employees() {
   }
 
   const handleResetPassword = async (emp: Employee) => {
+    const email = (emp.email || '').trim().toLowerCase()
+    if (!email) {
+      setFormError('This employee has no email on file — add an email address before resetting.')
+      return
+    }
+    if (!window.confirm(`Send a password reset code to ${email}? ${emp.name} sets the new password from the link in that email.`)) return
     try {
-      const tempPassword = 'HRM@' + Math.random().toString(36).substr(2, 6).toUpperCase()
-      await updateEmployee(emp.id, { password: tempPassword } as any)
+      // Server issues the 6-digit code the /verify-reset-code flow accepts and
+      // emails it to the employee. (This used to write a `password` field on
+      // the employee document, which Cognito never read — so the "temp
+      // password" it showed never actually worked.)
+      await sendAdminResetCode(email)
       if (user) {
         await createNotification(
           user.id, 'general', 'Password Reset',
-          `Password for ${emp.name} (${(emp as any).username || emp.employeeId}) has been reset. New temp password: ${tempPassword}`,
+          `Password reset code sent to ${emp.name} (${email}). They complete the change from the emailed link.`,
           `/employees`, emp.companyId || ''
         )
       }
-      setFormError(`Password reset for ${emp.name}. Temp Password: ${tempPassword}`)
+      showToast(`Reset code sent to ${email} — ${emp.name} sets the new password from that email`, 'success')
     } catch (err) {
-      setFormError('Failed to reset password')
+      setFormError(errText(err, 'Failed to send the reset code'))
     }
   }
 

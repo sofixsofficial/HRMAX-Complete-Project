@@ -1,13 +1,14 @@
 import { useState, useEffect, useRef } from 'react'
 import { errText } from '../aws/errors';
 import { validatePasswordPolicy } from '../utils/passwordPolicy';
-import { UserPlus, Search, Plus, Eye, Pencil, Trash2, Loader2, ChevronLeft, ChevronRight, Mail, Shield, User as UserIcon, Briefcase, Lock, Crown, Building2, Users, ChevronDown, Check, Activity, Bell, Upload, DollarSign, CalendarDays, MapPin, CreditCard, BadgeAlert, Filter, CheckSquare, Crosshair, Wifi, Camera, Smartphone } from 'lucide-react'
+import { UserPlus, Search, Plus, Eye, Pencil, Trash2, Loader2, ChevronLeft, ChevronRight, Mail, Shield, User as UserIcon, Briefcase, Lock, Crown, Building2, Users, ChevronDown, Check, Activity, Bell, Upload, DollarSign, CalendarDays, MapPin, CreditCard, BadgeAlert, Filter, CheckSquare, Crosshair, Wifi, Camera, Smartphone, KeyRound } from 'lucide-react'
 import { useNavigate } from 'react-router-dom'
 import { Header } from '../components/Header'
 import { Modal } from '../components/Modal'
 import { Toast } from '../components/Toast'
 import { useAuth } from '../context/AuthContext'
-import { getAllUsers } from '../services/authService'
+import { getAllUsers, sendAdminResetCode } from '../services/authService'
+import { createNotification } from '../services/notificationService'
 import { getAllCompanies } from '../services/companyService'
 import { getDepartmentsByCompany, getAllDepartments } from '../services/departmentService'
 import { collection, doc, onSnapshot, updateDoc, serverTimestamp } from '../aws/firestore-compat'
@@ -915,6 +916,28 @@ export function TeamLeaders() {
     }
   }
 
+  // Admin-triggered reset: the server emails the TL the same 6-digit code the
+  // self-service /verify-reset-code flow accepts.
+  const handleResetPassword = async (u: User) => {
+    const email = (u.email || '').trim().toLowerCase()
+    if (!email) {
+      setToast({ message: 'This account has no email on file', type: 'error' })
+      return
+    }
+    if (!confirm(`Send a password reset code to ${email}? ${u.name} sets the new password from the link in that email.`)) return
+    try {
+      await sendAdminResetCode(email)
+      await createNotification(
+        authUser?.id || '', 'general', 'Password Reset',
+        `Password reset code sent to ${u.name} (${email})`,
+        `/team-leaders`, u.companyId || ''
+      )
+      setToast({ message: `Reset code sent to ${email} — ${u.name} sets the new password from that email`, type: 'success' })
+    } catch (err) {
+      setToast({ message: errText(err, 'Failed to send the reset code'), type: 'error' })
+    }
+  }
+
   const executiveOptions = executives.filter(e => e.isActive).map(e => ({
     id: e.id,
     name: e.name,
@@ -1049,6 +1072,9 @@ export function TeamLeaders() {
                   <td>
                     <div className="emp-actions" style={{ justifyContent: 'flex-end' }}>
                       <button className="emp-action-icon view" onClick={() => openView(u)} title="View"><Eye size={15} /></button>
+                      {['master-admin', 'company-admin', 'executive', 'team-leader'].includes(authUser?.role || '') && (
+                        <button className="emp-action-icon" style={{ background: '#fef3c7', color: '#d97706' }} title="Reset Password" onClick={() => handleResetPassword(u)}><KeyRound size={15} /></button>
+                      )}
                       {authUser?.role === 'master-admin' && (
                         <>
                           <button className="emp-action-icon edit" title="Edit" onClick={() => openEdit(u)}><Pencil size={15} /></button>

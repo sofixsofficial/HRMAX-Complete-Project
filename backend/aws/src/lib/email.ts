@@ -309,6 +309,12 @@ async function logEmail(
 // Templates (parity with the original inline-HTML templates, HRMAX brand)
 // ---------------------------------------------------------------------------
 
+const APP_URL = () => process.env.APP_URL ?? 'https://hrmax.in';
+
+/** Deep link into the 3-screen reset flow with the address already filled in. */
+const resetLink = (email?: string): string =>
+  `${APP_URL()}/verify-reset-code${email ? `?email=${encodeURIComponent(email)}` : ''}`;
+
 const brand = (title: string, bodyHtml: string) => `
 <div style="font-family:Arial,Helvetica,sans-serif;max-width:600px;margin:0 auto;background:#ffffff">
   <div style="background:#FF6600;padding:24px;text-align:center">
@@ -337,7 +343,10 @@ export const templates = {
     ),
   }),
 
-  resetCode: (code: string) => ({
+  // The code alone used to dead-end: the email said "use this code" with no
+  // destination. It now links straight to the verify step (email prefilled),
+  // and names the administrator when the reset was admin-triggered.
+  resetCode: (code: string, opts?: { email?: string; requestedBy?: string }) => ({
     subject: 'Your Password Reset Code',
     html: brand(
       'Password Reset',
@@ -345,6 +354,11 @@ export const templates = {
        <p style="text-align:center;margin:24px 0">
          <span style="font-size:32px;letter-spacing:8px;font-weight:bold;color:#FF6600">${code}</span>
        </p>
+       ${opts?.requestedBy ? `<p>This reset was requested by <b>${opts.requestedBy}</b> (your administrator).</p>` : ''}
+       <p style="text-align:center;margin:24px 0">
+         <a href="${resetLink(opts?.email)}" style="background:#FF6600;color:#fff;padding:12px 24px;border-radius:6px;text-decoration:none;display:inline-block;font-weight:bold">Enter the code</a>
+       </p>
+       <p style="color:#888;font-size:13px">If the button doesn't work, open:<br>${resetLink(opts?.email)}</p>
        <p>If you didn't request this, you can safely ignore this email.</p>`,
     ),
   }),

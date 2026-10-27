@@ -5,7 +5,7 @@ import {
   Eye, Pencil, Loader2, Trash2, X, CheckCircle,
   ChevronLeft, ChevronRight, Upload, Search, Crown,
   Crosshair, Wifi, Camera, Smartphone, Mail, MapPin, DollarSign,
-  UserX
+  UserX, KeyRound
 } from 'lucide-react'
 import { useForm } from 'react-hook-form'
 import type { Resolver } from 'react-hook-form'
@@ -30,7 +30,8 @@ import {
   onboardCompany,
 } from '../services/companyService'
 import { getAllEmployees } from '../services/employeeService'
-import { getAllUsers } from '../services/authService'
+import { getAllUsers, sendAdminResetCode } from '../services/authService'
+import { errText } from '../aws/errors'
 import type { Company, User } from '../types/user'
 import { logAudit } from '../services/auditLogService'
 import './Companies.css'
@@ -1056,6 +1057,25 @@ export function Companies() {
     }, 4000)
   }
 
+  // Admin-triggered reset for this company's admin account: the server emails
+  // them the 6-digit code the /verify-reset-code flow accepts (the same flow
+  // every other role's Reset Password button now uses).
+  const handleResetAdminPassword = async (company: Company) => {
+    const email = (company.adminEmail || '').trim().toLowerCase()
+    if (!email) {
+      setFormError(`No admin email is on file for ${company.name}`)
+      return
+    }
+    if (!window.confirm(`Send a password reset code to ${email} (${company.name}'s admin)? They set the new password from the link in that email.`)) return
+    setFormError(null)
+    try {
+      await sendAdminResetCode(email)
+      showToast(`Reset code sent to ${email} — they set the new password from that email`)
+    } catch (err) {
+      setFormError(errText(err, 'Failed to send the reset code'))
+    }
+  }
+
   const handleAddCompany = async (values: CompanyFormValues) => {
     setFormError(null)
     if (!values.adminUsername || values.adminUsername.trim().length < 3) {
@@ -1486,6 +1506,11 @@ export function Companies() {
                               {hasPermission('companies.edit') && (
                                 <button className="action-btn edit" onClick={() => openEditModal(company)}>
                                   <Pencil size={16} />
+                                </button>
+                              )}
+                              {hasPermission('companies.edit') && (
+                                <button className="action-btn" title="Reset admin password" onClick={() => handleResetAdminPassword(company)}>
+                                  <KeyRound size={16} />
                                 </button>
                               )}
                               {hasPermission('companies.delete') && (

@@ -335,6 +335,19 @@ export const confirmResetPassword = async (code: string, newPassword: string): P
 };
 
 /**
+ * Admin-triggered reset for a managed account (employee, company admin,
+ * executive, team leader). The TARGET is emailed a 6-digit code that the
+ * normal /forgot-password → /verify-reset-code flow accepts — no more fake
+ * temp passwords or Cognito-only codes this app cannot verify.
+ * Throws a friendly message when the account does not exist or the caller
+ * is outside the target's company scope.
+ */
+export const sendAdminResetCode = async (email: string): Promise<void> => {
+  const fn = httpsCallable(getFunctions(), 'sendAdminResetCode');
+  await fn({ email: email.trim().toLowerCase() });
+};
+
+/**
  * Verify a 6-digit reset code (server-side check; does not consume it).
  */
 export const verifyResetCode = async (email: string, code: string): Promise<boolean> => {
