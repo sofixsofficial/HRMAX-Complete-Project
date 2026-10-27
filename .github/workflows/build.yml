@@ -53,9 +53,13 @@ jobs:
         run: npm run lint
         continue-on-error: true
 
+      # The dist/ upload is a convenience copy of a build that already succeeded
+      # above; GitHub's artifact storage quota can be exhausted account-wide
+      # (usage recalculates every 6-12h), which must not fail the CI gate.
       - name: Upload build artifacts
         uses: actions/upload-artifact@v4
+        continue-on-error: true
         with:
           name: dist-files-${{ matrix.node-version }}
           path: frontend/dist/
-          retention-days: 5
+          retention-days: 1
