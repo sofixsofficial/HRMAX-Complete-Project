@@ -185,6 +185,16 @@ const authInstance: Auth = {
   },
 };
 
+/**
+ * Current Cognito access token, or null when signed out.
+ * Cognito's user-context operations (UpdateUserAttributes, ChangePassword,
+ * GetUser, ...) take it as a request BODY member, not as an Authorization
+ * header - helpers that talk to Cognito directly need it via this getter.
+ */
+export function getAccessToken(): string | null {
+  return currentTokens?.accessToken ?? null;
+}
+
 export function getAuthInstance(): Auth {
   return authInstance;
 }
@@ -309,7 +319,17 @@ export async function updatePassword(user: AwsUser, newPassword: string): Promis
         'x-amz-target': 'AWSCognitoIdentityProviderService.ChangePassword',
         authorization: `Bearer ${currentTokens.accessToken}`,
       },
-      body: JSON.stringify({ PreviousPassword: (user as unknown as { _pw?: string })._pw, ProposedPassword: newPassword }),
+      // Cognito reads the caller's identity for user-context operations from
+      // the request BODY (the `AccessToken` member). The Authorization header
+      // is ignored here, so without AccessToken in the payload Cognito
+      // answers 400: "Value at 'accessToken' failed to satisfy constraint:
+      // Member must not be null" - which surfaced on Save Changes as a raw
+      // AWS validation error.
+      body: JSON.stringify({
+        AccessToken: currentTokens.accessToken,
+        PreviousPassword: (user as unknown as { _pw?: string })._pw,
+        ProposedPassword: newPassword,
+      }),
     });
   } catch {
     throw new FriendlyError(ERROR_CODES.network, ERROR_MESSAGES.network);
@@ -334,7 +354,11 @@ export async function updateProfile(user: AwsUser, profile: { displayName?: stri
         'x-amz-target': 'AWSCognitoIdentityProviderService.UpdateUserAttributes',
         authorization: `Bearer ${currentTokens.accessToken}`,
       },
-      body: JSON.stringify({ UserAttributes: [{ Name: 'name', Value: profile.displayName ?? '' }] }),
+      // `AccessToken` must travel in the payload - see updatePassword above.
+      body: JSON.stringify({
+        AccessToken: currentTokens.accessToken,
+        UserAttributes: [{ Name: 'name', Value: profile.displayName ?? '' }],
+      }),
     });
   } catch {
     throw new FriendlyError(ERROR_CODES.network, ERROR_MESSAGES.network);

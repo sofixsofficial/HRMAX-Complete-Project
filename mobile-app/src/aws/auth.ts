@@ -310,7 +310,10 @@ export async function updatePassword(_user: AwsUser, newPassword: string): Promi
         'x-amz-target': 'AWSCognitoIdentityProviderService.ChangePassword',
         authorization: `Bearer ${tokens.accessToken}`,
       },
-      body: JSON.stringify({ ProposedPassword: newPassword }),
+      // Cognito reads the caller's token from the BODY (AccessToken member);
+      // the Authorization header is ignored, so omitting it made Cognito
+      // answer 400 "Value at 'accessToken' failed to satisfy constraint".
+      body: JSON.stringify({ AccessToken: tokens.accessToken, ProposedPassword: newPassword }),
     });
   } catch {
     throw new FriendlyError(ERROR_CODES.network, ERROR_MESSAGES.network);
@@ -336,7 +339,10 @@ export async function updateProfile(user: AwsUser, profile: { displayName?: stri
         'x-amz-target': 'AWSCognitoIdentityProviderService.UpdateUserAttributes',
         authorization: `Bearer ${tokens.accessToken}`,
       },
-      body: JSON.stringify({ UserAttributes: [{ Name: 'name', Value: profile.displayName ?? '' }] }),
+      body: JSON.stringify({
+        AccessToken: tokens.accessToken,
+        UserAttributes: [{ Name: 'name', Value: profile.displayName ?? '' }],
+      }),
     });
   } catch {
     throw new FriendlyError(ERROR_CODES.network, ERROR_MESSAGES.network);

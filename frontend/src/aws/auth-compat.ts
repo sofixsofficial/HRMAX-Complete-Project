@@ -39,8 +39,11 @@ export function getAuth(_app?: unknown): Auth {
 
 /** updateEmail — Cognito attribute update via profile endpoint. */
 export async function updateEmail(user: AwsUser, newEmail: string): Promise<void> {
-  const { getIdToken } = await import('./auth');
-  const token = await getIdToken();
+  const { getAccessToken } = await import('./auth');
+  // Cognito wants the ACCESS token as a body member (see aws/auth.ts) - the
+  // ID token used everywhere else is not accepted for UpdateUserAttributes.
+  const token = getAccessToken();
+  if (!token) throw new Error('Your session has expired. Please sign in again.');
   const res = await fetch(
     `https://cognito-idp.${(await import('./config')).AWS_CONFIG.region}.amazonaws.com/`,
     {
@@ -50,10 +53,16 @@ export async function updateEmail(user: AwsUser, newEmail: string): Promise<void
         'x-amz-target': 'AWSCognitoIdentityProviderService.UpdateUserAttributes',
         authorization: `Bearer ${token}`,
       },
-      body: JSON.stringify({ UserAttributes: [{ Name: 'email', Value: newEmail }] }),
+      body: JSON.stringify({
+        AccessToken: token,
+        UserAttributes: [{ Name: 'email', Value: newEmail }],
+      }),
     },
   );
-  if (!res.ok) throw new Error('Failed to update email');
+  if (!res.ok) {
+    const body = (await res.json().catch(() => ({}))) as { message?: string };
+    throw new Error(body.message || 'Failed to update email');
+  }
   user.email = newEmail;
 }
 
