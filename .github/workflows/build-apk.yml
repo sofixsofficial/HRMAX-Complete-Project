@@ -56,7 +56,13 @@ jobs:
         working-directory: mobile-app/android
         run: ./gradlew assembleRelease --no-daemon
 
+      # The account's Actions artifact storage quota is currently exhausted
+      # (upload returns "Artifact storage quota has been hit" for ~6-12h),
+      # which failed the whole run after a successful gradle build. The APK
+      # is a convenience copy - the store build comes from EAS - so a quota
+      # error must not turn this workflow red.
       - name: Upload APK
+        continue-on-error: true
         uses: actions/upload-artifact@v4
         with:
           name: app-release
@@ -64,6 +70,7 @@ jobs:
           retention-days: 30
 
       - name: Upload debug APK
+        continue-on-error: true
         uses: actions/upload-artifact@v4
         with:
           name: app-debug
