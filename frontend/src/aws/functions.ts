@@ -25,9 +25,9 @@ const ROUTE_MAP: Record<string, { path: string; method?: 'GET' | 'POST' | 'PUT' 
   // auth
   createStaffUser: { path: '/api/users/create-staff' },
   // Admin-triggered reset for any managed role (employee / company admin /
-  // executive / team leader) — issues the SAME code the self-service
-  // /forgot-password flow validates, so it always works.
-  sendAdminResetCode: { path: '/api/users/reset-password' },
+  // executive / team leader) — issues a TEMPORARY password the admin hands
+  // over; the target must replace it at next sign-in or from Settings.
+  adminResetPassword: { path: '/api/users/reset-password' },
   changePassword: { path: '/api/auth/change-password' },
   sendResetCode: { path: '/api/auth/forgot-password' },
   verifyResetCode: { path: '/api/auth/verify-reset-code' },

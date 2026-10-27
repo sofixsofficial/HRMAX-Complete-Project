@@ -7,7 +7,8 @@ import { Header } from '../components/Header'
 import { Modal } from '../components/Modal'
 import { Toast } from '../components/Toast'
 import { useAuth } from '../context/AuthContext'
-import { getAllUsers, sendAdminResetCode } from '../services/authService'
+import { getAllUsers, resetUserPassword } from '../services/authService'
+import { TempPasswordDialog } from '../components/TempPasswordDialog'
 import { createNotification } from '../services/notificationService'
 import { getAllCompanies } from '../services/companyService'
 import { getDepartmentsByCompany, getAllDepartments } from '../services/departmentService'
@@ -916,25 +917,29 @@ export function TeamLeaders() {
     }
   }
 
-  // Admin-triggered reset: the server emails the TL the same 6-digit code the
-  // self-service /verify-reset-code flow accepts.
+  // One-time temporary password after a successful admin reset (shown in
+  // TempPasswordDialog, never listed anywhere).
+  const [tempReset, setTempReset] = useState<{ email: string; password: string } | null>(null)
+
+  // Admin-triggered reset: same flow for every role — the server sets a
+  // temporary password and flags the TL to choose a permanent one at sign-in.
   const handleResetPassword = async (u: User) => {
     const email = (u.email || '').trim().toLowerCase()
     if (!email) {
       setToast({ message: 'This account has no email on file', type: 'error' })
       return
     }
-    if (!confirm(`Send a password reset code to ${email}? ${u.name} sets the new password from the link in that email.`)) return
+    if (!confirm(`Reset the password for ${u.name} (${email})? You'll get a temporary password to share with them — they must change it when they sign in.`)) return
     try {
-      await sendAdminResetCode(email)
+      const { tempPassword } = await resetUserPassword(email)
       await createNotification(
         authUser?.id || '', 'general', 'Password Reset',
-        `Password reset code sent to ${u.name} (${email})`,
+        `Password reset for ${u.name} (${email}) — they set a permanent one at sign-in`,
         `/team-leaders`, u.companyId || ''
       )
-      setToast({ message: `Reset code sent to ${email} — ${u.name} sets the new password from that email`, type: 'success' })
+      setTempReset({ email, password: tempPassword })
     } catch (err) {
-      setToast({ message: errText(err, 'Failed to send the reset code'), type: 'error' })
+      setToast({ message: errText(err, 'Failed to reset the password'), type: 'error' })
     }
   }
 
@@ -1917,6 +1922,9 @@ export function TeamLeaders() {
 
       {toast && (
         <Toast message={toast.message} type={toast.type} onClose={() => setToast(null)} />
+      )}
+      {tempReset && (
+        <TempPasswordDialog email={tempReset.email} tempPassword={tempReset.password} onClose={() => setTempReset(null)} />
       )}
     </div>
   )

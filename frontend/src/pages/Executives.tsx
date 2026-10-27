@@ -9,7 +9,8 @@ import { z } from 'zod'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { collection, doc, onSnapshot, query, updateDoc, deleteDoc, serverTimestamp, getDocs, getDoc, where } from '../aws/firestore-compat'
 import { ref as storageRef, uploadBytes, getDownloadURL } from '../aws/storage-compat'
-import { sendAdminResetCode } from '../services/authService'
+import { resetUserPassword } from '../services/authService'
+import { TempPasswordDialog } from '../components/TempPasswordDialog'
 import { httpsCallable } from '../aws/functions-compat'
 import { createAdminAlert, createNotification } from '../services/notificationService'
 import { auth, db, storage, functions } from '../aws/clients'
@@ -887,19 +888,23 @@ export function Executives() {
     setIsEditModalOpen(true)
   }
 
+  // One-time temporary password after a successful admin reset (shown in
+  // TempPasswordDialog, never listed anywhere).
+  const [tempReset, setTempReset] = useState<{ email: string; password: string } | null>(null)
+
   const handleResetPassword = async (u: User) => {
     const email = (u.email || '').trim().toLowerCase()
     if (!email) {
       setToast({ type: 'error', message: 'This account has no email on file' })
       return
     }
-    const confirmReset = window.confirm(`Reset password for ${u.name}? A 6-digit reset code will be sent to ${email}, and ${u.name} sets the new password from the link in that email.`)
+    const confirmReset = window.confirm(`Reset the password for ${u.name} (${email})? You'll get a temporary password to share with them — they must change it when they sign in.`)
     if (!confirmReset) return
     try {
-      // Same server-issued code the self-service /verify-reset-code page
-      // accepts. (This used to call Cognito's ForgotPassword, whose code this
-      // app has no screen to enter — so the flow could never be completed.)
-      await sendAdminResetCode(email)
+      // Same flow for every role: the server sets a temporary password in
+      // Cognito and flags the account, so the user is forced to pick a
+      // permanent one at next sign-in (or later in Settings).
+      const { tempPassword } = await resetUserPassword(email)
       await logAudit({
         userId: authUser?.id || '',
         userName: authUser?.name || '',
@@ -909,19 +914,19 @@ export function Executives() {
         module: 'Executive Profile',
         targetEntity: u.name,
         status: 'success',
-        details: `Password reset code sent to ${email}`,
+        details: `Temporary password issued for ${email}`,
       })
       if (authUser) {
         await createNotification(
           authUser.id, 'general', 'Password Reset',
-          `Password reset code sent to ${u.name} (${email})`,
+          `Password reset for ${u.name} (${email}) — they set a permanent one at sign-in`,
           `/executives`, u.companyId || ''
         )
       }
-      setToast({ type: 'success', message: `Reset code sent to ${email} — ${u.name} sets the new password from that email` })
+      setTempReset({ email, password: tempPassword })
     } catch (err) {
       console.error('Password reset error:', err)
-      setToast({ type: 'error', message: errText(err, 'Failed to send the reset code') })
+      setToast({ type: 'error', message: errText(err, 'Failed to reset the password') })
     }
   }
 
@@ -2149,6 +2154,9 @@ export function Executives() {
 
       {toast && (
         <Toast message={toast.message} type={toast.type} onClose={() => setToast(null)} />
+      )}
+      {tempReset && (
+        <TempPasswordDialog email={tempReset.email} tempPassword={tempReset.password} onClose={() => setTempReset(null)} />
       )}
     </div>
   )

@@ -28,7 +28,8 @@ import { ScopeIndicator } from '../components/ScopeIndicator'
 import { createEmployee, updateEmployee, getReportingManagersByCompany, getCompanyAdmins, deleteEmployee } from '../services/employeeService'
 import { logAudit } from '../services/auditLogService'
 import { getAllRoles } from '../services/roleService'
-import { getAllUsers, updateUserRole, sendAdminResetCode } from '../services/authService'
+import { getAllUsers, updateUserRole, resetUserPassword } from '../services/authService'
+import { TempPasswordDialog } from '../components/TempPasswordDialog'
 import { createNotification, createAdminAlert } from '../services/notificationService'
 import { isDate } from '../utils/dateUtils'
 import { scopedCompanyIds, companyIdWhere, chunkCompanyIds } from '../utils/companyScope'
@@ -1424,29 +1425,32 @@ export function Employees() {
     setIsDeleteModalOpen(true)
   }
 
+  // Set after a successful admin reset: the one-time temporary password the
+  // admin must hand to the employee (shown in TempPasswordDialog, never listed).
+  const [tempReset, setTempReset] = useState<{ email: string; password: string } | null>(null)
+
   const handleResetPassword = async (emp: Employee) => {
     const email = (emp.email || '').trim().toLowerCase()
     if (!email) {
       setFormError('This employee has no email on file — add an email address before resetting.')
       return
     }
-    if (!window.confirm(`Send a password reset code to ${email}? ${emp.name} sets the new password from the link in that email.`)) return
+    if (!window.confirm(`Reset the password for ${emp.name} (${email})? You'll get a temporary password to share with them — they must change it when they sign in.`)) return
     try {
-      // Server issues the 6-digit code the /verify-reset-code flow accepts and
-      // emails it to the employee. (This used to write a `password` field on
-      // the employee document, which Cognito never read — so the "temp
-      // password" it showed never actually worked.)
-      await sendAdminResetCode(email)
+      // Same flow for every role: the server sets a temporary password in
+      // Cognito and flags the account, so the employee is forced to pick a
+      // permanent one at next sign-in (or later in Settings).
+      const { tempPassword } = await resetUserPassword(email)
       if (user) {
         await createNotification(
           user.id, 'general', 'Password Reset',
-          `Password reset code sent to ${emp.name} (${email}). They complete the change from the emailed link.`,
+          `Password reset for ${emp.name} (${email}). Give them the temporary password — they'll set a permanent one at sign-in.`,
           `/employees`, emp.companyId || ''
         )
       }
-      showToast(`Reset code sent to ${email} — ${emp.name} sets the new password from that email`, 'success')
+      setTempReset({ email, password: tempPassword })
     } catch (err) {
-      setFormError(errText(err, 'Failed to send the reset code'))
+      setFormError(errText(err, 'Failed to reset the password'))
     }
   }
 
@@ -1929,6 +1933,9 @@ export function Employees() {
       </Modal>
 
       {toast && <Toast message={toast.message} type={toast.type} onClose={() => setToast(null)} />}
+      {tempReset && (
+        <TempPasswordDialog email={tempReset.email} tempPassword={tempReset.password} onClose={() => setTempReset(null)} />
+      )}
     </div>
   )
 }

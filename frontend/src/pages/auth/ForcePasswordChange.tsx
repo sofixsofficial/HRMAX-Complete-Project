@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Lock, Eye, EyeOff, Loader2, Shield, CheckCircle, AlertCircle } from 'lucide-react';
 import { Logo } from '../../components/Logo';
@@ -10,7 +10,13 @@ import '../../pages/Login.css';
 
 export function ForcePasswordChange() {
   const navigate = useNavigate();
-  const { user, refreshUser } = useAuth();
+  const { user, isLoading: authLoading, refreshUser } = useAuth();
+
+  // This page only makes sense signed-in (it changes the CURRENT user's
+  // password) — bounce anyone else to the login screen.
+  useEffect(() => {
+    if (!authLoading && !user) navigate('/login', { replace: true });
+  }, [authLoading, user, navigate]);
 
   const [currentPassword, setCurrentPassword] = useState('');
   const [newPassword, setNewPassword] = useState('');
@@ -57,17 +63,12 @@ export function ForcePasswordChange() {
 
     try {
       // Server-backed change: verifies the current password, enforces the
-      // shared policy, sends a security email and records an audit event.
-      await changePassword(currentPassword, newPassword);
-
-      if (user) {
-        const { doc, updateDoc, serverTimestamp } = await import('../../aws/firestore-compat');
-        const { db } = await import('../../aws/clients');
-        await updateDoc(doc(db, 'users', user.id), {
-          requirePasswordChange: false,
-          updatedAt: serverTimestamp(),
-        }).catch(() => {});
-      }
+      // shared policy, sends a security email, records an audit event and
+      // clears requirePasswordChange on the PROFILE row the app reads.
+      // (The flag used to be cleared here client-side too, but the
+      // self-service whitelist on PATCH /api/users/:id strips it — the
+      // server change-password route is the only path that works.)
+      await changePassword(currentPassword, newPassword)
 
       await refreshUser();
       setSuccess(true);

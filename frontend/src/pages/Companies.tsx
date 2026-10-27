@@ -30,7 +30,8 @@ import {
   onboardCompany,
 } from '../services/companyService'
 import { getAllEmployees } from '../services/employeeService'
-import { getAllUsers, sendAdminResetCode } from '../services/authService'
+import { getAllUsers, resetUserPassword } from '../services/authService'
+import { TempPasswordDialog } from '../components/TempPasswordDialog'
 import { errText } from '../aws/errors'
 import type { Company, User } from '../types/user'
 import { logAudit } from '../services/auditLogService'
@@ -1057,22 +1058,26 @@ export function Companies() {
     }, 4000)
   }
 
-  // Admin-triggered reset for this company's admin account: the server emails
-  // them the 6-digit code the /verify-reset-code flow accepts (the same flow
-  // every other role's Reset Password button now uses).
+  // One-time temporary password after a successful admin reset (shown in
+  // TempPasswordDialog, never listed anywhere).
+  const [tempReset, setTempReset] = useState<{ email: string; password: string } | null>(null)
+
+  // Admin-triggered reset for this company's admin account: same flow as
+  // every other role — a temporary password now, a permanent one chosen by
+  // the admin at sign-in or later from Settings -> Change Password.
   const handleResetAdminPassword = async (company: Company) => {
     const email = (company.adminEmail || '').trim().toLowerCase()
     if (!email) {
       setFormError(`No admin email is on file for ${company.name}`)
       return
     }
-    if (!window.confirm(`Send a password reset code to ${email} (${company.name}'s admin)? They set the new password from the link in that email.`)) return
+    if (!window.confirm(`Reset the password for ${company.name}'s admin (${email})? You'll get a temporary password to share with them — they must change it when they sign in.`)) return
     setFormError(null)
     try {
-      await sendAdminResetCode(email)
-      showToast(`Reset code sent to ${email} — they set the new password from that email`)
+      const { tempPassword } = await resetUserPassword(email)
+      setTempReset({ email, password: tempPassword })
     } catch (err) {
-      setFormError(errText(err, 'Failed to send the reset code'))
+      setFormError(errText(err, 'Failed to reset the password'))
     }
   }
 
@@ -1334,6 +1339,9 @@ export function Companies() {
               <X size={14} />
             </button>
           </div>
+        )}
+        {tempReset && (
+          <TempPasswordDialog email={tempReset.email} tempPassword={tempReset.password} onClose={() => setTempReset(null)} />
         )}
 
         {/* Stats Cards */}

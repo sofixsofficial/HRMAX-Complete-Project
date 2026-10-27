@@ -12,7 +12,7 @@ import { createHash, randomBytes } from 'node:crypto';
 import { must, type Route } from '../lib/http.js';
 import { assertRole, assertPermission, scopedCompanyIds } from '../lib/auth.js';
 import { PutCommand } from '@aws-sdk/lib-dynamodb';
-import { putEntity, getUserDoc, queryEntities, deleteUserDoc, patchEntity, doc, TABLE, userPK } from '../lib/db.js';
+import { putEntity, getUserDoc, queryEntities, deleteUserDoc, patchEntity, patchUserDoc, doc, TABLE, userPK } from '../lib/db.js';
 import { sendEmailCentral, templates } from '../lib/email.js';
 import { createNotification } from '../lib/notify.js';
 import { enforceRateLimit } from '../lib/rateLimit.js';
@@ -458,7 +458,18 @@ export const authRoutes: Route[] = [
       await cognito.send(
         new AdminSetUserPasswordCommand({ UserPoolId: POOL_ID(), Username: caller.email, Password: next, Permanent: true }),
       );
-      await patchEntity('user', caller.companyId || 'global', caller.uid, { requirePasswordChange: false }, { entity: 'user' });
+      // Clear the temporary-password flag on PROFILE — the row every read
+      // path (GET /api/users/:id, resolveCaller) actually uses. Clearing only
+      // the company-partition copy left the flag set on the copy the app
+      // reads, so the user was bounced straight back to
+      // /force-password-change right after a successful change. Best-effort:
+      // the password IS changed at this point, and swallowing lets the user
+      // simply change again (a thrown 500 here would strand them on the old
+      // current-password field).
+      await patchUserDoc(caller.uid, { requirePasswordChange: false })
+        .catch((e) => console.error('[auth] change-password: could not clear requirePasswordChange:', e instanceof Error ? e.message : String(e)));
+      await patchEntity('user', caller.companyId || 'global', caller.uid, { requirePasswordChange: false }, { entity: 'user' })
+        .catch((e) => console.warn('[auth] change-password: partition copy not updated:', e instanceof Error ? e.message : String(e)));
       await recordPasswordEvent({
         uid: caller.uid,
         email: caller.email,
@@ -643,12 +654,13 @@ export const authRoutes: Route[] = [
   },
 
   // --------------------------- admin-triggered password reset (any role)
-  // One flow for every role an admin can manage (employee, company admin,
-  // executive, team leader): the TARGET gets the same 6-digit code the
-  // self-service /forgot-password page issues, so the code always works on
-  // /verify-reset-code. (The old per-page buttons either wrote a fake
-  // `password` field that Cognito never saw, or sent Cognito's own
-  // ForgotPassword code, which this app's verify page cannot validate.)
+  // ONE flow for every role an admin can manage (employee, company admin,
+  // executive, team leader): the caller receives a temporary password, hands
+  // it to the account holder, and that user is forced to replace it with a
+  // permanent one - at sign-in the app redirects to /force-password-change
+  // while `requirePasswordChange` is set, and Settings -> Change Password
+  // clears it any time later. The temporary password is returned only in this
+  // response: it is never written to an email or notification.
   {
     method: 'POST',
     path: '/api/users/reset-password',
@@ -664,51 +676,64 @@ export const authRoutes: Route[] = [
       if (!account) throw new ApiError('not-found', `No HR MAX account exists for ${email}.`);
 
       const targetDoc = await getUserDoc(account.uid).catch(() => null);
+      const targetCompany = String((targetDoc?.companyId as string) ?? '');
       if (!isSuper(caller)) {
         const scope = scopedCompanyIds(caller);
-        const targetCompany = String((targetDoc?.companyId as string) ?? '');
         if (targetCompany && scope.length > 0 && !scope.includes(targetCompany)) {
           throw new ApiError('permission-denied', 'You can only reset passwords for users in your assigned companies.');
         }
       }
 
-      // Same single-active-code rule as the self-service flow: retire every
-      // older unused code first so a stale one cannot race this one.
+      // Complies with both the shared app policy and the Cognito pool:
+      // upper + lower + digit + symbol, >= 8 chars. The random hex can be
+      // letter-only, so the appended digits guarantee the digit class.
+      const tempPassword = `Hr@${randomBytes(4).toString('hex')}${1000 + Math.floor(Math.random() * 9000)}`;
+      const policy = validatePasswordPolicy(tempPassword);
+      if (!policy.valid) throw new ApiError('internal', 'Could not generate a temporary password. Please try again.');
+
       try {
-        const old = await queryEntities<ResetCodeDoc>({ entity: 'resetCode', companyId: 'global', filters: { email, used: false }, limit: 10 });
-        for (const c of old) {
-          await patchEntity('resetCode', 'global', String(c.id), { used: true }, { entity: 'resetCode' }).catch(() => undefined);
-        }
+        await cognito.send(
+          new AdminSetUserPasswordCommand({ UserPoolId: POOL_ID(), Username: account.uid, Password: tempPassword, Permanent: true }),
+        );
+      } catch (err) {
+        console.error('[auth] admin reset: AdminSetUserPassword failed:', err instanceof Error ? err.message : String(err));
+        throw new ApiError('internal', 'Could not reset the password right now. Please try again.');
+      }
+
+      // Mark the account so the next sign-in lands on /force-password-change
+      // and the user picks their own permanent password. PROFILE is the row
+      // the app reads for that decision; the company-partition copy is kept
+      // in sync for the user lists.
+      await patchUserDoc(account.uid, { requirePasswordChange: true })
+        .catch((e) => console.warn('[auth] admin reset: could not set requirePasswordChange:', e instanceof Error ? e.message : String(e)));
+      if (targetDoc) {
+        await patchEntity('user', targetCompany || 'global', account.uid, { requirePasswordChange: true }, { entity: 'user' })
+          .catch((e) => console.warn('[auth] admin reset: could not set requirePasswordChange (partition):', e instanceof Error ? e.message : String(e)));
+      }
+
+      // Security email to the account holder - never the password itself.
+      try {
+        const t = templates.passwordChanged(String((targetDoc?.name as string) ?? ''));
+        await sendEmailCentral({
+          to: email,
+          subject: t.subject,
+          html: t.html,
+          type: 'system',
+          companyId: targetCompany || 'global',
+          dedupKey: `admin-reset-${email}-${Date.now()}`,
+        });
       } catch (e) {
-        console.warn('[auth] retiring old reset codes failed (best-effort):', e instanceof Error ? e.message : String(e));
+        console.warn('[auth] admin reset security email failed (best-effort):', e instanceof Error ? e.message : String(e));
       }
 
-      const code = String(Math.floor(100000 + Math.random() * 900000));
-      await putEntity<ResetCodeDoc>(
-        {
-          id: newId(),
-          companyId: 'global',
-          email,
-          code: createHash('sha256').update(code).digest('hex'),
-          expiresAt: new Date(Date.now() + 10 * 60_000).toISOString(),
-          used: false,
-        },
-        { entity: 'resetCode' },
-      );
-      const t = templates.resetCode(code, { email, requestedBy: caller.name });
-      const result = await sendEmailCentral({ to: email, subject: t.subject, html: t.html, type: 'otp', dedupKey: `reset-code-${email}-${code}` });
-      if (!result.success) {
-        console.warn('[auth] admin reset-code email not delivered:', result.error ?? result.skipped);
-      }
-
-      // Tell the account holder - never the code itself.
+      // In-app copy: how to use the temporary password the admin handed over.
       await createNotification({
         userId: account.uid,
-        companyId: String((targetDoc?.companyId as string) ?? 'global'),
+        companyId: targetCompany || 'global',
         type: 'security',
-        title: 'Password reset code requested',
-        message: `${caller.name || 'Your administrator'} asked us to reset your password. A 6-digit code was emailed to ${email} - open the link in that email to set a new one.`,
-        link: `/verify-reset-code?email=${encodeURIComponent(email)}`,
+        title: 'Your password was reset',
+        message: `${caller.name || 'Your administrator'} reset your password. Sign in with the temporary password you were given - you will be asked to choose a new permanent one right away.`,
+        link: '/force-password-change',
       }).catch(() => undefined);
 
       // Audit trail: who initiated it, against whom.
@@ -716,11 +741,11 @@ export const authRoutes: Route[] = [
         {
           id: newId(),
           companyId: caller.companyId || 'global',
-          action: 'PASSWORD_RESET_REQUESTED',
+          action: 'PASSWORD_RESET_COMPLETED',
           actorId: caller.uid,
           actorName: caller.name ?? '',
           targetId: account.uid,
-          details: `Admin-initiated reset code emailed to ${email}`,
+          details: `Admin-issued temporary password for ${email}`,
           ip: sourceIp(req),
           userAgent: '',
           createdAt: isoNow(),
@@ -729,7 +754,7 @@ export const authRoutes: Route[] = [
         { entity: 'auditLog', globalList: true, tsField: 'createdAt' },
       ).catch((e) => console.warn('[auth] admin reset audit failed (best-effort):', e instanceof Error ? e.message : String(e)));
 
-      return { success: true, email };
+      return { success: true, email, tempPassword };
     },
   },
 

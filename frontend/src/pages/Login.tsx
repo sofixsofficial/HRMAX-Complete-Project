@@ -44,7 +44,12 @@ export function Login() {
 
   useEffect(() => {
     if (user) {
-      // Forced password change disabled — all users go directly to their dashboard.
+      // Admin issued a temporary password (Reset Password) → they must pick a
+      // permanent one before reaching the dashboard.
+      if (user.requirePasswordChange) {
+        navigate('/force-password-change', { replace: true })
+        return
+      }
       const from = (location.state as any)?.from?.pathname
       const redirect = from || rolePathMap[user.role] || '/'
       navigate(redirect, { replace: true })

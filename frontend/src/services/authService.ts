@@ -336,15 +336,19 @@ export const confirmResetPassword = async (code: string, newPassword: string): P
 
 /**
  * Admin-triggered reset for a managed account (employee, company admin,
- * executive, team leader). The TARGET is emailed a 6-digit code that the
- * normal /forgot-password → /verify-reset-code flow accepts — no more fake
- * temp passwords or Cognito-only codes this app cannot verify.
+ * executive, team leader) — the SAME flow for every role. Sets a temporary
+ * password in Cognito and flags the account so the next sign-in forces
+ * /force-password-change (Settings -> Change Password works any time after
+ * that). The password is returned to the admin only — it is never emailed.
  * Throws a friendly message when the account does not exist or the caller
  * is outside the target's company scope.
  */
-export const sendAdminResetCode = async (email: string): Promise<void> => {
-  const fn = httpsCallable(getFunctions(), 'sendAdminResetCode');
-  await fn({ email: email.trim().toLowerCase() });
+export const resetUserPassword = async (email: string): Promise<{ tempPassword: string }> => {
+  const fn = httpsCallable(getFunctions(), 'adminResetPassword');
+  const res = await fn({ email: email.trim().toLowerCase() }) as { data?: { tempPassword?: string } };
+  const tempPassword = String(res?.data?.tempPassword ?? '');
+  if (!tempPassword) throw new Error('No temporary password was returned. Please try again.');
+  return { tempPassword };
 };
 
 /**

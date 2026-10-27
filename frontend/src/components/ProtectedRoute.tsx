@@ -62,6 +62,12 @@ export const ProtectedRoute: React.FC<ProtectedRouteProps> = ({
     return <Navigate to="/login" state={{ from: location }} replace />;
   }
 
+  // Temporary password in effect (admin issued a reset): nothing else is
+  // reachable until the user replaces it with a permanent one.
+  if (user?.requirePasswordChange && location.pathname !== '/force-password-change') {
+    return <Navigate to="/force-password-change" replace />;
+  }
+
   // Check role restrictions
   if (allowedRoles && user?.role && !allowedRoles.includes(user.role)) {
     console.debug(
@@ -149,6 +155,10 @@ export const PublicOnlyRoute: React.FC<PublicOnlyRouteProps> = ({
 
   // If authenticated, redirect to appropriate dashboard
   if (isAuthenticated && user) {
+    // A temporary password must be replaced before anything else.
+    if (user.requirePasswordChange) {
+      return <Navigate to="/force-password-change" replace />;
+    }
     const from = (location.state as any)?.from?.pathname;
     
     const rolePathMap: Record<string, string> = {

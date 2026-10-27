@@ -185,6 +185,27 @@ export async function getUserDoc(uid: string): Promise<Record<string, unknown> |
 }
 
 /**
+ * Patch the USER#{uid}/PROFILE row directly. PROFILE is the copy every read
+ * path uses (GET /api/users/:id, resolveCaller) — patching only the
+ * COMPANY# partition copy leaves the app seeing the OLD value. Returns false
+ * when no profile row exists yet.
+ */
+export async function patchUserDoc(uid: string, patch: Record<string, unknown>): Promise<boolean> {
+  const res = await doc.send(new GetCommand({ TableName: TABLE, Key: { PK: userPK(uid), SK: 'PROFILE' } }));
+  const item = res.Item;
+  if (!item) return false;
+  const data = { ...((item.data as Record<string, unknown>) ?? {}), ...patch };
+  // Same semantics as patchEntity: a null value removes the field.
+  for (const [k, v] of Object.entries(data)) {
+    if (v === null) delete data[k];
+  }
+  const updatedAt = new Date().toISOString();
+  data.updatedAt = updatedAt;
+  await doc.send(new PutCommand({ TableName: TABLE, Item: { ...item, data, updatedAt } }));
+  return true;
+}
+
+/**
  * Company profile row for a partition — the source of per-company settings the
  * backend previously ignored (timezone, weekends). Falls back from the
  * migration's COMPANY#META row to the CRUD-written `company#<id>` row so both
