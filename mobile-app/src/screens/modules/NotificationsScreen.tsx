@@ -2,7 +2,6 @@ import React, { useEffect, useState, useCallback } from 'react';
 import { View, Text, Switch, StyleSheet, FlatList, TouchableOpacity, ActivityIndicator } from 'react-native';
 import { useTheme } from '../../context/ThemeContext';
 import { useAuth } from '../../context/AuthContext';
-import { useNotifications } from '../../hooks/useNotifications';
 import {
   subscribeToNotifications,
   markNotificationAsRead,
@@ -40,7 +39,6 @@ export const NotificationsScreen: React.FC = () => {
   const { colors } = useTheme();
   const { user } = useAuth();
   const navigation = useNavigation();
-  const { isRegistered, register, unregister } = useNotifications();
   const [items, setItems] = useState<AppNotification[]>([]);
   const [loading, setLoading] = useState(true);
 
@@ -122,26 +120,6 @@ export const NotificationsScreen: React.FC = () => {
           )}
         />
       )}
-
-      <View style={[styles.pushCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
-        <View style={styles.row}>
-          <View style={[styles.iconBox, { backgroundColor: `${colors.accent}20` }]}>
-            <Icon name="notifications-outline" size={22} color={colors.accent} />
-          </View>
-          <View style={styles.content}>
-            <Text style={[styles.label, { color: colors.text }]}>Push Notifications</Text>
-            <Text style={[styles.desc, { color: colors.textSecondary }]}>
-              Receive alerts for leaves, tasks, and payroll updates
-            </Text>
-          </View>
-          <Switch
-            value={isRegistered}
-            onValueChange={(val) => val ? register() : unregister()}
-            trackColor={{ false: colors.switchTrack, true: `${colors.accent}80` }}
-            thumbColor={isRegistered ? colors.accent : colors.textTertiary}
-          />
-        </View>
-      </View>
     </View>
   );
 };
@@ -193,11 +171,4 @@ const styles = StyleSheet.create({
   unreadDot: { width: 8, height: 8, borderRadius: 4 },
   body: { fontSize: 13, marginTop: 2, lineHeight: 17 },
   time: { fontSize: 11, marginTop: 4 },
-  pushCard: {
-    borderTopWidth: 1,
-    padding: 16,
-  },
-  row: { flexDirection: 'row', alignItems: 'center' },
-  label: { fontSize: 15, fontWeight: '600' },
-  desc: { fontSize: 12, marginTop: 2, lineHeight: 16 },
 });

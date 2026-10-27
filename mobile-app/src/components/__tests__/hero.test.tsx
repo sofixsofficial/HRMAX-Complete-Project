@@ -70,9 +70,13 @@ describe('BrandHomeHero', () => {
     expect(json).toContain('"4"');
   });
 
-  it('renders an avatar/brand row even without stats', async () => {
+  it('renders a clean hero header even without stats', async () => {
     const tree = await renderTree(<BrandHomeHero name="A" />);
+    const json = JSON.stringify(tree.toJSON());
     expect(tree.toJSON()).toBeTruthy();
+    // the header owns branding and the bell — the hero must not duplicate them
+    expect(json).not.toContain('HR MAX');
+    expect(json).not.toContain('notifications-outline');
   });
 
   it('omits the stat row entirely when no stats are passed', async () => {

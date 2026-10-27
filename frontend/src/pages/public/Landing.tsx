@@ -3,7 +3,8 @@ import { Link } from 'react-router-dom'
 import {
   ArrowRight, Users, Building2, Shield, BarChart3,
   Clock, CheckSquare, Mail, Phone, MapPin,
-  CheckCircle2, PlayCircle, ClipboardList, Wallet, Gauge
+  CheckCircle2, PlayCircle, ClipboardList, Wallet, Gauge,
+  Compass, SlidersHorizontal
 } from 'lucide-react'
 import { modules } from './modules-content'
 import './Landing.css'
@@ -41,10 +42,10 @@ const walkthrough = [
 ]
 
 const steps = [
-  { n: '01', title: 'Explore', text: 'Review the modules and see how the product works.', to: '/modules' },
-  { n: '02', title: 'Enroll', text: 'Submit your organization and administrator details.', to: '/enroll' },
-  { n: '03', title: 'Configure', text: 'Set up departments, roles and attendance policy.', to: '/how-it-works' },
-  { n: '04', title: 'Operate', text: 'Invite employees and run HR day to day.', to: '/demo' },
+  { n: '01', title: 'Explore', text: 'Review the modules and see how the product works.', to: '/modules', icon: Compass },
+  { n: '02', title: 'Enroll', text: 'Submit your organization and administrator details.', to: '/enroll', icon: ClipboardList },
+  { n: '03', title: 'Configure', text: 'Set up departments, roles and attendance policy.', to: '/how-it-works', icon: SlidersHorizontal },
+  { n: '04', title: 'Operate', text: 'Invite employees and run HR day to day.', to: '/demo', icon: Users },
 ]
 
 function ScrollReveal({ children, className = '' }: { children: React.ReactNode; className?: string }) {
@@ -95,12 +96,17 @@ function ScrollReveal({ children, className = '' }: { children: React.ReactNode;
 function GifPlayer({
   src,
   alt,
+  title,
   caption,
+  device,
   fallback,
 }: {
   src: string
   alt: string
+  title: string
   caption: string
+  /** Presentation chrome: a browser bar for the web recording, a bezel for the app. */
+  device: 'phone' | 'browser'
   fallback?: React.ReactNode
 }) {
   const [state, setState] = useState<'loading' | 'ready' | 'fallback'>('loading')
@@ -126,38 +132,60 @@ function GifPlayer({
 
   if (state === 'fallback') {
     return fallback ? (
-      <figure className="showcase-figure">
-        <div className="showcase-frame">{fallback}</div>
-        <figcaption>Representative preview built from the HR MAX design system.</figcaption>
+      <figure className={`showcase-figure showcase-figure--${device}`}>
+        <div className={`showcase-frame showcase-frame--${device}`}>
+          <div className="showcase-screen">{fallback}</div>
+        </div>
+        <figcaption>
+          <strong>{title}</strong>
+          <span>Representative preview built from the HR MAX design system.</span>
+        </figcaption>
       </figure>
     ) : null
   }
 
   return (
-    <figure className="showcase-figure">
-      <div className="showcase-frame">
-        {state === 'ready' ? (
-          <>
-            <img
-              ref={ref}
-              src={src}
-              width={720}
-              height={1110}
-              alt={alt}
-              loading="lazy"
-              decoding="async"
-            />
-            <button type="button" className="showcase-toggle" onClick={toggle}>
-              <PlayCircle size={18} aria-hidden="true" /> {playing ? 'Pause' : 'Replay'}
-            </button>
-          </>
-        ) : (
-          <div className="showcase-preview" aria-hidden="true">
-            <div className="mock-bar" />
+    <figure className={`showcase-figure showcase-figure--${device}`}>
+      <div className={`showcase-frame showcase-frame--${device}`}>
+        {device === 'browser' ? (
+          <div className="showcase-chrome" aria-hidden="true">
+            <span className="showcase-dots">
+              <i />
+              <i />
+              <i />
+            </span>
+            <span className="showcase-url">www.hrmax.in</span>
           </div>
+        ) : (
+          <span className="showcase-speaker" aria-hidden="true" />
         )}
+        <div className="showcase-screen">
+          {state === 'ready' ? (
+            <>
+              <img
+                ref={ref}
+                src={src}
+                width={720}
+                height={1110}
+                alt={alt}
+                loading="lazy"
+                decoding="async"
+              />
+              <button type="button" className="showcase-toggle" onClick={toggle}>
+                <PlayCircle size={18} aria-hidden="true" /> {playing ? 'Pause' : 'Replay'}
+              </button>
+            </>
+          ) : (
+            <div className="showcase-preview" aria-hidden="true">
+              <div className="mock-bar" />
+            </div>
+          )}
+        </div>
       </div>
-      <figcaption>{caption}</figcaption>
+      <figcaption>
+        <strong>{title}</strong>
+        <span>{caption}</span>
+      </figcaption>
     </figure>
   )
 }
@@ -168,12 +196,16 @@ function WalkthroughShowcase() {
       <GifPlayer
         src="/hrmax-mobile-walkthrough.gif"
         alt="Animated preview of the HR MAX mobile app: sign-in, dashboard summary cards, employee directory, attendance check-in and leave requests."
-        caption="Mobile app — sign-in, dashboard, employees, attendance and leave. Illustrative preview of the app's screens."
+        title="Mobile app"
+        caption="Sign-in, home screen, employees, attendance and leave — the app's own screens, recorded in motion."
+        device="phone"
       />
       <GifPlayer
         src="/hrmax-walkthrough.gif"
         alt="Recorded walkthrough of the HR MAX web dashboard: overview cards, company and department structure, employee records and attendance."
-        caption="Web dashboard — recorded walkthrough. Demonstration data only, no real employee records."
+        title="Web workspace"
+        caption="Recorded walkthrough with demonstration data only — no real employee records."
+        device="browser"
         fallback={<DashboardPreview />}
       />
     </div>
@@ -379,15 +411,29 @@ export function Landing() {
             <h2 id="steps-heading">From sign-up to <span>daily HR</span></h2>
             <p>Four steps — enrollment is reviewed before your workspace is configured.</p>
           </div>
-          <div className="steps-grid">
-            {steps.map(s => (
-              <Link key={s.n} to={s.to} className="step-card">
-                <span className="step-num">{s.n}</span>
-                <h3>{s.title}</h3>
-                <p>{s.text}</p>
-              </Link>
-            ))}
-          </div>
+          <ol className="steps-grid">
+            {steps.map((s, i) => {
+              const StepIcon = s.icon
+              return (
+                <li key={s.n} className="step-item">
+                  <Link to={s.to} className="step-card">
+                    <span className="step-top">
+                      <span className="step-icon" aria-hidden="true">
+                        <StepIcon size={18} strokeWidth={2} />
+                      </span>
+                      <span className="step-num">{s.n}</span>
+                    </span>
+                    <h3>{s.title}</h3>
+                    <p>{s.text}</p>
+                    <span className="step-cta">
+                      {i === 1 ? 'Start enrollment' : i === 3 ? 'Open the demo' : 'Learn more'}
+                      <ArrowRight size={14} aria-hidden="true" />
+                    </span>
+                  </Link>
+                </li>
+              )
+            })}
+          </ol>
           <div className="features-footer">
             <Link to="/how-it-works" className="hero-btn-secondary">
               See the full process <ArrowRight size={16} aria-hidden="true" />

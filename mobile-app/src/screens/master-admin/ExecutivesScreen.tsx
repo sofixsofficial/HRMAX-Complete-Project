@@ -911,7 +911,7 @@ export const ExecutivesScreen: React.FC = () => {
                   </ScrollView>
 
                   <Text style={s.fieldLabel}>Assign Companies (manage)</Text>
-                  <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginBottom: 16, flexWrap: 'wrap' }}>
+                  <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginBottom: 16 }}>
                     {companies.filter(c => c.id !== form.companyId).map(c => {
                       const selected = form.assignedCompanyIds.includes(c.id);
                       return (
@@ -923,7 +923,7 @@ export const ExecutivesScreen: React.FC = () => {
                   </ScrollView>
 
                   <Text style={s.fieldLabel}>Assign Team Leaders (reporting to)</Text>
-                  <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginBottom: 16, flexWrap: 'wrap' }}>
+                  <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginBottom: 16 }}>
                     {allTeamLeaders.filter(tl => tl.isActive !== false).map(tl => {
                       const selected = form.assignedTeamLeaderIds.includes(tl.id);
                       return (

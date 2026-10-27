@@ -627,7 +627,7 @@ export const TeamLeadersScreen: React.FC = () => {
               {showAssign && (
                 <>
                   <Text style={s.fieldLabel}>Assign to Executive(s)</Text>
-                  <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginBottom: 12, flexWrap: 'wrap' }}>
+                  <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginBottom: 12 }}>
                     {execOptions.length === 0 ? (
                       <Text style={s.emptyText}>No active executives available</Text>
                     ) : execOptions.map(ex => {

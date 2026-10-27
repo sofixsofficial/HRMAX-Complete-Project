@@ -1482,7 +1482,7 @@ const createStyles = (c: ThemeColors) => StyleSheet.create({
   },
 
   // ── Status filter chips (matching web's stat cards) ──
-  statusFilterRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 6, marginBottom: 12 },
+  statusFilterRow: { flexDirection: 'row', gap: 6, paddingRight: 16, paddingBottom: 4 },
   statusFilterChip: {
     flexDirection: 'row', alignItems: 'center', gap: 4,
     paddingHorizontal: 10, paddingVertical: 6, borderRadius: 8,

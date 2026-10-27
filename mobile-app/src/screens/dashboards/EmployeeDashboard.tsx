@@ -256,9 +256,6 @@ export const EmployeeDashboard: React.FC<{ navigation: any }> = ({ navigation })
       <BrandHomeHero
         name={user?.name || 'Employee'}
         subtitle={designation || 'Employee'}
-        unread={0}
-        onAvatarPress={() => navigation?.navigate('MyProfile')}
-        onBellPress={() => navigation?.navigate('Notifications')}
         stats={[
           // Present includes Late, same as the ring's percentage — one number,
           // two places, never disagreeing.
@@ -283,44 +280,62 @@ export const EmployeeDashboard: React.FC<{ navigation: any }> = ({ navigation })
         onPress={() => navigation?.navigate('Attendance')}
       />
 
-      {/* Today's status — white card with the green checked-in state, date/time
-          rows and a full-width punch button (reference layout). */}
+      {/* Today's status — one scannable card: state + day summary on top, a
+          three-column date/check-in/check-out strip, then the punch action. */}
       <View style={s.checkInCard}>
         <View style={s.statusHead}>
+          <View style={{ flex: 1, minWidth: 0 }}>
+            <Text style={s.statusEyebrow}>Today</Text>
+            <View style={s.statusTitleRow}>
+              <View
+                style={[
+                  s.statusDot,
+                  // Green for every success state (checked in / day complete),
+                  // neutral slate until the first punch of the day.
+                  { backgroundColor: todayRecord ? '#10b981' : '#94a3b8' },
+                ]}
+              />
+              <Text style={s.statusHeadline} numberOfLines={1}>
+                {completed ? 'Day Complete' : todayRecord ? 'Checked In' : 'Not Checked In'}
+              </Text>
+            </View>
+            {!!todayRecord?.status && <Text style={s.statusSub}>{todayRecord.status}</Text>}
+          </View>
           <View
             style={[
-              s.statusCircle,
-              // Green for every success state (checked in / day complete),
-              // neutral slate until the first punch of the day.
-              { backgroundColor: todayRecord ? '#10b981' : '#94a3b8' },
+              s.statusPill,
+              { backgroundColor: completed ? '#10b98118' : todayRecord ? '#3b82f618' : '#94a3b81f' },
             ]}>
-            <Icon
-              name={completed ? 'checkmark-done' : todayRecord ? 'checkmark' : 'time-outline'}
-              size={26}
-              color="#fff"
-            />
-          </View>
-          <View style={{ flex: 1 }}>
-            <Text style={s.statusHeadline}>
-              {completed ? 'Day Complete' : todayRecord ? 'Checked In' : 'Not Checked In'}
-            </Text>
-            <Text style={s.statusSub} numberOfLines={1}>
-              {todayRecord?.status ? `${todayRecord.status} · ` : ''}
-              {formatDate(todayRecord?.date)}
+            <Text
+              style={[
+                s.statusPillText,
+                { color: completed ? '#059669' : todayRecord ? '#2563eb' : '#64748b' },
+              ]}>
+              {completed ? 'Completed' : todayRecord ? 'In progress' : 'Not started'}
             </Text>
           </View>
         </View>
 
-        <View style={s.statusRows}>
-          <View style={s.statusRow}>
-            <Icon name="calendar-outline" size={15} color={colors.textSecondary} />
-            <Text style={s.statusRowText}>{formatDate(todayRecord?.date)}</Text>
+        <View style={s.infoStrip}>
+          <View style={s.infoCell}>
+            <Text style={s.infoLabel}>Date</Text>
+            <Text style={s.infoValue} numberOfLines={1}>
+              {formatDate(todayRecord?.date) ||
+                new Date().toLocaleDateString('en-IN', { day: '2-digit', month: 'short' })}
+            </Text>
           </View>
-          <View style={s.statusRow}>
-            <Icon name="time-outline" size={15} color={colors.textSecondary} />
-            <Text style={s.statusRowText}>
-              {formatTime(todayRecord?.checkIn) || '—'}
-              {todayRecord?.checkOut ? `  →  ${formatTime(todayRecord.checkOut)}` : ''}
+          <View style={s.infoDivider} />
+          <View style={s.infoCell}>
+            <Text style={s.infoLabel}>Check-in</Text>
+            <Text style={s.infoValue} numberOfLines={1}>
+              {todayRecord?.checkIn ? formatTime(todayRecord.checkIn) : '—'}
+            </Text>
+          </View>
+          <View style={s.infoDivider} />
+          <View style={s.infoCell}>
+            <Text style={s.infoLabel}>Check-out</Text>
+            <Text style={s.infoValue} numberOfLines={1}>
+              {todayRecord?.checkOut ? formatTime(todayRecord.checkOut) : '—'}
             </Text>
           </View>
         </View>
@@ -640,19 +655,45 @@ const createStyles = (c: ThemeColors) => StyleSheet.create({
     backgroundColor: c.card,
     padding: 16,
   },
-  statusHead: { flexDirection: 'row', alignItems: 'center', gap: 12 },
-  statusCircle: {
-    width: 52,
-    height: 52,
-    borderRadius: 26,
-    alignItems: 'center',
-    justifyContent: 'center',
+  statusHead: { flexDirection: 'row', alignItems: 'flex-start', gap: 10 },
+  statusEyebrow: {
+    fontSize: 11,
+    fontWeight: '700',
+    color: c.textTertiary,
+    letterSpacing: 1,
+    textTransform: 'uppercase',
   },
-  statusHeadline: { fontSize: 18, fontWeight: '800', color: c.text },
-  statusSub: { fontSize: 12.5, color: c.textSecondary, marginTop: 2 },
-  statusRows: { gap: 8, marginTop: 14 },
-  statusRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
-  statusRowText: { fontSize: 13.5, color: c.text, fontWeight: '600' },
+  statusTitleRow: { flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 4 },
+  statusDot: { width: 9, height: 9, borderRadius: 5 },
+  statusHeadline: { flexShrink: 1, fontSize: 18, fontWeight: '800', color: c.text },
+  statusSub: { fontSize: 12.5, color: c.textSecondary, marginTop: 3, fontWeight: '600' },
+  statusPill: {
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    borderRadius: 999,
+    marginTop: 2,
+  },
+  statusPillText: { fontSize: 11.5, fontWeight: '700' },
+  infoStrip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginTop: 14,
+    paddingVertical: 10,
+    borderRadius: 14,
+    backgroundColor: `${c.background}cc`,
+    borderWidth: 1,
+    borderColor: c.borderLight,
+  },
+  infoCell: { flex: 1, minWidth: 0, paddingHorizontal: 10, alignItems: 'flex-start' },
+  infoLabel: {
+    fontSize: 10,
+    fontWeight: '700',
+    color: c.textTertiary,
+    letterSpacing: 0.6,
+    textTransform: 'uppercase',
+  },
+  infoValue: { fontSize: 13.5, fontWeight: '700', color: c.text, marginTop: 3 },
+  infoDivider: { width: 1, alignSelf: 'stretch', marginVertical: 4, backgroundColor: c.borderLight },
   checkInWideBtn: {
     flexDirection: 'row',
     alignItems: 'center',

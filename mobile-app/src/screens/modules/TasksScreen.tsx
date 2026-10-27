@@ -274,7 +274,7 @@ const createStyles = (c: ThemeColors) => StyleSheet.create({
   statCard: { backgroundColor: c.card, borderRadius: 10, padding: 12, borderLeftWidth: 3, width: '31.5%', height: 95, justifyContent: 'center' },
   statNum: { fontSize: 22, fontWeight: 'bold', color: c.text },
   statLabel: { fontSize: 12, color: c.textSecondary, marginTop: 2 },
-  filterRow: { paddingHorizontal: 20, flexDirection: 'row', gap: 8, marginBottom: 12, flexWrap: 'wrap' },
+  filterRow: { paddingLeft: 20, paddingRight: 20, flexDirection: 'row', gap: 8, paddingBottom: 12 },
   filterBtn: { paddingHorizontal: 14, paddingVertical: 8, borderRadius: 20, backgroundColor: '#F3F4F6' },
   filterBtnActive: { backgroundColor: '#FF6600' },
   filterText: { color: '#1F2937', fontSize: 12, fontWeight: '600' },

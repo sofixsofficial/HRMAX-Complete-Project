@@ -689,7 +689,7 @@ export const CompaniesScreen: React.FC = () => {
                   {form.country === 'India' && (
                     <>
                       <Text style={s.fieldLabel}>State</Text>
-                      <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginBottom: 12, flexWrap: 'wrap' }}>
+                      <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginBottom: 12 }}>
                         {INDIAN_STATES.map(st => (
                           <TouchableOpacity key={st} style={[s.chipSmall, form.state === st && s.chipSmallActive]} onPress={() => setForm({...form, state: st, city: ''})}>
                             <Text style={[s.chipSmallText, form.state === st && { color: '#fff' }]}>{st}</Text>
@@ -699,7 +699,7 @@ export const CompaniesScreen: React.FC = () => {
                       {form.state ? (
                         <>
                           <Text style={s.fieldLabel}>City</Text>
-                          <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginBottom: 12, flexWrap: 'wrap' }}>
+                          <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginBottom: 12 }}>
                             {(INDIA_CITIES_MAP[form.state] || []).map(ct => (
                               <TouchableOpacity key={ct} style={[s.chipSmall, form.city === ct && s.chipSmallActive]} onPress={() => setForm({...form, city: ct})}>
                                 <Text style={[s.chipSmallText, form.city === ct && { color: '#fff' }]}>{ct}</Text>

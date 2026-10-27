@@ -21,7 +21,7 @@ type TabKey = 'home' | 'attendance' | 'leave' | 'reports' | 'more';
 const TAB_META: Record<Exclude<TabKey, 'more'>, { label: string; icon: keyof typeof Ionicons.glyphMap }> = {
   home: { label: 'Home', icon: 'home-outline' },
   attendance: { label: 'Attendance', icon: 'clipboard-outline' },
-  leave: { label: 'Leave', icon: 'umbrella-outline' },
+  leave: { label: 'Leave', icon: 'calendar-clear-outline' },
   reports: { label: 'Reports', icon: 'bar-chart-outline' },
 };
 

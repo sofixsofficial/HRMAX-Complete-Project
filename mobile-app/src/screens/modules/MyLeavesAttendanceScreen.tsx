@@ -494,7 +494,7 @@ export const MyLeavesAttendanceScreen: React.FC<{ navigation: any }> = ({ naviga
                 <Text style={s.pendingBadge}>{pendingCount} pending</Text>
               )}
             </View>
-            <View style={s.balanceGrid}>
+            <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={s.balanceGrid}>
               {LEAVE_TYPES.map((t) => {
                 const entry = leaveBalance[t];
                 if (!entry) return null;
@@ -514,7 +514,7 @@ export const MyLeavesAttendanceScreen: React.FC<{ navigation: any }> = ({ naviga
                   </View>
                 );
               })}
-            </View>
+            </ScrollView>
           </PremiumCard>
         )}
 
@@ -989,7 +989,7 @@ const createStyles = (c: ThemeColors) => StyleSheet.create({
   balanceHeader: { flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 12 },
   balanceTitle: { fontSize: 14, fontWeight: '700', color: c.text, flex: 1 },
   pendingBadge: { fontSize: 12, color: '#d97706', fontWeight: '600' },
-  balanceGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 10 },
+  balanceGrid: { flexDirection: 'row', gap: 10, paddingRight: 16, paddingBottom: 4 },
   balanceItem: {
     flex: 1, minWidth: 110, padding: 10, borderRadius: 10,
     backgroundColor: '#f9fafb', borderWidth: 1, borderColor: '#f0f2f5',

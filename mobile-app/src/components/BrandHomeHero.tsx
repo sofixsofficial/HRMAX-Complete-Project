@@ -4,13 +4,15 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
 
 /**
- * Orange "brand" home hero — the reference design: greeting + name +
- * designation on the left, live date/time on the right, and a row of stat
- * tiles (icon badge, label, value) underneath.
+ * Home hero — greeting + name + designation on the left, the device's live
+ * date/time on the right, and a row of stat tiles underneath.
  *
- * Every number is passed in by the caller from real backend data; this
- * component never invents a figure. The greeting follows the device's local
- * clock (labelled as such by the clock itself), nothing else is inferred.
+ * There is deliberately no brand row or bell here: the header already owns the
+ * company identity and the notification bell, so the hero stays a pure
+ * overview of the day. Every number is passed in by the caller from real
+ * backend data; this component never invents a figure. The greeting follows the
+ * device's local clock (labelled as such by the clock itself), nothing else is
+ * inferred.
  */
 
 export type HeroStat = {
@@ -33,10 +35,7 @@ export const BrandHomeHero: React.FC<{
   subtitle?: string | null;
   stats?: HeroStat[];
   onPressStat?: (stat: HeroStat) => void;
-  onAvatarPress?: () => void;
-  onBellPress?: () => void;
-  unread?: number;
-}> = ({ name, subtitle, stats = [], onPressStat, onAvatarPress, onBellPress, unread = 0 }) => {
+}> = ({ name, subtitle, stats = [], onPressStat }) => {
   const [now, setNow] = useState(() => new Date());
   useEffect(() => {
     const id = setInterval(() => setNow(new Date()), 1000);
@@ -58,30 +57,15 @@ export const BrandHomeHero: React.FC<{
       end={{ x: 1, y: 1 }}
       style={s.hero}
     >
-      <View style={s.topRow}>
-        <Pressable onPress={onAvatarPress} hitSlop={6} style={s.brand}>
-          <View style={s.logoBox}>
-            <Text style={s.logoText}>HR</Text>
-          </View>
-          <Text style={s.brandText}>HR MAX</Text>
-        </Pressable>
-        <View style={s.topRight}>
-          <Pressable onPress={onBellPress} hitSlop={8} style={s.bell}>
-            <Ionicons name="notifications-outline" size={20} color="#fff" />
-            {unread > 0 && (
-              <View style={s.badge}>
-                <Text style={s.badgeText}>{unread > 9 ? '9+' : unread}</Text>
-              </View>
-            )}
-          </Pressable>
-        </View>
-      </View>
-
       <View style={s.headRow}>
         <View style={{ flex: 1, minWidth: 0 }}>
           <Text style={s.greeting}>{greetFor(now)}</Text>
           <Text style={s.name} numberOfLines={1}>{name}</Text>
-          {!!subtitle && <Text style={s.subtitle} numberOfLines={1}>{subtitle}</Text>}
+          {!!subtitle && (
+            <View style={s.roleChip}>
+              <Text style={s.roleChipText} numberOfLines={1}>{subtitle}</Text>
+            </View>
+          )}
         </View>
         <View style={s.clockCol}>
           <Text style={s.date}>{date}</Text>
@@ -124,63 +108,48 @@ const s = StyleSheet.create({
     shadowOffset: { width: 0, height: 8 },
     elevation: 5,
   },
-  topRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
-  brand: { flexDirection: 'row', alignItems: 'center', gap: 8 },
-  logoBox: {
-    width: 30,
-    height: 30,
-    borderRadius: 9,
-    backgroundColor: '#ffffff',
-    alignItems: 'center',
-    justifyContent: 'center',
+  headRow: { flexDirection: 'row', alignItems: 'flex-start', gap: 10 },
+  greeting: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: 'rgba(255,255,255,0.72)',
+    letterSpacing: 1,
+    textTransform: 'uppercase',
   },
-  logoText: { fontSize: 13, fontWeight: '900', color: '#F2600C' },
-  brandText: { fontSize: 16, fontWeight: '800', color: '#FF6600', letterSpacing: 0.6 },
-  topRight: { flexDirection: 'row', alignItems: 'center' },
-  bell: {
-    width: 34,
-    height: 34,
-    borderRadius: 17,
-    backgroundColor: 'rgba(255,255,255,0.22)',
-    alignItems: 'center',
-    justifyContent: 'center',
+  name: { fontSize: 23, fontWeight: '800', color: '#fff', marginTop: 4, letterSpacing: -0.3 },
+  roleChip: {
+    alignSelf: 'flex-start',
+    marginTop: 7,
+    paddingHorizontal: 9,
+    paddingVertical: 3,
+    borderRadius: 999,
+    backgroundColor: 'rgba(255,255,255,0.14)',
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.18)',
+    maxWidth: '100%',
   },
-  badge: {
-    position: 'absolute',
-    top: -3,
-    right: -3,
-    minWidth: 17,
-    height: 17,
-    paddingHorizontal: 3,
-    borderRadius: 9,
-    backgroundColor: '#ffffff',
-    alignItems: 'center',
-    justifyContent: 'center',
-    borderWidth: 1.5,
-    borderColor: '#F2600C',
-  },
-  badgeText: { fontSize: 9.5, fontWeight: '800', color: '#F2600C' },
-  headRow: { flexDirection: 'row', alignItems: 'flex-start', marginTop: 14, gap: 10 },
-  greeting: { fontSize: 14, color: 'rgba(255,255,255,0.92)', fontWeight: '600' },
-  name: { fontSize: 22, fontWeight: '800', color: '#fff', marginTop: 1, letterSpacing: -0.3 },
-  subtitle: { fontSize: 13, color: 'rgba(255,255,255,0.9)', marginTop: 2, fontWeight: '500' },
+  roleChipText: { fontSize: 11.5, color: 'rgba(255,255,255,0.92)', fontWeight: '600' },
   clockCol: { alignItems: 'flex-end', paddingTop: 2 },
   date: { fontSize: 13, fontWeight: '700', color: '#fff' },
-  time: { fontSize: 12.5, color: 'rgba(255,255,255,0.92)', marginTop: 3 },
+  time: { fontSize: 12.5, color: 'rgba(255,255,255,0.85)', marginTop: 3 },
   tiles: { flexDirection: 'row', gap: 8, marginTop: 16 },
   tile: {
     flex: 1,
     minWidth: 0,
     alignItems: 'center',
     gap: 2,
-    paddingVertical: 4,
+    paddingVertical: 9,
+    borderRadius: 14,
+    backgroundColor: 'rgba(255,255,255,0.10)',
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.14)',
   },
   tilePressable: {},
-  tileValue: { fontSize: 20, fontWeight: '800' },
+  tileValue: { fontSize: 18, fontWeight: '800' },
   tileLabel: {
-    fontSize: 10.5,
-    fontWeight: '600',
-    color: '#94a3b8',
+    fontSize: 9.5,
+    fontWeight: '700',
+    color: 'rgba(255,255,255,0.72)',
     textTransform: 'uppercase',
     letterSpacing: 0.5,
   },

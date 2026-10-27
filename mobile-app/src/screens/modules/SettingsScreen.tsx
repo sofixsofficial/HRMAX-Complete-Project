@@ -2,7 +2,6 @@ import React, { useState, useEffect, useMemo } from 'react';
 import { View, Text, ScrollView, TouchableOpacity, TextInput, StyleSheet, Alert, Switch, ActivityIndicator, Platform } from 'react-native';
 import { useAuth } from '../../context/AuthContext';
 import { useTheme, ThemeColors } from '../../context/ThemeContext';
-import { useNotifications } from '../../hooks/useNotifications';
 import { validatePasswordPolicy } from '../../utils/passwordPolicy';
 import { Icon } from '../../utils/icons';
 import { collection, onSnapshot } from '../../aws/firestore-compat';
@@ -14,7 +13,6 @@ type Tab = 'profile' | 'notifications' | 'security' | 'system';
 export const SettingsScreen: React.FC<{ navigation?: any }> = ({ navigation }) => {
   const { user, logout } = useAuth();
   const { colors, isDark, toggleTheme } = useTheme();
-  const { isRegistered, register, unregister } = useNotifications();
   const [showCurrentPw, setShowCurrentPw] = useState(false);
   const [showNewPw, setShowNewPw] = useState(false);
   const [showConfirmPw, setShowConfirmPw] = useState(false);
@@ -153,10 +151,6 @@ export const SettingsScreen: React.FC<{ navigation?: any }> = ({ navigation }) =
             <Text style={s.sectionTitle}>Notification Preferences</Text>
             <View style={s.card}>
               <View style={s.settingRow}>
-                <Text style={s.settingLabel}>Push Notifications</Text>
-                <Switch value={isRegistered} onValueChange={(v) => v ? register() : unregister()} trackColor={{ false: colors.switchTrack, true: '#FF6600' }} thumbColor="#fff" />
-              </View>
-              <View style={[s.settingRow, { marginTop: 16 }]}>
                 <Text style={s.settingLabel}>Dark Mode</Text>
                 <Switch value={isDark} onValueChange={toggleTheme} trackColor={{ false: colors.switchTrack, true: '#FF6600' }} thumbColor="#fff" />
               </View>
@@ -248,7 +242,7 @@ export const SettingsScreen: React.FC<{ navigation?: any }> = ({ navigation }) =
         <Text style={s.title}>Settings</Text>
       </View>
 
-      <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={s.tabRow}>
+      <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginBottom: 16 }} contentContainerStyle={s.tabRow}>
         {tabs.map(t => (
           <TouchableOpacity
             key={t.key}
@@ -276,7 +270,7 @@ const createStyles = (c: ThemeColors) => StyleSheet.create({
   container: { flex: 1, backgroundColor: c.background },
   header: { padding: 20 },
   title: { fontSize: 24, fontWeight: 'bold', color: c.text },
-  tabRow: { flexDirection: 'row', paddingHorizontal: 16, marginBottom: 16, borderBottomWidth: 2, borderBottomColor: c.border, flexWrap: 'wrap' },
+  tabRow: { flexDirection: 'row', paddingHorizontal: 16, borderBottomWidth: 2, borderBottomColor: c.border, paddingBottom: 0 },
   tabBtn: { paddingVertical: 10, paddingHorizontal: 14, marginRight: 4 },
   tabBtnActive: { borderBottomWidth: 2, borderBottomColor: c.accent, marginBottom: -2 },
   tabText: { fontSize: 13, fontWeight: '500', color: c.textSecondary },
