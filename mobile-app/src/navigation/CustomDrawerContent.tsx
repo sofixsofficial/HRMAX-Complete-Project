@@ -332,6 +332,54 @@ export const getSectionsByRole = (userRole?: UserRole): DrawerSection[] => {
         },
       ];
 
+    // ── HR: approver of the HR chain tier (reporting manager → HR → company
+    //    admin) and a regular leave/attendance requester themselves. Mirrors the
+    //    web's /hr/* routes (leaves, attendance, my-leaves-attendance).
+    case 'hr':
+      return [
+        {
+          title: 'Main',
+          items: [
+            { label: 'Dashboard', icon: 'grid-outline', screen: 'Home' },
+            { label: 'My Profile', icon: 'person-circle-outline', ...home('MyProfile') },
+          ],
+        },
+        {
+          title: 'Self Service',
+          items: [
+            { label: 'My Leaves & Attendance', icon: 'briefcase-outline', screen: 'MyLeavesAttendance' },
+            { label: 'Salary Slips', icon: 'wallet-outline', ...home('SalarySlips') },
+            { label: 'Tasks', icon: 'checkmark-circle-outline', screen: 'Tasks' },
+          ],
+        },
+        {
+          title: 'Approvals',
+          items: [
+            // HR acts on the 'hr' tier of the leave + missed-punch chains.
+            { label: 'Leave Management', icon: 'umbrella-outline', ...home('LeaveManagement') },
+            { label: 'Attendance', icon: 'clipboard-outline', screen: 'Attendance' },
+          ],
+        },
+        {
+          title: 'Insights',
+          items: [{ label: 'Reports', icon: 'bar-chart-outline', ...home('Reports') }],
+        },
+        {
+          title: 'Company',
+          items: [
+            { label: 'Holidays', icon: 'calendar-outline', ...home('HolidayCalendar') },
+            { label: 'Announcements', icon: 'megaphone-outline', ...home('Announcements') },
+          ],
+        },
+        {
+          title: 'System',
+          items: [
+            { label: 'Settings', icon: 'settings-outline', screen: 'Settings' },
+            { label: 'Support', icon: 'headset-outline', ...home('Support') },
+          ],
+        },
+      ];
+
     // ── Employee: the execution unit ──
     case 'employee':
       return [

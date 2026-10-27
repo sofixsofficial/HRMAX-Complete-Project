@@ -24,23 +24,39 @@ export const calcLeaveDays = (start: Date, end: Date): number => {
 
 export const TIER_LABELS: Record<ApprovalTier, string> = {
   reportingManager: 'Reporting Manager',
+  hr: 'HR',
   companyAdmin: 'Company Admin',
   teamLeader: 'Team Leader',
   executive: 'Executive',
 };
 
-export const TIER_ORDER: ApprovalTier[] = ['reportingManager', 'companyAdmin', 'executive', 'teamLeader'];
+// Strict sequential approval chain (same company context):
+//   Tier 1: Reporting Manager
+//   Tier 2: HR
+//   Tier 3: Company Admin
+//   Tier 4: Executive (assigned to the company portfolio)
+//   Tier 5: Team Leader (managing that executive)
+// Which tiers are LIVE for a request depends on the applicant's role (see
+// getEffectiveTiers) — the rest are Approved/Skipped. TIER_ORDER drives gating
+// (areAllPreviousTiersApproved), the next-pending tier, status computation and
+// the displayed sequence — single source of truth, matching backend TIER_ORDER.
+export const TIER_ORDER: ApprovalTier[] = ['reportingManager', 'hr', 'companyAdmin', 'executive', 'teamLeader'];
 
 const INITIAL_APPROVAL_STATUS: Record<ApprovalTier, ApprovalLevel> = {
   reportingManager: 'Pending',
+  hr: 'Pending',
   companyAdmin: 'Pending',
   teamLeader: 'Pending',
   executive: 'Pending',
 };
 
+/** A tier that needs no further decision: approved, or skipped for this role. */
+const tierSettled = (level?: ApprovalLevel | string): boolean =>
+  level === 'Approved' || level === 'Skipped';
+
 /**
  * The 2-tier-leadership roles whose own personal leave / attendance self-service
- * requests route to a Master Admin for final oversight after the 4-tier chain.
+ * requests route to a Master Admin for final oversight after the tier chain.
  */
 const MANAGEMENT_SELF_SERVICE_ROLES = new Set(['team-leader', 'executive']);
 
@@ -104,7 +120,9 @@ export const computeOverallLeaveStatus = (
     if (approvalStatus[tier] === 'Rejected') return 'Rejected';
   }
   if (masterAdminRequired && masterAdminApproveStatus === 'Rejected') return 'Rejected';
-  if (!TIER_ORDER.every((t) => approvalStatus[t] === 'Approved')) return 'Pending';
+  // Skipped tiers (outside this requester's chain) are settled too — they must
+  // neither block completion nor count as an approval.
+  if (!TIER_ORDER.every((t) => tierSettled(approvalStatus[t]))) return 'Pending';
   if (masterAdminRequired) {
     return masterAdminApproveStatus === 'Approved' ? 'Approved' : 'Pending';
   }
@@ -114,13 +132,15 @@ export const computeOverallLeaveStatus = (
 /**
  * Derive the individual per-tier boolean approval flags from the
  * `approvalStatus` map. Stored flat on the leave document under the exact names
- * specified in the requirement (reportingManagerApproved / companyAdminApproved /
- * executiveApproved / teamLeaderApproved) and synced across web + mobile.
+ * specified in the requirement (reportingManagerApproved / hrApproved /
+ * companyAdminApproved / executiveApproved / teamLeaderApproved) and synced
+ * across web + mobile. Skipped tiers never set a flag.
  */
 export const computeApprovalFlags = (
   approvalStatus: Record<ApprovalTier, ApprovalLevel>
 ): ApprovalFlags => ({
   reportingManagerApproved: approvalStatus.reportingManager === 'Approved',
+  hrApproved: approvalStatus.hr === 'Approved',
   companyAdminApproved: approvalStatus.companyAdmin === 'Approved',
   executiveApproved: approvalStatus.executive === 'Approved',
   teamLeaderApproved: approvalStatus.teamLeader === 'Approved',
@@ -129,13 +149,13 @@ export const computeApprovalFlags = (
 /**
  * Number of leave-approval tiers that have been resolved (Approved or
  * Rejected). Mirrors the web `computeApprovalCount` and drives the stored
- * `approvalCount` progress counter (0..4).
+ * `approvalCount` progress counter (0..5). Skipped tiers are NOT counted.
  */
 export const computeApprovalCount = (approvalStatus: Record<ApprovalTier, ApprovalLevel>): number =>
   TIER_ORDER.filter((t) => approvalStatus[t] === 'Approved' || approvalStatus[t] === 'Rejected').length;
 
 const resolveApproverIds = async (companyId: string, employeeUserId: string): Promise<Record<ApprovalTier, string>> => {
-  const ids: Record<ApprovalTier, string> = { reportingManager: '', companyAdmin: '', teamLeader: '', executive: '' };
+  const ids: Record<ApprovalTier, string> = { reportingManager: '', hr: '', companyAdmin: '', teamLeader: '', executive: '' };
 
   // 1. Reporting Manager — from employee doc
   try {
@@ -145,6 +165,22 @@ const resolveApproverIds = async (companyId: string, employeeUserId: string): Pr
       ids.reportingManager = empSnap.docs[0].data().reportingManagerId;
     }
   } catch {}
+
+  // 1b. HR — the tier between the reporting manager and the company admin.
+  // Resolved exactly like the company-admin approver (first 'hr' user of the
+  // company); the server re-resolves on create as the single source of truth.
+  if (companyId) {
+    try {
+      const hrSnap = await getDocs(query(
+        collection(db, 'users'),
+        where('role', '==', 'hr'),
+        where('companyId', '==', companyId)
+      ));
+      if (!hrSnap.empty) {
+        ids.hr = hrSnap.docs[0].id;
+      }
+    } catch {}
+  }
 
   // 2. Company Admin — match web's resolveApproverIds exactly
   if (companyId) {
@@ -203,7 +239,7 @@ export const createLeaveRequest = async (
 
   // Master Admin final-verification layer: Team Leaders & Executives are also
   // registered employees, so their personal leave routes to the top-tier Master
-  // Admin for oversight after the 4-tier chain.
+  // Admin for oversight after the standard tier chain.
   const applicantRole = await resolveApplicantRole(leave.userId);
   const masterAdminRequired = MANAGEMENT_SELF_SERVICE_ROLES.has(applicantRole);
   const masterAdminApproverId = masterAdminRequired ? await resolveMasterAdminApproverId() : '';
@@ -216,6 +252,10 @@ export const createLeaveRequest = async (
   }
 
   const approvalStatus: Record<ApprovalTier, ApprovalLevel> = { ...INITIAL_APPROVAL_STATUS };
+  // Tiers outside this requester's live chain (employee → RM/HR/CA, reporting
+  // manager → HR/CA, HR → CA) are marked 'Skipped' — never 'Approved', so they
+  // are neither counted as an approval nor part of the x/N denominator.
+  const liveTiers = getEffectiveTiers(applicantRole);
   for (const tier of TIER_ORDER) {
     // Auto-skip any tier whose approver is the applicant, and auto-skip the
     // Reporting Manager tier when the applicant has no manager above them
@@ -225,18 +265,19 @@ export const createLeaveRequest = async (
     const isSelfReportingManager = tier === 'reportingManager' && applicantRole === 'reporting-manager';
 
     if (isExecSelfApp) {
-      // Executive 2-tier: auto-skip RM + Admin + Executive, keep TL active
+      // Executive 2-tier: auto-skip RM + HR + Admin + Executive, keep TL active
       // so the assigned Team Leader must review before Master Admin final gate.
       if (tier !== 'teamLeader') approvalStatus[tier] = 'Approved';
     } else if (masterAdminRequired) {
       // Team Leader self-app: auto-skip ALL tiers (routes directly to Master Admin)
       approvalStatus[tier] = 'Approved';
-    } else {
-      // Normal employee: standard self-approver / unassigned-RM skip.
-      // Reporting Manager self-app: their own tier always auto-completes
-      // (regardless of how reportingManagerId is stored), matching the web
-      // service so the chain becomes Company Admin → Executive → Team Leader.
-      if (isSelfApprover || isUnassignedRmTier || isSelfReportingManager) approvalStatus[tier] = 'Approved';
+    } else if (isSelfApprover || isUnassignedRmTier || isSelfReportingManager) {
+      // Skipped (NOT Approved): nobody decided anything, and counting it as an
+      // approval would inflate the x/N progress above the live-tier denominator.
+      approvalStatus[tier] = 'Skipped';
+    } else if (!liveTiers.includes(tier)) {
+      // Chain truncation per requester role (mirrors the server exactly).
+      approvalStatus[tier] = 'Skipped';
     }
   }
 
@@ -320,12 +361,13 @@ export const getLeaveStats = async (companyId?: string) => {
   };
 };
 
-// ── 4-Tier Sequential Approval ──
+// ── Sequential multi-tier approval (RM → HR → CA → Exec → TL) ──
 
 const areAllPreviousTiersApproved = (approvalStatus: Record<ApprovalTier, ApprovalLevel>, tier: ApprovalTier): boolean => {
   const idx = TIER_ORDER.indexOf(tier);
   if (idx <= 0) return true;
-  return TIER_ORDER.slice(0, idx).every(t => approvalStatus[t] === 'Approved');
+  // Skipped tiers (not part of this requester's chain) block nobody.
+  return TIER_ORDER.slice(0, idx).every(t => tierSettled(approvalStatus[t]));
 };
 
 export const getNextPendingTier = (approvalStatus: Record<ApprovalTier, ApprovalLevel>): ApprovalTier | null => {
@@ -359,7 +401,8 @@ export const getActionableLeaveTier = (
   if (approverId) return null;
   const inScope = !scopeCompanyIds || scopeCompanyIds.length === 0 || scopeCompanyIds.includes(l.companyId || '');
   if (role === 'reporting-manager' && nextTier === 'reportingManager' && inScope) return nextTier;
-  if (role === 'hr-manager' && nextTier === 'reportingManager' && inScope) return nextTier;
+  if (role === 'hr' && nextTier === 'hr' && inScope) return nextTier;
+  if (role === 'hr-manager' && nextTier === 'hr' && inScope) return nextTier;
   if (role === 'company-admin' && nextTier === 'companyAdmin' && inScope) return nextTier;
   if (role === 'executive' && nextTier === 'executive' && inScope) return nextTier;
   if (role === 'team-leader' && nextTier === 'teamLeader' && inScope) return nextTier;
@@ -425,7 +468,7 @@ export const reviewTierLeaveRequest = async (
       const notifBody = action === 'Rejected'
         ? `Your ${leaveData.leaveType || 'leave'} request was rejected by ${reviewedByName}. ${reviewNote || ''}`
         : overallStatus === 'Approved'
-          ? `All 4 approvers have approved your ${leaveData.leaveType || 'leave'} request!`
+          ? `All approvers have approved your ${leaveData.leaveType || 'leave'} request!`
           : `Your ${leaveData.leaveType || 'leave'} was approved by ${TIER_LABELS[tier]}. Waiting for next approval.`;
       await createNotification(leaveData.userId, notifType, notifTitle, notifBody, '/leaves', leaveData.companyId);
     }
@@ -434,9 +477,9 @@ export const reviewTierLeaveRequest = async (
 
 /**
  * Master Admin final review: the top-tier gate for Team Leader / Executive
- * self-applications. Requires the full 4-tier chain to be approved and a
- * mandatory remark, then finalizes the overall status and appends the MA
- * decision to the approval log.
+ * self-applications. Requires the requester's full tier chain to be settled
+ * (Approved/Skipped) and a mandatory remark, then finalizes the overall status
+ * and appends the MA decision to the approval log.
  */
 export const reviewMasterAdminLeaveRequest = async (
   id: string,
@@ -471,13 +514,9 @@ export const reviewMasterAdminLeaveRequest = async (
   const currentApprovalStatus: Record<ApprovalTier, ApprovalLevel> = leaveData.approvalStatus || { ...INITIAL_APPROVAL_STATUS };
   // For Executive self-apps only the Team Leader tier needs approval; for Team
   // Leader self-apps all tiers are auto-completed. Validate only the tiers that
-  // actually required action.
-  const effectiveTiers: ApprovalTier[] = leaveData.applicantRole === 'executive'
-    ? ['teamLeader']
-    : leaveData.applicantRole === 'team-leader'
-      ? []
-      : [...TIER_ORDER];
-  if (effectiveTiers.length > 0 && !effectiveTiers.every((t) => currentApprovalStatus[t] === 'Approved')) {
+  // actually required action (Skipped tiers are settled and never block).
+  const effectiveTiers: ApprovalTier[] = getEffectiveTiers(leaveData.applicantRole);
+  if (effectiveTiers.length > 0 && !effectiveTiers.every((t) => tierSettled(currentApprovalStatus[t]))) {
     throw new Error('The required approval tiers must be fully approved before Master Admin review.');
   }
 
@@ -509,24 +548,30 @@ export const reviewMasterAdminLeaveRequest = async (
         : `Leave Fully Approved by Master Admin`;
       const notifBody = action === 'Rejected'
         ? `Your ${leaveData.leaveType || 'leave'} request was rejected by Master Admin. ${reviewNote || ''}`
-        : `All 4 approvers and the Master Admin have approved your ${leaveData.leaveType || 'leave'} request!`;
+        : `All approvers and the Master Admin have approved your ${leaveData.leaveType || 'leave'} request!`;
       await createNotification(leaveData.userId, notifType, notifTitle, notifBody, '/leaves', leaveData.companyId);
     }
   } catch {}
 };
 
 /**
- * Return the approval tiers that actually require manual action for this
- * applicant's role, matching the web's `getEffectiveTiers`:
- * - Employee: all 4 tiers
- * - Reporting Manager: 3 tiers (own tier auto-completes)
- * - Executive: only Team Leader
- * - Team Leader: none (direct to Master Admin)
+ * Returns the effective approval tiers for a given applicant role — the tiers
+ * that actually have to decide for THIS requester (all other tiers are
+ * Approved/Skipped server-side):
+ * - Employee:             Reporting Manager -> HR -> Company Admin
+ * - Reporting Manager:    HR -> Company Admin
+ * - HR:                   Company Admin
+ * - Executive self-app:   Team Leader -> Master Admin gate
+ * - Team Leader self-app: Master Admin gate only
  */
 export const getEffectiveTiers = (applicantRole?: string): ApprovalTier[] => {
-  if (applicantRole === 'reporting-manager' || applicantRole === 'hr-manager') return ['companyAdmin', 'executive', 'teamLeader'];
+  if (applicantRole === 'reporting-manager') return ['hr', 'companyAdmin'];
+  if (applicantRole === 'hr' || applicantRole === 'hr-manager') return ['companyAdmin'];
   if (applicantRole === 'executive') return ['teamLeader'];
+  // Team Leader self-apps route DIRECTLY to the Master Admin final gate.
   if (applicantRole === 'team-leader') return [];
+  if (applicantRole === 'employee') return ['reportingManager', 'hr', 'companyAdmin'];
+  // Unknown / legacy role — show the full chain rather than an empty one.
   return [...TIER_ORDER];
 };
 
@@ -540,6 +585,7 @@ export const getLiveTiers = (leave: {
   approvalStatus?: Partial<Record<string, string>> | Record<string, unknown> | null;
 }): ApprovalTier[] => {
   const status = (leave.approvalStatus ?? {}) as Record<string, unknown>;
+  // Skipped tiers never decide; they must not inflate the denominator either.
   return getEffectiveTiers(leave.applicantRole).filter((t) => String(status[t] ?? '') !== 'Skipped');
 };
 
@@ -581,7 +627,7 @@ export const isAwaitingMasterAdmin = (
 ): boolean => {
   if (!masterAdminRequired) return false;
   if (masterAdminApproveStatus === 'Approved' || masterAdminApproveStatus === 'Rejected') return false;
-  return TIER_ORDER.every((t) => approvalStatus[t] === 'Approved');
+  return TIER_ORDER.every((t) => tierSettled(approvalStatus[t]));
 };
 
 // ── Payroll helper: approved leave days for a given month ──

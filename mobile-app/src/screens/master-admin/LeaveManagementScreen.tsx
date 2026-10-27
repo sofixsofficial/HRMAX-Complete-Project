@@ -7,7 +7,7 @@ import { useAuth } from '../../context/AuthContext';
 import { useCompany } from '../../context/CompanyContext';
 import { useTheme, ThemeColors } from '../../context/ThemeContext';
 import { useReportingTeamScope } from '../../hooks/useReportingTeamScope';
-import { reviewTierLeaveRequest, reviewMasterAdminLeaveRequest, getLeaveRequestsByCompany, getAllLeaveRequests, TIER_ORDER, TIER_LABELS, isAwaitingMasterAdmin, getActionableLeaveTier, getEffectiveTiers } from '../../services/leaveService';
+import { reviewTierLeaveRequest, reviewMasterAdminLeaveRequest, getLeaveRequestsByCompany, getAllLeaveRequests, TIER_ORDER, TIER_LABELS, isAwaitingMasterAdmin, getActionableLeaveTier, getEffectiveTiers, getLiveTiers } from '../../services/leaveService';
 import type { ApprovalTier } from '../../types/user';
 import { scopedCompanyIdsForRole } from '../../utils/companyScope';
 import { Paths, File } from 'expo-file-system';
@@ -119,7 +119,7 @@ export const LeaveManagementScreen: React.FC<{ route?: any }> = ({ route }) => {
       Alert.alert('Remark required', 'A remark is required to complete this approval step.');
       return;
     }
-    // Executive / Team Leader self-apps that cleared their 4-tier chain route
+    // Executive / Team Leader self-apps that cleared their tier chain route
     // through the Master Admin final gate instead of a next pending tier.
     if (isAwaitingMasterAdmin(target.approvalStatus, target.masterAdminRequired, target.masterAdminApproveStatus)) {
       if (!reviewNote || !reviewNote.trim()) { Alert.alert('Note required', 'A mandatory remark is required for the Master Admin final verification.'); return; }
@@ -352,10 +352,12 @@ export const LeaveManagementScreen: React.FC<{ route?: any }> = ({ route }) => {
                       );
                     })()}
                     {leave.approvalStatus && (() => {
-                      // Web approvalProgressOf parity: role-aware EFFECTIVE tiers +
-                      // optional Master Admin gate. The raw TIER_ORDER x/4 bar showed
-                      // "3/4 approved" for exec self-apps where web shows "0/1".
-                      const effTiers = getEffectiveTiers(leave.applicantRole);
+                      // Web approvalProgressOf parity: LIVE tiers only (Skipped
+                      // tiers have no approver; counting them left the counter
+                      // stuck below 100% forever) + optional Master Admin gate.
+                      // An exec self-app counts the managing TL + the Master Admin;
+                      // a TL self-app counts only the Master Admin.
+                      const effTiers = getLiveTiers(leave);
                       const total = effTiers.length + (leave.masterAdminRequired ? 1 : 0);
                       const done = effTiers.filter((t: ApprovalTier) => leave.approvalStatus[t] === 'Approved').length
                         + (leave.masterAdminRequired && leave.masterAdminApproveStatus && leave.masterAdminApproveStatus !== 'Pending' ? 1 : 0);
@@ -391,9 +393,10 @@ export const LeaveManagementScreen: React.FC<{ route?: any }> = ({ route }) => {
             <Text style={s.reviewReason}>{reviewModal?.reason}</Text>
             {reviewModal?.approvalStatus && (
               <View style={s.tierBadgesRow}>
-                {/* Effective tiers only (web parity): raw TIER_ORDER rendered a
-                    4-tier chain even for RM/HR (3) / Exec (1) self-apps, and the
-                    Master Admin gate was never shown as its own chip. */}
+                {/* Effective tiers only (web parity): raw TIER_ORDER rendered the
+                    full chain even for RM (HR → CA) / HR (CA) / Exec (TL)
+                    self-apps, and the Master Admin gate was never shown as its
+                    own chip. */}
                 {getEffectiveTiers(reviewModal.applicantRole).map((tier) => {
                   const st = reviewModal.approvalStatus[tier];
                   const nextTier = getNextPendingTier(reviewModal.approvalStatus);

@@ -44,7 +44,11 @@ const getRoleRoutingNote = (role?: string): string | null => {
     return 'Missed punch and leave requests are routed directly to the Master Admin for final review.';
   }
   if (role === 'reporting-manager' || role === 'hr-manager') {
-    return 'Missed punch requests are routed through: Company Admin → Executive → Team Leader.';
+    // Reporting Manager's own tier is skipped — chain starts at HR.
+    return 'Missed punch requests are routed through: HR → Company Admin.';
+  }
+  if (role === 'hr') {
+    return 'Missed punch requests are routed through: Company Admin.';
   }
   return null;
 };
@@ -129,8 +133,9 @@ export const AttendanceScreen: React.FC<{ navigation: any }> = ({ navigation }) 
 
   // Web canManage parity: MA / CA / Exec / HR / TL all get the Team Overview
   // review surface — previously company-admin and hr-manager had NO missed-punch
-  // review surface on mobile at all (web includes both in canManage).
-  const isManager = ['executive', 'reporting-manager', 'hr-manager', 'team-leader', 'company-admin', 'master-admin'].includes(user?.role || '');
+  // review surface on mobile at all (web includes both in canManage). The new
+  // 'hr' role reviews its own chain tier (HR → Company Admin).
+  const isManager = ['executive', 'reporting-manager', 'hr-manager', 'hr', 'team-leader', 'company-admin', 'master-admin'].includes(user?.role || '');
   const isAdmin = user?.role === 'company-admin' || user?.role === 'master-admin';
   const isEmployeeRole = !user?.role || user?.role === 'employee';
   const { policy, validateCheckIn, validateCheckOut } = useAttendanceGate();

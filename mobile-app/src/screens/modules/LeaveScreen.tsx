@@ -148,9 +148,11 @@ export const LeaveScreen: React.FC = () => {
   };
 
   // Who may file a new leave request from this screen (mirrors
-  // APPLY_LEAVE_ROLES in DashboardRouter — Company Admin is verify-only).
+  // APPLY_LEAVE_ROLES in DashboardRouter — Company Admin & Master Admin are
+  // verify-only: web's LeaveManagement hides its Apply button for both and the
+  // backend 403s their submissions).
   const canApplyLeave =
-    !!user && ['master-admin', 'executive', 'team-leader', 'reporting-manager', 'employee'].includes(user.role);
+    !!user && ['executive', 'team-leader', 'reporting-manager', 'hr', 'employee'].includes(user.role);
 
   // Leave balance state
   const [allowances, setAllowances] = useState<Record<string, number>>({});

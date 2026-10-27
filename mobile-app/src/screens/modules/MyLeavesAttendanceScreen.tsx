@@ -17,7 +17,7 @@ import { notifyPunchRectificationRequested } from '../../services/notificationSe
 import { isActiveMissedPunchRecord } from '../../utils/attendanceStatus';
 import { isWithinAttendanceCorrectionWindow, parseWeekendDays, toDateKey } from '../../utils/workingDays';
 import { Icon } from '../../utils/icons';
-import { TIER_ORDER, TIER_LABELS, getEffectiveTiers, isAwaitingMasterAdmin, computeLeaveBalance, resolveEmployeeLeaveEntitlementsFull } from '../../services/leaveService';
+import { TIER_ORDER, TIER_LABELS, getEffectiveTiers, getLiveTiers, isAwaitingMasterAdmin, computeLeaveBalance, resolveEmployeeLeaveEntitlementsFull } from '../../services/leaveService';
 import type { ApprovalTier, LeaveRequest, LeaveType } from '../../types/user';
 import {
   HeroBanner, PremiumCard, ShimmerLoader,
@@ -437,10 +437,11 @@ export const MyLeavesAttendanceScreen: React.FC<{ navigation: any }> = ({ naviga
           </View>
         )}
 
-        {/* Quick actions — Company Admin never creates leave (verify-only role,
-            web LeaveManagement excludes its Apply button the same way). */}
+        {/* Quick actions — Company Admin & Master Admin never create leave
+            (verify-only roles; web LeaveManagement excludes its Apply button
+            for both). HR is a regular requester. */}
         <View style={s.quickActionsRow}>
-          {user?.role !== 'company-admin' && (
+          {user?.role !== 'company-admin' && user?.role !== 'master-admin' && (
             <TouchableOpacity
               style={[s.quickActionBtn, { backgroundColor: '#7c3aed' }]}
               onPress={() => navigation?.navigate('Home', { screen: 'ApplyLeave' })}
@@ -597,7 +598,10 @@ export const MyLeavesAttendanceScreen: React.FC<{ navigation: any }> = ({ naviga
 
                   {/* Tier progress */}
                   {leave.approvalStatus && (() => {
-                    const effective = getEffectiveTiers(leave.applicantRole);
+                    // Live tiers only (web approvalProgressOf parity): a Skipped
+                    // tier has no approver, so counting it left the bar stuck
+                    // below 100% forever.
+                    const effective = getLiveTiers(leave);
                     const effectiveCount = effective.length;
                     const resolved = effective.filter((t: ApprovalTier) => leave.approvalStatus?.[t] === 'Approved').length;
                     const maStep = leave.masterAdminRequired ? 1 : 0;
@@ -900,8 +904,8 @@ export const MyLeavesAttendanceScreen: React.FC<{ navigation: any }> = ({ naviga
                 const mp = viewAttendance.missedPunchRectification;
                 // Web parity: attendance docs store the role at
                 // missedPunchRectification.applicantRole — reading the (absent)
-                // top-level applicantRole always fell back to employee's 4 tiers,
-                // and leave's getEffectiveTiers didn't trim the phantom RM tier.
+                // top-level applicantRole always fell back to the employee
+                // chain, and leave's getEffectiveTiers didn't trim the phantom RM tier.
                 const effective = getRecordEffectiveMissedPunchTiers(mp);
                 const done = effective.filter((t: ApprovalTier) =>
                   mp.approvalStatus?.[t] === 'Approved' || mp.approvalStatus?.[t] === 'Rejected'

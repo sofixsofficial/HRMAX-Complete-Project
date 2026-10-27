@@ -293,7 +293,9 @@ export const TLOperationalDashboard: React.FC<{ navigation: any }> = ({ navigati
   };
 
   const getNextPendingTier = (approvalStatus: any): ApprovalTier | null => {
-    const TIER_ORDER: ApprovalTier[] = ['reportingManager', 'companyAdmin', 'executive', 'teamLeader'];
+    // Canonical chain (mirrors leaveService.TIER_ORDER / backend TIER_ORDER):
+    // Reporting Manager → HR → Company Admin → Executive → Team Leader.
+    const TIER_ORDER: ApprovalTier[] = ['reportingManager', 'hr', 'companyAdmin', 'executive', 'teamLeader'];
     for (const tier of TIER_ORDER) {
       if (approvalStatus?.[tier] === 'Pending') return tier;
     }

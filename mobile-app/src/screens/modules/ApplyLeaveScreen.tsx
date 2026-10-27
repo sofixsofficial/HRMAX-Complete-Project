@@ -92,8 +92,8 @@ export const ApplyLeaveScreen: React.FC = ({ navigation, route }: any) => {
   const isPaid = isLeaveTypePaid(leaveType);
 
   // ── Tiers Verification preview (same role-aware chain createLeaveRequest
-  //    will route to on submit: Employee 4-tier, RM/HR 3-tier, Exec 2-tier,
-  //    TL 1-tier — all gated by the Master Admin where applicable) ──
+  //    will route to on submit: Employee RM → HR → CA, RM HR → CA, HR CA,
+  //    Exec TL, TL none — all gated by the Master Admin where applicable) ──
   const tierSteps = useMemo(() => {
     const steps: { key: string; label: string }[] = getEffectiveTiers(user?.role).map((t) => ({
       key: t as string,

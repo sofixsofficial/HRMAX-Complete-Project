@@ -1,4 +1,4 @@
-export type UserRole = 'master-admin' | 'company-admin' | 'team-leader' | 'executive' | 'reporting-manager' | 'employee';
+export type UserRole = 'master-admin' | 'company-admin' | 'team-leader' | 'executive' | 'reporting-manager' | 'hr' | 'employee';
 export type CompanyAdminStatus = 'Pending' | 'Approved' | 'Suspended' | 'Rejected';
 
 export interface User {
@@ -168,6 +168,7 @@ export interface AttendanceRecord {
     approverIds?: Record<ApprovalTier, string>;
     approvalCount?: number;
     reportingManagerApproved?: boolean;
+    hrApproved?: boolean;
     companyAdminApproved?: boolean;
     executiveApproved?: boolean;
     teamLeaderApproved?: boolean;
@@ -192,16 +193,22 @@ export interface AttendanceRecord {
 
 export type LeaveType = 'Casual' | 'Sick' | 'Earned' | 'Unpaid' | 'Maternity' | 'Paternity';
 export type LeaveStatus = 'Pending' | 'Approved' | 'Rejected' | 'Cancelled';
-export type ApprovalLevel = 'Pending' | 'Approved' | 'Rejected';
-export type ApprovalTier = 'reportingManager' | 'companyAdmin' | 'teamLeader' | 'executive';
+// 'Skipped' = a tier outside the requester's live chain (never decided by a
+// human). It must not block completion nor count as an approval — mirrors the
+// backend LeaveTierStatus union.
+export type ApprovalLevel = 'Pending' | 'Approved' | 'Rejected' | 'Skipped';
+// Canonical 5-tier chain (backend TIER_ORDER): reporting manager → HR →
+// company admin → executive → team leader.
+export type ApprovalTier = 'reportingManager' | 'hr' | 'companyAdmin' | 'teamLeader' | 'executive';
 
 /**
  * Individual per-tier approval flags stored on the leave document so that
- * Reporting Manager, Company Admin, Executive and Team Leader approvals can be
- * queried/synced independently and shown as checkmarks across web + mobile.
+ * Reporting Manager, HR, Company Admin, Executive and Team Leader approvals can
+ * be queried/synced independently and shown as checkmarks across web + mobile.
  */
 export type ApprovalFlags = {
   reportingManagerApproved: boolean;
+  hrApproved: boolean;
   companyAdminApproved: boolean;
   executiveApproved: boolean;
   teamLeaderApproved: boolean;
@@ -238,6 +245,7 @@ export interface LeaveRequest {
   // Individual per-tier approval flags (derived from approvalStatus, kept in
   // sync by the leave service and backend trigger for cross-platform queries).
   reportingManagerApproved?: boolean;
+  hrApproved?: boolean;
   companyAdminApproved?: boolean;
   executiveApproved?: boolean;
   teamLeaderApproved?: boolean;
@@ -246,7 +254,7 @@ export interface LeaveRequest {
   reviewedOn?: Date;
   reviewNote?: string;
   // ── Master Admin final-verification (activated for Team Leader / Executive
-  //    self-applications). Keeps the strict 4-tier model intact for regular
+  //    self-applications). Keeps the strict multi-tier model intact for regular
   //    employees while giving top-tier account oversight on management self-apps.
   applicantRole?: string;
   masterAdminRequired?: boolean;

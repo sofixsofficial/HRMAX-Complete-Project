@@ -68,9 +68,9 @@ const Stack = createNativeStackNavigator();
 const MA_ONLY = ['master-admin'] as UserRole[];
 const EMPLOYEES_ROLES = ['master-admin', 'company-admin', 'executive', 'team-leader'] as UserRole[];
 const DEPARTMENTS_ROLES = ['master-admin', 'company-admin', 'executive', 'team-leader'] as UserRole[];
-const LEAVE_MGMT_ROLES = ['master-admin', 'company-admin', 'executive', 'reporting-manager', 'team-leader'] as UserRole[];
+const LEAVE_MGMT_ROLES = ['master-admin', 'company-admin', 'executive', 'reporting-manager', 'team-leader', 'hr'] as UserRole[];
 const TASKS_ROLES = ['master-admin', 'executive', 'team-leader'] as UserRole[];
-const ATTENDANCE_OVR_ROLES = ['master-admin', 'company-admin', 'executive', 'team-leader', 'reporting-manager', 'hr-manager'] as UserRole[];
+const ATTENDANCE_OVR_ROLES = ['master-admin', 'company-admin', 'executive', 'team-leader', 'reporting-manager', 'hr-manager', 'hr'] as UserRole[];
 const ASSETS_ROLES = ['master-admin', 'executive', 'team-leader'] as UserRole[];
 const SETTINGS_ROLES = ['master-admin', 'executive'] as UserRole[];
 const RM_ROLES = ['reporting-manager'] as UserRole[];
@@ -79,9 +79,11 @@ const PAYROLL_ROLES = ['master-admin', 'executive', 'team-leader'] as UserRole[]
 const COMPANIES_ROLES = ['master-admin', 'team-leader', 'executive'] as UserRole[];
 const EXECUTIVES_ROLES = ['master-admin', 'team-leader'] as UserRole[];
 const ACCESS_MGMT_ROLES = ['master-admin', 'executive', 'team-leader'] as UserRole[];
-// Company Admin never creates own leave records — verify-only role (web parity:
-// LeaveManagement's Apply button explicitly excludes company-admin).
-const APPLY_LEAVE_ROLES = ['master-admin', 'executive', 'team-leader', 'reporting-manager', 'employee'] as UserRole[];
+// Company Admin / Master Admin never create their own leave records —
+// verify-only roles (web parity: LeaveManagement's Apply button explicitly
+// excludes company-admin AND master-admin; the backend 403s their submissions).
+// HR is a regular requester (own chain: HR → Company Admin).
+const APPLY_LEAVE_ROLES = ['executive', 'team-leader', 'reporting-manager', 'hr', 'employee'] as UserRole[];
 
 const guard = (roles: UserRole[]) =>
   (Component: React.ComponentType<any>): React.FC<any> =>

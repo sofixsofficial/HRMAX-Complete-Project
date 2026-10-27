@@ -65,8 +65,8 @@ interface PanelItem {
 interface LeaveApprovalsPanelProps {
   /**
    * 'tiers' (default) — leave requests routed to the signed-in user at the
-   * next pending tier (Employee 4-tier / RM-HR 3-tier / Executive 2-tier /
-   * Team-Leader 1-tier chains resolved by getEffectiveTiers + approver stamp).
+   * next pending tier (Employee RM→HR→CA / RM HR→CA / HR CA / Executive
+   * TL / Team-Leader no-chain resolved by getEffectiveTiers + approver stamp).
    * 'masterAdmin' — final-gate items (leaves + missed punches) awaiting the
    * Master Admin, with a mandatory remark (matches web's
    * MasterAdminApprovalsPanel).
