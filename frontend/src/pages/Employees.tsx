@@ -7,7 +7,7 @@ import {
   X, Building2, Mail, Phone, Calendar, CalendarRange, MapPin, ChevronLeft, ChevronRight,
   Upload, Printer, FileSpreadsheet, Briefcase, User,
   MapPinned, Globe, Clock, Hash, BadgeInfo, AlertCircle, DollarSign, EyeOff,
-  XCircle
+  XCircle, KeyRound
 } from 'lucide-react'
 import { useForm, Controller } from 'react-hook-form'
 import type { UseFormReturn, Resolver } from 'react-hook-form'
@@ -1676,6 +1676,12 @@ export function Employees() {
                     <td>
                       <div className="emp-actions">
                         <button className="emp-action-icon view" onClick={() => openView(emp)} title="View"><Eye size={15} /></button>
+                        {canPerform('edit', 'employees') && (
+                          // Reachable reset: the profile modal's own button is
+                          // unreachable now that View navigates to the profile
+                          // page instead of opening it.
+                          <button className="emp-action-icon" style={{ background: '#fef3c7', color: '#d97706' }} onClick={() => handleResetPassword(emp)} title="Reset Password"><KeyRound size={15} /></button>
+                        )}
                         {canPerform('edit', 'employees') && (
                           <button className="emp-action-icon edit" onClick={() => openEdit(emp)} title="Edit"><Pencil size={15} /></button>
                         )}

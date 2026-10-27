@@ -352,8 +352,16 @@ export const getEmployeeById = async (id: string): Promise<Employee | null> => {
 export const getEmployeeBySlug = async (slug: string): Promise<Employee | null> => {
   const q = query(employeesRef, where('slug', '==', slug));
   const snapshot = await getDocs(q);
-  if (snapshot.empty) return null;
-  return mapToEmployee(snapshot.docs[0].id, snapshot.docs[0].data());
+  if (!snapshot.empty) return mapToEmployee(snapshot.docs[0].id, snapshot.docs[0].data());
+  // The list's View link falls back to the document id when a record has no
+  // slug yet, and older records also key on their printed employeeId - without
+  // these two lookups the profile page dead-ended on "Employee not found".
+  const byId = await getEmployeeById(slug);
+  if (byId) return byId;
+  const byEmployeeId = query(employeesRef, where('employeeId', '==', slug));
+  const snapshot2 = await getDocs(byEmployeeId);
+  if (snapshot2.empty) return null;
+  return mapToEmployee(snapshot2.docs[0].id, snapshot2.docs[0].data());
 };
 
 // Get employee by userId
