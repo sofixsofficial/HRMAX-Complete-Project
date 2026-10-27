@@ -19,6 +19,8 @@ export function Demo() {
   const [form, setForm] = useState({
     name: '',
     email: '',
+    adminName: '',
+    phone: '',
     company: '',
     size: '',
     modules: [] as string[],
@@ -40,6 +42,11 @@ export function Demo() {
   const validate = () => {
     if (!form.name.trim()) return 'Please enter your name.'
     if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(form.email.trim())) return 'Please enter a valid business email address.'
+    if (!form.adminName.trim()) return 'Please enter the administration full name (the person who will administer HR MAX).'
+    const digits = form.phone.replace(/\D/g, '')
+    if (!digits) return 'Please enter a contact number.'
+    if (digits.length < 7 || digits.length > 15) return 'Please enter a valid contact number (7–15 digits).'
+    if (!/^[+]?[\d\s\-().]{7,20}$/.test(form.phone.trim())) return 'Contact number contains invalid characters.'
     if (!form.company.trim()) return 'Please enter your company name.'
     if (!form.size) return 'Please select your approximate employee count.'
     if (!consent) return 'Please confirm the consent checkbox so we can respond to your request.'
@@ -59,6 +66,8 @@ export function Demo() {
       const labels = modules.filter(m => form.modules.includes(m.slug)).map(m => m.navLabel)
       const lines = [
         `Demo request from ${form.name.trim()} (${form.email.trim()})`,
+        `Contact number: ${form.phone.trim()}`,
+        `Administration full name: ${form.adminName.trim()}`,
         `Company: ${form.company.trim()}`,
         `Approximate employee count: ${form.size}`,
         `Modules of interest: ${labels.length ? labels.join(', ') : 'not specified'}`,
@@ -98,7 +107,8 @@ export function Demo() {
           <CheckCircle2 size={40} aria-hidden="true" />
           <h2>Thank you — your demo request is in.</h2>
           <p>
-            The HR MAX team will contact you at <strong>{form.email}</strong> to arrange a
+            The HR MAX team will contact you at <strong>{form.email}</strong>
+            {form.phone ? <> or <strong>{form.phone}</strong></> : null} to arrange a
             personalised walkthrough. Nothing was sent to a third party.
           </p>
           <div className="form-success-actions">
@@ -139,6 +149,30 @@ export function Demo() {
             <label>
               <span>Business email *</span>
               <input type="email" value={form.email} onChange={e => set('email', e.target.value)} placeholder="you@company.com" autoComplete="email" />
+            </label>
+          </div>
+
+          <div className="form-row">
+            <label>
+              <span>Administration full name *</span>
+              <input
+                type="text"
+                value={form.adminName}
+                onChange={e => set('adminName', e.target.value)}
+                placeholder="Person who will administer HR MAX"
+                autoComplete="off"
+              />
+            </label>
+            <label>
+              <span>Contact number *</span>
+              <input
+                type="tel"
+                value={form.phone}
+                onChange={e => set('phone', e.target.value)}
+                placeholder="+91 98765 43210"
+                autoComplete="tel"
+                inputMode="tel"
+              />
             </label>
           </div>
 
