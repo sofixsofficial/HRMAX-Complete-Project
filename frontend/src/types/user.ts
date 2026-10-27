@@ -516,15 +516,16 @@ export interface SalaryStructure {
 export type LeaveType = 'Casual' | 'Sick' | 'Earned' | 'Unpaid' | 'Maternity' | 'Paternity'
 export type LeaveStatus = 'Pending' | 'Approved' | 'Rejected' | 'Cancelled'
 export type ApprovalLevel = 'Pending' | 'Approved' | 'Rejected'
-export type ApprovalTier = 'reportingManager' | 'companyAdmin' | 'teamLeader' | 'executive'
+export type ApprovalTier = 'reportingManager' | 'hr' | 'companyAdmin' | 'teamLeader' | 'executive'
 
 /**
  * Individual per-tier approval flags stored on the leave document so that
- * Reporting Manager, Company Admin, Executive and Team Leader approvals can be
- * queried/synced independently and shown as checkmarks across web + mobile.
+ * Reporting Manager, HR, Company Admin, Executive and Team Leader approvals can
+ * be queried/synced independently and shown as checkmarks across web + mobile.
  */
 export type ApprovalFlags = {
   reportingManagerApproved: boolean
+  hrApproved?: boolean
   companyAdminApproved: boolean
   executiveApproved: boolean
   teamLeaderApproved: boolean
@@ -566,6 +567,7 @@ export interface LeaveRequest {
   // Individual per-tier approval flags (derived from approvalStatus, kept in
   // sync by the leave service and backend trigger for cross-platform queries).
   reportingManagerApproved?: boolean
+  hrApproved?: boolean
   companyAdminApproved?: boolean
   executiveApproved?: boolean
   teamLeaderApproved?: boolean

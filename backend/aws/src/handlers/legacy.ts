@@ -43,6 +43,7 @@ const INFO_EMAIL = () => process.env.INFO_EMAIL ?? 'info@hrmax.in';
 const MANAGEMENT_ROLES: UserRole[] = ['master-admin', 'company-admin', 'executive', 'team-leader', 'hr'];
 const NATURAL_ROLE: Record<LeaveTier, UserRole[]> = {
   reportingManager: ['reporting-manager'],
+  hr: ['hr'],
   companyAdmin: ['company-admin'],
   executive: ['executive'],
   teamLeader: ['team-leader'],
@@ -285,6 +286,7 @@ async function resolveMissedPunchApprovers(companyId: string, applicantUid: stri
 
   const resolved: Record<LeaveTier, string | null> = {
     reportingManager: pick('reporting-manager') ?? (emp ? String(emp.reportingManagerId ?? '') || null : null),
+    hr: pick('hr'),
     companyAdmin: pick('company-admin'),
     executive: pick('executive'),
     teamLeader: pick('team-leader'),
@@ -294,18 +296,35 @@ async function resolveMissedPunchApprovers(companyId: string, applicantUid: stri
     const o = override?.[t];
     if (o !== undefined) resolved[t] = o ? String(o) : null;
   }
-  // Role-based auto-skips.
-  if (applicantRole === 'executive') resolved.reportingManager = null;
-  if (applicantRole === 'master-admin' || applicantRole === 'company-admin') {
+  // Role-based chain truncation (parity with leave.ts):
+  //   employee / reporting manager -> ... -> HR -> company admin
+  //   HR -> company admin
+  //   executive -> team leader (-> master-admin gate)
+  //   company-admin / master-admin -> no personal records at all
+  if (applicantRole === 'employee' || applicantRole === 'reporting-manager') {
     resolved.reportingManager = null;
+    resolved.executive = null;
+    resolved.teamLeader = null;
+  } else if (applicantRole === 'hr') {
+    resolved.reportingManager = null;
+    resolved.hr = null;
+    resolved.executive = null;
+    resolved.teamLeader = null;
+  } else if (applicantRole === 'executive') {
+    resolved.reportingManager = null;
+    resolved.hr = null;
+    resolved.companyAdmin = null;
+  } else if (applicantRole === 'master-admin' || applicantRole === 'company-admin') {
+    resolved.reportingManager = null;
+    resolved.hr = null;
     resolved.companyAdmin = null;
     resolved.executive = null;
     resolved.teamLeader = null;
   }
-  if (resolved.reportingManager === applicantUid) resolved.reportingManager = null;
-  if (resolved.companyAdmin === applicantUid) resolved.companyAdmin = null;
-  if (resolved.executive === applicantUid) resolved.executive = null;
-  if (resolved.teamLeader === applicantUid) resolved.teamLeader = null;
+  // Never ask someone to approve their own request.
+  for (const t of TIER_ORDER) {
+    if (resolved[t] === applicantUid) resolved[t] = null;
+  }
   void ma;
   return resolved;
 }

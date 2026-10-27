@@ -94,6 +94,7 @@ export interface CompanyDoc extends BaseEntity {
 
 export interface LeaveTierStatus {
   reportingManager: 'Pending' | 'Approved' | 'Rejected' | 'Skipped';
+  hr: 'Pending' | 'Approved' | 'Rejected' | 'Skipped';
   companyAdmin: 'Pending' | 'Approved' | 'Rejected' | 'Skipped';
   executive: 'Pending' | 'Approved' | 'Rejected' | 'Skipped';
   teamLeader: 'Pending' | 'Approved' | 'Rejected' | 'Skipped';
@@ -101,7 +102,14 @@ export interface LeaveTierStatus {
 
 export type LeaveTier = keyof LeaveTierStatus;
 
-export const TIER_ORDER: LeaveTier[] = ['reportingManager', 'companyAdmin', 'executive', 'teamLeader'];
+/**
+ * Sequential approval order (single source of truth for leave AND missed-punch
+ * rectification): reporting manager -> HR -> company admin -> executive ->
+ * team leader. Which tiers are actually live for a request depends on the
+ * applicant's role (see computeInitialApproval); tiers above are either
+ * Approved (auto) or Skipped, never silently reordered.
+ */
+export const TIER_ORDER: LeaveTier[] = ['reportingManager', 'hr', 'companyAdmin', 'executive', 'teamLeader'];
 
 export interface LeaveRequestDoc extends BaseEntity {
   id: string;

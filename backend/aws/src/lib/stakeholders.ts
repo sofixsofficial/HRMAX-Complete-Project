@@ -9,6 +9,8 @@ export interface Stakeholders {
   employeeUserId: string;
   employeeName: string;
   reportingManagerId: string | null;
+  /** HR accounts of the company — the tier between the reporting manager and the company admin. */
+  hrIds: string[];
   executiveIds: string[];
   teamLeaderIds: string[];
   companyAdminIds: string[];
@@ -24,6 +26,7 @@ export async function resolveStakeholders(
     employeeUserId,
     employeeName,
     reportingManagerId: null,
+    hrIds: [],
     executiveIds: [],
     teamLeaderIds: [],
     companyAdminIds: [],
@@ -107,6 +110,17 @@ export async function resolveStakeholders(
   out.companyAdminIds = admins.map((a) => String(a.id));
   const adminId = (companyDoc?.adminId as string) ?? null;
   if (adminId && !out.companyAdminIds.includes(adminId)) out.companyAdminIds.push(adminId);
+
+  // HR accounts of this company (the approval tier between the reporting
+  // manager and the company admin). HR users live in their own company
+  // partition, exactly like company admins — same role query, same shape.
+  const hrs = await queryEntities<Record<string, unknown>>({
+    entity: 'user',
+    companyId,
+    filters: { role: 'hr' },
+    limit: 50,
+  }).catch(() => [] as Record<string, unknown>[]);
+  out.hrIds = hrs.map((h) => String(h.id));
 
   // Master admins (platform-wide)
   const masters = await queryEntities<Record<string, unknown>>({

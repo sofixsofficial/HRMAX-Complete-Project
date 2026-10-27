@@ -425,10 +425,11 @@ export const detectMissedPunches = async (companyId: string): Promise<Attendance
  *   Team Lead → 1-tier: Master Admin  (all tiers auto-complete, direct MA gate)
  * Single source of truth for ordering, gating, next-pending tier, and progress.
  */
-export const MISSED_PUNCH_TIER_ORDER: ApprovalTier[] = ['reportingManager', 'companyAdmin', 'executive', 'teamLeader'];
+export const MISSED_PUNCH_TIER_ORDER: ApprovalTier[] = ['reportingManager', 'hr', 'companyAdmin', 'executive', 'teamLeader'];
 
 export const MISSED_PUNCH_TIER_LABELS: Record<ApprovalTier, string> = {
   reportingManager: 'Reporting Manager',
+  hr: 'HR',
   companyAdmin: 'Company Admin',
   executive: 'Executive',
   teamLeader: 'Team Leader',
@@ -436,10 +437,15 @@ export const MISSED_PUNCH_TIER_LABELS: Record<ApprovalTier, string> = {
 
 const INITIAL_MP_APPROVAL_STATUS: Record<ApprovalTier, ApprovalLevel> = {
   reportingManager: 'Pending',
+  hr: 'Pending',
   companyAdmin: 'Pending',
   executive: 'Pending',
   teamLeader: 'Pending',
 };
+
+/** A tier that needs no further decision: approved, or skipped for this role. */
+const mpTierSettled = (level?: ApprovalLevel | string): boolean =>
+  level === 'Approved' || level === 'Skipped';
 
 export const computeMissedPunchStatus = (
   approvalStatus: Record<ApprovalTier, ApprovalLevel>,
@@ -447,7 +453,7 @@ export const computeMissedPunchStatus = (
   for (const tier of MISSED_PUNCH_TIER_ORDER) {
     if (approvalStatus[tier] === 'Rejected') return 'Rejected';
   }
-  return MISSED_PUNCH_TIER_ORDER.every(t => approvalStatus[t] === 'Approved') ? 'Approved' : 'Pending';
+  return MISSED_PUNCH_TIER_ORDER.every(t => mpTierSettled(approvalStatus[t])) ? 'Approved' : 'Pending';
 };
 
 export const getNextPendingMissedPunchTier = (
@@ -490,6 +496,7 @@ export const getActionableMissedPunchTier = (
   if (approverId === uid) return next;
   if (approverId) return null;
   if ((role === 'reporting-manager' || role === 'hr-manager') && next === 'reportingManager') return next;
+  if (role === 'hr' && next === 'hr') return next;
   if (role === 'company-admin' && next === 'companyAdmin') return next;
   if (role === 'executive' && next === 'executive') return next;
   if (role === 'team-leader' && next === 'teamLeader') return next;
@@ -500,15 +507,18 @@ export const getActionableMissedPunchTier = (
  * Returns the effective missed-punch verification tiers for a given applicant
  * role. Mirrors leave's getEffectiveTiers so every progress/counter/queue view
  * renders the role-correct chain length.
- * - Reporting Manager / HR self-app: 3 tiers (CA → Exec → TL, RM self-tier auto-completes)
- * - Executive self-app: Team Leader only (Exec → TL → Master Admin)
+ * - Employee:             Reporting Manager -> HR -> Company Admin
+ * - Reporting Manager:    HR -> Company Admin
+ * - HR:                   Company Admin
+ * - Executive self-app:   Team Leader -> Master Admin
  * - Team Leader self-app: none (direct to Master Admin)
- * - Normal employee: all 4 tiers (RM → CA → Exec → TL)
  */
 export const getEffectiveMissedPunchTiers = (applicantRole?: string): ApprovalTier[] => {
-  if (applicantRole === 'reporting-manager' || applicantRole === 'hr-manager') return ['companyAdmin', 'executive', 'teamLeader'];
+  if (applicantRole === 'reporting-manager') return ['hr', 'companyAdmin'];
+  if (applicantRole === 'hr' || applicantRole === 'hr-manager') return ['companyAdmin'];
   if (applicantRole === 'executive') return ['teamLeader'];
   if (applicantRole === 'team-leader') return [];
+  if (applicantRole === 'employee') return ['reportingManager', 'hr', 'companyAdmin'];
   return [...MISSED_PUNCH_TIER_ORDER];
 };
 
@@ -531,7 +541,7 @@ export const getRecordEffectiveMissedPunchTiers = (mp?: {
   const tiers = getEffectiveMissedPunchTiers(mp?.applicantRole);
   if (!tiers.includes('reportingManager')) return tiers;
   const rmPhantom =
-    mp?.approvalStatus?.reportingManager === 'Approved' &&
+    (mp?.approvalStatus?.reportingManager === 'Approved' || mp?.approvalStatus?.reportingManager === 'Skipped') &&
     !(mp?.approvalLog || []).some(e => e?.tier === 'reportingManager');
   return rmPhantom ? tiers.filter(t => t !== 'reportingManager') : tiers;
 };
@@ -557,7 +567,7 @@ export const computeOverallMissedPunchStatus = (
     if (approvalStatus[tier] === 'Rejected') return 'Rejected';
   }
   if (masterAdminRequired && masterAdminApproveStatus === 'Rejected') return 'Rejected';
-  const allTiersApproved = MISSED_PUNCH_TIER_ORDER.every(t => approvalStatus[t] === 'Approved');
+  const allTiersApproved = MISSED_PUNCH_TIER_ORDER.every(t => mpTierSettled(approvalStatus[t]));
   if (!allTiersApproved) return 'Pending';
   if (masterAdminRequired) {
     return masterAdminApproveStatus === 'Approved' ? 'Approved' : 'Pending';
@@ -573,7 +583,7 @@ export const isAwaitingMissedPunchMasterAdmin = (
 ): boolean => {
   if (!masterAdminRequired) return false;
   if (masterAdminApproveStatus === 'Approved' || masterAdminApproveStatus === 'Rejected') return false;
-  return MISSED_PUNCH_TIER_ORDER.every(t => approvalStatus[t] === 'Approved');
+  return MISSED_PUNCH_TIER_ORDER.every(t => mpTierSettled(approvalStatus[t]));
 };
 
 const areAllPreviousMissedPunchTiersApproved = (
@@ -583,13 +593,16 @@ const areAllPreviousMissedPunchTiersApproved = (
   const targetIndex = MISSED_PUNCH_TIER_ORDER.indexOf(targetTier);
   if (targetIndex <= 0) return true;
   for (let i = 0; i < targetIndex; i++) {
-    if (approvalStatus[MISSED_PUNCH_TIER_ORDER[i]] !== 'Approved') return false;
+    const level = approvalStatus[MISSED_PUNCH_TIER_ORDER[i]];
+    // Skipped tiers (not part of this requester's chain) block nobody.
+    if (level !== 'Approved' && level !== 'Skipped') return false;
   }
   return true;
 };
 
 const computeMissedPunchFlags = (approvalStatus: Record<ApprovalTier, ApprovalLevel>) => ({
   reportingManagerApproved: approvalStatus.reportingManager === 'Approved',
+  hrApproved: approvalStatus.hr === 'Approved',
   companyAdminApproved: approvalStatus.companyAdmin === 'Approved',
   executiveApproved: approvalStatus.executive === 'Approved',
   teamLeaderApproved: approvalStatus.teamLeader === 'Approved',
@@ -669,7 +682,7 @@ export const computeMissedPunchRouting = (
 // Resolve the missed-punch approver ids (shared with the leave chain logic
 // mirrored here so a single employee always has a consistent same-company chain).
 const resolveMissedPunchApproverIds = async (companyId: string, employeeUserId: string): Promise<Record<ApprovalTier, string>> => {
-  const ids: Record<ApprovalTier, string> = { reportingManager: '', companyAdmin: '', executive: '', teamLeader: '' };
+  const ids: Record<ApprovalTier, string> = { reportingManager: '', hr: '', companyAdmin: '', executive: '', teamLeader: '' };
 
   // 1. Reporting Manager (live 1st tier for employees; auto-skipped when unassigned).
   const empQuery = query(collection(db, 'employees'), where('userId', '==', employeeUserId));
@@ -678,6 +691,13 @@ const resolveMissedPunchApproverIds = async (companyId: string, employeeUserId: 
     const empData = empSnap.docs[0].data();
     if (empData.reportingManagerId) ids.reportingManager = empData.reportingManagerId;
   }
+
+  // 1b. HR — the tier between the reporting manager and the company admin.
+  try {
+    const hrQuery = query(collection(db, 'users'), where('role', '==', 'hr'), where('companyId', '==', companyId));
+    const hrSnap = await getDocs(hrQuery);
+    if (!hrSnap.empty) ids.hr = hrSnap.docs[0].id;
+  } catch {}
 
   // 2. Company Admin
   try {
@@ -742,9 +762,12 @@ export const requestPunchRectification = async (
     if (managingTL) approverIds.teamLeader = managingTL;
   }
 
-  // Mirror leave behaviour: auto-skip (approve) tiers whose approver is the
-  // submitting employee, and skip the Reporting Manager tier when unassigned.
+  // Mirror leave behaviour: auto-skip tiers whose approver is the submitting
+  // employee, the RM tier when unassigned, and every tier outside this
+  // requester's live chain (Skipped — nobody decided anything, so it must not
+  // count as an approval in the x/N progress).
   const approvalStatus: Record<ApprovalTier, ApprovalLevel> = { ...INITIAL_MP_APPROVAL_STATUS };
+  const liveTiers = getEffectiveMissedPunchTiers(applicantRole);
   for (const tier of MISSED_PUNCH_TIER_ORDER) {
     const isSelfApprover = approverIds[tier] && approverIds[tier] === data.userId;
     const isUnassignedRmTier = tier === 'reportingManager' && !approverIds[tier];
@@ -752,15 +775,16 @@ export const requestPunchRectification = async (
 
     if (masterAdminRequired && applicantRole === 'executive') {
       // Executive chain: Executive → Team Leader → Master Admin. Auto-skip
-      // RM + Admin + Executive tiers but KEEP the teamLeader tier active.
-      if (tier !== 'teamLeader') approvalStatus[tier] = 'Approved';
+      // RM + HR + Admin + Executive tiers but KEEP the teamLeader tier active.
+      approvalStatus[tier] = tier === 'teamLeader' ? 'Pending' : 'Approved';
     } else if (masterAdminRequired) {
       // Team Leader self-app: auto-skip ALL tiers (routes directly to Master Admin)
       approvalStatus[tier] = 'Approved';
     } else if (isSelfApprover || isUnassignedRmTier || isSelfReportingManager) {
-      // Normal employee: standard self-approver / unassigned-RM skip.
-      // Reporting Manager / HR self-app: their own tier always auto-completes.
-      approvalStatus[tier] = 'Approved';
+      approvalStatus[tier] = 'Skipped';
+    } else if (!liveTiers.includes(tier)) {
+      // Chain truncation per requester role (mirrors the server exactly).
+      approvalStatus[tier] = 'Skipped';
     }
   }
 
@@ -1023,7 +1047,7 @@ export const reviewMasterAdminMissedPunch = async (
   // tiers (direct routing), so nothing else needs verifying first. Use the
   // effective tiers to validate only the tiers that actually required action.
   const effectiveTiers: ApprovalTier[] = getEffectiveMissedPunchTiers(mp.applicantRole);
-  if (effectiveTiers.length > 0 && !effectiveTiers.every(t => currentApprovalStatus[t] === 'Approved')) {
+  if (effectiveTiers.length > 0 && !effectiveTiers.every(t => mpTierSettled(currentApprovalStatus[t]))) {
     throw new Error('The required verification tiers must be fully approved before Master Admin review.');
   }
 

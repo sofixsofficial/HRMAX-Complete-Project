@@ -212,6 +212,13 @@ export const attendanceRoutes: Route[] = [
       if (!companyId || !markType) throw new ApiError('bad-request', 'companyId and type required');
       assertCompanyScope(caller, companyId);
 
+      // Product rule: Company Admin and Master Admin have NO personal
+      // attendance — they administer the module, they never appear in it as a
+      // subject. Enforced server-side so no client can punch for them.
+      if (caller.role === 'company-admin' || caller.role === 'master-admin') {
+        throw new ApiError('permission-denied', 'Company Admin and Master Admin do not have personal attendance records.');
+      }
+
       const policy = await getPolicy(companyId);
       const now = new Date();
       const tz = await resolveCompanyTimezone(companyId);
@@ -425,24 +432,36 @@ export const attendanceRoutes: Route[] = [
 
       const stakeholders = await resolveStakeholders(rec.companyId, rec.userId, rec.employeeName ?? '');
       const status: Record<LeaveTier, 'Pending' | 'Approved' | 'Rejected' | 'Skipped'> = {
-        reportingManager: 'Pending', companyAdmin: 'Pending', executive: 'Pending', teamLeader: 'Pending',
+        reportingManager: 'Pending', hr: 'Pending', companyAdmin: 'Pending', executive: 'Pending', teamLeader: 'Pending',
       };
       const approverIds: Partial<Record<LeaveTier, string | null>> = {
         reportingManager: stakeholders.reportingManagerId,
+        hr: stakeholders.hrIds?.[0] ?? null,
         companyAdmin: stakeholders.companyAdminIds[0] ?? null,
         executive: stakeholders.executiveIds[0] ?? null,
         teamLeader: stakeholders.teamLeaderIds[0] ?? null,
       };
       for (const t of TIER_ORDER) if (!approverIds[t]) status[t] = 'Skipped';
 
-      // Per-role auto-skip (parity with missedPunchFunctions)
+      // Per-role chain truncation (parity with the leave flow):
+      //   employee -> reporting manager -> HR -> company admin
+      //   reporting manager -> HR -> company admin
+      //   HR -> company admin
+      //   executive -> team leader -> master admin gate
+      //   team leader -> master admin gate
       const role = caller.role as UserRole;
       if (role === 'team-leader') {
         for (const t of TIER_ORDER) status[t] = 'Approved';
       } else if (role === 'executive') {
-        status.reportingManager = 'Approved'; status.companyAdmin = 'Approved'; status.executive = 'Approved';
+        status.reportingManager = 'Approved'; status.hr = 'Approved'; status.companyAdmin = 'Approved'; status.executive = 'Approved';
       } else if (role === 'reporting-manager') {
         status.reportingManager = 'Skipped';
+        status.executive = 'Skipped'; status.teamLeader = 'Skipped';
+      } else if (role === 'hr') {
+        status.reportingManager = 'Skipped'; status.hr = 'Skipped';
+        status.executive = 'Skipped'; status.teamLeader = 'Skipped';
+      } else if (role === 'employee') {
+        status.executive = 'Skipped'; status.teamLeader = 'Skipped';
       }
       const masterAdminRequired = role === 'team-leader' || role === 'executive';
 
@@ -501,7 +520,7 @@ export const attendanceRoutes: Route[] = [
         if (rect.approvalStatus?.[tier] !== 'Pending') throw new ApiError('failed-precondition', 'Tier already decided');
         const stamped = rect.approverIds?.[tier];
         if (stamped !== caller.uid && caller.role !== 'master-admin') {
-          const roleForTier: Record<string, UserRole[]> = { reportingManager: ['reporting-manager'], companyAdmin: ['company-admin'], executive: ['executive'], teamLeader: ['team-leader'] };
+          const roleForTier: Record<string, UserRole[]> = { reportingManager: ['reporting-manager'], hr: ['hr'], companyAdmin: ['company-admin'], executive: ['executive'], teamLeader: ['team-leader'] };
           if (!roleForTier[tier]?.includes(caller.role)) throw new ApiError('permission-denied', 'Not the approver for this tier');
         }
         patch = { [`missedPunchRectification.approvalStatus.${tier}`]: decision };

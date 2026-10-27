@@ -158,12 +158,12 @@ test('scopedCompanyIds: master-admin unscoped, employee single-company', () => {
 });
 
 // ---------------------------------------------------------------------------
-// 4. Leave-tier contract (4-level sequential approval chain)
+// 4. Leave-tier contract (sequential approval chain with an HR tier)
 // ---------------------------------------------------------------------------
 
 test('TIER_ORDER is the exact sequential chain the gates enforce', () => {
-  assert.deepEqual(types.TIER_ORDER, ['reportingManager', 'companyAdmin', 'executive', 'teamLeader']);
-  assert.equal(new Set(types.TIER_ORDER).size, 4, 'no duplicate tiers');
+  assert.deepEqual(types.TIER_ORDER, ['reportingManager', 'hr', 'companyAdmin', 'executive', 'teamLeader']);
+  assert.equal(new Set(types.TIER_ORDER).size, 5, 'no duplicate tiers');
 });
 
 test('ApiError carries machine-readable code (error contract used by shims)', () => {

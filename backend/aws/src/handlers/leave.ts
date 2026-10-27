@@ -28,21 +28,24 @@ interface LeaveInput {
 
 /**
  * Compute the initial approvalStatus + approverIds for a new leave request,
- * applying the per-role auto-skip rules.
+ * applying the per-role auto-skip rules. Exported so the approval-chain test
+ * suite can assert every requester role's exact default chain.
  */
-async function computeInitialApproval(
+export async function computeInitialApproval(
   input: LeaveInput,
   applicantRole: UserRole,
   stakeholders: Awaited<ReturnType<typeof resolveStakeholders>>,
 ): Promise<Pick<LeaveRequestDoc, 'approvalStatus' | 'approverIds' | 'masterAdminRequired' | 'masterAdminApproveStatus' | 'masterAdminApproverId' | 'applicantRole'>> {
   const status: Record<LeaveTier, 'Pending' | 'Approved' | 'Rejected' | 'Skipped'> = {
     reportingManager: 'Pending',
+    hr: 'Pending',
     companyAdmin: 'Pending',
     executive: 'Pending',
     teamLeader: 'Pending',
   };
   const approverIds: Partial<Record<LeaveTier, string | null>> = {
     reportingManager: stakeholders.reportingManagerId,
+    hr: stakeholders.hrIds?.[0] ?? null,
     companyAdmin: stakeholders.companyAdminIds[0] ?? null,
     executive: stakeholders.executiveIds[0] ?? null,
     teamLeader: stakeholders.teamLeaderIds[0] ?? null,
@@ -50,6 +53,7 @@ async function computeInitialApproval(
 
   // Auto-skip unassigned tiers
   if (!approverIds.reportingManager) status.reportingManager = 'Skipped';
+  if (!approverIds.hr) status.hr = 'Skipped';
   if (!approverIds.companyAdmin) status.companyAdmin = 'Skipped';
   if (!approverIds.executive) status.executive = 'Skipped';
   if (!approverIds.teamLeader) status.teamLeader = 'Skipped';
@@ -58,20 +62,41 @@ async function computeInitialApproval(
   let masterAdminApproveStatus: 'Pending' | 'Approved' | 'Rejected' | undefined = masterAdminRequired ? 'Pending' : undefined;
   let masterAdminApproverId: string | null = masterAdminRequired ? stakeholders.masterAdminIds[0] ?? null : null;
 
-  if (applicantRole === 'team-leader') {
-    // TL self-app: all four tiers auto-approved → single MA gate
+  // ── Chain truncation per applicant role (the product's approval rules):
+  //    employee          -> reporting manager -> HR -> company admin
+  //    reporting manager -> HR -> company admin
+  //    HR                -> company admin
+  //    executive         -> team leader  -> master admin gate
+  //    team leader       -> master admin gate
+  // Tiers beyond the last required approver are Skipped, so the x/N progress
+  // and the "who approves next" logic both see exactly the live chain.
+  if (applicantRole === 'employee') {
+    status.executive = 'Skipped';
+    status.teamLeader = 'Skipped';
+  } else if (applicantRole === 'reporting-manager') {
+    // Spec: a reporting manager's own leave goes HR -> company admin (no
+    // self-tier, no manager-of-manager step).
+    status.reportingManager = 'Skipped';
+    status.executive = 'Skipped';
+    status.teamLeader = 'Skipped';
+  } else if (applicantRole === 'hr') {
+    status.reportingManager = 'Skipped';
+    status.hr = 'Skipped';
+    status.executive = 'Skipped';
+    status.teamLeader = 'Skipped';
+  } else if (applicantRole === 'team-leader') {
+    // TL self-app: all tiers auto-approved → single MA gate
     status.reportingManager = 'Approved';
+    status.hr = 'Approved';
     status.companyAdmin = 'Approved';
     status.executive = 'Approved';
     status.teamLeader = 'Approved';
   } else if (applicantRole === 'executive') {
-    // Executive self-app: RM+CA+Exec auto-approved, TL tier stays live
+    // Executive self-app: RM+HR+CA+Exec auto-approved, TL tier stays live
     status.reportingManager = 'Approved';
+    status.hr = 'Approved';
     status.companyAdmin = 'Approved';
     status.executive = 'Approved';
-  } else if (applicantRole === 'reporting-manager') {
-    // RM with no manager above → own tier skipped
-    if (!approverIds.reportingManager) status.reportingManager = 'Skipped';
   }
 
   return {
@@ -136,6 +161,7 @@ async function assertTierApprover(caller: { uid: string; role: UserRole; company
   // Fallback: natural role holder in the same company
   const roleForTier: Record<LeaveTier, UserRole[]> = {
     reportingManager: ['reporting-manager'],
+    hr: ['hr'],
     companyAdmin: ['company-admin'],
     executive: ['executive'],
     teamLeader: ['team-leader'],
@@ -163,6 +189,14 @@ export const leaveRoutes: Route[] = [
       assertCompanyScope(caller, input.companyId);
       if (caller.uid !== input.userId && !hasPermission(caller, 'leave.approve') && caller.role !== 'master-admin') {
         throw new ApiError('permission-denied', 'Cannot apply leave for another user');
+      }
+      // Company Admin and Master Admin have NO personal leave/attendance —
+      // they administer the modules, they never appear in them as subjects.
+      const targetRole = caller.uid === input.userId
+        ? caller.role
+        : String((await (await import('../lib/db.js')).getUserDoc(input.userId))?.role ?? '');
+      if (targetRole === 'company-admin' || targetRole === 'master-admin') {
+        throw new ApiError('permission-denied', 'Company Admin and Master Admin do not have personal leave records.');
       }
 
       // ── Server-side validation (the handler previously trusted the client
