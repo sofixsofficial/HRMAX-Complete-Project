@@ -1,0 +1,36 @@
+name: OIDC debug
+
+# One-shot diagnostic for the deploy job's OIDC failure: the account SCP denies
+# iam:GetOpenIDConnectProvider, so the provider's client IDs and thumbprints
+# cannot be read from AWS. This workflow mints a token per candidate audience,
+# prints the claims GitHub issues, and calls STS directly to capture the exact
+# rejection. Delete once the deploy job authenticates.
+
+on:
+  workflow_dispatch:
+
+permissions:
+  id-token: write
+  contents: read
+
+jobs:
+  probe:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Probe audiences against STS
+        env:
+          ROLE_ARN: ${{ secrets.AWS_DEPLOY_ROLE_ARN }}
+        run: |
+          set -u
+          apt-get install -y jq >/dev/null 2>&1 || true
+          for aud in sts.amazonaws.com token.actions.githubusercontent.com hrmax-deploy; do
+            echo "=== audience: $aud ==="
+            TOKEN=$(curl -sS -H "Authorization: Bearer $ACTIONS_ID_TOKEN_REQUEST_TOKEN" \
+              "$ACTIONS_ID_TOKEN_REQUEST_URL&audience=$aud" | jq -r .value)
+            echo "$TOKEN" | cut -d. -f2 | tr '_-' '/+' | base64 -d 2>/dev/null | jq '{aud, sub, iss, exp}' || echo "(claims not decodable)"
+            aws sts assume-role-with-web-identity \
+              --role-arn "$ROLE_ARN" \
+              --role-session-name "oidc-probe-$aud" \
+              --web-identity-token "$TOKEN" \
+              --duration-seconds 900 2>&1 | tail -n 3
+          done
