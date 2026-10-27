@@ -4,7 +4,8 @@ import {
   ArrowRight, Users, Building2, Shield, BarChart3,
   Clock, CheckSquare, Mail, Phone, MapPin,
   CheckCircle2, PlayCircle, ClipboardList, Wallet, Gauge,
-  Compass, SlidersHorizontal
+  Compass, SlidersHorizontal,
+  LogIn, Monitor, Tablet, Smartphone
 } from 'lucide-react'
 import { modules } from './modules-content'
 import './Landing.css'
@@ -438,6 +439,74 @@ export function Landing() {
             <Link to="/how-it-works" className="hero-btn-secondary">
               See the full process <ArrowRight size={16} aria-hidden="true" />
             </Link>
+          </div>
+        </section>
+      </ScrollReveal>
+
+      {/* ── Get HR MAX ─────────────────────────────────────── */}
+      <ScrollReveal>
+        <section className="getapp-section" aria-labelledby="getapp-heading">
+          <div className="getapp-inner">
+            <div className="getapp-copy">
+              <p className="section-eyebrow">Get HR MAX</p>
+              <h2 id="getapp-heading">Run HR from <span>any device</span></h2>
+              <p className="getapp-lede">
+                HR MAX is a web app, so it opens straight in the browser on a
+                laptop, tablet or phone. There is nothing to install and no
+                store listing to wait for — sign in and your workspace is there.
+              </p>
+              <div className="getapp-actions">
+                <Link to="/login" className="hero-btn-primary">
+                  <LogIn size={18} aria-hidden="true" />
+                  Open HR MAX
+                </Link>
+                <Link to="/enroll" className="hero-btn-secondary">
+                  Request early access
+                  <ArrowRight size={16} aria-hidden="true" />
+                </Link>
+              </div>
+              <div className="getapp-secondary">
+                <Link to="/demo">Book a demo</Link>
+                <span aria-hidden="true">·</span>
+                <Link to="/pricing">See pricing</Link>
+                <span aria-hidden="true">·</span>
+                <Link to="/how-it-works">How it works</Link>
+              </div>
+              <p className="getapp-note">
+                Enrollment is reviewed before your workspace is configured —
+                submitting the form does not activate an account instantly.
+              </p>
+            </div>
+
+            <ul className="getapp-devices" aria-label="Where HR MAX runs">
+              <li>
+                <span className="getapp-device-icon" aria-hidden="true">
+                  <Monitor size={18} strokeWidth={2} />
+                </span>
+                <span className="getapp-device-text">
+                  <strong>Desktop</strong>
+                  <span>Dashboards, reports and payroll</span>
+                </span>
+              </li>
+              <li>
+                <span className="getapp-device-icon" aria-hidden="true">
+                  <Tablet size={18} strokeWidth={2} />
+                </span>
+                <span className="getapp-device-text">
+                  <strong>Tablet</strong>
+                  <span>Approvals, reviews and team views</span>
+                </span>
+              </li>
+              <li>
+                <span className="getapp-device-icon" aria-hidden="true">
+                  <Smartphone size={18} strokeWidth={2} />
+                </span>
+                <span className="getapp-device-text">
+                  <strong>Phone</strong>
+                  <span>Attendance, leave and notifications</span>
+                </span>
+              </li>
+            </ul>
           </div>
         </section>
       </ScrollReveal>
