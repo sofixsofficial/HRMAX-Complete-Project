@@ -250,25 +250,34 @@ export const generatePayslip = (slip: SalarySlip, options: PayslipOptions = {}) 
       margin-top: 2px;
       letter-spacing: 0;
     }
+    .company-lockup {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      min-width: 0;
+    }
     .company-name {
-      font-size: 15px;
-      font-weight: 700;
+      font-size: 26px;
+      font-weight: 800;
+      line-height: 1.15;
       color: var(--text);
-      margin-top: 6px;
+      margin-top: 0;
       letter-spacing: 0;
+      overflow-wrap: anywhere;
     }
     .company-address {
       font-size: 12px;
       color: var(--text-secondary);
       line-height: 1.5;
-      margin-top: 2px;
+      margin-top: 6px;
     }
     .company-logo {
       width: auto;
-      max-width: 80px;
-      max-height: 40px;
+      max-width: 96px;
+      max-height: 56px;
       object-fit: contain;
-      margin-bottom: 6px;
+      margin-bottom: 0;
+      flex: 0 0 auto;
     }
     .title-wrap {
       text-align: left;
@@ -476,8 +485,10 @@ export const generatePayslip = (slip: SalarySlip, options: PayslipOptions = {}) 
     <div class="content">
       <div class="header">
         <div class="header-left">
-          ${logoHtml}
-          <div class="company-name">${escapeHtml(c.name)}</div>
+          <div class="company-lockup">
+            ${logoHtml}
+            <div class="company-name">${escapeHtml(c.name)}</div>
+          </div>
           ${addressLine ? `<div class="company-address">${escapeHtml(addressLine)}</div>` : ''}
         </div>
         <div class="brand-right">

@@ -154,34 +154,48 @@ export const downloadPayslipPdf = async (slip: SalarySlip, options: PayslipOptio
     return t
   }
 
-  // Logo on left
+  // Logo on left - fitted into a fixed box so a tall or wide mark both stay
+  // inside the header band, then the company name starts after it.
+  let logoW = 0
   if (c.logo && c.logo.startsWith('data:')) {
     try {
       const img = new Image()
       img.src = c.logo
-      const maxW = 22
+      const maxW = 26
+      const maxH = 15
       const aspect = img.width / img.height || 1
-      const w = aspect > 1 ? maxW : maxW * aspect
-      const h = aspect > 1 ? maxW / aspect : maxW
+      // Fit inside the box: wide art is limited by width, tall art by height.
+      const fitsWide = aspect >= maxW / maxH
+      const w = fitsWide ? maxW : maxH * aspect
+      const h = fitsWide ? maxW / aspect : maxH
       const format = c.logo.includes('data:image/png') ? 'PNG' : 'JPEG'
-      doc.addImage(c.logo, format, mg, y, w, h)
+      doc.addImage(c.logo, format, mg, y + 4, w, h)
+      logoW = w
     } catch { /* ignore */ }
   }
 
-  // Header left: company info
-  setFont(10, 'bold', C.headerText)
-  doc.text(truncate(c.name, cw * 0.60), mg, y + 14)
+  // Header right: HRMAX brand - measured first so the company name on the
+  // left can never run underneath it.
+  const brandSub = 'Payroll Management System'
+  setFont(7, 'normal', C.mutedText)
+  const brandReserve = doc.getTextWidth(brandSub) + 6
+
+  // Header left: company name is the primary identity on the page, so it is
+  // set well above the 10pt it used to carry and sits beside its logo.
+  const nameX = mg + (logoW ? logoW + 5 : 0)
+  const nameW = pw - mg - brandReserve - nameX
+  setFont(20, 'bold', C.headerText)
+  doc.text(truncate(c.name, nameW), nameX, y + 14)
   const addressLine = [c.address, c.city, c.state, c.country].filter(Boolean).join(', ')
   if (addressLine) {
     setFont(8, 'normal', C.bodyText)
-    doc.text(truncate(addressLine, cw * 0.60), mg, y + 18)
+    doc.text(truncate(addressLine, nameW), nameX, y + 18)
   }
 
-  // Header right: HRMAX brand
   setFont(15, 'bold', C.primary)
   doc.text('HRMAX', pw - mg, y + 5, { align: 'right' })
   setFont(7, 'normal', C.mutedText)
-  doc.text('Payroll Management System', pw - mg, y + 9, { align: 'right' })
+  doc.text(brandSub, pw - mg, y + 9, { align: 'right' })
   y += 24
 
   // Orange divider
