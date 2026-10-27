@@ -321,6 +321,8 @@ export interface SalarySlip {
   basicSalary: number
   allowances: number
   deductions: number
+  /** Payroll-run gross (what the run actually paid before deductions). */
+  grossSalary?: number
   netSalary: number
   status: 'Paid' | 'Pending' | 'Processing' | 'Emailed'
   paidOn: Date | null

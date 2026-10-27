@@ -1,6 +1,7 @@
 import jsPDF, { GState } from 'jspdf'
 import type { SalarySlip } from '../types/user'
 import type { PayslipOptions } from './payslipOptions'
+import { resolvePayslipFigures } from './payslipFigures'
 
 export type { PayslipOptions }
 export { getCompanyPayslipOptions } from './payslipOptions'
@@ -130,27 +131,26 @@ export const downloadPayslipPdf = async (slip: SalarySlip, options: PayslipOptio
     }
   }
 
-  const breakdown = slip.breakdown || { hra: 0, da: 0, pf: 0, tax: 0, otherDeductions: 0 }
-  const basic = slip.basicSalary || 0
-  const hra = breakdown.hra || 0
-  const da = breakdown.da || 0
-  const tax = breakdown.tax || 0
-  const otherDed = breakdown.otherDeductions || 0
-  const allowances = slip.allowances || 0
-  const deductions = slip.deductions || (tax + otherDed + breakdown.pf)
-  const net = slip.netSalary || 0
-  const gross = basic + allowances + (breakdown.leaveEncashment || 0)
-  const fixedAllow = Math.max(0, allowances - hra - da)
+  // Same resolver as the HTML template - PDF parity depends on both reading
+  // the payroll run's figures instead of fields the run never stores.
+  const f = resolvePayslipFigures(slip)
+  const basic = f.basic
+  const hra = f.hra
+  const allowances = f.allowances
+  const deductions = f.deductions
+  const net = f.net
+  const gross = f.gross
+  const fixedAllow = f.fixedAllow
 
-  const paidOn = safeDate(slip.paidOn) || new Date()
+  const paidOn = f.issuedOn || new Date()
   const monthNames = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December']
   const payPeriod = slip.month || monthNames[paidOn.getMonth()]
   const payYear = slip.year || paidOn.getFullYear()
-  const payDateStr = formatDate(slip.paidOn)
+  const payDateStr = formatDate(f.issuedOn)
 
-  const workingDays = (slip as any).workingDays || 30
-  const lopDays = (slip as any).lopDays || 0
-  const paidDays = (slip as any).paidDays || (workingDays - lopDays)
+  const workingDays = f.workingDays
+  const lopDays = f.lopDays
+  const paidDays = f.paidDays
 
   const designation = (slip as any).designation || '\u2014'
   const doj = formatDate((slip as any).dateOfJoining)
@@ -305,19 +305,15 @@ export const downloadPayslipPdf = async (slip: SalarySlip, options: PayslipOptio
   y = summaryY + summaryH + SECTION_GAP
 
   // Earnings
-  const earnings = [
-    ['Basic', basic],
-    hra > 0 ? ['House Rent Allowance', hra] : null,
-    fixedAllow > 0 ? ['Fixed Allowance', fixedAllow] : null,
-    (breakdown.leaveEncashment || 0) > 0 ? ['Leave Encashment', breakdown.leaveEncashment || 0] : null,
-  ].filter((r): r is [string, number] => !!r)
+  const earnings: Array<[string, number]> = []
+  if (basic > 0) earnings.push(['Basic', basic])
+  if (hra > 0) earnings.push(['House Rent Allowance', hra])
+  if (fixedAllow > 0) earnings.push(['Fixed Allowance', fixedAllow])
+  if (f.leaveEncashment > 0) earnings.push(['Leave Encashment', f.leaveEncashment])
+  if (f.overtimePay > 0) earnings.push(['Overtime Pay', f.overtimePay])
+  if (earnings.length === 0 && gross > 0) earnings.push(['Earnings', gross])
 
-  const deductionsList = [
-    (breakdown.pf || 0) > 0 ? ['Provident Fund', breakdown.pf || 0] : null,
-    tax > 0 ? ['Professional Tax', tax] : null,
-    (breakdown.absentDeduction || 0) > 0 ? ['Absent Deduction', breakdown.absentDeduction || 0] : null,
-    otherDed > 0 ? ['Other Deductions', otherDed] : null,
-  ].filter((r): r is [string, number] => !!r)
+  const deductionsList = f.deductionRows
 
   const hasDeductions = deductionsList.length > 0
 

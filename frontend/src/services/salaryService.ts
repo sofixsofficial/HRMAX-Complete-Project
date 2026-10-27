@@ -25,8 +25,20 @@ const mapSlip = (doc: { id: string; data: () => any }): SalarySlip => {
   const bd = data.breakdown || {};
   const num = (v: unknown) => (typeof v === 'number' && isFinite(v) ? v : 0);
   const gross = num(data.grossSalary) || num(bd.basic) || 0;
-  const earnings = num(bd.hra) + num(bd.da) + num(bd.leaveEncashment) + num(bd.overtimePay);
-  const deductionsTotal = num(bd.absentDeduction) + num(bd.pf) + num(bd.tax) + num(bd.otherDeductions);
+  const basic = data.basicSalary != null ? num(data.basicSalary) : (num(bd.basic) || gross);
+  const leaveEncash = num(bd.leaveEncashment);
+  const overtime = num(bd.overtimePay);
+  // Recurring allowances only: encashment and overtime are printed as their
+  // own earnings lines, so folding them in here would count them twice.
+  const allowances =
+    data.allowances != null
+      ? num(data.allowances)
+      : Math.max(0, gross - basic - leaveEncash - overtime);
+  // `otherDeductions` may already contain the absent cut, which is also stored
+  // as `absentDeduction` - only take what is left of it.
+  const absent = num(bd.absentDeduction);
+  const deductionsTotal =
+    num(bd.pf) + num(bd.tax) + absent + Math.max(0, num(bd.otherDeductions) - absent);
   return {
     id: doc.id,
     userId: data.userId,
@@ -39,8 +51,8 @@ const mapSlip = (doc: { id: string; data: () => any }): SalarySlip => {
     designation: data.designation,
     month: data.month,
     year: data.year,
-    basicSalary: data.basicSalary != null ? num(data.basicSalary) : gross,
-    allowances: data.allowances != null ? num(data.allowances) : earnings,
+    basicSalary: basic,
+    allowances,
     deductions: data.deductions != null ? num(data.deductions) : deductionsTotal,
     grossSalary: gross || undefined,
     netSalary: data.netSalary,
