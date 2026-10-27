@@ -135,7 +135,9 @@ const styles = StyleSheet.create({
   },
   bars: {
     flexDirection: 'row',
-    alignItems: 'flex-end',
+    alignItems: 'stretch', // columns must take the full 150px so the track
+    // below can flex:1 - with flex-end each column sized to its content and
+    // the track collapsed to the fill's 3px minimum, i.e. no visible bars.
     justifyContent: 'space-between',
     height: 150,
   },
