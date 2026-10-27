@@ -144,6 +144,15 @@ function RoleAwareRedirect({ to }: { to: string }) {
 
 function AppRoutes() {
   const { isAuthenticated, isLoading, user } = useAuth();
+  const location = useLocation();
+
+  // Any trailing slash matches no route (`/master-admin/` is not
+  // `/master-admin/dashboard`), so deep links and hand-typed URLs fell
+  // through to the 404 page. Normalise before the route table is consulted.
+  const { pathname, search } = location;
+  if (pathname.length > 1 && pathname.endsWith('/')) {
+    return <Navigate replace to={{ pathname: pathname.replace(/\/+$/, ''), search }} />;
+  }
 
   if (isLoading) {
     return (
@@ -202,6 +211,18 @@ function AppRoutes() {
       <Route path="/team-leader/dashboard" element={<TeamLeaderPageRoute requireScope={false}><TLOperationalDashboard /></TeamLeaderPageRoute>} />
       <Route path="/employee/dashboard" element={<EmployeePageRoute><EmployeeDashboard /></EmployeePageRoute>} />
       <Route path="/reporting-manager/dashboard" element={<ReportingManagerPageRoute><ReportingManagerDashboard /></ReportingManagerPageRoute>} />
+
+      {/* Bare role roots (typed URLs, stale bookmarks, the logo home link)
+          resolve to that role's dashboard instead of the 404 page. */}
+      <Route path="/master-admin" element={<Navigate to="/master-admin/dashboard" replace />} />
+      <Route path="/company-admin" element={<Navigate to="/company-admin/dashboard" replace />} />
+      <Route path="/executive" element={<Navigate to="/executive/dashboard" replace />} />
+      <Route path="/team-leader" element={<Navigate to="/team-leader/dashboard" replace />} />
+      <Route path="/reporting-manager" element={<Navigate to="/reporting-manager/dashboard" replace />} />
+      <Route path="/employee" element={<Navigate to="/employee/dashboard" replace />} />
+      <Route path="/admin" element={<RoleDashboardRedirect />} />
+      <Route path="/hr" element={<RoleDashboardRedirect />} />
+      <Route path="/manager" element={<RoleDashboardRedirect />} />
       
       {/* ============================================
            ROLE-PREFIXED MODULE ROUTES

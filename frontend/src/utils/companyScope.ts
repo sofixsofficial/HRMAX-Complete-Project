@@ -4,6 +4,15 @@ import { where } from '../aws/firestore-compat'
 const PLATFORM_SENTINELS = new Set(['master-admin', 'global'])
 
 /**
+ * True for the platform-bucket ids ('global' / 'master-admin'). Those are scope
+ * sentinels stored on the platform account, never a companies/{id} document -
+ * reading them as a document only produces a 404 in the console.
+ */
+export function isPlatformCompanyId(companyId?: string | null): boolean {
+  return !!companyId && PLATFORM_SENTINELS.has(companyId)
+}
+
+/**
  * Company ids for the active scope: the selected company, or ALL authorized
  * companies when nothing is selected ("All Companies" mode).
  * Returns the FULL assigned scope (no truncation). Callers that need a single

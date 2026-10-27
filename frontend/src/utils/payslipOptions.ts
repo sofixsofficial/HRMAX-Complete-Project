@@ -1,5 +1,6 @@
 import { doc, getDoc } from '../aws/firestore-compat'
 import { db } from '../aws/clients'
+import { isPlatformCompanyId } from './companyScope'
 import type { Company } from '../types/user'
 
 export interface PayslipOptions {
@@ -21,7 +22,8 @@ export interface PayslipOptions {
 }
 
 export const getCompanyPayslipOptions = async (companyId?: string): Promise<PayslipOptions> => {
-  if (!companyId) return {}
+  // 'global'/'master-admin' are platform scope sentinels, not company documents.
+  if (!companyId || isPlatformCompanyId(companyId)) return {}
   try {
     const snap = await getDoc(doc(db, 'companies', companyId))
     if (!snap.exists()) return {}

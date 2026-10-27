@@ -10,6 +10,7 @@
  */
 import { doc, getDoc } from '../aws/firestore-compat'
 import { db } from '../aws/clients'
+import { isPlatformCompanyId } from './companyScope'
 
 export type DayPeriod = 'morning' | 'afternoon' | 'evening' | 'night'
 
@@ -131,7 +132,9 @@ const companyTzCache = new Map<string, string | null>()
 
 /** Reads `companies/{id}` once for its configured timezone (settings.timeZone | timezone). */
 export async function resolveCompanyTimezone(companyId?: string | null): Promise<string | null> {
-  if (!companyId) return null
+  // 'global'/'master-admin' are the platform scope sentinels, not company
+  // documents - reading them only fires a 404 on every dashboard load.
+  if (!companyId || isPlatformCompanyId(companyId)) return null
   const cached = companyTzCache.get(companyId)
   if (cached !== undefined) return cached
   try {
@@ -162,7 +165,9 @@ const companyWeekendCache = new Map<string, string[]>()
  * weekday alone (SECTION 5B).
  */
 export async function resolveCompanyWeekends(companyId?: string | null): Promise<string[] | null> {
-  if (!companyId) return null
+  // Platform scope sentinels ('global'/'master-admin') are not company
+  // documents - the master-admin dashboard hit this and logged a 404 on load.
+  if (!companyId || isPlatformCompanyId(companyId)) return null
   const cached = companyWeekendCache.get(companyId)
   if (cached !== undefined) return cached
   try {

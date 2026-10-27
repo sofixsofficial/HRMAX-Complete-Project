@@ -74,7 +74,11 @@ export function Sidebar() {
       setTimeout(() => setScopeToast(null), 3000)
       return
     }
-    navigate(`${rolePrefix}${item.path}`)
+    // The Dashboard entry is authored as '/' so it reads identically in every
+    // role sidebar, but joining that onto the role prefix produced
+    // `/master-admin/` - a path no route matches, so the app dropped to 404.
+    const target = item.path === '/' ? `${rolePrefix}/dashboard` : `${rolePrefix}${item.path}`
+    navigate(target)
   }, [isScopeReady, rolePrefix, navigate])
 
   const isTeamLeader = user?.role === 'team-leader'

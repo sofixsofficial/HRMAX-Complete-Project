@@ -6,7 +6,7 @@ vi.mock('../../aws/firestore-compat', () => ({
   where: (field: string, op: string, value: unknown) => ({ field, op, value }),
 }))
 
-import { scopedCompanyIds, chunkCompanyIds, companyIdWhere } from '../companyScope'
+import { scopedCompanyIds, chunkCompanyIds, companyIdWhere, isPlatformCompanyId } from '../companyScope'
 
 const COMPANIES = [{ id: 'companyA' }, { id: 'companyB' }]
 
@@ -33,6 +33,20 @@ describe('scopedCompanyIds', () => {
 
   it('deduplicates and drops empty ids', () => {
     expect(scopedCompanyIds(null, [{ id: 'a' }, { id: 'a' }, { id: '' }])).toEqual(['a'])
+  })
+})
+
+describe('isPlatformCompanyId', () => {
+  it("'global' and 'master-admin' are sentinels, real ids are not (regression)", () => {
+    // The dashboard hero reads companies/{id} for the weekly-off schedule;
+    // with the platform sentinel it fired GET /api/companies/global -> 404
+    // in the console on every master-admin dashboard load.
+    expect(isPlatformCompanyId('global')).toBe(true)
+    expect(isPlatformCompanyId('master-admin')).toBe(true)
+    expect(isPlatformCompanyId('companyA')).toBe(false)
+    expect(isPlatformCompanyId(null)).toBe(false)
+    expect(isPlatformCompanyId(undefined)).toBe(false)
+    expect(isPlatformCompanyId('')).toBe(false)
   })
 })
 
