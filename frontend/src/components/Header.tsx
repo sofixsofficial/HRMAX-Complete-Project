@@ -35,7 +35,7 @@ export function Header({ title, breadcrumbs = [] }: HeaderProps) {
   // Shared clock context — SAME time source as the dashboard hero, so the
   // header and hero never disagree. Also carries the live place (location +
   // temperature) for the meta strip.
-  const { time, dateShort, greeting, location, tempC } = useClock()
+  const { time, dateShort, location, tempC } = useClock()
 
   // Sync CompanyContext → Zustand store (services can read from store directly)
   const syncStore = useCompanyStore.getState()
@@ -278,12 +278,8 @@ export function Header({ title, breadcrumbs = [] }: HeaderProps) {
             <span>{selectedCompanyName}</span>
           </div>
         )}
-        <div className="header-welcome">
-          {greeting}, {user?.name?.split(' ')[0] || 'User'}
-        </div>
-        {/* Live clock strip — same shared ClockContext source as the hero.
-            Each cell carries a simple icon (clock / calendar / pin). Location
-            and temperature render only with real data (never invented). */}
+        {/* Top-bar greeting removed by request — the header now carries only
+            scope/company info, time, location and notifications. */}
         <div className="hdr-meta" aria-label="Current time and place">
           <b><Clock3 size={15} />{time}</b>
           <span className="hide-mobile"><CalendarDays size={14} />{dateShort}</span>
