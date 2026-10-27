@@ -8,7 +8,7 @@
     "build": "tsc",
     "typecheck": "tsc --noEmit",
     "test": "node --test",
-    "deploy": "sam build && sam deploy --guided",
+    "deploy": "npm run build && sam build && sam deploy --guided",
     "deploy:guided": "sam build && sam deploy --guided",
     "logs": "sam logs -n ApiFunction --stack-name hrmax-api --tail",
     "local": "sam local start-api"
