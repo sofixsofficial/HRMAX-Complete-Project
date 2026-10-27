@@ -43,6 +43,14 @@ jobs:
         working-directory: mobile-app
         run: |
           echo "${{ secrets.HRMAX_KEYSTORE_B64 }}" | base64 -d > android/app/hrmax-upload.jks
+          # The prebuild-written gradle.properties has NO trailing newline, so
+          # appending directly glued the first key onto the last line:
+          #   expo.inlineModules.watchedDirectories=[]HRMAX_UPLOAD_STORE_FILE=...
+          # Gradle then handed that whole string to expo autolinking's
+          # --watched-directories-serialized, whose JSON.parse crashed node
+          # (exit 1) during configuration - and the HRMAX_* signing properties
+          # never existed at all. Always start with a newline.
+          printf '\n' >> android/gradle.properties
           cat >> android/gradle.properties <<'EOF'
           HRMAX_UPLOAD_STORE_FILE=hrmax-upload.jks
           HRMAX_UPLOAD_STORE_PASSWORD=${{ secrets.HRMAX_KEYSTORE_PASSWORD }}
