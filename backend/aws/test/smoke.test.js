@@ -90,10 +90,10 @@ test('normalizeForStorage: Dates → ISO, undefined dropped, nested converted', 
 // 3. Authorization matrix
 // ---------------------------------------------------------------------------
 
-test('VALID_ROLES matches the six roles in migrated data', () => {
+test('VALID_ROLES matches the roles in migrated data (HR added as the 7th)', () => {
   assert.deepEqual(types.VALID_ROLES, [
     'master-admin', 'company-admin', 'team-leader',
-    'executive', 'reporting-manager', 'employee',
+    'executive', 'reporting-manager', 'hr', 'employee',
   ]);
 });
 

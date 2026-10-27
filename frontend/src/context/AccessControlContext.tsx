@@ -81,6 +81,16 @@ export const AccessControlProvider: React.FC<{ children: React.ReactNode }> = ({
           scopeCompanyName: selectedCompanyName,
         }
       }
+      case 'hr': {
+        // HR is a WRITER inside their own company (unlike company-admin, which
+        // is view-only by design) — people & time administration only.
+        return {
+          isScopeReady: true,
+          isViewOnly: false,
+          scopeCompanyId: user.companyId || selectedCompanyId,
+          scopeCompanyName: selectedCompanyName || user.companyId,
+        }
+      }
       case 'team-leader': {
         return {
           isScopeReady: true,

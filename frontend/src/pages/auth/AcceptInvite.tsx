@@ -126,6 +126,7 @@ export const AcceptInvite: React.FC = () => {
       'team-leader': 'Team Leader',
       'executive': 'Executive',
       'reporting-manager': 'Reporting Manager',
+      'hr': 'HR',
       'employee': 'Employee',
     };
     return names[role] || role;

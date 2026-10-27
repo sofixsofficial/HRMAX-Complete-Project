@@ -28,11 +28,16 @@ const fmtTime = (v: PunchDateValue): string => {
 export function AttendancePunchBanner() {
   const {
     todayRecord, checkingIn, checkingOut, checkIn, checkOut, msg, attendancePolicy,
-    gpsStatus, isGpsLoading, networkInfo,
+    gpsStatus, isGpsLoading, networkInfo, qrToken, setQrToken,
   } = useAttendancePunch()
 
   const punchedIn = !!todayRecord?.checkIn
   const punchedOut = !!todayRecord?.checkOut
+  // Company policy `enableQr` = the branch's QR code must be presented. The
+  // server validates the token against the branch; this only avoids a
+  // pointless round-trip with an empty field.
+  const qrRequired = Boolean(attendancePolicy?.enableQr)
+  const canCheckIn = !qrRequired || qrToken.trim().length > 0
 
   return (
     <div style={{
@@ -106,13 +111,33 @@ export function AttendancePunchBanner() {
           )}
         </div>
 
-        <div style={{ display: 'flex', gap: 12, marginTop: 8 }}>
+        <div style={{ display: 'flex', gap: 12, marginTop: 8, flexWrap: 'wrap' }}>
+          {!punchedIn && qrRequired && (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+              <input
+                value={qrToken}
+                onChange={(e) => setQrToken(e.target.value)}
+                placeholder="Scan or enter branch QR code"
+                aria-label="Branch QR code"
+                style={{
+                  padding: '10px 14px', borderRadius: 10, border: '1px solid rgba(255,255,255,0.5)',
+                  background: 'rgba(255,255,255,0.95)', minWidth: 240, fontSize: 14, color: '#111827',
+                }}
+              />
+              <span style={{ fontSize: 11, opacity: 0.9 }}>
+                QR attendance is enabled for your company — use the code posted at your branch.
+              </span>
+            </div>
+          )}
           {!punchedIn && (
-            <button onClick={checkIn} disabled={checkingIn}
+            <button onClick={() => void checkIn()} disabled={checkingIn || !canCheckIn}
+              title={!canCheckIn ? 'Enter the branch QR code first' : undefined}
               style={{
                 display: 'flex', alignItems: 'center', gap: 8, padding: '12px 28px',
                 borderRadius: 12, border: 'none', background: 'rgba(255,255,255,0.2)',
-                color: '#fff', fontSize: 16, fontWeight: 600, cursor: checkingIn ? 'not-allowed' : 'pointer',
+                color: '#fff', fontSize: 16, fontWeight: 600,
+                cursor: checkingIn || !canCheckIn ? 'not-allowed' : 'pointer',
+                opacity: canCheckIn ? 1 : 0.6,
                 backdropFilter: 'blur(4px)',
               }}>
               {checkingIn ? <Loader2 className="animate-spin" size={20} /> : <LogIn size={20} />}

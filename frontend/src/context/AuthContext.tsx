@@ -180,6 +180,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         return normalize(overrideIds || []);
       case 'reporting-manager':
         return user.companyId ? [user.companyId] : [];
+      case 'hr':
+        return user.companyId ? [user.companyId] : [];
       case 'employee':
         return user.companyId ? [user.companyId] : [];
       default:

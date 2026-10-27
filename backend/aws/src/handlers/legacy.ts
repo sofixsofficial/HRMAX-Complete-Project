@@ -40,7 +40,7 @@ const cognito = new CognitoIdentityProviderClient({});
 const POOL_ID = () => process.env.COGNITO_USER_POOL_ID ?? '';
 const INFO_EMAIL = () => process.env.INFO_EMAIL ?? 'info@hrmax.in';
 
-const MANAGEMENT_ROLES: UserRole[] = ['master-admin', 'company-admin', 'executive', 'team-leader'];
+const MANAGEMENT_ROLES: UserRole[] = ['master-admin', 'company-admin', 'executive', 'team-leader', 'hr'];
 const NATURAL_ROLE: Record<LeaveTier, UserRole[]> = {
   reportingManager: ['reporting-manager'],
   companyAdmin: ['company-admin'],

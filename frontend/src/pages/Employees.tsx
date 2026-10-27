@@ -14,7 +14,7 @@ import type { UseFormReturn, Resolver } from 'react-hook-form'
 import { z } from 'zod'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { validatePasswordPolicy } from '../utils/passwordPolicy'
-import { collection, onSnapshot, query, doc, updateDoc, serverTimestamp, getDocs } from '../aws/firestore-compat'
+import { collection, onSnapshot, query, where, doc, updateDoc, serverTimestamp, getDocs } from '../aws/firestore-compat'
 import { Toast } from '../components/Toast'
 import { ref, uploadBytes, getDownloadURL } from '../aws/storage-compat'
 import { db, storage } from '../aws/clients'
@@ -65,6 +65,7 @@ const yearlyOfMonthly = (monthly: unknown): number => {
 const ROLE_OPTIONS: { value: string; label: string; color: string }[] = [
   { value: 'employee', label: 'Employee', color: '#6366f1' },
   { value: 'reporting-manager', label: 'Reporting Manager', color: '#10b981' },
+  { value: 'hr', label: 'HR', color: '#0ea5e9' },
 ]
 
 const employeeSchema = z.object({
@@ -102,6 +103,12 @@ const employeeSchema = z.object({
   managerId: z.string().optional().default(''),
   managerName: z.string().optional().default(''),
   isReportingManager: z.boolean().optional().default(false),
+  // Branch assignment (required once the company has branches): primary is
+  // where the employee checks in; additional ones are other locations they
+  // are allowed to punch at. Both are validated server-side against the
+  // selected company.
+  primaryBranchId: z.string().optional().default(''),
+  branchIds: z.array(z.string()).optional().default([]),
   userId: z.string().optional().default(''),
   avatar: z.string().optional().default(''),
   salary: z.number().optional(),
@@ -205,7 +212,33 @@ const EmployeeFormContent = forwardRef<EmployeeFormRef, EmployeeFormContentProps
       form.setValue('department', '')
       form.setValue('departmentColor', '#f97316')
     }
+    // Branches belong to a company — never carry one company's branch into
+    // another company's form.
+    if (form.getValues('primaryBranchId') || form.getValues('branchIds')?.length) {
+      form.setValue('primaryBranchId', '')
+      form.setValue('branchIds', [])
+    }
   }, [watchCompanyId, form])
+
+  // Branches of the selected company (for the primary + additional branch
+  // pickers). Empty list = the company has no branches yet, so the field is
+  // shown as informational instead of blocking the whole form.
+  const [branches, setBranches] = useState<Array<{ id: string; name: string }>>([])
+  const [branchError, setBranchError] = useState<string | null>(null)
+  useEffect(() => {
+    let active = true
+    if (!watchCompanyId) {
+      setBranches([])
+      return
+    }
+    getDocs(query(collection(db, 'branches'), where('companyId', '==', watchCompanyId)))
+      .then((snap) => {
+        if (!active) return
+        setBranches(snap.docs.map(d => ({ id: d.id, name: String((d.data() as Record<string, unknown>).name || d.id) })))
+      })
+      .catch(() => { if (active) setBranches([]) })
+    return () => { active = false }
+  }, [watchCompanyId])
 
   const aadharFileRef = useRef<File | null>(null)
   const panFileRef = useRef<File | null>(null)
@@ -250,8 +283,14 @@ const EmployeeFormContent = forwardRef<EmployeeFormRef, EmployeeFormContentProps
     if (local) return local.split(/[._\-]+/).filter(Boolean).map(p => p.charAt(0).toUpperCase() + p.slice(1)).join(' ').trim()
     return e.employeeId || 'Administrator'
   }
-  const managerRoleLabel = (e: Employee): string =>
-    e.role === 'company-admin' || e.employeeId === 'Company Admin' ? 'Company Admin' : 'Reporting Manager'
+  const managerRoleLabel = (e: Employee): string => {
+    const r = String(e.role || '')
+    if (r === 'company-admin' || e.employeeId === 'Company Admin') return 'Company Admin'
+    if (r === 'hr') return 'HR'
+    if (r === 'team-leader') return 'Team Leader'
+    if (r === 'executive') return 'Executive'
+    return 'Reporting Manager'
+  }
   const adminOptionLabel = (e: Employee): string => {
     const name = fullNameOf(e)
     return companyNameOf(e) ? `${companyNameOf(e)} / ${name}` : name
@@ -260,7 +299,16 @@ const EmployeeFormContent = forwardRef<EmployeeFormRef, EmployeeFormContentProps
     [companyNameOf(e), managerRoleLabel(e), fullNameOf(e)].filter(Boolean).join(' / ')
 
   return (
-    <form id={formId} onSubmit={form.handleSubmit(onSubmit)}>
+    <form id={formId} onSubmit={form.handleSubmit((v) => {
+      // Primary branch is mandatory once the company has branches — the
+      // server-side geofence/QR checks need to know which location to verify.
+      if (branches.length > 0 && !v.primaryBranchId) {
+        setBranchError('Primary branch is required for this company.')
+        return
+      }
+      setBranchError(null)
+      return onSubmit({ ...v, branchIds: (v.branchIds || []).filter(b => b && b !== v.primaryBranchId) })
+    })}>
       <div className="modal-section">
         <div className="modal-section-header">
           <User size={18} /><h4>Basic Information</h4>
@@ -344,6 +392,74 @@ const EmployeeFormContent = forwardRef<EmployeeFormRef, EmployeeFormContentProps
               />
             )}
           />
+          <Controller
+            control={form.control}
+            name="primaryBranchId"
+            render={({ field }) => (
+              <>
+                <SearchableSelect
+                  label={branches.length > 0 ? 'Primary Branch *' : 'Primary Branch'}
+                  placeholder={watchCompanyId ? (branches.length > 0 ? 'Select primary branch' : 'No branches yet for this company') : 'Select a company first'}
+                  searchPlaceholder="Search branches..."
+                  value={field.value || ''}
+                  onChange={(val) => { field.onChange(val); setBranchError(null) }}
+                  options={branches.map(b => ({ value: b.id, label: b.name }))}
+                  disabled={!watchCompanyId || branches.length === 0}
+                  noOptionsMessage={watchCompanyId ? 'Create a branch first (Branches page) — employees need one to check in' : 'Select a company first'}
+                />
+                {branchError && <span className="field-error" style={{ gridColumn: '1 / -1' }}>{branchError}</span>}
+                {!branchError && watchCompanyId && branches.length === 0 && (
+                  <span className="field-hint" style={{ gridColumn: '1 / -1', fontSize: 12, color: '#92400e' }}>
+                    This company has no branches yet — add one from the Branches page, then assign it here.
+                  </span>
+                )}
+              </>
+            )}
+          />
+          {branches.length > 0 && (
+            <Controller
+              control={form.control}
+              name="branchIds"
+              render={({ field }) => {
+                const selected: string[] = field.value || []
+                const toggle = (id: string) => {
+                  const next = selected.includes(id) ? selected.filter(x => x !== id) : [...selected, id]
+                  field.onChange(next)
+                }
+                const options = branches.filter(b => b.id !== (form.watch('primaryBranchId') || ''))
+                if (options.length === 0) return null
+                return (
+                  <div className="modal-field" style={{ gridColumn: '1 / -1' }}>
+                    <label>Additional Authorized Branches (optional)</label>
+                    <div style={{ display: 'flex', gap: 8, overflowX: 'auto', paddingBottom: 6, flexWrap: 'nowrap' }}>
+                      {options.map(b => {
+                        const on = selected.includes(b.id)
+                        return (
+                          <button
+                            key={b.id}
+                            type="button"
+                            onClick={() => toggle(b.id)}
+                            style={{
+                              flexShrink: 0, padding: '6px 14px', borderRadius: 999, fontSize: 12, fontWeight: 600,
+                              border: on ? '1px solid #f97316' : '1px solid #d1d5db',
+                              background: on ? '#fff7ed' : '#fff', color: on ? '#c2410c' : '#4b5563',
+                              cursor: 'pointer', whiteSpace: 'nowrap',
+                            }}
+                            aria-pressed={on}
+                          >
+                            {b.name}
+                          </button>
+                        )
+                      })}
+                    </div>
+                    <span style={{ fontSize: 11, color: '#6b7280' }}>
+                      The employee can check in at these locations in addition to their primary branch.
+                    </span>
+                  </div>
+                )
+              }}
+            />
+          )}
           <Controller
             control={form.control}
             name="managerId"
@@ -1077,7 +1193,12 @@ export function Employees() {
         }
       }
       if (result.userId) {
-        const targetRole = isReportingManagerRole ? 'reporting-manager' : 'employee'
+        // Preserve the chosen role — only Employee vs Reporting Manager used
+        // to be mapped here, which silently downgraded a newly created HR
+        // account to 'employee' on the very next line.
+        const targetRole = ['reporting-manager', 'hr'].includes(values.role)
+          ? values.role
+          : 'employee'
         await updateUserRole(result.userId, targetRole).catch((e) => console.warn('Role sync skipped:', e))
       }
       if (user) {
@@ -1399,6 +1520,8 @@ export function Employees() {
           || ''
         : (emp as any).reportingManagerName || (emp as any).managerName || '',
       isReportingManager: isRm,
+      primaryBranchId: (emp as any).primaryBranchId || '',
+      branchIds: Array.isArray((emp as any).branchIds) ? ((emp as any).branchIds as string[]).filter(Boolean) : [],
       monthlyGrossSalary: emp.monthlyGrossSalary || 0,
       salaryEffectiveDate: emp.salaryEffectiveDate && isDate(emp.salaryEffectiveDate) ? emp.salaryEffectiveDate.toISOString().split('T')[0] : typeof emp.salaryEffectiveDate === 'string' ? emp.salaryEffectiveDate : '',
       salaryCycle: (emp as any).salaryCycle || 'Monthly',

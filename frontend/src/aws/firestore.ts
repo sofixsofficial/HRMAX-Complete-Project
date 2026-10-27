@@ -355,6 +355,7 @@ function endpointFor(path: string): string {
     attendanceLogs: '/api/attendance-logs',
     attendanceSettings: '/api/attendance-settings',
     departments: '/api/departments',
+    branches: '/api/branches',
     leaveRequests: '/api/leave-requests',
     leavePolicies: '/api/leave-policies',
     tasks: '/api/tasks',

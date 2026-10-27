@@ -51,6 +51,15 @@ export const buildScopedQuery = (config: ScopedQueryConfig): Query => {
       }
       break
 
+    case 'hr':
+      // Same-company scope as company-admin, but with write access.
+      if (user.companyId) {
+        constraints.push(where('companyId', '==', user.companyId))
+      } else {
+        return query(col, where('__name__', '==', 'scope-empty'))
+      }
+      break
+
     case 'executive': {
       // Executives are constrained to the requested active scope: the company
       // selected in the top-nav header, or their full assigned set in
@@ -155,6 +164,8 @@ export const getAccessibleCompanyIds = (user: User | null, companyIds?: string[]
       return [] // empty = all companies
     case 'company-admin':
       return user.companyId ? [user.companyId] : []
+    case 'hr':
+      return user.companyId ? [user.companyId] : []
     case 'executive':
       return [] // empty = all companies
     case 'team-leader':
@@ -181,6 +192,8 @@ export const getScopeFilter = (
     case 'master-admin':
       return null // no filter
     case 'company-admin':
+      return user.companyId ? { field: 'companyId', operator: '==', value: user.companyId } : null
+    case 'hr':
       return user.companyId ? { field: 'companyId', operator: '==', value: user.companyId } : null
     case 'executive':
       return null // no filter (all companies)

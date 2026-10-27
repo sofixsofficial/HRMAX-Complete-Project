@@ -39,6 +39,7 @@ export function Login() {
     'executive': '/executive/dashboard',
     'team-leader': '/team-leader/dashboard',
     'reporting-manager': '/reporting-manager/dashboard',
+    'hr': '/hr/dashboard',
     'employee': '/employee/dashboard',
   }
 

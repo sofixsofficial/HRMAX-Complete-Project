@@ -20,6 +20,8 @@ import './AccessManagement.css'
 const INVITE_ROLE_OPTIONS: { value: UserRole; label: string; color: string }[] = [
   { value: 'team-leader', label: 'Team Leader', color: '#10b981' },
   { value: 'executive', label: 'Executive', color: '#f59e0b' },
+  { value: 'reporting-manager', label: 'Reporting Manager', color: '#8b5cf6' },
+  { value: 'hr', label: 'HR', color: '#0ea5e9' },
   { value: 'employee', label: 'Employee', color: '#6366f1' },
 ]
 
@@ -29,6 +31,7 @@ const ROLE_DISPLAY: Record<UserRole, { label: string; color: string; bg: string 
   'team-leader': { label: 'Team Leader', color: '#10b981', bg: '#f0fdf4' },
   'executive': { label: 'Executive', color: '#f59e0b', bg: '#fffbeb' },
   'reporting-manager': { label: 'Reporting Manager', color: '#8b5cf6', bg: '#f5f3ff' },
+  'hr': { label: 'HR', color: '#0ea5e9', bg: '#f0f9ff' },
   'employee': { label: 'Employee', color: '#6366f1', bg: '#eef2ff' },
 }
 

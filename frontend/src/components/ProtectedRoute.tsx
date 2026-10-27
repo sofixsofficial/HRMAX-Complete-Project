@@ -167,6 +167,7 @@ export const PublicOnlyRoute: React.FC<PublicOnlyRouteProps> = ({
       'executive': '/executive/dashboard',
       'team-leader': '/team-leader/dashboard',
       'reporting-manager': '/reporting-manager/dashboard',
+      'hr': '/hr/dashboard',
       'employee': '/employee/dashboard',
     };
     const dashboard = rolePathMap[user.role] || redirectTo;

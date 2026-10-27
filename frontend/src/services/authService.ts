@@ -79,6 +79,18 @@ export const getPermissionArray = (role: UserRole): string[] => {
       'attendance.view',
       'reports.view',
     ],
+    // HR: people + time administration (mirrors backend HR_PERMISSIONS).
+    'hr': [
+      'employees.view', 'employees.create', 'employees.edit', 'employees.export',
+      'departments.view',
+      'attendance.view', 'attendance.create', 'attendance.edit', 'attendance.approve', 'attendance.manage',
+      'leave.view', 'leave.create', 'leave.apply', 'leave.approve', 'leave.manage',
+      'holidays.view', 'announcements.view',
+      'tasks.view', 'tasks.create', 'tasks.edit',
+      'reports.view', 'reports.export',
+      'company.view', 'companies.view',
+      'dashboard.view',
+    ],
     'employee': [
       'employees.view',
       'departments.view',

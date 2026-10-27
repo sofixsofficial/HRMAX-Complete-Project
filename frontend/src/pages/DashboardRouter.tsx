@@ -42,6 +42,8 @@ export function DashboardRouter() {
   switch (user?.role) {
     case 'company-admin':
       return <CompanyDashboard />
+    case 'hr':
+      return <CompanyDashboard />
     case 'executive':
       return <ExecutiveDashboard />
     case 'team-leader':

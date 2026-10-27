@@ -12,11 +12,11 @@ import { createHash, randomBytes } from 'node:crypto';
 import { must, type Route } from '../lib/http.js';
 import { assertRole, assertPermission, scopedCompanyIds } from '../lib/auth.js';
 import { PutCommand } from '@aws-sdk/lib-dynamodb';
-import { putEntity, getUserDoc, queryEntities, deleteUserDoc, patchEntity, patchUserDoc, doc, TABLE, userPK } from '../lib/db.js';
+import { putEntity, getUserDoc, queryEntities, deleteUserDoc, patchEntity, patchUserDoc, getEntity, doc, TABLE, userPK } from '../lib/db.js';
 import { sendEmailCentral, templates } from '../lib/email.js';
 import { createNotification } from '../lib/notify.js';
 import { enforceRateLimit } from '../lib/rateLimit.js';
-import { ApiError, newId, isoNow, defaultPermissionsForRole, type UserDoc } from '../lib/types.js';
+import { ApiError, newId, isoNow, defaultPermissionsForRole, VALID_ROLES, type UserDoc, type UserRole } from '../lib/types.js';
 
 const cognito = new CognitoIdentityProviderClient({});
 const POOL_ID = () => process.env.COGNITO_USER_POOL_ID ?? '';
@@ -623,8 +623,14 @@ export const authRoutes: Route[] = [
     handler: async (req) => {
       const caller = must(req);
       assertPermission(caller, 'employees.create');
-      const { email, name, role, companyId, departmentId, designation, tempPassword, password: webPassword, username } = req.body as Record<string, string>;
+      const { email, name, role, companyId, departmentId, designation, tempPassword, password: webPassword, username, primaryBranchId, branchIds } = req.body as Record<string, string> & { branchIds?: unknown };
       if (!email || !name || !role) throw new ApiError('bad-request', 'email, name, role required');
+      // Roles come from client forms — reject anything that is not a real role
+      // (an unknown string would be stored, then rejected on every request by
+      // resolveCaller, leaving a login nobody can use).
+      if (!VALID_ROLES.includes(role as UserRole)) {
+        throw new ApiError('bad-request', `Unknown role: ${role}`);
+      }
       // Web (Companies.tsx) sends `password`; mobile/legacy callers send `tempPassword`.
       const password = tempPassword ?? webPassword ?? `Hr@${randomBytes(4).toString('hex')}123`;
       // Enforce the shared policy only when the caller chose the password
@@ -635,12 +641,24 @@ export const authRoutes: Route[] = [
       }
       const cid = companyId || caller.companyId;
 
+      // Branch assignment: every id must exist INSIDE this company before the
+      // account is created — permissions are enforced server-side at punch
+      // time, so they must be server-validated at assignment time too.
+      const extraBranches = Array.isArray(branchIds) ? branchIds.map(String).filter(Boolean) : [];
+      const allBranches = [...new Set([String(primaryBranchId ?? ''), ...extraBranches].filter(Boolean))];
+      for (const bid of allBranches) {
+        const br = await getEntity<Record<string, unknown>>('branch', cid, bid);
+        if (!br) throw new ApiError('bad-request', 'One of the selected branches does not belong to this company.');
+      }
+
       const uid = await cognitoCreateUser(email, password, name, role, cid);
       const doc_ = await writeUserDoc(uid, {
         email, name, role, companyId: cid,
         departmentId: departmentId ?? null,
         designation: designation ?? null,
         username: username ?? null,
+        primaryBranchId: primaryBranchId || null,
+        branchIds: extraBranches,
         permissions: defaultPermissionsForRole(role as UserDoc['role']),
         requirePasswordChange: true,
         status: 'Active',

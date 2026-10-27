@@ -54,6 +54,23 @@ export function crudRoutes(cfg: CollectionConfig): Route[] {
     ...(cfg.globalList ? { globalList: true } : {}),
   };
 
+  /**
+   * Employees carry branch permissions (`primaryBranchId` + optional
+   * `branchIds`). Every referenced branch must exist INSIDE the employee's
+   * company — a cross-tenant branch id would otherwise let someone punch at
+   * another company's geofence. No-op when no branch fields are sent.
+   */
+  const assertBranchesInCompany = async (data: Record<string, unknown>, companyId: string): Promise<void> => {
+    if (cfg.entity !== 'employee') return;
+    const primary = String(data.primaryBranchId || '');
+    const extra = Array.isArray(data.branchIds) ? (data.branchIds as unknown[]).map(String).filter(Boolean) : [];
+    const ids = [...new Set(primary ? [primary, ...extra] : extra)];
+    for (const bid of ids) {
+      const branch = await getEntity<Record<string, unknown>>('branch', companyId, bid);
+      if (!branch) throw new ApiError('bad-request', 'One of the selected branches does not belong to this company.');
+    }
+  };
+
   return [
     // ------------------------------------------------------------------ list
     {
@@ -149,6 +166,7 @@ export function crudRoutes(cfg: CollectionConfig): Route[] {
         const companyId = String(data.companyId || caller.companyId);
         if (cfg.writePerm) assertPermission(caller, cfg.writePerm);
         if (!isSuperAdmin(caller)) assertCompanyScope(caller, companyId);
+        await assertBranchesInCompany(data, companyId);
 
         const id = String(data.id ?? newId());
         const doc_ = {
@@ -186,6 +204,7 @@ export function crudRoutes(cfg: CollectionConfig): Route[] {
         const found = await locateEntityAcross<Record<string, unknown>>(cfg.entity, req.params.id, await readPartitions(caller));
         if (found) {
           if (!isSuperAdmin(caller)) assertCompanyScope(caller, found.companyId);
+          await assertBranchesInCompany(patch, String(found.companyId ?? ''));
           const updated = await patchEntity<Record<string, unknown>>(cfg.entity, found.companyId, req.params.id, patch, storeOpts);
           return { [cfg.entity]: updated };
         }
@@ -193,6 +212,7 @@ export function crudRoutes(cfg: CollectionConfig): Route[] {
         // document id creates it.
         const companyId = String(req.body.companyId || caller.companyId);
         if (!isSuperAdmin(caller)) assertCompanyScope(caller, companyId);
+        await assertBranchesInCompany(patch, companyId);
         const created = {
           ...patch,
           id: req.params.id,
@@ -226,6 +246,7 @@ export function crudRoutes(cfg: CollectionConfig): Route[] {
         const found = await locateEntityAcross<Record<string, unknown>>(cfg.entity, req.params.id, await readPartitions(caller));
         if (!found) throw new ApiError('not-found', `${cfg.entity} not found`);
         if (!isSuperAdmin(caller)) assertCompanyScope(caller, found.companyId);
+        await assertBranchesInCompany(patch, String(found.companyId ?? ''));
         const updated = await patchEntity<Record<string, unknown>>(cfg.entity, found.companyId, req.params.id, patch, storeOpts);
         if (!updated) throw new ApiError('not-found', `${cfg.entity} not found`);
         return { [cfg.entity]: updated };
@@ -253,7 +274,11 @@ export function crudRoutes(cfg: CollectionConfig): Route[] {
 
 /** Standard collection configs covering the original Firestore collections. */
 export const coreCrudRoutes: Route[] = [
-  ...crudRoutes({ url: '/api/employees', entity: 'employee', readPerm: 'employees.view', writePerm: 'employees.create', userIdField: 'userId', editableFields: ['name', 'email', 'phone', 'designation', 'departmentId', 'status', 'reportingManagerId', 'avatar', 'address', 'dateOfJoining', 'salary', 'shiftStart', 'shiftEnd', 'shiftType', 'aadharDoc', 'panDoc', 'joiningLetterDoc', 'offerLetterDoc', 'slug'] }),
+  ...crudRoutes({ url: '/api/employees', entity: 'employee', readPerm: 'employees.view', writePerm: 'employees.create', userIdField: 'userId', editableFields: ['name', 'email', 'phone', 'designation', 'departmentId', 'status', 'reportingManagerId', 'avatar', 'address', 'dateOfJoining', 'salary', 'shiftStart', 'shiftEnd', 'shiftType', 'aadharDoc', 'panDoc', 'joiningLetterDoc', 'offerLetterDoc', 'slug', 'primaryBranchId', 'branchIds'] }),
+  // Branches: company-scoped office locations. No readPerm — every signed-in
+  // user (employees checking in included) must be able to list the branches
+  // they may punch at; writes are fenced to settings.edit + company scope.
+  ...crudRoutes({ url: '/api/branches', entity: 'branch', writePerm: 'settings.edit', tsField: 'createdAt' }),
   ...crudRoutes({ url: '/api/departments', entity: 'department', readPerm: 'departments.view', writePerm: 'departments.create' }),
   ...crudRoutes({ url: '/api/tasks', entity: 'task', readPerm: 'tasks.view', writePerm: 'tasks.create', userIdField: 'assignedToId', tsField: 'createdAt' }),
   ...crudRoutes({ url: '/api/holidays', entity: 'holiday', readPerm: 'holidays.view', writePerm: 'holidays.create', tsField: 'date' }),
@@ -441,6 +466,54 @@ export const coreCrudRoutes: Route[] = [
   },
 ];
 
+/**
+ * Companies arrive with their attendance policy EMBEDDED in the company
+ * document (onboardCompany writes `attendanceSettings` inline), while the
+ * server-side validation chain (attendance mark) reads the standalone
+ * `attendanceSettings` row of the partition. Mirror the embedded policy into
+ * that row on every company write — otherwise a company created with GPS /
+ * QR / face rules enforced nothing server-side.
+ */
+async function syncAttendanceSettings(companyId: string, att: Record<string, unknown>, actor: string): Promise<void> {
+  const existing = await queryEntities<Record<string, unknown>>({ entity: 'attendanceSettings', companyId, limit: 1 });
+  const prev = existing?.[0];
+  const loc = (att.officeLocation ?? {}) as Record<string, unknown>;
+  const qr = Boolean(att.requireQr ?? att.enableQr ?? false);
+  const face = Boolean(att.requireFace ?? att.requireSelfie ?? att.enableSelfie ?? false);
+  const row = {
+    ...(prev ?? {}),
+    id: String(prev?.id ?? newId()),
+    companyId,
+    officeLocation: {
+      name: String(loc.name ?? att.officeAddress ?? ''),
+      address: String(loc.address ?? att.officeAddress ?? ''),
+      latitude: Number(att.latitude ?? loc.latitude ?? 0),
+      longitude: Number(att.longitude ?? loc.longitude ?? 0),
+      radiusMeters: Number(att.radiusInMeters ?? loc.radiusMeters ?? 100),
+    },
+    // GPS attendance ON/OFF (server reads both spellings).
+    enableGeofence: Boolean(att.requireGps ?? att.enableGeofence ?? true),
+    requireGeofence: Boolean(att.requireGps ?? att.enableGeofence ?? true),
+    // QR attendance ON/OFF + face verification (optional).
+    enableQr: qr,
+    requireQr: qr,
+    enableFace: face,
+    requireFace: face,
+    requireSelfie: face,
+    enableSelfie: face,
+    wifiOnly: Boolean(att.requireWifi ?? false),
+    allowedWifis: att.wifiSSID ? [{ ssid: String(att.wifiSSID) }] : [],
+    mobileDataAllowed: att.allowMobileData !== false,
+    ...(att.defaultShiftStart ? { defaultShiftStart: String(att.defaultShiftStart) } : {}),
+    ...(att.defaultShiftEnd ? { defaultShiftEnd: String(att.defaultShiftEnd) } : {}),
+    ...(att.gracePeriodMinutes !== undefined ? { gracePeriodMinutes: Number(att.gracePeriodMinutes) } : {}),
+    createdAt: String(prev?.createdAt ?? isoNow()),
+    updatedAt: isoNow(),
+    updatedBy: actor,
+  };
+  await putEntity(row as never, { entity: 'attendanceSettings' });
+}
+
 /** Companies (master-admin + scoped). */
 export const companyRoutes: Route[] = [
   {
@@ -479,6 +552,10 @@ export const companyRoutes: Route[] = [
       const id = String(data.id ?? newId());
       const doc_ = { ...data, id, companyId: id, status: data.status ?? 'Approved', createdOn: isoNow(), createdAt: isoNow(), updatedAt: isoNow(), createdById: caller.uid };
       await put(doc_ as never, { entity: 'company', globalList: true });
+      if (data.attendanceSettings && typeof data.attendanceSettings === 'object') {
+        await syncAttendanceSettings(id, data.attendanceSettings as Record<string, unknown>, caller.uid)
+          .catch((e) => console.warn('[companies] attendance policy sync failed:', e instanceof Error ? e.message : String(e)));
+      }
       return { id, company: doc_ };
     },
   },
@@ -510,6 +587,11 @@ export const companyRoutes: Route[] = [
         updatedAt: isoNow(),
       };
       await put(doc_ as never, { entity: 'company', globalList: true });
+      // Onboarding (batch.set -> setDoc -> PUT) carries the embedded policy.
+      if (data.attendanceSettings && typeof data.attendanceSettings === 'object') {
+        await syncAttendanceSettings(id, data.attendanceSettings as Record<string, unknown>, caller.uid)
+          .catch((e) => console.warn('[companies] attendance policy sync failed:', e instanceof Error ? e.message : String(e)));
+      }
       return { company: doc_ };
     },
   },
@@ -522,6 +604,11 @@ export const companyRoutes: Route[] = [
       const { patchEntity: patch } = await import('../lib/db.js');
       const updated = await patch('company', req.params.id, req.params.id, req.body as Record<string, unknown>, { entity: 'company', globalList: true });
       if (!updated) throw new ApiError('not-found', 'Company not found');
+      const att = (req.body as { attendanceSettings?: unknown }).attendanceSettings;
+      if (att && typeof att === 'object') {
+        await syncAttendanceSettings(req.params.id, att as Record<string, unknown>, caller.uid)
+          .catch((e) => console.warn('[companies] attendance policy sync failed:', e instanceof Error ? e.message : String(e)));
+      }
       return { company: updated };
     },
   },

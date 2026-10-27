@@ -1,7 +1,7 @@
 ﻿import { useState, useEffect, useCallback, useRef } from 'react'
 import { errText } from '../aws/errors';
 import { useNavigate, useSearchParams } from 'react-router-dom'
-import { Clock, CheckCircle, XCircle, Search, Loader2, User, LogIn, LogOut, Filter, Building2, ThumbsUp, ThumbsDown, Ban, AlertCircle, RefreshCw, ChevronLeft, ChevronRight, Activity, Edit3, MapPin, Wifi, Shield, Camera, Globe, Smartphone, Crown, Eye } from 'lucide-react'
+import { Clock, CheckCircle, XCircle, Search, Loader2, User, LogIn, LogOut, Filter, Building2, ThumbsUp, ThumbsDown, Ban, AlertCircle, RefreshCw, ChevronLeft, ChevronRight, Activity, Edit3, MapPin, Wifi, Shield, Camera, Globe, Smartphone, Crown, Eye, QrCode } from 'lucide-react'
 import { collection, query, where, onSnapshot, orderBy } from '../aws/firestore-compat'
 import { db } from '../aws/clients'
 import { Header } from '../components/Header'
@@ -121,6 +121,8 @@ const [submittingRectify, setSubmittingRectify] = useState(false)
   const [deviceId] = useState(getDeviceId)
   const [networkInfo, setNetworkInfo] = useState(getNetworkInfo())
   const [selfieImage, setSelfieImage] = useState<string | null>(null)
+  // Branch QR code for check-in (company policy `enableQr`).
+  const [qrInput, setQrInput] = useState('')
   const [showSelfieCamera, setShowSelfieCamera] = useState(false)
   const videoRef = useRef<HTMLVideoElement | null>(null)
   const canvasRef = useRef<HTMLCanvasElement | null>(null)
@@ -511,8 +513,13 @@ const [submittingRectify, setSubmittingRectify] = useState(false)
           deviceId,
           deviceModel: navigator.userAgent,
           batteryLevel: 0,
+          // Branch context — the server verifies the employee's assignment and
+          // the QR token against the branch record (nothing here is trusted).
+          branchId: employeeData?.primaryBranchId || undefined,
+          qrToken: qrInput.trim() || undefined,
         })
         const data = result.data as any
+        setQrInput('')
 
         if (data.status === 'Late' || data.lateMinutes > 0) {
           await notifyAttendanceCascade({
@@ -1055,6 +1062,21 @@ const [submittingRectify, setSubmittingRectify] = useState(false)
               </div>
               {!todayRecord?.checkIn && (
                 <div style={{ marginTop: 12, display: 'flex', flexDirection: 'column', gap: 8 }}>
+                  {attendancePolicy?.enableQr && (
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                      <QrCode size={16} style={{ opacity: 0.7 }} />
+                      <input
+                        value={qrInput}
+                        onChange={(e) => setQrInput(e.target.value)}
+                        placeholder="Scan or enter branch QR code"
+                        aria-label="Branch QR code"
+                        style={{
+                          flex: 1, padding: '8px 12px', borderRadius: 8, border: '1px solid rgba(255,255,255,0.4)',
+                          background: 'rgba(255,255,255,0.95)', fontSize: 13, color: '#111827', minWidth: 0,
+                        }}
+                      />
+                    </div>
+                  )}
                   {attendancePolicy?.enableSelfie && (
                     <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                       <Camera size={16} style={{ opacity: 0.7 }} />
@@ -1077,11 +1099,15 @@ const [submittingRectify, setSubmittingRectify] = useState(false)
               )}
               <div style={{ display: 'flex', gap: 12, marginTop: 8 }}>
                 {(!todayRecord || !todayRecord.checkIn) && (
-                  <button onClick={handleCheckIn} disabled={checkingIn}
+                  <button onClick={handleCheckIn}
+                    disabled={checkingIn || Boolean(attendancePolicy?.enableQr && !qrInput.trim())}
+                    title={attendancePolicy?.enableQr && !qrInput.trim() ? 'Enter the branch QR code first' : undefined}
                     style={{
                       display: 'flex', alignItems: 'center', gap: 8, padding: '12px 28px',
                       borderRadius: 12, border: 'none', background: 'rgba(255,255,255,0.2)',
-                      color: '#fff', fontSize: 16, fontWeight: 600, cursor: checkingIn ? 'not-allowed' : 'pointer',
+                      color: '#fff', fontSize: 16, fontWeight: 600,
+                      cursor: checkingIn || (attendancePolicy?.enableQr && !qrInput.trim()) ? 'not-allowed' : 'pointer',
+                      opacity: attendancePolicy?.enableQr && !qrInput.trim() ? 0.6 : 1,
                       backdropFilter: 'blur(4px)'
                     }}>
                     {checkingIn ? <Loader2 className="animate-spin" size={20} /> : <LogIn size={20} />}

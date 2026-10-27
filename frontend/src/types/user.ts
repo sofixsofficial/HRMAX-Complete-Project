@@ -1,6 +1,6 @@
 export type CompanyAdminStatus = 'Pending' | 'Approved' | 'Rejected' | 'Suspended'
 
-export type UserRole = 'master-admin' | 'company-admin' | 'team-leader' | 'executive' | 'reporting-manager' | 'employee'
+export type UserRole = 'master-admin' | 'company-admin' | 'team-leader' | 'executive' | 'reporting-manager' | 'hr' | 'employee'
 
 export interface User {
   id: string
@@ -106,6 +106,15 @@ export interface CompanyAttendanceSettings {
   requireWifi: boolean
   wifiSSID: string
   requireSelfie: boolean
+  /** Company policy: GPS/geofence check-in enforced server-side. */
+  requireGps?: boolean
+  /** Company policy: branch QR code required at check-in. */
+  requireQr?: boolean
+  /** Company policy: face verification (selfie) required at check-in. */
+  requireFace?: boolean
+  defaultShiftStart?: string
+  defaultShiftEnd?: string
+  gracePeriodMinutes?: number
 }
 
 export interface CompanyPayrollSettings {
@@ -174,6 +183,10 @@ export interface Employee {
   reportingManagerId?: string
   reportingManagerName?: string
   isReportingManager?: boolean
+  /** Primary branch this employee checks in at (required once the company has branches). */
+  primaryBranchId?: string
+  /** Other branches this employee is authorized to punch at. */
+  branchIds?: string[]
   role?: string
   /** Leave Policy assigned at employee create time (company-level named policy). */
   leavePolicyId?: string

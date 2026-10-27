@@ -34,6 +34,7 @@ import { Employees } from './pages/Employees'
 import { EmployeeDashboard as EmployeeViewDashboard } from './pages/employees/EmployeeDashboard'
 import { EmployeeProfile } from './pages/employees/EmployeeProfile'
 import { Departments } from './pages/Departments'
+import { Branches } from './pages/Branches'
 import { Executives } from './pages/Executives'
 import { ExecutiveProfile } from './pages/executives/ExecutiveProfile'
 import { TeamLeaders } from './pages/TeamLeaders'
@@ -120,6 +121,7 @@ function RoleDashboardRedirect() {
     'executive': '/executive/dashboard',
     'team-leader': '/team-leader/dashboard',
     'reporting-manager': '/reporting-manager/dashboard',
+    'hr': '/hr/dashboard',
     'employee': '/employee/dashboard',
   }
   const target = user?.role ? rolePathMap[user.role] : '/master-admin/dashboard'
@@ -135,6 +137,7 @@ function RoleAwareRedirect({ to }: { to: string }) {
     'executive': '/executive',
     'team-leader': '/team-leader',
     'reporting-manager': '/reporting-manager',
+    'hr': '/hr',
     'employee': '/employee',
   }
   const prefix = user?.role ? rolePathMap[user.role] : '/master-admin'
@@ -201,7 +204,7 @@ function AppRoutes() {
       
       {/* Legacy Dashboard Routes - Redirect to role-based dashboard */}
       <Route path="/admin/dashboard" element={<RoleDashboardRedirect />} />
-      <Route path="/hr/dashboard" element={<RoleDashboardRedirect />} />
+      <Route path="/hr/dashboard" element={<RoleRouteGuard allowedRoles={['hr']} requireScope><DashboardRouter /></RoleRouteGuard>} />
       <Route path="/manager/dashboard" element={<RoleDashboardRedirect />} />
       
       {/* Role-Based Dashboard Routes */}
@@ -221,7 +224,7 @@ function AppRoutes() {
       <Route path="/reporting-manager" element={<Navigate to="/reporting-manager/dashboard" replace />} />
       <Route path="/employee" element={<Navigate to="/employee/dashboard" replace />} />
       <Route path="/admin" element={<RoleDashboardRedirect />} />
-      <Route path="/hr" element={<RoleDashboardRedirect />} />
+      <Route path="/hr" element={<Navigate to="/hr/dashboard" replace />} />
       <Route path="/manager" element={<RoleDashboardRedirect />} />
       
       {/* ============================================
@@ -232,6 +235,7 @@ function AppRoutes() {
       <Route path="/executive/companies" element={<ExecutivePageRoute><Companies /></ExecutivePageRoute>} />
       <Route path="/executive/companies/:companyId" element={<ExecutivePageRoute><CompanyDetailsView /></ExecutivePageRoute>} />
 <Route path="/executive/departments" element={<ExecutivePageRoute><Departments /></ExecutivePageRoute>} />
+      <Route path="/executive/branches" element={<ExecutivePageRoute><Branches /></ExecutivePageRoute>} />
       <Route path="/executive/employees" element={<ExecutivePageRoute><Employees /></ExecutivePageRoute>} />
       <Route path="/executive/executives" element={<ExecutivePageRoute><Executives /></ExecutivePageRoute>} />
       <Route path="/executive/executives/:id" element={<ExecutivePageRoute><ExecutiveProfile /></ExecutivePageRoute>} />
@@ -265,6 +269,7 @@ function AppRoutes() {
       <Route path="/team-leader/executives" element={<TeamLeaderPageRoute><Executives /></TeamLeaderPageRoute>} />
       <Route path="/team-leader/executives/:id" element={<TeamLeaderPageRoute><ExecutiveProfile /></TeamLeaderPageRoute>} />
       <Route path="/team-leader/departments" element={<TeamLeaderPageRoute><Departments /></TeamLeaderPageRoute>} />
+      <Route path="/team-leader/branches" element={<TeamLeaderPageRoute><Branches /></TeamLeaderPageRoute>} />
       <Route path="/team-leader/attendance" element={<TeamLeaderPageRoute><Attendance /></TeamLeaderPageRoute>} />
       <Route path="/team-leader/leaves" element={<TeamLeaderPageRoute><LeaveManagement /></TeamLeaderPageRoute>} />
       
@@ -288,6 +293,7 @@ function AppRoutes() {
       
       {/* Company Admin Routes */}
       <Route path="/company-admin/departments" element={<CompanyAdminPageRoute><Departments /></CompanyAdminPageRoute>} />
+      <Route path="/company-admin/branches" element={<CompanyAdminPageRoute><Branches /></CompanyAdminPageRoute>} />
       <Route path="/company-admin/employees" element={<CompanyAdminPageRoute><Employees /></CompanyAdminPageRoute>} />
       <Route path="/company-admin/employee-profile/:slug" element={<CompanyAdminPageRoute requireScope={false}><EmployeeProfile /></CompanyAdminPageRoute>} />
       <Route path="/company-admin/attendance" element={<CompanyAdminPageRoute><Attendance /></CompanyAdminPageRoute>} />
@@ -315,10 +321,32 @@ function AppRoutes() {
       <Route path="/company-admin/my-profile" element={<CompanyAdminPageRoute requireScope={false}><MyProfile /></CompanyAdminPageRoute>} />
       <Route path="/company-admin/performance" element={<CompanyAdminPageRoute requireScope={false}><Performance /></CompanyAdminPageRoute>} />
       
+      {/* HR Routes — company-scoped people & time administration (dashboard is
+          registered with the other legacy dashboard routes above) */}
+      <Route path="/hr/departments" element={<RoleRouteGuard allowedRoles={['hr']} requireScope><Departments /></RoleRouteGuard>} />
+      <Route path="/hr/branches" element={<RoleRouteGuard allowedRoles={['hr']} requireScope><Branches /></RoleRouteGuard>} />
+      <Route path="/hr/employees" element={<RoleRouteGuard allowedRoles={['hr']} requireScope><Employees /></RoleRouteGuard>} />
+      <Route path="/hr/employee-profile/:slug" element={<RoleRouteGuard allowedRoles={['hr']} requireScope={false}><EmployeeProfile /></RoleRouteGuard>} />
+      <Route path="/hr/attendance" element={<RoleRouteGuard allowedRoles={['hr']} requireScope><Attendance /></RoleRouteGuard>} />
+      <Route path="/hr/leaves" element={<RoleRouteGuard allowedRoles={['hr']} requireScope><LeaveManagement /></RoleRouteGuard>} />
+      <Route path="/hr/my-leaves-attendance" element={<RoleRouteGuard allowedRoles={['hr']} requireScope={false}><MyLeavesAttendance /></RoleRouteGuard>} />
+      <Route path="/hr/tasks" element={<RoleRouteGuard allowedRoles={['hr']} requireScope><Tasks /></RoleRouteGuard>} />
+      <Route path="/hr/holidays" element={<RoleRouteGuard allowedRoles={['hr']} requireScope={false}><HolidayCalendar /></RoleRouteGuard>} />
+      <Route path="/hr/announcements" element={<RoleRouteGuard allowedRoles={['hr']} requireScope><Announcements /></RoleRouteGuard>} />
+      <Route path="/hr/calendar" element={<RoleRouteGuard allowedRoles={['hr']} requireScope={false}><CalendarCenter /></RoleRouteGuard>} />
+      <Route path="/hr/birthdays" element={<RoleRouteGuard allowedRoles={['hr']} requireScope={false}><Birthdays /></RoleRouteGuard>} />
+      <Route path="/hr/address-book" element={<RoleRouteGuard allowedRoles={['hr']} requireScope><AddressBook /></RoleRouteGuard>} />
+      <Route path="/hr/reports" element={<RoleRouteGuard allowedRoles={['hr']} requireScope><Reports /></RoleRouteGuard>} />
+      <Route path="/hr/my-profile" element={<RoleRouteGuard allowedRoles={['hr']} requireScope={false}><MyProfile /></RoleRouteGuard>} />
+      <Route path="/hr/performance" element={<RoleRouteGuard allowedRoles={['hr']} requireScope={false}><Performance /></RoleRouteGuard>} />
+      <Route path="/hr/support" element={<RoleRouteGuard allowedRoles={['hr']} requireScope={false}><Suspense fallback={<PageLoader />}><Support /></Suspense></RoleRouteGuard>} />
+      <Route path="/hr/settings" element={<RoleRouteGuard allowedRoles={['hr']} requireScope={false}><Suspense fallback={<PageLoader />}><Settings /></Suspense></RoleRouteGuard>} />
+
       {/* Master Admin Routes */}
       <Route path="/master-admin/companies" element={<MasterAdminPageRoute><Companies /></MasterAdminPageRoute>} />
       <Route path="/master-admin/companies/:companyId" element={<MasterAdminPageRoute><CompanyDetailsView /></MasterAdminPageRoute>} />
       <Route path="/master-admin/departments" element={<MasterAdminPageRoute><Departments /></MasterAdminPageRoute>} />
+      <Route path="/master-admin/branches" element={<MasterAdminPageRoute><Branches /></MasterAdminPageRoute>} />
       <Route path="/master-admin/employees" element={<MasterAdminPageRoute><Employees /></MasterAdminPageRoute>} />
       <Route path="/master-admin/employee-profile/:slug" element={<MasterAdminPageRoute><EmployeeProfile /></MasterAdminPageRoute>} />
       <Route path="/master-admin/executives" element={<MasterAdminPageRoute><Executives /></MasterAdminPageRoute>} />

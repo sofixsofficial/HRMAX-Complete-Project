@@ -7,7 +7,7 @@
 import type { Route } from '../lib/http.js';
 import { must, equalityFilters, parseOrderBy } from '../lib/http.js';
 import { assertCompanyScope, hasPermission, isSuperAdmin, readPartitions } from '../lib/auth.js';
-import { putEntity, patchEntity, deleteEntity, queryEntities, queryEntitiesAcross, locateEntityAcross, allPartitions, getCompanyMeta, ConditionalWriteFailed } from '../lib/db.js';
+import { putEntity, patchEntity, deleteEntity, queryEntities, queryEntitiesAcross, locateEntityAcross, allPartitions, getCompanyMeta, getEntity, getUserDoc, ConditionalWriteFailed } from '../lib/db.js';
 import { resolveStakeholders } from '../lib/stakeholders.js';
 import { createNotification, fanOutNotifications } from '../lib/notify.js';
 import { ApiError, newId, isoNow, TIER_ORDER, type AttendanceDoc, type AttendanceStatus, type LeaveTier, type UserRole } from '../lib/types.js';
@@ -81,6 +81,10 @@ interface AttendancePolicy {
   officeLocation?: { latitude: number; longitude: number; radiusMeters: number };
   requireSelfie?: boolean;
   requireGeofence?: boolean;
+  /** Company policy: check-in must present the branch's QR code. */
+  requireQr?: boolean;
+  /** Company policy: face verification (selfie) is required at punch time. */
+  requireFace?: boolean;
 }
 
 /**
@@ -100,16 +104,56 @@ export function normalizePolicyFlags(raw: (Partial<AttendancePolicy> & { enableG
 }
 
 async function getPolicy(companyId: string): Promise<AttendancePolicy> {
-  const docs = await queryEntities<AttendancePolicy & { id: string; enableGeofence?: boolean; enableSelfie?: boolean }>({
+  const docs = await queryEntities<(Partial<AttendancePolicy> & {
+    id: string;
+    enableGeofence?: boolean;
+    enableSelfie?: boolean;
+    enableQr?: boolean;
+    requireQr?: boolean;
+    enableFace?: boolean;
+    requireFace?: boolean;
+  })>({
     entity: 'attendanceSettings', companyId, limit: 1,
   });
-  const doc_ = docs[0];
+  let doc_ = docs[0];
+  if (!doc_) {
+    // Companies onboarded before the policy-row sync only carry the policy
+    // INSIDE the company document — fall back to it so the server-side
+    // checks apply to them too.
+    const meta = await getCompanyMeta(companyId).catch(() => null);
+    const embedded = meta?.attendanceSettings as Record<string, unknown> | undefined;
+    if (embedded && typeof embedded === 'object') {
+      doc_ = {
+        id: 'embedded',
+        defaultShiftStart: String(embedded.defaultShiftStart ?? ''),
+        defaultShiftEnd: String(embedded.defaultShiftEnd ?? ''),
+        gracePeriodMinutes: Number(embedded.gracePeriodMinutes ?? GRACE_PERIOD_MINUTES),
+        officeLocation: embedded.officeLocation && typeof embedded.officeLocation === 'object'
+          ? (embedded.officeLocation as AttendancePolicy['officeLocation'])
+          : {
+              latitude: Number(embedded.latitude ?? 0),
+              longitude: Number(embedded.longitude ?? 0),
+              radiusMeters: Number(embedded.radiusInMeters ?? 100),
+            },
+        requireGeofence: Boolean(embedded.requireGps ?? embedded.enableGeofence ?? embedded.requireGeofence ?? false),
+        requireSelfie: Boolean(embedded.requireSelfie ?? embedded.requireFace ?? false),
+        requireQr: Boolean(embedded.requireQr ?? embedded.enableQr ?? false),
+        requireFace: Boolean(embedded.requireFace ?? embedded.requireSelfie ?? false),
+        // Drop a zeroed placeholder office so NO_OFFICE_LOCATION still fires.
+        ...(Number(embedded.latitude ?? 0) === 0 && Number(embedded.longitude ?? 0) === 0
+          ? { officeLocation: undefined }
+          : {}),
+      } as typeof doc_;
+    }
+  }
   const flags = normalizePolicyFlags(doc_);
   return {
     defaultShiftStart: doc_?.defaultShiftStart ?? '09:00',
     defaultShiftEnd: doc_?.defaultShiftEnd ?? '18:00',
     gracePeriodMinutes: doc_?.gracePeriodMinutes ?? GRACE_PERIOD_MINUTES,
     officeLocation: doc_?.officeLocation,
+    requireQr: Boolean(doc_?.requireQr ?? doc_?.enableQr ?? false),
+    requireFace: Boolean(doc_?.requireFace ?? doc_?.enableFace ?? false),
     ...flags,
   };
 }
@@ -191,19 +235,63 @@ export const attendanceRoutes: Route[] = [
       if (markType === 'check-in') {
         if (existing?.checkIn) return fail('ALREADY_CHECKED_IN', 'Already checked in today');
 
-        // Geofence
+        // ---- branch assignment (primary + additional authorized branches) ----
+        const body = req.body as { branchId?: string; qrToken?: string };
+        const requestedBranch = String(body.branchId ?? '').trim();
+        const qrToken = String(body.qrToken ?? '').trim();
+        const empRows = await queryEntities<Record<string, unknown>>({
+          entity: 'employee', companyId, filters: { userId: caller.uid }, limit: 1,
+        }).catch(() => [] as Record<string, unknown>[]);
+        const emp = empRows[0] ?? null;
+        const profile = emp ? null : await getUserDoc(caller.uid).catch(() => null);
+        const primaryBranch = String(emp?.primaryBranchId ?? profile?.primaryBranchId ?? '');
+        const extraRaw = (emp?.branchIds ?? profile?.branchIds ?? []) as unknown[];
+        const extraBranches = Array.isArray(extraRaw) ? extraRaw.map(String).filter(Boolean) : [];
+        const authorized = [...new Set([primaryBranch, ...extraBranches].filter(Boolean))];
+
+        let branchId = requestedBranch || primaryBranch;
+        let branch: Record<string, unknown> | null = null;
+        if (branchId) {
+          if (authorized.length > 0 && !authorized.includes(branchId)) {
+            return fail('BRANCH_NOT_AUTHORIZED', 'You are not assigned to this branch.');
+          }
+          branch = await getEntity<Record<string, unknown>>('branch', companyId, branchId);
+          if (!branch) return fail('BRANCH_NOT_FOUND', 'Your assigned branch no longer exists.');
+          if (branch.isActive === false) return fail('BRANCH_INACTIVE', 'This branch is not active.');
+        } else {
+          branchId = '';
+        }
+
+        // ---- QR attendance (company policy) ----
+        if (policy.requireQr) {
+          if (!branchId) return fail('BRANCH_REQUIRED', 'No branch is assigned to your account. Ask your admin to assign one.');
+          if (!qrToken) return fail('QR_REQUIRED', 'Scan the branch QR code to check in.');
+          const expected = String(branch?.qrToken ?? '').trim();
+          if (!expected || qrToken.toLowerCase() !== expected.toLowerCase()) {
+            return fail('QR_INVALID', 'This QR code is not valid for your branch.');
+          }
+        }
+
+        // ---- Geofence: the BRANCH's own coordinates win over the company office ----
         if (policy.requireGeofence) {
-          if (!policy.officeLocation) return fail('NO_OFFICE_LOCATION', 'No office location configured');
+          const bLat = Number(branch?.latitude ?? 0);
+          const bLon = Number(branch?.longitude ?? 0);
+          const loc = branch && (bLat !== 0 || bLon !== 0)
+            ? { latitude: bLat, longitude: bLon, radiusMeters: Number(branch.radiusMeters ?? policy.officeLocation?.radiusMeters ?? 100) }
+            : policy.officeLocation;
+          if (!loc) return fail('NO_OFFICE_LOCATION', 'No office location configured');
           if (latitude === undefined || longitude === undefined) return fail('GPS_REQUIRED', 'Location required for check-in');
-          const dist = haversine(latitude, longitude, policy.officeLocation.latitude, policy.officeLocation.longitude);
-          if (dist > (policy.officeLocation.radiusMeters ?? 100)) {
-            return fail('GPS_OUT_OF_BOUNDS', `You are ${Math.round(dist)}m away from the office (allowed ${policy.officeLocation.radiusMeters ?? 100}m)`);
+          const dist = haversine(latitude, longitude, loc.latitude, loc.longitude);
+          if (dist > (loc.radiusMeters ?? 100)) {
+            return fail('GPS_OUT_OF_BOUNDS', `You are ${Math.round(dist)}m away from the ${branchId ? 'branch' : 'office'} (allowed ${loc.radiusMeters ?? 100}m)`);
           }
         }
 
         // Selfie — clients send `selfieUri`, older payloads send `selfieUrl`.
+        // Face verification is the same capture, toggled by requireFace
+        // (new) or requireSelfie (legacy) at company-policy level.
         const selfie = selfieUrl ?? (req.body as { selfieUri?: string }).selfieUri;
-        if (policy.requireSelfie) {
+        if (policy.requireSelfie || policy.requireFace) {
           if (!selfie) return fail('SELFIE_REQUIRED', 'Selfie is required for check-in');
           const decoded = decodeURIComponent(selfie);
           if (!decoded.includes(`/selfies/${companyId}/${caller.uid}`)) {
@@ -217,6 +305,7 @@ export const attendanceRoutes: Route[] = [
           companyId, userId: caller.uid, employeeName: caller.name, date: today,
           checkIn: nowIso, checkOut: existing?.checkOut ?? null,
           status, lateMinutes,
+          ...(branchId ? { branchId, branchName: String(branch?.name ?? '') } : {}),
           workHours: 0, overtimeHours: 0,
           isAutoApproved: true, approved: true, approvedByName: 'System (Auto-Approved)',
           createdAt: existing?.createdAt ?? isoNow(), updatedAt: isoNow(),

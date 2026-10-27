@@ -42,6 +42,10 @@ export interface AttendancePolicy {
   enableNetworkGuard: boolean
   enableAntiSpoofing: boolean
   enableSelfie: boolean
+  /** Company policy: branch QR code must be scanned at check-in. */
+  enableQr: boolean
+  /** Company policy: face verification (selfie) required at check-in. */
+  requireFace?: boolean
   updatedAt: Date
   updatedBy: string
   createdBy: string

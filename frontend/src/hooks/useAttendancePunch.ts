@@ -46,6 +46,9 @@ export function useAttendancePunch() {
   const [checkingIn, setCheckingIn] = useState(false)
   const [checkingOut, setCheckingOut] = useState(false)
   const [msg, setMsg] = useState<PunchMsg | null>(null)
+  // Branch QR code entered/scanned for the current punch (company policy
+  // `enableQr` forces the employee to present the branch's code).
+  const [qrToken, setQrToken] = useState('')
 
   const todayRecord = personal.todayRecord
   const companyId = effectiveCompanyId || user?.companyId || ''
@@ -129,7 +132,7 @@ export function useAttendancePunch() {
     return null
   }, [attendancePolicy])
 
-  const checkInNow = useCallback(async () => {
+  const checkInNow = useCallback(async (opts?: { branchId?: string; qrToken?: string }) => {
     if (!user || checkingIn) return
     if (todayRecord?.checkIn) {
       setMsg({ type: 'error', text: 'You have already checked in today.' })
@@ -157,6 +160,11 @@ export function useAttendancePunch() {
         const { functions: fns } = await import('../aws/clients')
         const markAttendance = httpsCallable(fns, 'markAttendance')
         const net = getNetworkInfo()
+        // Branch context: the employee's primary branch by default, or an
+        // explicit choice. The server re-verifies the assignment and the QR
+        // token against the branch — nothing here is trusted.
+        const branchId = String(opts?.branchId || employeeData?.primaryBranchId || '').trim()
+        const scannedQr = String(opts?.qrToken || qrToken || '').trim()
         const result = await markAttendance({
           action: 'check-in',
           companyId: cid,
@@ -170,6 +178,8 @@ export function useAttendancePunch() {
           deviceId,
           deviceModel: navigator.userAgent,
           batteryLevel: 0,
+          branchId: branchId || undefined,
+          qrToken: scannedQr || undefined,
         })
         const data = result.data as { status?: string; lateMinutes?: number; message?: string }
         if (data.status === 'Late' || (data.lateMinutes ?? 0) > 0) {
@@ -194,6 +204,7 @@ export function useAttendancePunch() {
         // Server confirmed the write — refresh listeners now so Working Mode
         // activates from the verified record instead of waiting out the poll.
         invalidateSnapshots()
+        setQrToken('')
         return
       } catch (fnErr: unknown) {
         const ferr = fnErr as { code?: string; message?: string }
@@ -252,7 +263,7 @@ export function useAttendancePunch() {
     } finally {
       setCheckingIn(false)
     }
-  }, [user, checkingIn, todayRecord?.checkIn, effectiveCompanyId, gpsStatus, employeeData, isCompanyAdmin, isMasterAdmin, runPolicyCheck, deviceId])
+  }, [user, checkingIn, todayRecord?.checkIn, effectiveCompanyId, gpsStatus, employeeData, isCompanyAdmin, isMasterAdmin, runPolicyCheck, deviceId, qrToken])
 
   const checkOutNow = useCallback(async () => {
     if (!user || !todayRecord || checkingOut) return
@@ -301,6 +312,9 @@ export function useAttendancePunch() {
     checkOut: checkOutNow,
     msg,
     setMsg,
+    /** Branch QR code for the next punch (visible when company policy enables QR). */
+    qrToken,
+    setQrToken,
     attendancePolicy,
     gpsStatus,
     isGpsLoading,

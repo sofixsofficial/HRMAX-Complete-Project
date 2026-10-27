@@ -8,7 +8,7 @@ import {
   HelpCircle, Network, Clock, UserRound,
   TrendingUp, ArrowRightLeft, AlertCircle, ChevronDown,
   CalendarDays, BadgeDollarSign, Percent, History, FolderOpen, ScrollText,
-  Landmark, BookUser, KeyRound
+  Landmark, BookUser, KeyRound, MapPinned
 } from 'lucide-react'
 import { Logo } from './Logo'
 import { useNavigate, useLocation } from 'react-router-dom'
@@ -115,6 +115,7 @@ export function Sidebar() {
         { icon: Users, label: 'Employees', path: '/employees', requiredRoles: ['team-leader'], requiredPermission: 'employees.view', requiresScope: true },
         { icon: Crown, label: 'Executives', path: '/executives', requiredRoles: ['team-leader'], requiredPermission: 'executives.view', requiresScope: true },
         { icon: Network, label: 'Departments', path: '/departments', requiredRoles: ['team-leader'], requiredPermission: 'departments.view', requiresScope: true },
+        { icon: MapPinned, label: 'Branches', path: '/branches', requiredRoles: ['team-leader'], requiresScope: true },
       ])
     },
     {
@@ -187,6 +188,7 @@ export function Sidebar() {
         { icon: FileText, label: 'Salary Slips', path: '/salary-slips', requiredPermission: 'salary.view', requiresScope: true },
         { icon: Percent, label: 'Salary Structure', path: '/salary-structure', requiredPermission: 'salary.view', requiresScope: true },
         { icon: Network, label: 'Departments', path: '/departments', requiredPermission: 'departments.view', requiresScope: true },
+        { icon: MapPinned, label: 'Branches', path: '/branches', requiredPermission: 'settings.edit', requiresScope: true },
       ])
     },
     {
@@ -236,14 +238,16 @@ export function Sidebar() {
       items: filterItems([
         { icon: Building2, label: 'Companies', path: '/companies', requiredRoles: ['master-admin', 'team-leader', 'executive'], requiredPermission: 'companies.view' },
 
-        { icon: Network, label: 'Departments', path: '/departments', requiredRoles: ['master-admin', 'company-admin', 'executive'], requiredPermission: 'departments.view' },
+        { icon: Network, label: 'Departments', path: '/departments', requiredRoles: ['master-admin', 'company-admin', 'executive', 'hr'], requiredPermission: 'departments.view' },
+        { icon: MapPinned, label: 'Branches', path: '/branches', requiredRoles: ['master-admin', 'executive'], requiredPermission: 'settings.edit' },
+        { icon: MapPinned, label: 'Branches', path: '/branches', requiredRoles: ['company-admin', 'hr'], requiredPermission: 'departments.view' },
         { icon: KeyRound, label: 'Access Management', path: '/access-management', requiredRoles: ['master-admin'] },
       ])
     },
     {
       title: 'People',
       items: filterItems([
-        { icon: Users, label: 'Employees', path: '/employees', requiredRoles: ['master-admin', 'company-admin', 'executive'] },
+        { icon: Users, label: 'Employees', path: '/employees', requiredRoles: ['master-admin', 'company-admin', 'executive', 'hr'] },
         ...(isReportingManager ? [{ icon: UserCog as typeof LayoutDashboard, label: 'My Team', path: '/my-team' as string }] : []),
         { icon: Crown, label: 'Executives', path: '/executives', requiredRoles: ['master-admin'] },
         { icon: UserPlus, label: 'Team Leaders', path: '/team-leaders', requiredRoles: ['master-admin'] },
@@ -271,14 +275,14 @@ export function Sidebar() {
     {
       title: 'Resources',
       items: filterItems([
-        { icon: BookUser, label: 'Address Book', path: '/address-book', requiredRoles: ['master-admin', 'company-admin', 'team-leader', 'executive'] },
+        { icon: BookUser, label: 'Address Book', path: '/address-book', requiredRoles: ['master-admin', 'company-admin', 'team-leader', 'executive', 'hr'] },
       ])
     },
     {
       title: 'Communication',
       items: filterItems([
         { icon: Mail, label: 'Emails', path: '/emails', requiredRoles: ['master-admin', 'company-admin'] },
-        { icon: Megaphone, label: 'Announcements', path: '/announcements', requiredRoles: ['master-admin', 'company-admin', 'team-leader', 'executive'] },
+        { icon: Megaphone, label: 'Announcements', path: '/announcements', requiredRoles: ['master-admin', 'company-admin', 'team-leader', 'executive', 'hr'] },
       ])
     },
     {
@@ -296,7 +300,7 @@ export function Sidebar() {
     {
       title: 'Analytics',
       items: filterItems([
-        { icon: BarChart3, label: 'Reports', path: '/reports', requiredRoles: ['master-admin', 'company-admin', 'team-leader', 'executive'] },
+        { icon: BarChart3, label: 'Reports', path: '/reports', requiredRoles: ['master-admin', 'company-admin', 'team-leader', 'executive', 'hr'] },
       ])
     },
     {

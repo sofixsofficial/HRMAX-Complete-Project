@@ -9,6 +9,8 @@ export type UserRole =
   | 'team-leader'
   | 'executive'
   | 'reporting-manager'
+  /** HR — leave & attendance approvals, employee administration (company-scoped). */
+  | 'hr'
   | 'employee'
   /**
    * Transient bootstrap role: a valid Cognito session whose users-table row
@@ -24,6 +26,7 @@ export const VALID_ROLES: UserRole[] = [
   'team-leader',
   'executive',
   'reporting-manager',
+  'hr',
   'employee',
 ];
 
@@ -139,6 +142,9 @@ export interface AttendanceDoc extends BaseEntity {
   userId: string;
   employeeName?: string;
   date: string; // YYYY-MM-DD
+  /** Branch the punch was made at (when the company uses branches). */
+  branchId?: string;
+  branchName?: string;
   checkIn?: string | null;
   checkOut?: string | null;
   status: AttendanceStatus;
@@ -245,6 +251,23 @@ export const REPORTING_MANAGER_PERMISSIONS: string[] = [
   'company.view', 'companies.view',
 ];
 
+/**
+ * HR — company-scoped people & time administration: can see the whole
+ * workforce, run leave/attendance approvals and manage employee records,
+ * but never payroll config or platform settings.
+ */
+export const HR_PERMISSIONS: string[] = [
+  'employees.view', 'employees.create', 'employees.edit', 'employees.export',
+  'departments.view',
+  'attendance.view', 'attendance.create', 'attendance.edit', 'attendance.approve', 'attendance.manage',
+  'leave.view', 'leave.create', 'leave.approve', 'leave.manage',
+  'holidays.view', 'announcements.view',
+  'tasks.view', 'tasks.create', 'tasks.edit',
+  'reports.view', 'reports.export',
+  'company.view', 'companies.view',
+  'dashboard.view',
+];
+
 export const EMPLOYEE_PERMISSIONS: string[] = [
   'employees.view',
   'departments.view',
@@ -270,6 +293,8 @@ export function defaultPermissionsForRole(role: UserRole): string[] {
       return ['*'];
     case 'reporting-manager':
       return REPORTING_MANAGER_PERMISSIONS;
+    case 'hr':
+      return HR_PERMISSIONS;
     case 'employee':
       return EMPLOYEE_PERMISSIONS;
     default:

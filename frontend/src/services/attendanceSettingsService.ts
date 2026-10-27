@@ -31,6 +31,8 @@ const mapPolicy = (d: any): AttendancePolicy => {
     enableNetworkGuard: data.enableNetworkGuard ?? true,
     enableAntiSpoofing: data.enableAntiSpoofing ?? true,
     enableSelfie: data.enableSelfie ?? false,
+    enableQr: data.enableQr ?? data.requireQr ?? false,
+    requireFace: data.requireFace ?? data.requireSelfie ?? false,
     updatedAt: data.updatedAt?.toDate() || new Date(),
     updatedBy: data.updatedBy || '',
     createdBy: data.createdBy || '',

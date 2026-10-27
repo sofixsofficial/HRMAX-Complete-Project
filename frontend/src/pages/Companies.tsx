@@ -5,7 +5,7 @@ import {
   Eye, Pencil, Loader2, Trash2, X, CheckCircle,
   ChevronLeft, ChevronRight, Upload, Search, Crown,
   Crosshair, Wifi, Camera, Smartphone, Mail, MapPin, DollarSign,
-  UserX, KeyRound
+  UserX, KeyRound, QrCode, Clock
 } from 'lucide-react'
 import { useForm } from 'react-hook-form'
 import type { Resolver } from 'react-hook-form'
@@ -82,6 +82,12 @@ const companySchema = z.object({
   requireWifi: z.boolean().default(false),
   wifiSSID: z.string().optional(),
   requireSelfie: z.boolean().default(false),
+  // Company attendance policy — enforced server-side at check-in.
+  requireGps: z.boolean().default(true),
+  requireQr: z.boolean().default(false),
+  defaultShiftStart: z.string().default('09:00'),
+  defaultShiftEnd: z.string().default('18:00'),
+  gracePeriodMinutes: z.number().min(0).max(60).default(15),
 })
 
 const COUNTRIES = [
@@ -282,6 +288,11 @@ const CompanyForm = ({ onSubmit, submitLabel, onCancel, isSubmitting, defaultVal
       requireWifi: false,
       wifiSSID: '',
       requireSelfie: false,
+      requireGps: true,
+      requireQr: false,
+      defaultShiftStart: '09:00',
+      defaultShiftEnd: '18:00',
+      gracePeriodMinutes: 15,
     }
   })
 
@@ -705,6 +716,50 @@ const CompanyForm = ({ onSubmit, submitLabel, onCancel, isSubmitting, defaultVal
       <input type="number" min={50} max={500} {...register('radiusInMeters', { valueAsNumber: true })} />
     </div>
 
+    <div className="form-row">
+      <div className="form-group">
+        <label>Default Shift Start</label>
+        <input type="time" {...register('defaultShiftStart')} />
+      </div>
+      <div className="form-group">
+        <label>Default Shift End</label>
+        <input type="time" {...register('defaultShiftEnd')} />
+      </div>
+    </div>
+
+    <div className="form-group">
+      <label>Grace Period (minutes)</label>
+      <input type="number" min={0} max={60} {...register('gracePeriodMinutes', { valueAsNumber: true })} />
+    </div>
+
+    <div className="toggle-card">
+      <div className="toggle-card-left">
+        <MapPin size={20} />
+        <div>
+          <strong>GPS Attendance</strong>
+          <p>Employees must be inside the office/branch geofence to check in</p>
+        </div>
+      </div>
+      <label className="toggle-switch">
+        <input type="checkbox" {...register('requireGps')} />
+        <span className="toggle-slider" />
+      </label>
+    </div>
+
+    <div className="toggle-card">
+      <div className="toggle-card-left">
+        <QrCode size={20} />
+        <div>
+          <strong>QR Attendance</strong>
+          <p>Employees scan their branch QR code at check-in</p>
+        </div>
+      </div>
+      <label className="toggle-switch">
+        <input type="checkbox" {...register('requireQr')} />
+        <span className="toggle-slider" />
+      </label>
+    </div>
+
     <div className="toggle-card">
       <div className="toggle-card-left">
         <Smartphone size={20} />
@@ -744,8 +799,8 @@ const CompanyForm = ({ onSubmit, submitLabel, onCancel, isSubmitting, defaultVal
       <div className="toggle-card-left">
         <Camera size={20} />
         <div>
-          <strong>Require Selfie</strong>
-          <p>Employees must take a selfie at check-in</p>
+          <strong>Face Verification</strong>
+          <p>Optional — employees take a selfie at check-in</p>
         </div>
       </div>
       <label className="toggle-switch">
@@ -1121,6 +1176,14 @@ export function Companies() {
           requireWifi: values.requireWifi,
           wifiSSID: values.requireWifi ? (values.wifiSSID || '') : '',
           requireSelfie: values.requireSelfie,
+          // Company-level attendance policy — the server enforces these at
+          // check-in (see syncAttendanceSettings + /api/attendance/mark).
+          requireGps: values.requireGps,
+          requireQr: values.requireQr,
+          requireFace: values.requireSelfie,
+          defaultShiftStart: values.defaultShiftStart,
+          defaultShiftEnd: values.defaultShiftEnd,
+          gracePeriodMinutes: values.gracePeriodMinutes,
         },
       })
 
@@ -1144,6 +1207,16 @@ export function Companies() {
 
       setIsAddModalOpen(false)
       showToast(`Company added! Admin login — Username: ${values.adminUsername}, Password: ${values.adminPassword}`)
+      // Recommended workflow: Create Company -> Create Branches -> Create
+      // Employees (primary branch required) -> Check-in. Offer the next step
+      // instead of leaving the admin to find the Branches screen themselves.
+      const prefix = user?.role === 'company-admin' ? '/company-admin'
+        : user?.role === 'executive' ? '/executive'
+        : user?.role === 'team-leader' ? '/team-leader'
+        : '/master-admin'
+      if (window.confirm('Company created! Next: add its branches (location, geofence and QR code) — employees need a primary branch before they can check in.')) {
+        navigate(`${prefix}/branches?company=${encodeURIComponent(company.id)}`)
+      }
     } catch (err: any) {
       const msg = err?.message
         ? (err.message.includes('already-exists') || err.message.includes('already registered')
@@ -1672,6 +1745,9 @@ export function Companies() {
                       <div className="modal-field"><label>Office Wi-Fi</label><div className="field-value">{att.requireWifi ? (att.wifiSSID || 'Required') : 'Not Required'}</div></div>
                       <div className="modal-field"><label>Mobile Data</label><div className="field-value">{att.allowMobileData ? 'Allowed' : 'Blocked'}</div></div>
                       <div className="modal-field"><label>Selfie</label><div className="field-value">{att.requireSelfie ? 'Required' : 'Optional'}</div></div>
+                      <div className="modal-field"><label>GPS Attendance</label><div className="field-value">{att.requireGps === false ? 'Off' : 'On'}</div></div>
+                      <div className="modal-field"><label>QR Attendance</label><div className="field-value">{att.requireQr ? 'On' : 'Off'}</div></div>
+                      <div className="modal-field"><label>Default Shift</label><div className="field-value">{att.defaultShiftStart || '09:00'} - {att.defaultShiftEnd || '18:00'}</div></div>
                     </>
                   ) : (
                     <div className="modal-field" style={{ gridColumn: '1 / -1' }}><label>Status</label><div className="field-value" style={{ color: '#9ca3af' }}>Not Configured</div></div>

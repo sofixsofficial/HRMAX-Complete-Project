@@ -202,7 +202,7 @@ export const getEmployeesByManagerId = async (managerId: string, options?: TeamO
 // Managers plus the Company Admin of the same company (the RM -> Company Admin
 // approval hierarchy), strictly scoped to the selected company. Executives and
 // Team Leaders are never offered.
-const MANAGER_ROLES = ['reporting-manager', 'company-admin'];
+const MANAGER_ROLES = ['reporting-manager', 'company-admin', 'hr', 'team-leader', 'executive'];
 const MANAGER_ROLE_LABELS: Record<string, string> = {
   'company-admin': 'Company Admin',
   'team-leader': 'Team Leader',
@@ -462,6 +462,8 @@ export const createEmployee = async (employee: Omit<Employee, 'id' | 'employeeId
       isReportingManager: !!(employee as any).isReportingManager,
       reportingManagerId: (employee as any).reportingManagerId || (employee as any).managerId || '',
       reportingManagerName: (employee as any).reportingManagerName || (employee as any).managerName || '',
+      primaryBranchId: (employee as any).primaryBranchId || '',
+      branchIds: Array.isArray((employee as any).branchIds) ? (employee as any).branchIds : [],
       monthlyLeaveEntitlements: (employee as any).monthlyLeaveEntitlements || null,
       leaveEntitlementYear: (employee as any).leaveEntitlementYear || null,
     })
@@ -487,6 +489,11 @@ export const createEmployee = async (employee: Omit<Employee, 'id' | 'employeeId
       isReportingManager: !!(employee as any).isReportingManager,
       reportingManagerId: (employee as any).reportingManagerId || '',
       reportingManagerName: (employee as any).reportingManagerName || '',
+      // Branch assignment (validated server-side against this company).
+      primaryBranchId: (employee as any).primaryBranchId || undefined,
+      branchIds: Array.isArray((employee as any).branchIds) && (employee as any).branchIds.length > 0
+        ? (employee as any).branchIds
+        : undefined,
       employeeId,
       parentCompanyId,
       parentCompanyName,
