@@ -173,6 +173,16 @@ export function AuditLogs() {
     }
   }, [user, effectiveCompanyId])
 
+  // Module filter options: the static curated list PLUS every module actually
+  // present in the loaded rows (Team Leaders, Compliance, Audit Logs,
+  // Executive Profile, Authentication, …) so a row's module is always
+  // selectable — the old fixed dropdown made those rows impossible to filter.
+  const moduleOptions = useMemo(() => {
+    const fromData = Array.from(new Set(logs.map(l => l.module).filter(Boolean)))
+    const merged = [...new Set([...ACTION_MODULES, ...fromData])]
+    return merged.filter(m => m === 'All' || fromData.includes(m) || logs.length === 0)
+  }, [logs])
+
   // Filtered logs
   const filteredLogs = useMemo(() => {
     return logs.filter(l => {
@@ -376,7 +386,7 @@ export function AuditLogs() {
             <div className="audit-filter-group">
               <label>Module</label>
               <select value={moduleFilter} onChange={e => { setModuleFilter(e.target.value); setCurrentPage(1) }}>
-                {ACTION_MODULES.map(m => <option key={m} value={m}>{m === 'All' ? 'All Modules' : m}</option>)}
+                {moduleOptions.map(m => <option key={m} value={m}>{m === 'All' ? 'All Modules' : m}</option>)}
               </select>
             </div>
             <div className="audit-filter-group">
