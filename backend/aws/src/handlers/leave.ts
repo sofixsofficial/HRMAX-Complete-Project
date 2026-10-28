@@ -8,10 +8,10 @@
 import type { Route } from '../lib/http.js';
 import { must, equalityFilters, parseOrderBy } from '../lib/http.js';
 import { assertCompanyScope, hasPermission, isSuperAdmin, readPartitions } from '../lib/auth.js';
-import { putEntity, getEntity, patchEntity, queryEntities, queryEntitiesAcross, locateEntityAcross, allPartitions, getUserDoc } from '../lib/db.js';
+import { putEntity, getEntity, patchEntity, queryEntities, queryEntitiesAcross, locateEntityAcross, allPartitions, getUserDoc, getCompanyMeta } from '../lib/db.js';
 import { resolveStakeholders } from '../lib/stakeholders.js';
 import { createNotification, fanOutNotifications } from '../lib/notify.js';
-import { ApiError, newId, isoNow, TIER_ORDER, type LeaveRequestDoc, type LeaveTier, type UserRole } from '../lib/types.js';
+import { ApiError, newId, isoNow, TIER_ORDER, resolveApprovalChain, type ApprovalChainConfig, type LeaveRequestDoc, type LeaveTier, type UserRole } from '../lib/types.js';
 
 const MANAGEMENT_SELF_SERVICE: UserRole[] = ['team-leader', 'executive'];
 
@@ -35,6 +35,7 @@ export async function computeInitialApproval(
   input: LeaveInput,
   applicantRole: UserRole,
   stakeholders: Awaited<ReturnType<typeof resolveStakeholders>>,
+  chains?: ApprovalChainConfig | null,
 ): Promise<Pick<LeaveRequestDoc, 'approvalStatus' | 'approverIds' | 'masterAdminRequired' | 'masterAdminApproveStatus' | 'masterAdminApproverId' | 'applicantRole'>> {
   const status: Record<LeaveTier, 'Pending' | 'Approved' | 'Rejected' | 'Skipped'> = {
     reportingManager: 'Pending',
@@ -51,52 +52,35 @@ export async function computeInitialApproval(
     teamLeader: stakeholders.teamLeaderIds[0] ?? null,
   };
 
-  // Auto-skip unassigned tiers
-  if (!approverIds.reportingManager) status.reportingManager = 'Skipped';
-  if (!approverIds.hr) status.hr = 'Skipped';
-  if (!approverIds.companyAdmin) status.companyAdmin = 'Skipped';
-  if (!approverIds.executive) status.executive = 'Skipped';
-  if (!approverIds.teamLeader) status.teamLeader = 'Skipped';
+  const masterAdminRequired = MANAGEMENT_SELF_SERVICE.includes(applicantRole);
+  const masterAdminApproveStatus: 'Pending' | 'Approved' | 'Rejected' | undefined = masterAdminRequired ? 'Pending' : undefined;
+  const masterAdminApproverId: string | null = masterAdminRequired ? stakeholders.masterAdminIds[0] ?? null : null;
 
-  let masterAdminRequired = MANAGEMENT_SELF_SERVICE.includes(applicantRole);
-  let masterAdminApproveStatus: 'Pending' | 'Approved' | 'Rejected' | undefined = masterAdminRequired ? 'Pending' : undefined;
-  let masterAdminApproverId: string | null = masterAdminRequired ? stakeholders.masterAdminIds[0] ?? null : null;
-
-  // ── Chain truncation per applicant role (the product's approval rules):
+  // ── Configurable chain (company policy) with the shipped per-role defaults:
   //    employee          -> reporting manager -> HR -> company admin
   //    reporting manager -> HR -> company admin
   //    HR                -> company admin
   //    executive         -> team leader  -> master admin gate
   //    team leader       -> master admin gate
-  // Tiers beyond the last required approver are Skipped, so the x/N progress
-  // and the "who approves next" logic both see exactly the live chain.
-  if (applicantRole === 'employee') {
-    status.executive = 'Skipped';
-    status.teamLeader = 'Skipped';
-  } else if (applicantRole === 'reporting-manager') {
-    // Spec: a reporting manager's own leave goes HR -> company admin (no
-    // self-tier, no manager-of-manager step).
-    status.reportingManager = 'Skipped';
-    status.executive = 'Skipped';
-    status.teamLeader = 'Skipped';
-  } else if (applicantRole === 'hr') {
-    status.reportingManager = 'Skipped';
-    status.hr = 'Skipped';
-    status.executive = 'Skipped';
-    status.teamLeader = 'Skipped';
-  } else if (applicantRole === 'team-leader') {
-    // TL self-app: all tiers auto-approved → single MA gate
-    status.reportingManager = 'Approved';
-    status.hr = 'Approved';
-    status.companyAdmin = 'Approved';
-    status.executive = 'Approved';
-    status.teamLeader = 'Approved';
-  } else if (applicantRole === 'executive') {
-    // Executive self-app: RM+HR+CA+Exec auto-approved, TL tier stays live
-    status.reportingManager = 'Approved';
-    status.hr = 'Approved';
-    status.companyAdmin = 'Approved';
-    status.executive = 'Approved';
+  // Tiers in the live chain with an assigned (non-self) approver become
+  // Pending. Tiers outside the chain are Approved for master-gated roles
+  // (exec/TL — so the MA gate's all-pre-tiers-approved check holds) and
+  // Skipped otherwise. Unassigned or self-assigned chain tiers are Skipped so
+  // the x/N progress and "who approves next" both see exactly the live chain.
+  const applicantUid = String(input.userId ?? '');
+  const liveChain = resolveApprovalChain(applicantRole, chains);
+  for (const tier of TIER_ORDER) {
+    const inChain = liveChain.includes(tier);
+    const approver = approverIds[tier] ?? null;
+    const isSelfApprover = !!approver && !!applicantUid && approver === applicantUid;
+    if (inChain && approver && !isSelfApprover) {
+      status[tier] = 'Pending';
+    } else if (!inChain) {
+      status[tier] = masterAdminRequired ? 'Approved' : 'Skipped';
+    } else {
+      // In the chain but unassigned, or the approver is the applicant themself.
+      status[tier] = 'Skipped';
+    }
   }
 
   return {
@@ -235,7 +219,11 @@ export const leaveRoutes: Route[] = [
       // must not produce the admin's own chain or name.
       const targetDoc = await getUserDoc(input.userId).catch(() => null);
       const applicantRole = (targetDoc?.role as UserRole) || caller.role;
-      const approval = await computeInitialApproval(input, applicantRole, stakeholders);
+      // Configurable approval chain: read the company's per-role stage override
+      // (falls back to the shipped per-role defaults inside resolveApprovalChain).
+      const companyMeta = await getCompanyMeta(input.companyId).catch(() => null);
+      const chains = (companyMeta?.approvalChains ?? null) as ApprovalChainConfig | null;
+      const approval = await computeInitialApproval(input, applicantRole, stakeholders, chains);
 
       const id = newId();
       const doc_: LeaveRequestDoc = {

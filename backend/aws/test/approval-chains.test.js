@@ -24,7 +24,7 @@ process.env.COGNITO_USER_POOL_ID ??= 'ap-southeast-2_TESTPOOL';
 process.env.HRMAX_DISABLE_RATE_LIMIT ??= '1';
 
 const { computeInitialApproval } = await import('../dist/handlers/leave.js');
-const { TIER_ORDER } = await import('../dist/lib/types.js');
+const { TIER_ORDER, resolveApprovalChain, DEFAULT_APPROVAL_CHAINS, REQUESTER_ROLES } = await import('../dist/lib/types.js');
 
 const input = {
   companyId: 'comp1',
@@ -114,4 +114,56 @@ test('unassigned HR account: HR tier auto-skips, chain still completes at compan
 
 test('TIER_ORDER has the HR tier between the reporting manager and the company admin', () => {
   assert.deepEqual(TIER_ORDER, ['reportingManager', 'hr', 'companyAdmin', 'executive', 'teamLeader']);
+});
+
+// ── Configurable approval chains (company policy override) ──────────────────
+
+test('company override replaces the employee chain (skip RM + HR, company admin only)', async () => {
+  const chains = { employee: ['companyAdmin'] };
+  const r = await computeInitialApproval(input, 'employee', staffed, chains);
+  assert.equal(r.approvalStatus.reportingManager, 'Skipped');
+  assert.equal(r.approvalStatus.hr, 'Skipped');
+  assert.equal(r.approvalStatus.companyAdmin, 'Pending');
+  assert.equal(r.approvalStatus.executive, 'Skipped');
+  assert.equal(r.approvalStatus.teamLeader, 'Skipped');
+});
+
+test('override is de-duplicated and re-ordered into canonical TIER_ORDER', async () => {
+  // Authored out of order + with a duplicate; must resolve to the canonical subset.
+  const chains = { employee: ['companyAdmin', 'hr', 'companyAdmin', 'bogus-tier'] };
+  const chain = resolveApprovalChain('employee', chains);
+  assert.deepEqual(chain, ['hr', 'companyAdmin']);
+});
+
+test('an empty or non-array override falls back to the shipped default', () => {
+  assert.deepEqual(resolveApprovalChain('employee', { employee: [] }), DEFAULT_APPROVAL_CHAINS.employee);
+  assert.deepEqual(resolveApprovalChain('employee', { employee: 'nope' }), DEFAULT_APPROVAL_CHAINS.employee);
+  assert.deepEqual(resolveApprovalChain('employee', null), DEFAULT_APPROVAL_CHAINS.employee);
+});
+
+test('an override cannot grant company-admin or master-admin a personal chain', () => {
+  // They have no personal leave (create routes 403 them); resolveApprovalChain
+  // must always return an empty chain regardless of config.
+  assert.deepEqual(resolveApprovalChain('company-admin', { 'company-admin': ['hr'] }), []);
+  assert.deepEqual(resolveApprovalChain('master-admin', { 'master-admin': ['hr'] }), []);
+});
+
+test('safety: a self-assigned approver in the chain is skipped, not pending', async () => {
+  // The applicant IS the company admin — that tier must not let them approve
+  // their own leave.
+  const r = await computeInitialApproval(
+    { ...input, userId: 'ca1' },
+    'employee',
+    { ...staffed, companyAdminIds: ['ca1'] },
+    { employee: ['companyAdmin'] },
+  );
+  assert.equal(r.approvalStatus.companyAdmin, 'Skipped');
+});
+
+test('every configurable requester role resolves a chain (and admin roles do not)', () => {
+  for (const role of REQUESTER_ROLES) {
+    assert.ok(Array.isArray(resolveApprovalChain(role, null)), `${role} must resolve to an array`);
+  }
+  assert.deepEqual(resolveApprovalChain('company-admin', null), []);
+  assert.deepEqual(resolveApprovalChain('master-admin', null), []);
 });

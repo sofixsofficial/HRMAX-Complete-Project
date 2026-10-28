@@ -111,6 +111,53 @@ export type LeaveTier = keyof LeaveTierStatus;
  */
 export const TIER_ORDER: LeaveTier[] = ['reportingManager', 'hr', 'companyAdmin', 'executive', 'teamLeader'];
 
+/**
+ * Configurable approval chains (company policy).
+ *
+ * The product's DEFAULT chain is per-requester-role (employee → RM → HR → CA,
+ * RM → HR → CA, HR → CA, exec → TL → MA gate, TL → MA gate). A company may
+ * override WHICH approver stages are active for each of its roles via
+ * `company.approvalChains`; the stages always execute in TIER_ORDER (the
+ * canonical sequential order), so a config is a per-role set of live tiers.
+ *
+ * Company Admin and Master Admin are intentionally absent: they have no
+ * personal leave/attendance (the create routes 403 them), so there is nothing
+ * to configure. Safety rules (unassigned-tier skip, self-approver skip) always
+ * apply on top of any configuration.
+ */
+export type RequesterRole = 'employee' | 'reporting-manager' | 'hr' | 'executive' | 'team-leader';
+
+export const REQUESTER_ROLES: RequesterRole[] = ['employee', 'reporting-manager', 'hr', 'executive', 'team-leader'];
+
+/** Per-requester-role override of the live approver stages. */
+export type ApprovalChainConfig = Partial<Record<RequesterRole, LeaveTier[]>>;
+
+/** The shipped defaults (identical to the historical hard-coded chains). */
+export const DEFAULT_APPROVAL_CHAINS: Record<RequesterRole, LeaveTier[]> = {
+  employee: ['reportingManager', 'hr', 'companyAdmin'],
+  'reporting-manager': ['hr', 'companyAdmin'],
+  hr: ['companyAdmin'],
+  executive: ['teamLeader'],
+  'team-leader': [],
+};
+
+/**
+ * Resolve the live, ordered tier list for a requester role: the company's
+ * configured stages when present (sanitised + canonically ordered), otherwise
+ * the default chain. Roles outside REQUESTER_ROLES (company-admin /
+ * master-admin) always resolve to [] because they cannot file leave.
+ */
+export function resolveApprovalChain(role: UserRole, configured?: ApprovalChainConfig | null): LeaveTier[] {
+  const key = role as RequesterRole;
+  if (!REQUESTER_ROLES.includes(key)) return [];
+  const raw = configured?.[key];
+  if (!Array.isArray(raw) || raw.length === 0) return [...DEFAULT_APPROVAL_CHAINS[key]];
+  const valid = raw.filter((t): t is LeaveTier => TIER_ORDER.includes(t));
+  // De-dupe and force canonical execution order regardless of how the config
+  // was authored, so the sequential approve-next guard stays correct.
+  return TIER_ORDER.filter((t) => valid.includes(t));
+}
+
 export interface LeaveRequestDoc extends BaseEntity {
   id: string;
   companyId: string;

@@ -10,7 +10,7 @@ import { assertCompanyScope, hasPermission, isSuperAdmin, readPartitions } from 
 import { putEntity, patchEntity, deleteEntity, queryEntities, queryEntitiesAcross, locateEntityAcross, allPartitions, getCompanyMeta, getEntity, getUserDoc, ConditionalWriteFailed } from '../lib/db.js';
 import { resolveStakeholders } from '../lib/stakeholders.js';
 import { createNotification, fanOutNotifications } from '../lib/notify.js';
-import { ApiError, newId, isoNow, TIER_ORDER, type AttendanceDoc, type AttendanceStatus, type LeaveTier, type UserRole } from '../lib/types.js';
+import { ApiError, newId, isoNow, TIER_ORDER, resolveApprovalChain, type ApprovalChainConfig, type AttendanceDoc, type AttendanceStatus, type LeaveTier, type UserRole } from '../lib/types.js';
 
 const GRACE_PERIOD_MINUTES = 15;
 const OVERTIME_THRESHOLD_MINUTES = 30;
@@ -441,29 +441,32 @@ export const attendanceRoutes: Route[] = [
         executive: stakeholders.executiveIds[0] ?? null,
         teamLeader: stakeholders.teamLeaderIds[0] ?? null,
       };
-      for (const t of TIER_ORDER) if (!approverIds[t]) status[t] = 'Skipped';
 
-      // Per-role chain truncation (parity with the leave flow):
+      // Configurable per-role chain (parity with the leave flow). Safety rules
+      // (unassigned-tier skip, self-approver skip) always apply.
       //   employee -> reporting manager -> HR -> company admin
       //   reporting manager -> HR -> company admin
       //   HR -> company admin
       //   executive -> team leader -> master admin gate
       //   team leader -> master admin gate
       const role = caller.role as UserRole;
-      if (role === 'team-leader') {
-        for (const t of TIER_ORDER) status[t] = 'Approved';
-      } else if (role === 'executive') {
-        status.reportingManager = 'Approved'; status.hr = 'Approved'; status.companyAdmin = 'Approved'; status.executive = 'Approved';
-      } else if (role === 'reporting-manager') {
-        status.reportingManager = 'Skipped';
-        status.executive = 'Skipped'; status.teamLeader = 'Skipped';
-      } else if (role === 'hr') {
-        status.reportingManager = 'Skipped'; status.hr = 'Skipped';
-        status.executive = 'Skipped'; status.teamLeader = 'Skipped';
-      } else if (role === 'employee') {
-        status.executive = 'Skipped'; status.teamLeader = 'Skipped';
-      }
+      const companyMeta = await getCompanyMeta(rec.companyId).catch(() => null);
+      const chains = (companyMeta?.approvalChains ?? null) as ApprovalChainConfig | null;
+      const liveChain = resolveApprovalChain(role, chains);
       const masterAdminRequired = role === 'team-leader' || role === 'executive';
+      const subjectUid = String(rec.userId ?? '');
+      for (const tier of TIER_ORDER) {
+        const inChain = liveChain.includes(tier);
+        const approver = approverIds[tier] ?? null;
+        const isSelfApprover = !!approver && !!subjectUid && approver === subjectUid;
+        if (inChain && approver && !isSelfApprover) {
+          status[tier] = 'Pending';
+        } else if (!inChain) {
+          status[tier] = masterAdminRequired ? 'Approved' : 'Skipped';
+        } else {
+          status[tier] = 'Skipped';
+        }
+      }
 
       const updated = await patchEntity<AttendanceDoc>('attendance', rec.companyId, rec.id, {
         missedPunchRectification: {
