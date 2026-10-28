@@ -254,25 +254,29 @@ html, body {
 .table-container,
 .table-wrapper,
 .table-scroll,
-.perm-table-container {
+.perm-table-container,
+.audit-table-wrapper {
   overflow-x: auto;
 }
 .table-container::-webkit-scrollbar,
 .table-wrapper::-webkit-scrollbar,
 .table-scroll::-webkit-scrollbar,
-.perm-table-container::-webkit-scrollbar {
+.perm-table-container::-webkit-scrollbar,
+.audit-table-wrapper::-webkit-scrollbar {
   height: 10px;
 }
 .table-container::-webkit-scrollbar-track,
 .table-wrapper::-webkit-scrollbar-track,
 .table-scroll::-webkit-scrollbar-track,
-.perm-table-container::-webkit-scrollbar-track {
+.perm-table-container::-webkit-scrollbar-track,
+.audit-table-wrapper::-webkit-scrollbar-track {
   background: #e5e7eb;
 }
 .table-container::-webkit-scrollbar-thumb,
 .table-wrapper::-webkit-scrollbar-thumb,
 .table-scroll::-webkit-scrollbar-thumb,
-.perm-table-container::-webkit-scrollbar-thumb {
+.perm-table-container::-webkit-scrollbar-thumb,
+.audit-table-wrapper::-webkit-scrollbar-thumb {
   background: #111827;
   border-radius: 999px;
   border: 2px solid #e5e7eb;
@@ -280,7 +284,8 @@ html, body {
 .table-container::-webkit-scrollbar-thumb:hover,
 .table-wrapper::-webkit-scrollbar-thumb:hover,
 .table-scroll::-webkit-scrollbar-thumb:hover,
-.perm-table-container::-webkit-scrollbar-thumb:hover {
+.perm-table-container::-webkit-scrollbar-thumb:hover,
+.audit-table-wrapper::-webkit-scrollbar-thumb:hover {
   background: #000;
 }
 

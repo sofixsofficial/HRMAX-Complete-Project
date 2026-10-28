@@ -234,6 +234,10 @@
   box-shadow: 0 1px 3px rgba(0,0,0,0.05);
   overflow-x: auto;
   -webkit-overflow-scrolling: touch;
+  /* Black horizontal scrollbar is applied by the shared App.css rule that
+     targets every table container (see .table-container in App.css) — this
+     wrapper is on that list. scrollbar-color is deliberately NOT set here:
+     it would disable the webkit styling in Chromium. */
 }
 
 .audit-table {
