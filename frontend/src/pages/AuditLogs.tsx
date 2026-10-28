@@ -114,12 +114,15 @@ export function AuditLogs() {
           const raw = d.data() as Record<string, unknown>
           // ISO strings carry a patched toDate() (see aws/firestore.ts); guard
           // against garbage so an invalid date can never render "Invalid Date".
-          const rawTs = (raw.timestamp ?? raw.createdAt) as
-            | { toDate?: () => Date }
-            | undefined
+          const rawTs = raw.timestamp ?? raw.createdAt
           let ts: Date | null = null
           try {
-            const parsed = rawTs?.toDate?.() ?? null
+            // Wire formats seen in the wild: ISO string (both writers), epoch
+            // milliseconds (one legacy row), or a Timestamp-like object.
+            const parsed =
+              typeof rawTs === 'number'
+                ? new Date(rawTs)
+                : ((rawTs as { toDate?: () => Date } | undefined)?.toDate?.() ?? null)
             if (parsed && !Number.isNaN(parsed.getTime())) ts = parsed
           } catch {
             ts = null
@@ -128,16 +131,18 @@ export function AuditLogs() {
             ...raw,
             id: d.id,
             timestamp: ts,
-            userId: String(raw.userId ?? raw.actorId ?? ''),
-            userName: String(raw.userName ?? raw.actorName ?? 'System'),
-            userRole: String(raw.userRole ?? raw.role ?? 'system'),
-            action: String(raw.action ?? 'Activity'),
-            actionType: String(raw.actionType ?? 'update'),
-            module: String(raw.module ?? 'Authentication'),
-            targetEntity: String(raw.targetEntity ?? raw.targetId ?? '—'),
-            status: String(raw.status ?? 'success'),
-            details: raw.details == null ? undefined : String(raw.details),
-            companyName: raw.companyName == null ? undefined : String(raw.companyName),
+            // `||` (not `??`) on purpose: server rows and some client rows ship
+            // EMPTY strings for these, which must fall through too.
+            userId: String(raw.userId || raw.actorId || raw.createdById || ''),
+            userName: String(raw.userName || raw.actorName || raw.createdByName || 'System'),
+            userRole: String(raw.userRole || raw.role || 'system'),
+            action: String(raw.action || 'Activity'),
+            actionType: String(raw.actionType || 'update'),
+            module: String(raw.module || 'Authentication'),
+            targetEntity: String(raw.targetEntity || raw.targetId || '—'),
+            status: String(raw.status || 'success'),
+            details: raw.details == null || raw.details === '' ? undefined : String(raw.details),
+            companyName: raw.companyName == null || raw.companyName === '' ? undefined : String(raw.companyName),
           } as unknown as AuditLog
         })
         if (effectiveCompanyId) allLogs.reverse()
