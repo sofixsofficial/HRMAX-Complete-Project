@@ -76,7 +76,7 @@ const isPermissionDenied = (err: unknown): boolean => {
 
 const writeErrorMessage = (err: unknown, verb: 'add' | 'update' | 'delete'): string => {
   if (isPermissionDenied(err)) {
-    return `Access denied: your role does not have permission to ${verb} branches. The Settings › Edit permission is required.`
+    return `Access denied: your role does not have permission to ${verb} branches. The Branches (or Settings › Edit) permission is required.`
   }
   return errText(err, `Failed to ${verb} branch. Please try again.`)
 }
@@ -111,8 +111,9 @@ export function Branches() {
   const urlCompanyId = searchParams.get('company') || ''
   const companyId = effectiveCompanyId || urlCompanyId || user?.companyId || ''
   const companyName = availableCompanies.find(c => c.id === companyId)?.name || ''
-  // The backend gates every branch write behind `settings.edit`.
-  const canWrite = canPerform('edit', 'settings')
+  // Branch writes are allowed via the legacy `settings.edit` umbrella OR a
+  // dedicated `branches.create`/`branches.edit` grant (Access Permissions).
+  const canWrite = canPerform('edit', 'settings') || canPerform('create', 'branches') || canPerform('edit', 'branches')
 
   const [branches, setBranches] = useState<Branch[]>([])
   const [employees, setEmployees] = useState<Employee[]>([])

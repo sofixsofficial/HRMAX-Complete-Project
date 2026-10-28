@@ -148,6 +148,7 @@ const PERMISSION_GROUPS: PermissionGroup[] = [
   { module: 'Settings', actions: ['view', 'create', 'edit', 'delete', 'approve', 'manage'], description: 'View and modify system configuration settings' },
   { module: 'Companies', actions: ['view', 'create', 'edit', 'delete', 'approve', 'manage'], description: 'View and manage company profiles and data' },
   { module: 'Departments', actions: ['view', 'create', 'edit', 'delete', 'approve', 'manage'], description: 'View, create, edit, and delete departments for assigned companies' },
+  { module: 'Branches', actions: ['view', 'create', 'edit', 'delete', 'manage'], description: 'Create and manage company branches (location, geofence, QR code)' },
   { module: 'Assets', actions: ['view', 'create', 'edit', 'delete', 'approve', 'manage'], description: 'Manage company assets, assignments, and returns' },
 ]
 

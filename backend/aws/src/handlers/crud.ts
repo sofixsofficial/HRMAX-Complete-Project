@@ -24,6 +24,10 @@ interface CollectionConfig {
   writePerm?: string;
   /** Permission required for delete (defaults to writePerm) */
   deletePerm?: string;
+  /** Any-of list for create/update — checked INSTEAD of writePerm when set. */
+  writeAnyOf?: string[];
+  /** Any-of list for delete — checked INSTEAD of deletePerm/writePerm when set. */
+  deleteAnyOf?: string[];
   /** Index user-scoped queries on GSI1 */
   userIdField?: string;
   /** Timestamp field for ordering */
@@ -69,6 +73,27 @@ export function crudRoutes(cfg: CollectionConfig): Route[] {
       const branch = await getEntity<Record<string, unknown>>('branch', companyId, bid);
       if (!branch) throw new ApiError('bad-request', 'One of the selected branches does not belong to this company.');
     }
+  };
+
+  /**
+   * Write/delete permission gate. A route may declare EITHER a single
+   * `writePerm`/`deletePerm` OR an any-of list (`writeAnyOf`/`deleteAnyOf`) so
+   * a module can be granted through its own permission (e.g. `branches.create`)
+   * OR a legacy umbrella permission (e.g. `settings.edit`) — branches use this
+   * so a Team Leader/Executive granted only branch rights can still manage them.
+   */
+  const assertAnyOf = (caller: Parameters<typeof hasPermission>[0], perms: string[], label: string): void => {
+    if (!perms.some((p) => hasPermission(caller, p))) {
+      throw new ApiError('permission-denied', `Missing permission: one of ${perms.join(' / ')} (${label})`);
+    }
+  };
+  const assertWrite = (caller: Parameters<typeof hasPermission>[0]): void => {
+    if (cfg.writeAnyOf) return assertAnyOf(caller, cfg.writeAnyOf, 'write');
+    if (cfg.writePerm) assertPermission(caller, cfg.writePerm);
+  };
+  const assertDelete = (caller: Parameters<typeof hasPermission>[0]): void => {
+    if (cfg.deleteAnyOf) return assertAnyOf(caller, cfg.deleteAnyOf, 'delete');
+    if (cfg.deletePerm ?? cfg.writePerm) assertPermission(caller, (cfg.deletePerm ?? cfg.writePerm)!);
   };
 
   return [
@@ -164,7 +189,7 @@ export function crudRoutes(cfg: CollectionConfig): Route[] {
         const caller = must(req);
         const data = { ...req.body } as Record<string, unknown>;
         const companyId = String(data.companyId || caller.companyId);
-        if (cfg.writePerm) assertPermission(caller, cfg.writePerm);
+        assertWrite(caller);
         if (!isSuperAdmin(caller)) assertCompanyScope(caller, companyId);
         await assertBranchesInCompany(data, companyId);
 
@@ -189,7 +214,7 @@ export function crudRoutes(cfg: CollectionConfig): Route[] {
       path: `${cfg.url}/:id`,
       handler: async (req) => {
         const caller = must(req);
-        if (cfg.writePerm) assertPermission(caller, cfg.writePerm);
+        assertWrite(caller);
 
         const patch = { ...req.body } as Record<string, unknown>;
         delete patch.id;
@@ -233,7 +258,7 @@ export function crudRoutes(cfg: CollectionConfig): Route[] {
       path: `${cfg.url}/:id`,
       handler: async (req) => {
         const caller = must(req);
-        if (cfg.writePerm) assertPermission(caller, cfg.writePerm);
+        assertWrite(caller);
 
         const patch = { ...req.body } as Record<string, unknown>;
         delete patch.id;
@@ -259,7 +284,7 @@ export function crudRoutes(cfg: CollectionConfig): Route[] {
       path: `${cfg.url}/:id`,
       handler: async (req) => {
         const caller = must(req);
-        if (cfg.deletePerm ?? cfg.writePerm) assertPermission(caller, (cfg.deletePerm ?? cfg.writePerm)!);
+        assertDelete(caller);
         const found = await locateEntityAcross<Record<string, unknown>>(cfg.entity, req.params.id, await readPartitions(caller));
         if (found) {
           if (!isSuperAdmin(caller)) assertCompanyScope(caller, found.companyId);
@@ -277,8 +302,11 @@ export const coreCrudRoutes: Route[] = [
   ...crudRoutes({ url: '/api/employees', entity: 'employee', readPerm: 'employees.view', writePerm: 'employees.create', userIdField: 'userId', editableFields: ['name', 'email', 'phone', 'designation', 'departmentId', 'status', 'reportingManagerId', 'avatar', 'address', 'dateOfJoining', 'salary', 'shiftStart', 'shiftEnd', 'shiftType', 'aadharDoc', 'panDoc', 'joiningLetterDoc', 'offerLetterDoc', 'slug', 'primaryBranchId', 'branchIds'] }),
   // Branches: company-scoped office locations. No readPerm — every signed-in
   // user (employees checking in included) must be able to list the branches
-  // they may punch at; writes are fenced to settings.edit + company scope.
-  ...crudRoutes({ url: '/api/branches', entity: 'branch', writePerm: 'settings.edit', tsField: 'createdAt' }),
+  // they may punch at; company scope still enforced on writes.
+  // Branches are writable via the legacy umbrella `settings.edit` OR a
+  // dedicated `branches.*` grant, so a Team Leader / Executive can be given
+  // branch management rights alone (Access Permissions → Branches).
+  ...crudRoutes({ url: '/api/branches', entity: 'branch', writeAnyOf: ['settings.edit', 'branches.manage', 'branches.create', 'branches.edit'], deleteAnyOf: ['settings.edit', 'branches.manage', 'branches.delete'], tsField: 'createdAt' }),
   ...crudRoutes({ url: '/api/departments', entity: 'department', readPerm: 'departments.view', writePerm: 'departments.create' }),
   ...crudRoutes({ url: '/api/tasks', entity: 'task', readPerm: 'tasks.view', writePerm: 'tasks.create', userIdField: 'assignedToId', tsField: 'createdAt' }),
   ...crudRoutes({ url: '/api/holidays', entity: 'holiday', readPerm: 'holidays.view', writePerm: 'holidays.create', tsField: 'date' }),
