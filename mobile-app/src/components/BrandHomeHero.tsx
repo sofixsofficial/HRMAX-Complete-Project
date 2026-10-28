@@ -22,13 +22,9 @@ export type HeroStat = {
   color: string;
 };
 
-const greetFor = (d: Date): string => {
-  const h = d.getHours();
-  if (h < 12) return 'Good Morning,';
-  if (h < 17) return 'Good Afternoon,';
-  if (h < 21) return 'Good Evening,';
-  return 'Good Night,';
-};
+// The time-of-day greeting ("Good Morning/Afternoon/Evening/Night") was removed
+// by request for parity with web — this hero shows only the name, role chip and
+// the live date/time.
 
 export const BrandHomeHero: React.FC<{
   name: string;
@@ -59,7 +55,6 @@ export const BrandHomeHero: React.FC<{
     >
       <View style={s.headRow}>
         <View style={{ flex: 1, minWidth: 0 }}>
-          <Text style={s.greeting}>{greetFor(now)}</Text>
           <Text style={s.name} numberOfLines={1}>{name}</Text>
           {!!subtitle && (
             <View style={s.roleChip}>

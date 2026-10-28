@@ -6,6 +6,7 @@ import { useCompany } from '../../context/CompanyContext';
 import { useAttendanceGate } from '../../hooks/useAttendanceGate';
 import { markCheckIn, markCheckOut, requestPunchRectification, reviewMissedPunchTier, reviewMasterAdminMissedPunch, getNextPendingMissedPunchTier, getActionableMissedPunchTier, getRecordEffectiveMissedPunchTiers, computeMissedPunchProgress, computeMissedPunchTotalTiers, MISSED_PUNCH_TIER_LABELS, MISSED_PUNCH_MASTER_ADMIN_LABEL, missedPunchTierLabel } from '../../services/attendanceApi';
 import { SelfieCaptureModal } from '../../components/SelfieCaptureModal';
+import { BranchQrModal } from '../../components/BranchQrModal';
 import { ScreenHeader } from '../../components/ScreenHeader';
 import { MonthAttendanceCalendar } from '../../components/MonthAttendanceCalendar';
 import { dayKey } from '../../utils/attendanceDate';
@@ -79,6 +80,7 @@ export const AttendanceScreen: React.FC<{ navigation: any }> = ({ navigation }) 
   const [pageSize, setPageSize] = useState(10);
   const [exporting, setExporting] = useState(false);
   const [showSelfieCapture, setShowSelfieCapture] = useState(false);
+  const [showQrSheet, setShowQrSheet] = useState(false);
   const [detailRecord, setDetailRecord] = useState<any>(null);
   const selfieUriRef = useRef<string | null>(null);
   const pulseAnim = useRef(new Animated.Value(1)).current;
@@ -138,7 +140,7 @@ export const AttendanceScreen: React.FC<{ navigation: any }> = ({ navigation }) 
   const isManager = ['executive', 'reporting-manager', 'hr-manager', 'hr', 'team-leader', 'company-admin', 'master-admin'].includes(user?.role || '');
   const isAdmin = user?.role === 'company-admin' || user?.role === 'master-admin';
   const isEmployeeRole = !user?.role || user?.role === 'employee';
-  const { policy, validateCheckIn, validateCheckOut } = useAttendanceGate();
+  const { policy, validateCheckIn, validateCheckOut, myBranches } = useAttendanceGate();
 
   useEffect(() => {
     Animated.loop(
@@ -256,17 +258,28 @@ export const AttendanceScreen: React.FC<{ navigation: any }> = ({ navigation }) 
   // CHECK-IN / CHECK-OUT — matching web's orange banner workflow
   // ────────────────────────────────────────────────────────────
 
-  const handleCheckIn = async () => {
+  const handleCheckIn = async (picked?: { branchId?: string; qrToken?: string }) => {
     if (!user?.companyId) {
       Alert.alert('Error', 'No company assigned to your account.');
       return;
     }
     setCheckingIn(true);
     try {
-      const res = await validateCheckIn({ selfieUri: selfieUriRef.current || undefined });
+      const res = await validateCheckIn({
+        selfieUri: selfieUriRef.current || undefined,
+        branchId: picked?.branchId,
+        qrToken: picked?.qrToken,
+      });
       if (!res.ok) {
         if (res.needsSelfie) {
           setShowSelfieCapture(true);
+          setCheckingIn(false);
+          return;
+        }
+        if (res.needsQr) {
+          // QR-enabled company: collect the branch code before punching,
+          // instead of letting the server reject it with QR_REQUIRED.
+          setShowQrSheet(true);
           setCheckingIn(false);
           return;
         }
@@ -276,6 +289,8 @@ export const AttendanceScreen: React.FC<{ navigation: any }> = ({ navigation }) 
       }
       const result = await markCheckIn(user.companyId, {
         selfieUri: selfieUriRef.current || undefined,
+        branchId: picked?.branchId,
+        qrToken: picked?.qrToken,
       });
       selfieUriRef.current = null;
       await fetchMyData();
@@ -308,6 +323,12 @@ export const AttendanceScreen: React.FC<{ navigation: any }> = ({ navigation }) 
     setShowSelfieCapture(false);
     selfieUriRef.current = url;
     handleCheckIn();
+  };
+
+  // QR sheet confirmed: close it and retry the punch with the branch + code.
+  const handleQrPicked = (payload: { branchId: string; qrToken: string }) => {
+    setShowQrSheet(false);
+    handleCheckIn(payload);
   };
 
   const handleCheckOut = async () => {
@@ -710,7 +731,7 @@ export const AttendanceScreen: React.FC<{ navigation: any }> = ({ navigation }) 
                 {!todayRecord?.checkIn ? (
                   <TouchableOpacity
                     style={s.checkInBannerBtn}
-                    onPress={handleCheckIn}
+                    onPress={() => handleCheckIn()}
                     disabled={checkingIn}
                     activeOpacity={0.8}>
                     {checkingIn ? <ActivityIndicator size={20} color="#fff" /> : <Icon name="enter-outline" size={20} color="#fff" />}
@@ -730,7 +751,7 @@ export const AttendanceScreen: React.FC<{ navigation: any }> = ({ navigation }) 
             </View>
 
             {/* Policy chips (Wi-Fi, Geofence, Selfie requirements) */}
-            {(policy?.wifiOnly || policy?.enableGeofence || policy?.requireSelfie || policy?.enableSelfie) && (
+            {(policy?.wifiOnly || policy?.enableGeofence || policy?.requireSelfie || policy?.enableSelfie || policy?.requireQr) && (
               <View style={s.policyChipsRow}>
                 {policy?.wifiOnly && (
                   <View style={s.policyChip}>
@@ -748,6 +769,12 @@ export const AttendanceScreen: React.FC<{ navigation: any }> = ({ navigation }) 
                   <View style={s.policyChip}>
                     <Icon name="camera-outline" size={10} color="#ec4899" />
                     <Text style={[s.policyChipText, { color: '#ec4899' }]}>Selfie required</Text>
+                  </View>
+                )}
+                {policy?.requireQr && (
+                  <View style={s.policyChip}>
+                    <Icon name="qr-code-outline" size={10} color="#8b5cf6" />
+                    <Text style={[s.policyChipText, { color: '#8b5cf6' }]}>Branch QR required</Text>
                   </View>
                 )}
               </View>
@@ -1347,6 +1374,15 @@ export const AttendanceScreen: React.FC<{ navigation: any }> = ({ navigation }) 
         userId={user?.id || ''}
         onClose={() => setShowSelfieCapture(false)}
         onCaptured={handleSelfieCaptured}
+      />
+
+      <BranchQrModal
+        visible={showQrSheet}
+        branches={myBranches.branches}
+        primaryBranchId={myBranches.primaryBranchId}
+        submitting={checkingIn}
+        onClose={() => setShowQrSheet(false)}
+        onSubmit={handleQrPicked}
       />
     </View>
   );

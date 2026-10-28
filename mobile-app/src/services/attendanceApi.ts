@@ -62,13 +62,18 @@ const getDeviceContext = async () => {
 
 export const markCheckIn = async (
   companyId: string,
-  opts?: { selfieUri?: string }
+  opts?: { selfieUri?: string; branchId?: string; qrToken?: string }
 ): Promise<CheckInResult> => {
   const ctx = await getDeviceContext();
   const res = await markAttendanceFn({
     action: 'check-in',
     companyId,
     selfieUri: opts?.selfieUri ?? null,
+    // Branch context: the server defaults to the employee's primary branch
+    // when these are absent, but a multi-branch employee punches against the
+    // branch they picked, and QR-enabled companies must send the scanned code.
+    branchId: opts?.branchId ?? '',
+    qrToken: opts?.qrToken ?? '',
     ...ctx,
   });
   return res.data as CheckInResult;

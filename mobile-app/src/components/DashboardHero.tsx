@@ -9,6 +9,7 @@ import { useCompany } from '../context/CompanyContext';
 import { useTodayAttendance } from '../hooks/useTodayAttendance';
 import { useAttendanceGate } from '../hooks/useAttendanceGate';
 import { markCheckIn, markCheckOut } from '../services/attendanceApi';
+import { BranchQrModal } from './BranchQrModal';
 import { logAudit } from '../services/auditLogService';
 import type { Holiday, LeaveRequest } from '../types/user';
 import {
@@ -403,9 +404,10 @@ const HeroAttendance: React.FC<{
   companyId: string;
 }> = ({ now, tz, showPunchActions, companyId }) => {
   const { todayRecord, loading, refresh } = useTodayAttendance();
-  const { validateCheckIn, validateCheckOut } = useAttendanceGate();
+  const { validateCheckIn, validateCheckOut, myBranches } = useAttendanceGate();
   const [busy, setBusy] = useState<'in' | 'out' | null>(null);
   const [punchMsg, setPunchMsg] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
+  const [showQrSheet, setShowQrSheet] = useState(false);
   const [reduceMotion, setReduceMotion] = useState(false);
   const { user } = useAuth();
   const day = useDayContext(user?.id, companyId);
@@ -470,7 +472,7 @@ const HeroAttendance: React.FC<{
   const showCheckIn = showPunchActions && !loading && resolved.canCheckIn;
   const showCheckOut = showPunchActions && !loading && resolved.canCheckOut;
 
-  const handleCheckIn = useCallback(async () => {
+  const handleCheckIn = useCallback(async (picked?: { branchId?: string; qrToken?: string }) => {
     if (busy) return;
     if (!companyId) {
       setPunchMsg({ type: 'error', text: 'No company assigned to your account.' });
@@ -479,8 +481,14 @@ const HeroAttendance: React.FC<{
     setBusy('in');
     setPunchMsg(null);
     try {
-      const res = await validateCheckIn();
+      const res = await validateCheckIn({ branchId: picked?.branchId, qrToken: picked?.qrToken });
       if (!res.ok) {
+        if (res.needsQr) {
+          // QR-enabled company: collect the branch code before punching,
+          // instead of letting the server reject it with QR_REQUIRED.
+          setShowQrSheet(true);
+          return;
+        }
         setPunchMsg({
           type: 'error',
           text: res.needsSelfie
@@ -490,7 +498,10 @@ const HeroAttendance: React.FC<{
         return;
       }
       // Server confirms the write; only then do we refetch the record.
-      const result = await markCheckIn(companyId);
+      const result = await markCheckIn(companyId, {
+        branchId: picked?.branchId,
+        qrToken: picked?.qrToken,
+      });
       refresh();
       setPunchMsg({ type: 'success', text: result.message || 'Checked in successfully!' });
       // Audit trail (spec): a punch is a state change on the attendance record.
@@ -513,6 +524,11 @@ const HeroAttendance: React.FC<{
       setBusy(null);
     }
   }, [busy, companyId, validateCheckIn, refresh, user]);
+
+  const handleQrPicked = useCallback((payload: { branchId: string; qrToken: string }) => {
+    setShowQrSheet(false);
+    void handleCheckIn(payload);
+  }, [handleCheckIn]);
 
   const handleCheckOut = useCallback(async () => {
     if (busy || !todayRecord?.checkIn || todayRecord?.checkOut) return;
@@ -636,6 +652,16 @@ const HeroAttendance: React.FC<{
           <Character mode={mode} animate={!reduceMotion} />
         </View>
       )}
+
+      {/* Branch + QR sheet for QR-enabled companies (mirrors the Attendance module). */}
+      <BranchQrModal
+        visible={showQrSheet}
+        branches={myBranches.branches}
+        primaryBranchId={myBranches.primaryBranchId}
+        submitting={busy === 'in'}
+        onClose={() => setShowQrSheet(false)}
+        onSubmit={handleQrPicked}
+      />
     </>
   );
 };
@@ -714,7 +740,7 @@ export const DashboardHero: React.FC<DashboardHeroProps> = ({
   }, [statCount, reduceMotion, statAnims]);
 
   const tz = effectiveTimezone(companyTz);
-  const { period, greeting } = getHeroScene(now, tz);
+  const { period } = getHeroScene(now, tz);
 
   const time = formatInZone(now, tz, { hour: '2-digit', minute: '2-digit', hour12: true });
   const periodLabel = period.charAt(0).toUpperCase() + period.slice(1);
@@ -737,10 +763,10 @@ export const DashboardHero: React.FC<DashboardHeroProps> = ({
       <Animated.View style={[styles.container, { opacity: fadeAnim, transform: [{ translateY: slideAnim }] }]}>
         <View style={styles.topRow}>
           <View style={styles.identityCol}>
-            {/* greeting + name (the initial-letter avatar was removed on request) */}
+            {/* Time-of-day greeting removed by request (matches web) — the hero
+                now shows only the name, role, date and live clock. */}
             <View style={styles.identityRow}>
               <View style={styles.identityText}>
-                <Text style={styles.greeting} numberOfLines={1}>{greeting}</Text>
                 <Text style={styles.name} numberOfLines={1}>{name}</Text>
               </View>
             </View>

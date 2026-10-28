@@ -13,6 +13,11 @@ export interface AttendancePolicy {
   mobileDataAllowed: boolean;
   requireSelfie: boolean;
   selfieExpirySeconds: number;
+  // Server-side check-in policy (backend attendance.ts getPolicy reads these
+  // exact keys off this row): GPS geofence, branch QR code and face capture.
+  requireGeofence: boolean;
+  requireQr: boolean;
+  requireFace: boolean;
   gracePeriodMinutes: number;
   lateThresholdMinutes: number;
   autoCheckoutMinutes: number;
@@ -43,6 +48,12 @@ const mapPolicy = (d: any): AttendancePolicy => ({
   mobileDataAllowed: d.data().mobileDataAllowed ?? true,
   requireSelfie: d.data().requireSelfie ?? false,
   selfieExpirySeconds: d.data().selfieExpirySeconds ?? 30,
+  // Server reads requireGeofence / requireQr / requireFace (with enableGps /
+  // enableQr / enableFace fallbacks) — mirror that here so the pre-punch gate
+  // blocks the same way the backend would.
+  requireGeofence: d.data().requireGeofence ?? d.data().enableGps ?? false,
+  requireQr: d.data().requireQr ?? d.data().enableQr ?? false,
+  requireFace: d.data().requireFace ?? d.data().enableFace ?? false,
   gracePeriodMinutes: d.data().gracePeriodMinutes ?? 15,
   lateThresholdMinutes: d.data().lateThresholdMinutes ?? 60,
   autoCheckoutMinutes: d.data().autoCheckoutMinutes ?? 0,

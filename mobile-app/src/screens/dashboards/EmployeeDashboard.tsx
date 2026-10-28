@@ -12,6 +12,7 @@ import { markCheckIn, markCheckOut, requestPunchRectification } from '../../serv
 import { notifyPunchRectificationRequested } from '../../services/notificationService';
 import { DashboardSkeleton } from '../../components/SkeletonLoader';
 import { SelfieCaptureModal } from '../../components/SelfieCaptureModal';
+import { BranchQrModal } from '../../components/BranchQrModal';
 import { Icon } from '../../utils/icons';
 import { StatCard } from '../../components/StatCard';
 import { StatsGrid } from '../../components/StatsGrid';
@@ -45,13 +46,14 @@ export const EmployeeDashboard: React.FC<{ navigation: any }> = ({ navigation })
   const { colors } = useTheme();
   const [refreshKey, setRefreshKey] = useState(0);
   const stats = useEmployeePersonalStats(refreshKey);
-  const { policy, validateCheckIn, validateCheckOut } = useAttendanceGate();
+  const { policy, validateCheckIn, validateCheckOut, myBranches } = useAttendanceGate();
   const s = useMemo(() => createStyles(colors), [colors]);
 
   const [refreshing, setRefreshing] = useState(false);
   const [checking, setChecking] = useState(false);
   const [designation, setDesignation] = useState<string | null>(null);
   const [showSelfieCapture, setShowSelfieCapture] = useState(false);
+  const [showQrSheet, setShowQrSheet] = useState(false);
   const selfieUriRef = useRef<string | null>(null);
   const pulseAnim = useRef(new Animated.Value(1)).current;
   const [rectifyModal, setRectifyModal] = useState<AttendanceRecord | null>(null);
@@ -162,7 +164,7 @@ export const EmployeeDashboard: React.FC<{ navigation: any }> = ({ navigation })
     if (!loading) setRefreshing(false);
   }, [loading]);
 
-  const handleCheckIn = async () => {
+  const handleCheckIn = async (picked?: { branchId?: string; qrToken?: string }) => {
     if (!user?.id || checking) return;
     if (!user.companyId) {
       setActionMsg({ type: 'error', text: 'No company assigned to your account.' });
@@ -170,11 +172,22 @@ export const EmployeeDashboard: React.FC<{ navigation: any }> = ({ navigation })
     }
     setChecking(true);
     try {
-      const res = await validateCheckIn({ selfieUri: selfieUriRef.current || undefined });
+      const res = await validateCheckIn({
+        selfieUri: selfieUriRef.current || undefined,
+        branchId: picked?.branchId,
+        qrToken: picked?.qrToken,
+      });
       if (!res.ok) {
         if (res.needsSelfie) {
           setChecking(false);
           setShowSelfieCapture(true);
+          return;
+        }
+        if (res.needsQr) {
+          // QR-enabled company: collect the branch code before punching,
+          // instead of letting the server reject it with QR_REQUIRED.
+          setChecking(false);
+          setShowQrSheet(true);
           return;
         }
         // On-screen banner, not Alert.alert: RN-web's Alert is a no-op, which
@@ -184,6 +197,8 @@ export const EmployeeDashboard: React.FC<{ navigation: any }> = ({ navigation })
       }
       const result = await markCheckIn(user.companyId, {
         selfieUri: selfieUriRef.current || undefined,
+        branchId: picked?.branchId,
+        qrToken: picked?.qrToken,
       });
       selfieUriRef.current = null;
       setActionMsg({ type: 'success', text: result.message || 'Checked in.' });
@@ -211,6 +226,12 @@ export const EmployeeDashboard: React.FC<{ navigation: any }> = ({ navigation })
     setShowSelfieCapture(false);
     selfieUriRef.current = url;
     handleCheckIn();
+  };
+
+  // QR sheet confirmed: close it and retry the punch with the branch + code.
+  const handleQrPicked = (payload: { branchId: string; qrToken: string }) => {
+    setShowQrSheet(false);
+    handleCheckIn(payload);
   };
 
   const handleCheckOut = async () => {
@@ -342,7 +363,7 @@ export const EmployeeDashboard: React.FC<{ navigation: any }> = ({ navigation })
 
         <TouchableOpacity
           style={[s.checkInWideBtn, (checking || completed) && { opacity: 0.6 }]}
-          onPress={canCheckOut ? handleCheckOut : canCheckIn ? handleCheckIn : undefined}
+          onPress={canCheckOut ? handleCheckOut : canCheckIn ? () => handleCheckIn() : undefined}
           disabled={checking || completed}
           activeOpacity={0.85}
           accessibilityRole="button"
@@ -595,6 +616,15 @@ export const EmployeeDashboard: React.FC<{ navigation: any }> = ({ navigation })
         userId={user?.id || ''}
         onClose={() => setShowSelfieCapture(false)}
         onCaptured={handleSelfieCaptured}
+      />
+
+      <BranchQrModal
+        visible={showQrSheet}
+        branches={myBranches.branches}
+        primaryBranchId={myBranches.primaryBranchId}
+        submitting={checking}
+        onClose={() => setShowQrSheet(false)}
+        onSubmit={handleQrPicked}
       />
 
       <Modal

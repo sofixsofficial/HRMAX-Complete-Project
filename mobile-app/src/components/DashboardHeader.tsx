@@ -11,12 +11,9 @@ interface DashboardHeaderProps {
   stats?: { label: string; value: string | number; color?: string }[];
 }
 
-const getGreeting = () => {
-  const h = new Date().getHours();
-  if (h < 12) return 'Good morning';
-  if (h < 17) return 'Good afternoon';
-  return 'Good evening';
-};
+// The time-of-day greeting ("Good morning/afternoon/evening") was removed by
+// request for parity with web — the header now shows only name, role, subtitle
+// and the live clock.
 
 export const DashboardHeader: React.FC<DashboardHeaderProps> = ({ name, roleLabel, subtitle, stats }) => {
   const { colors } = useTheme();
@@ -35,7 +32,6 @@ export const DashboardHeader: React.FC<DashboardHeaderProps> = ({ name, roleLabe
       <Animated.View style={[styles.container, { opacity: fadeAnim, transform: [{ translateY: slideAnim }] }]}>
         <View style={styles.topRow}>
           <View style={{ flex: 1, marginRight: 12 }}>
-            <Text style={styles.greeting}>{getGreeting()},</Text>
             <Text style={styles.name} numberOfLines={1}>{name}</Text>
             <View style={styles.tagRow}>
               {roleLabel ? (
