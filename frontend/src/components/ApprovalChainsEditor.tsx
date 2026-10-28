@@ -1,5 +1,5 @@
 import React from 'react';
-import { Check } from 'lucide-react';
+import { Check, Lock } from 'lucide-react';
 import {
   REQUESTER_ROLES,
   TIER_ORDER,
@@ -7,7 +7,6 @@ import {
   ROLE_LABELS,
   DEFAULT_APPROVAL_CHAINS,
   normalizeChain,
-  describeChain,
   type ApprovalChainConfig,
   type RequesterRole,
 } from '../utils/approvalChains';
@@ -30,9 +29,17 @@ const ROLE_HELP: Record<RequesterRole, string> = {
   employee: 'Chain an employee’s leave follows',
   'reporting-manager': 'A reporting manager’s own leave',
   hr: 'An HR member’s own leave',
-  executive: 'An executive’s own leave (Master Admin gives final approval)',
-  'team-leader': 'A team leader’s own leave (Master Admin gives final approval)',
+  executive: 'An executive’s own leave — always ends at the Master Admin final approval',
+  'team-leader': 'A team leader’s own leave — always ends at the Master Admin final approval',
 };
+
+/**
+ * Roles whose self-applications ALWAYS pass through the Master Admin final
+ * verification gate after the tier chain (executive → team leader → master
+ * admin; team leader → master admin). The gate is fixed, not configurable, so
+ * it is rendered as a locked, non-removable final step.
+ */
+const MASTER_ADMIN_GATED = new Set<RequesterRole>(['executive', 'team-leader']);
 
 export function ApprovalChainsEditor({ value, onChange }: Props) {
   const setRoleChain = (role: RequesterRole, tiers: string[]) => {
@@ -63,6 +70,7 @@ export function ApprovalChainsEditor({ value, onChange }: Props) {
         const configured = value?.[role];
         const tiers = normalizeChain(configured ?? DEFAULT_APPROVAL_CHAINS[role]);
         const isDefault = !configured || configured.length === 0;
+        const maGated = MASTER_ADMIN_GATED.has(role);
         return (
           <div className="ace-role" key={role}>
             <div className="ace-role-head">
@@ -92,12 +100,18 @@ export function ApprovalChainsEditor({ value, onChange }: Props) {
                   </label>
                 );
               })}
+              {/* Master Admin final gate — fixed for executive / team-leader, so it
+                  renders as a locked, non-removable last step. */}
+              {maGated && (
+                <span className="ace-tier ace-tier-on ace-tier-locked" title="Always required — cannot be removed">
+                  <span className="ace-tier-box"><Lock size={11} /></span>
+                  <span className="ace-tier-label">Master Admin</span>
+                </span>
+              )}
             </div>
 
             <p className="ace-summary">
-              {role === 'team-leader' && tiers.length === 0
-                ? 'No extra approvers — goes straight to the Master Admin final approval.'
-                : `Chain: ${describeChain(tiers)}`}
+              Chain: {[...tiers.map((t) => TIER_LABELS[t]), ...(maGated ? ['Master Admin'] : [])].join(' → ') || 'No approvers'}
             </p>
           </div>
         );

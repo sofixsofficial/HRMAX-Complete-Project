@@ -1216,4 +1216,6 @@
 .ace-tier-box { display: inline-flex; align-items: center; justify-content: center; width: 15px; height: 15px; border-radius: 4px; border: 1px solid #d1d5db; background: #fff; color: #fff; }
 .ace-tier-on .ace-tier-box { background: #f97316; border-color: #f97316; }
 .ace-summary { font-size: 11px; color: #6b7280; margin: 10px 0 0; }
+/* Locked final step (Master Admin gate) — not a checkbox, slightly muted. */
+.ace-tier-locked { cursor: not-allowed; border-style: dashed; opacity: 0.95; }
 
