@@ -141,6 +141,21 @@ const [submittingRectify, setSubmittingRectify] = useState(false)
 
   const executives = hierarchyUsers.filter(u => u.role === 'executive' && u.isActive !== false)
   const teamLeaders = hierarchyUsers.filter(u => u.role === 'team-leader' && u.isActive !== false)
+  // Org-filter dropdown options: master-admin sees every company / executive /
+  // team-leader; an executive or team-leader only sees those inside their own
+  // scoped companies (availableCompanies), so the filters narrow their existing
+  // access and never widen it.
+  const scopeIdSet = isMasterAdmin ? null : new Set(availableCompanies.map((c: any) => c.id))
+  const filterExecutives = scopeIdSet
+    ? executives.filter((e: any) => (e.assignedCompanyIds || []).some((id: string) => scopeIdSet.has(id)))
+    : executives
+  const filterTeamLeaders = scopeIdSet
+    ? teamLeaders.filter((tl: any) => {
+        const linked: string[] = tl.linkedExecutiveIds || (tl.reportingExecutiveId ? [tl.reportingExecutiveId] : [])
+        return linked.some((exId: string) => filterExecutives.some((e: any) => e.id === exId))
+      })
+    : teamLeaders
+  const filterCompanies = isMasterAdmin ? companies : availableCompanies
   const getCompanyName = (cId: string) => {
     if (!cId) return '--'
     if (companies.length === 0) return cId
@@ -210,12 +225,12 @@ const [submittingRectify, setSubmittingRectify] = useState(false)
   }
 
   useEffect(() => {
-    if (!isMasterAdmin || companyFilter === 'All') return
+    if (!showOrgColumns || companyFilter === 'All') return
     setCurrentPage(1)
   }, [companyFilter])
 
   useEffect(() => {
-    if (!isMasterAdmin) return
+    if (!showOrgColumns) return
     setCurrentPage(1)
   }, [executiveFilter, tlFilter])
 
@@ -330,14 +345,14 @@ const [submittingRectify, setSubmittingRectify] = useState(false)
   }, [showOrgColumns])
 
   useEffect(() => {
-    if (!isMasterAdmin) return
+    if (!showOrgColumns) return
     const unsub = onSnapshot(query(collection(db, 'users'), where('role', 'in', ['executive', 'team-leader'])), (snapshot) => {
       setHierarchyUsers(snapshot.docs.map(d => ({ id: d.id, ...d.data() })))
     }, (err) => {
       console.error('[Attendance] hierarchy users onSnapshot error:', err?.message || err)
     })
     return () => unsub()
-  }, [isMasterAdmin])
+  }, [showOrgColumns])
 
   // Fetch employee shift data for check-in processing
   useEffect(() => {
@@ -431,7 +446,7 @@ const [submittingRectify, setSubmittingRectify] = useState(false)
     return () => unsub()
   }, [isReportingManager, user?.id, companyId, effectiveCompanyId])
 
-  const visibleRecords = isMasterAdmin && companyFilter !== 'All'
+  const visibleRecords = showOrgColumns && companyFilter !== 'All'
     ? records.filter(r => r.companyId === companyFilter)
     : isReportingManager && teamUserIds.length > 0
       ? records.filter(r => teamUserIds.includes(r.userId) || r.userId === user?.id)
@@ -449,11 +464,11 @@ const [submittingRectify, setSubmittingRectify] = useState(false)
       const end = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1)
       return r.date >= start && r.date < end
     })()
-    const matchesExec = !isMasterAdmin || executiveFilter === 'All' || (() => {
+    const matchesExec = !showOrgColumns || executiveFilter === 'All' || (() => {
       const exec = getExecForCompany(r.companyId)
       return exec && exec.id === executiveFilter
     })()
-    const matchesTL = !isMasterAdmin || tlFilter === 'All' || (() => {
+    const matchesTL = !showOrgColumns || tlFilter === 'All' || (() => {
       const exec = getExecForCompany(r.companyId)
       if (!exec) return false
       const tl = getTLForExec(exec.id)
@@ -1214,7 +1229,7 @@ const [submittingRectify, setSubmittingRectify] = useState(false)
             <option value="On Leave">On Leave</option>
             <option value="Absent">Absent</option>
           </select>
-          {isMasterAdmin && (
+          {showOrgColumns && (
             <select
               value={companyFilter}
               onChange={e => setCompanyFilter(e.target.value)}
@@ -1226,10 +1241,10 @@ const [submittingRectify, setSubmittingRectify] = useState(false)
               }}
             >
               <option value="All">All Companies</option>
-              {companies.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+              {filterCompanies.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
             </select>
           )}
-          {isMasterAdmin && (
+          {showOrgColumns && (
             <select
               value={executiveFilter}
               onChange={e => setExecutiveFilter(e.target.value)}
@@ -1241,10 +1256,10 @@ const [submittingRectify, setSubmittingRectify] = useState(false)
               }}
             >
               <option value="All">All Executives</option>
-              {executives.map(e => <option key={e.id} value={e.id}>{e.name}</option>)}
+              {filterExecutives.map(e => <option key={e.id} value={e.id}>{e.name}</option>)}
             </select>
           )}
-          {isMasterAdmin && (
+          {showOrgColumns && (
             <select
               value={tlFilter}
               onChange={e => setTLFilter(e.target.value)}
@@ -1256,7 +1271,7 @@ const [submittingRectify, setSubmittingRectify] = useState(false)
               }}
             >
               <option value="All">All Team Leaders</option>
-              {teamLeaders.map(tl => <option key={tl.id} value={tl.id}>{tl.name}</option>)}
+              {filterTeamLeaders.map(tl => <option key={tl.id} value={tl.id}>{tl.name}</option>)}
             </select>
           )}
         </div>
@@ -1521,10 +1536,17 @@ const [submittingRectify, setSubmittingRectify] = useState(false)
           )}
         </div>
 
-        {canCheckInOut && !isAdmin && (
+        {canCheckInOut && !isAdmin && !isExecutive && !isTeamLeader && (
           <div style={{ marginTop: 20, padding: 16, background: '#fff7ed', borderRadius: 10, border: '1px solid #fed7aa', textAlign: 'center' }}>
             <p style={{ color: '#9a3412', fontSize: 14 }}>
               Only your own attendance records are shown. Contact your Company Admin for any corrections.
+            </p>
+          </div>
+        )}
+        {(isExecutive || isTeamLeader) && (
+          <div style={{ marginTop: 20, padding: 16, background: '#eff6ff', borderRadius: 10, border: '1px solid #bfdbfe', textAlign: 'center' }}>
+            <p style={{ color: '#1e40af', fontSize: 14 }}>
+              You are viewing attendance for your assigned companies. Use the Company, Executive and Team Leader filters to narrow it.
             </p>
           </div>
         )}

@@ -1117,7 +1117,15 @@ export function Employees() {
 
     // Permission + company scope check
     if (!isMasterAdmin) {
-      const permittedCompanies: string[] = (user as any)?.assignedCompanyIds || []
+      // Company-scoped roles (HR, Reporting Manager, Company Admin, Employee)
+      // are scoped by their own companyId and carry NO assignedCompanyIds —
+      // falling back to [companyId] stops the scope check from wrongly denying
+      // them. Executives keep their assignedCompanyIds portfolio; Team Leaders
+      // fall back to their companyId too.
+      const assigned: string[] = (user as any)?.assignedCompanyIds || []
+      const permittedCompanies: string[] = assigned.length > 0
+        ? assigned
+        : (user?.companyId ? [user.companyId] : [])
       if (!hasPermission('employees.create')) {
         const msg = 'Attempted Create Employee - Access Denied: missing create permission'
         if (user) {
