@@ -96,6 +96,59 @@ export function crudRoutes(cfg: CollectionConfig): Route[] {
     if (cfg.deletePerm ?? cfg.writePerm) assertPermission(caller, (cfg.deletePerm ?? cfg.writePerm)!);
   };
 
+  /**
+   * `companyId` change on an update = a TRANSFER between company partitions.
+   * Entity rows are keyed by company, so the document must MOVE (write under
+   * the target company, then delete the old row) — previously the field was
+   * dropped outright, so changing an employee's company silently did nothing,
+   * and the branch check ran against the OLD company, which 400'd the whole
+   * edit ("One of the selected branches does not belong to this company.") as
+   * soon as a branch of the NEW company was in the payload.
+   *
+   * Scope: a non-super-admin must already be scoped to BOTH sides of the
+   * transfer (company admin / HR are single-company → effectively a no-op;
+   * an executive with two assigned companies may move between them).
+   */
+  const transferCompany = async (
+    caller: Parameters<typeof hasPermission>[0],
+    found: Record<string, unknown>,
+    patch: Record<string, unknown>,
+    id: string,
+    newCompanyId: string,
+  ): Promise<Record<string, unknown>> => {
+    const oldCompanyId = String(found.companyId ?? '');
+    if (!isSuperAdmin(caller)) {
+      assertCompanyScope(caller, oldCompanyId);
+      assertCompanyScope(caller, newCompanyId);
+    }
+    await assertBranchesInCompany(patch, newCompanyId);
+    const moved: Record<string, unknown> = {
+      ...found,
+      ...patch,
+      companyId: newCompanyId,
+      updatedAt: isoNow(),
+    };
+    await putEntity(moved as never, storeOpts);
+    await deleteEntity(cfg.entity, oldCompanyId, id);
+    // Employees carry a login account: move its scope too, or the user keeps
+    // punching into / reading the company they were transferred OUT of.
+    if (cfg.entity === 'employee') {
+      const uid = String(moved.userId ?? '');
+      if (uid) {
+        const profile = await getUserDoc(uid);
+        if (profile) {
+          await writeUserDoc(uid, { ...profile, companyId: newCompanyId } as Parameters<typeof writeUserDoc>[1]);
+          // Drop the ghost copy left behind in the old company partition
+          // (writeUserDoc only writes the target partition + PROFILE).
+          if (oldCompanyId && oldCompanyId !== 'global') {
+            await deleteEntity('user', oldCompanyId, uid);
+          }
+        }
+      }
+    }
+    return moved;
+  };
+
   return [
     // ------------------------------------------------------------------ list
     {
@@ -218,6 +271,8 @@ export function crudRoutes(cfg: CollectionConfig): Route[] {
 
         const patch = { ...req.body } as Record<string, unknown>;
         delete patch.id;
+        // Company change = partition transfer (parity with PATCH below).
+        const requestedCompanyId = String(patch.companyId ?? '').trim();
         delete patch.companyId;
         if (cfg.editableFields && !isSuperAdmin(caller)) {
           for (const k of Object.keys(patch)) {
@@ -229,13 +284,18 @@ export function crudRoutes(cfg: CollectionConfig): Route[] {
         const found = await locateEntityAcross<Record<string, unknown>>(cfg.entity, req.params.id, await readPartitions(caller));
         if (found) {
           if (!isSuperAdmin(caller)) assertCompanyScope(caller, found.companyId);
-          await assertBranchesInCompany(patch, String(found.companyId ?? ''));
+          const oldCompanyId = String(found.companyId ?? '');
+          if (requestedCompanyId && requestedCompanyId !== oldCompanyId) {
+            const moved = await transferCompany(caller, found, patch, req.params.id, requestedCompanyId);
+            return { [cfg.entity]: moved };
+          }
+          await assertBranchesInCompany(patch, oldCompanyId);
           const updated = await patchEntity<Record<string, unknown>>(cfg.entity, found.companyId, req.params.id, patch, storeOpts);
           return { [cfg.entity]: updated };
         }
         // Firestore setDoc parity: PUT is an upsert â€” setDoc on a brand-new
         // document id creates it.
-        const companyId = String(req.body.companyId || caller.companyId);
+        const companyId = requestedCompanyId || String(req.body.companyId || caller.companyId);
         if (!isSuperAdmin(caller)) assertCompanyScope(caller, companyId);
         await assertBranchesInCompany(patch, companyId);
         const created = {
@@ -262,6 +322,11 @@ export function crudRoutes(cfg: CollectionConfig): Route[] {
 
         const patch = { ...req.body } as Record<string, unknown>;
         delete patch.id;
+        // A companyId change is a partition TRANSFER (see transferCompany), not
+        // a field patch — capture it before it is stripped. transferCompany
+        // asserts scope on BOTH sides, so a single-company role moving someone
+        // out gets a 403 instead of a silent no-op.
+        const requestedCompanyId = String(patch.companyId ?? '').trim();
         delete patch.companyId;
         if (cfg.editableFields && !isSuperAdmin(caller)) {
           for (const k of Object.keys(patch)) {
@@ -271,7 +336,12 @@ export function crudRoutes(cfg: CollectionConfig): Route[] {
         const found = await locateEntityAcross<Record<string, unknown>>(cfg.entity, req.params.id, await readPartitions(caller));
         if (!found) throw new ApiError('not-found', `${cfg.entity} not found`);
         if (!isSuperAdmin(caller)) assertCompanyScope(caller, found.companyId);
-        await assertBranchesInCompany(patch, String(found.companyId ?? ''));
+        const oldCompanyId = String(found.companyId ?? '');
+        if (requestedCompanyId && requestedCompanyId !== oldCompanyId) {
+          const moved = await transferCompany(caller, found, patch, req.params.id, requestedCompanyId);
+          return { [cfg.entity]: moved };
+        }
+        await assertBranchesInCompany(patch, oldCompanyId);
         const updated = await patchEntity<Record<string, unknown>>(cfg.entity, found.companyId, req.params.id, patch, storeOpts);
         if (!updated) throw new ApiError('not-found', `${cfg.entity} not found`);
         return { [cfg.entity]: updated };
