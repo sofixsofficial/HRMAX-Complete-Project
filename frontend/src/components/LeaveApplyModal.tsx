@@ -3,9 +3,11 @@ import { errText } from '../aws/errors';
 import { Loader2 } from 'lucide-react'
 import { Modal } from './Modal'
 import { useAuth } from '../context/AuthContext'
-import { auth } from '../aws/clients'
+import { auth, db } from '../aws/clients'
+import { doc, getDoc } from '../aws/firestore-compat'
 import { getEmployeeByUserId } from '../services/employeeService'
 import { createLeaveRequest, calcLeaveDays, isLeaveTypePaid, getEffectiveTiers, TIER_LABELS, requiresMasterAdminGate } from '../services/leaveService'
+import type { ApprovalChainConfig } from '../utils/approvalChains'
 import { logAudit } from '../services/auditLogService'
 import type { Employee, LeaveType } from '../types/user'
 
@@ -31,6 +33,9 @@ export function LeaveApplyModal({ isOpen, onClose, companyId, resubmitting }: Le
   const [own, setOwn] = useState<Employee | null>(null)
   const [submitting, setSubmitting] = useState(false)
   const [error, setError] = useState('')
+  // The company's configurable approval chains — the preview must show the
+  // SAME routing the server will apply (falls back to defaults when absent).
+  const [chains, setChains] = useState<ApprovalChainConfig | null>(null)
 
   useEffect(() => {
     if (isOpen) {
@@ -42,6 +47,20 @@ export function LeaveApplyModal({ isOpen, onClose, companyId, resubmitting }: Le
       if (uid) getEmployeeByUserId(uid).then(e => setOwn(e || null)).catch(() => setOwn(null))
     }
   }, [isOpen, resubmitting])
+
+  useEffect(() => {
+    const cid = companyId || user?.companyId
+    if (!isOpen || !cid) { setChains(null); return }
+    let dead = false
+    getDoc(doc(db, 'companies', cid))
+      .then((snap) => {
+        if (dead) return
+        const data = snap.exists() ? (snap.data() as Record<string, unknown>) : null
+        setChains((data?.approvalChains as ApprovalChainConfig) ?? null)
+      })
+      .catch(() => { if (!dead) setChains(null) })
+    return () => { dead = true }
+  }, [isOpen, companyId, user?.companyId])
 
   const company = companyId || user?.companyId || own?.companyId || ''
 
@@ -94,7 +113,7 @@ export function LeaveApplyModal({ isOpen, onClose, companyId, resubmitting }: Le
   // Tiers Verification preview — the exact role-aware chain createLeaveRequest
   // routes to on submit (Employee 4-tier, RM/HR 3-tier, Exec 2-tier, TL 1-tier,
   // Master Admin gate where applicable).
-  const tierSteps: { key: string; label: string }[] = getEffectiveTiers(user?.role).map((t) => ({
+  const tierSteps: { key: string; label: string }[] = getEffectiveTiers(user?.role, chains).map((t) => ({
     key: t as string,
     label: TIER_LABELS[t],
   }))

@@ -142,6 +142,8 @@ export const onboardCompany = async (data: {
   parentCompanyId?: string
   parentCompanyName?: string
   attendanceSettings: CompanyAttendanceSettings
+  /** Configurable per-role approval chains (defaults apply when omitted). */
+  approvalChains?: Record<string, string[]>
 }): Promise<Company> => {
   const code = await generateUniqueCode('companies', 'COMP')
   const companyId = doc(collection(db, 'companies')).id
@@ -168,6 +170,9 @@ export const onboardCompany = async (data: {
     parentCompanyId: data.parentCompanyId || '',
     parentCompanyName: data.parentCompanyName || '',
     attendanceSettings: data.attendanceSettings,
+    // Configurable approval chains (company policy) — the server reads this at
+    // leave/missed-punch create time (resolveApprovalChain).
+    ...(data.approvalChains ? { approvalChains: data.approvalChains } : {}),
   })
 
   // 2. Default departments

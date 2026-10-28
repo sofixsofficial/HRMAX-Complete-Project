@@ -12,6 +12,8 @@ import type { Resolver } from 'react-hook-form'
 import { z } from 'zod'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { validatePasswordPolicy } from '../utils/passwordPolicy'
+import { ApprovalChainsEditor } from '../components/ApprovalChainsEditor'
+import type { ApprovalChainConfig } from '../utils/approvalChains'
 import { httpsCallable } from '../aws/functions-compat'
 import { doc, onSnapshot } from '../aws/firestore-compat'
 import { functions, db } from '../aws/clients'
@@ -175,6 +177,9 @@ interface CompanyFormProps {
   isSubmitting: boolean;
   defaultValues?: Partial<CompanyFormValues>;
   showCredentials?: boolean;
+  /** Configurable per-role approval chains (company policy). */
+  approvalChains?: ApprovalChainConfig;
+  onApprovalChainsChange?: (next: ApprovalChainConfig) => void;
 }
 
 interface SearchableSelectProps {
@@ -243,7 +248,7 @@ const SearchableSelect = ({ label, options, value, onChange, placeholder, disabl
   )
 }
 
-const CompanyForm = ({ onSubmit, submitLabel, onCancel, isSubmitting, defaultValues, showCredentials }: CompanyFormProps) => {
+const CompanyForm = ({ onSubmit, submitLabel, onCancel, isSubmitting, defaultValues, showCredentials, approvalChains, onApprovalChainsChange }: CompanyFormProps) => {
   const { register, handleSubmit, setValue, watch, formState: { errors } } = useForm<CompanyFormValues>({
     // Cast: @hookform/resolvers' zod inference doesn't line up with z.infer
     // for this schema (known ecosystem typing limitation — runtime identical).
@@ -809,6 +814,14 @@ const CompanyForm = ({ onSubmit, submitLabel, onCancel, isSubmitting, defaultVal
       </label>
     </div>
 
+    <div className="form-group">
+      <label>Approval Chains (Leave &amp; Missed Punch)</label>
+      <ApprovalChainsEditor
+        value={approvalChains || {}}
+        onChange={onApprovalChainsChange || (() => {})}
+      />
+    </div>
+
     <div className="modal-footer">
       <button type="button" className="btn-secondary" onClick={onCancel}>Cancel</button>
       <button type="submit" className="btn-primary" disabled={isSubmitting}>
@@ -845,6 +858,10 @@ export function Companies() {
   const [deletingStaff, setDeletingStaff] = useState(false)
   const [selectedCompany, setSelectedCompany] = useState<Company | null>(null)
   const [editDefaultValues, setEditDefaultValues] = useState<Partial<CompanyFormValues> | undefined>(undefined)
+  // Configurable approval chains — newChains for the create form, editChains
+  // for the edit form; both merged into the company payload on save.
+  const [newChains, setNewChains] = useState<ApprovalChainConfig>({})
+  const [editChains, setEditChains] = useState<ApprovalChainConfig>({})
   const [isSubmitting, setIsSubmitting] = useState(false)
   
   const { user, hasPermission } = useAuth()
@@ -1185,6 +1202,9 @@ export function Companies() {
           defaultShiftEnd: values.defaultShiftEnd,
           gracePeriodMinutes: values.gracePeriodMinutes,
         },
+        // Configurable approval chains (company policy) — server reads these at
+        // leave/missed-punch create time.
+        approvalChains: newChains as Record<string, string[]>,
       })
 
       // Create the Company Admin login account with the provided credentials
@@ -1206,6 +1226,7 @@ export function Companies() {
       await updateCompany(company.id, { adminId: staffResult.uid } as any)
 
       setIsAddModalOpen(false)
+      setNewChains({})
       showToast(`Company added! Admin login — Username: ${values.adminUsername}, Password: ${values.adminPassword}`)
       // Recommended workflow: Create Company -> Create Branches -> Create
       // Employees (primary branch required) -> Check-in. Offer the next step
@@ -1234,7 +1255,7 @@ export function Companies() {
     setFormError(null)
     setIsSubmitting(true)
     try {
-      await updateCompany(selectedCompany.id, values as any)
+      await updateCompany(selectedCompany.id, { ...(values as any), approvalChains: editChains })
       setIsEditModalOpen(false)
       setSelectedCompany(null)
       showToast('Company updated successfully!')
@@ -1288,6 +1309,7 @@ export function Companies() {
   const openEditModal = (company: Company) => {
     setSelectedCompany(company)
     setFormError(null)
+    setEditChains((company.approvalChains as ApprovalChainConfig) || {})
     setEditDefaultValues({
       name: company.name,
       code: company.code,
@@ -1654,9 +1676,11 @@ export function Companies() {
         <CompanyForm 
           onSubmit={handleAddCompany}
           submitLabel="Add Company"
-          onCancel={() => { setIsAddModalOpen(false); setFormError(null) }}
+          onCancel={() => { setIsAddModalOpen(false); setFormError(null); setNewChains({}) }}
           isSubmitting={isSubmitting}
           showCredentials
+          approvalChains={newChains}
+          onApprovalChainsChange={setNewChains}
         />
       </Modal>
 
@@ -1673,6 +1697,8 @@ export function Companies() {
           onCancel={() => { setIsEditModalOpen(false); setSelectedCompany(null); setFormError(null) }}
           isSubmitting={isSubmitting}
           defaultValues={editDefaultValues}
+          approvalChains={editChains}
+          onApprovalChainsChange={setEditChains}
         />
       </Modal>
 

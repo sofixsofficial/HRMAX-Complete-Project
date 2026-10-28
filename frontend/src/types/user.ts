@@ -83,6 +83,12 @@ export interface Company {
   parentCompanyName?: string
   attendanceSettings?: CompanyAttendanceSettings
   payrollSettings?: CompanyPayrollSettings
+  /**
+   * Configurable per-role approval chains (company policy). Keys are requester
+   * roles (employee / reporting-manager / hr / executive / team-leader), values
+   * the live approver tiers in canonical order. Absent = shipped defaults.
+   */
+  approvalChains?: Partial<Record<string, ApprovalTier[]>>
   /** Profile page display preferences (working days/hours, time zone, currency) */
   settings?: {
     workingDays: string
