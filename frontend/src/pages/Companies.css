@@ -1201,3 +1201,19 @@
   margin: 2px 0 0 2px;
 }
 
+/* ── Approval Chains editor (company policy) ── */
+.approval-chains-editor { display: flex; flex-direction: column; gap: 16px; }
+.ace-intro { font-size: 12px; color: #6b7280; line-height: 1.5; margin: 0 0 4px; }
+.ace-role { border: 1px solid #e5e7eb; border-radius: 12px; padding: 14px; background: #f9fafb; }
+.ace-role-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; margin-bottom: 10px; }
+.ace-role-head strong { font-size: 13px; color: #111827; }
+.ace-role-head p { font-size: 11px; color: #9ca3af; margin: 2px 0 0; }
+.ace-reset { font-size: 11px; color: #f97316; background: none; border: none; cursor: pointer; font-weight: 600; white-space: nowrap; }
+.ace-tiers { display: flex; flex-wrap: wrap; gap: 8px; }
+.ace-tier { display: inline-flex; align-items: center; gap: 6px; padding: 6px 12px; border-radius: 999px; border: 1px solid #d1d5db; background: #fff; cursor: pointer; font-size: 12px; color: #374151; font-weight: 600; user-select: none; }
+.ace-tier input { display: none; }
+.ace-tier-on { border-color: #f97316; background: #fff7ed; color: #c2410c; }
+.ace-tier-box { display: inline-flex; align-items: center; justify-content: center; width: 15px; height: 15px; border-radius: 4px; border: 1px solid #d1d5db; background: #fff; color: #fff; }
+.ace-tier-on .ace-tier-box { background: #f97316; border-color: #f97316; }
+.ace-summary { font-size: 11px; color: #6b7280; margin: 10px 0 0; }
+
