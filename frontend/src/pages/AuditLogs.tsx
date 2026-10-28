@@ -221,13 +221,23 @@ export function AuditLogs() {
   const totalPages = Math.max(1, Math.ceil(filteredLogs.length / pageSize))
   const paginatedLogs = filteredLogs.slice((currentPage - 1) * pageSize, currentPage * pageSize)
 
+  // Server-written rows carry no `userRole` (only actorId) — resolve the
+  // actor's actual role from the loaded user list so a password reset shows
+  // "Master Admin", not a generic "System".
+  const resolveRole = (log: AuditLog): string => {
+    const own = String(log.userRole || '')
+    if (own && own !== 'system') return own
+    const match = log.userId && allUsers.find(u => u.id === log.userId)
+    return match?.role || 'system'
+  }
+
   // Export
   const handleExport = () => {
     const headers = ['Timestamp', 'User', 'Role', 'Action', 'Module', 'Target', 'Company', 'Status', 'Details']
     const rows = filteredLogs.map(l => [
       l.timestamp ? l.timestamp.toLocaleString() : 'N/A',
       l.userName,
-      l.userRole,
+      resolveRole(l),
       l.action,
       l.module,
       l.targetEntity,
@@ -453,7 +463,7 @@ export function AuditLogs() {
                 }
                 // Defensive: a row from an unknown writer must degrade to a
                 // label, never throw — one bad row used to blank the table.
-                const roleKey = String(log.userRole || 'system')
+                const roleKey = resolveRole(log)
                 const roleLabel = roleKey
                   .replace('-', ' ')
                   .replace(/\b\w/g, (l: string) => l.toUpperCase())
