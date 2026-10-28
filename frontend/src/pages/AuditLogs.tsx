@@ -103,11 +103,43 @@ export function AuditLogs() {
         // Snapshot data is untyped DocumentData — the docs are audit logs at runtime.
         // Rows carry `timestamp` (client writer), `createdAt` (server writer), or
         // both — display must fall back so no row renders as N/A.
-        let allLogs: AuditLog[] = snap.docs.map(d => ({
-          id: d.id,
-          ...d.data(),
-          timestamp: ((d.data() as any).timestamp ?? (d.data() as any).createdAt)?.toDate?.() ?? null,
-        })) as AuditLog[]
+        //
+        // Two writers, two shapes: the browser writer (`logAudit`) sends
+        // userName/userRole/module/status, while SERVER rows (legacy
+        // `logAuditEvent`, password/reset audits) only carry actorId/actorName/
+        // action/details. Spreading a server row as-is left `userRole` and
+        // `status` undefined, and one `.replace()` on undefined blanked the
+        // whole table — normalize every field at read time instead.
+        let allLogs: AuditLog[] = snap.docs.map(d => {
+          const raw = d.data() as Record<string, unknown>
+          // ISO strings carry a patched toDate() (see aws/firestore.ts); guard
+          // against garbage so an invalid date can never render "Invalid Date".
+          const rawTs = (raw.timestamp ?? raw.createdAt) as
+            | { toDate?: () => Date }
+            | undefined
+          let ts: Date | null = null
+          try {
+            const parsed = rawTs?.toDate?.() ?? null
+            if (parsed && !Number.isNaN(parsed.getTime())) ts = parsed
+          } catch {
+            ts = null
+          }
+          return {
+            ...raw,
+            id: d.id,
+            timestamp: ts,
+            userId: String(raw.userId ?? raw.actorId ?? ''),
+            userName: String(raw.userName ?? raw.actorName ?? 'System'),
+            userRole: String(raw.userRole ?? raw.role ?? 'system'),
+            action: String(raw.action ?? 'Activity'),
+            actionType: String(raw.actionType ?? 'update'),
+            module: String(raw.module ?? 'Authentication'),
+            targetEntity: String(raw.targetEntity ?? raw.targetId ?? '—'),
+            status: String(raw.status ?? 'success'),
+            details: raw.details == null ? undefined : String(raw.details),
+            companyName: raw.companyName == null ? undefined : String(raw.companyName),
+          } as unknown as AuditLog
+        })
         if (effectiveCompanyId) allLogs.reverse()
 
         const compSnap = await getDocs(collection(db, 'companies'))
@@ -404,14 +436,23 @@ export function AuditLogs() {
                 </tr>
               ) : paginatedLogs.map(log => {
                 const ModuleIcon = MODULE_ICONS[log.module] || FileText
-                const sc = statusBadge(log.status)
+                const sc = statusBadge(String(log.status || 'success'))
                 const roleColor: Record<string, string> = {
                   'master-admin': '#f97316',
                   'company-admin': '#3b82f6',
                   'executive': '#8b5cf6',
                   'team-leader': '#10b981',
+                  'hr': '#0ea5e9',
                   'employee': '#6b7280',
+                  'system': '#64748b',
                 }
+                // Defensive: a row from an unknown writer must degrade to a
+                // label, never throw — one bad row used to blank the table.
+                const roleKey = String(log.userRole || 'system')
+                const roleLabel = roleKey
+                  .replace('-', ' ')
+                  .replace(/\b\w/g, (l: string) => l.toUpperCase())
+                const statusKey = String(log.status || 'success')
                 return (
                   <tr key={log.id}>
                     <td>
@@ -428,8 +469,8 @@ export function AuditLogs() {
                       </div>
                     </td>
                     <td>
-                      <span className="audit-role-badge" style={{ color: roleColor[log.userRole] || '#6b7280' }}>
-                        {log.userRole.replace('-', ' ').replace(/\b\w/g, (l: string) => l.toUpperCase())}
+                      <span className="audit-role-badge" style={{ color: roleColor[roleKey] || '#6b7280' }}>
+                        {roleLabel}
                       </span>
                     </td>
                     <td>
@@ -449,7 +490,7 @@ export function AuditLogs() {
                     </td>
                     <td>
                       <span className="audit-status-badge" style={{ background: sc.bg, color: sc.text }}>
-                        {log.status.charAt(0).toUpperCase() + log.status.slice(1)}
+                        {statusKey.charAt(0).toUpperCase() + statusKey.slice(1)}
                       </span>
                     </td>
                   </tr>
