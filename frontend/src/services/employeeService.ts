@@ -198,15 +198,15 @@ export const getEmployeesByManagerId = async (managerId: string, options?: TeamO
   return []
 };
 
-// Roles offered as direct-manager options for an EMPLOYEE: dedicated Reporting
-// Managers plus the Company Admin of the same company (the RM -> Company Admin
-// approval hierarchy), strictly scoped to the selected company. Executives and
-// Team Leaders are never offered.
-const MANAGER_ROLES = ['reporting-manager', 'company-admin', 'hr', 'team-leader', 'executive'];
+// Roles offered as direct-manager options for an EMPLOYEE: every Reporting
+// Manager, Company Admin and HR account of the SAME company (strictly scoped
+// below). Executives and Team Leaders are NEVER offered — the selected manager
+// is who the employee reports to and who handles their attendance/leave
+// approvals (backend stakeholders.reportingManagerId reads this managerId).
+const MANAGER_ROLES = ['reporting-manager', 'company-admin', 'hr'];
 const MANAGER_ROLE_LABELS: Record<string, string> = {
   'company-admin': 'Company Admin',
-  'team-leader': 'Team Leader',
-  executive: 'Executive',
+  'hr': 'HR',
   'reporting-manager': 'Reporting Manager',
 };
 
@@ -248,22 +248,28 @@ const isUserInCompanyScope = (u: any, companyId: string, companyName?: string): 
   return idMatch || nameMatch;
 };
 
-// Get the assignable manager options for an EMPLOYEE's direct manager field:
-// dedicated Reporting Managers of the exact same company plus that company's
-// Company Admin (RM -> Company Admin hierarchy). Never Executives or Team
-// Leaders, and always scoped to the selected company.
+// Get the assignable manager options for an EMPLOYEE's direct manager:
+// EVERY Reporting Manager, Company Admin and HR of the exact same company —
+// always scoped to the selected company. Executives and Team Leaders are
+// never offered (even if a stray doc flags isReportingManager).
 export const getReportingManagersByCompany = async (companyId: string): Promise<Employee[]> => {
   const q = query(employeesRef, where('companyId', '==', companyId));
   const snapshot = await getDocs(q);
   const all = snapshot.docs.map(d => mapToEmployee(d.id, d.data()));
 
-  // Dedicated reporting-manager employees of this company.
+  // Manager-shaped employee docs of this company: any dedicated Reporting
+  // Manager plus everyone whose role IS reporting-manager / company-admin / hr.
+  const MANAGER_EMPLOYEE_ROLES = ['reporting-manager', 'company-admin', 'hr'];
+  const EXCLUDED_MANAGER_ROLES = ['executive', 'team-leader'];
   const rmEmployees = all.filter(
-    e => e.isReportingManager === true && e.status === 'Active'
+    e =>
+      e.status === 'Active' &&
+      !EXCLUDED_MANAGER_ROLES.includes(String(e.role || '')) &&
+      (e.isReportingManager === true || MANAGER_EMPLOYEE_ROLES.includes(String(e.role || '')))
   );
 
-  // Company-scoped Reporting-Manager + Company-Admin user accounts, mapped so
-  // the Company Admin appears as a selectable manager/approver for onboarding.
+  // Company-scoped Reporting-Manager + Company-Admin + HR user accounts, mapped
+  // so each appears as a selectable manager/approver for onboarding.
   let rmUsers: Employee[] = [];
   try {
     const uq = query(collection(db, 'users'), where('role', 'in', MANAGER_ROLES));
@@ -271,6 +277,7 @@ export const getReportingManagersByCompany = async (companyId: string): Promise<
     rmUsers = usnap.docs
       .map(d => ({ id: d.id, ...d.data() }))
       .filter(u => isUserInCompanyScope(u, companyId))
+      .filter(u => !EXCLUDED_MANAGER_ROLES.includes(String(u.role || '')))
       .map(u => mapUserToEmployee(u, companyId));
   } catch { /* users read unavailable — fall back to employee-based candidates */ }
 
