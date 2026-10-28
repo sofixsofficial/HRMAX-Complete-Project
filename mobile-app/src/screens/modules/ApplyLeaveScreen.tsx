@@ -1,10 +1,13 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import { View, Text, ScrollView, StyleSheet, TextInput, TouchableOpacity, Alert, Platform } from 'react-native';
 import { useAuth } from '../../context/AuthContext';
 import { useTheme, ThemeColors } from '../../context/ThemeContext';
 import { Icon } from '../../utils/icons';
 import { createLeaveRequest, calcLeaveDays, isLeaveTypePaid, getEffectiveTiers, TIER_LABELS, requiresMasterAdminGate } from '../../services/leaveService';
 import { logAudit } from '../../services/auditLogService';
+import { doc, getDoc } from '../../aws/firestore-compat';
+import { db } from '../../aws/clients';
+import type { ApprovalChainConfig } from '../../utils/approvalChains';
 import type { LeaveType } from '../../types/user';
 import { ScreenHeader } from '../../components/ScreenHeader';
 
@@ -80,7 +83,23 @@ export const ApplyLeaveScreen: React.FC = ({ navigation, route }: any) => {
   const [reason, setReason] = useState(params?.reason || '');
   const [halfDay, setHalfDay] = useState(false);
   const [submitting, setSubmitting] = useState(false);
+  // The company's configurable approval chains — the preview must match the
+  // routing the server will apply (defaults when absent).
+  const [chains, setChains] = useState<ApprovalChainConfig | null>(null);
   const s = useMemo(() => createStyles(colors), [colors]);
+
+  useEffect(() => {
+    if (!user?.companyId) { setChains(null); return; }
+    let dead = false;
+    getDoc(doc(db, 'companies', user.companyId))
+      .then((snap) => {
+        if (dead) return;
+        const data = snap.exists() ? (snap.data() as Record<string, unknown>) : null;
+        setChains((data?.approvalChains as ApprovalChainConfig) ?? null);
+      })
+      .catch(() => { if (!dead) setChains(null); });
+    return () => { dead = true; };
+  }, [user?.companyId]);
 
   const totalDays = useMemo(() => {
     if (!startDate || !endDate) return 0;
@@ -95,13 +114,13 @@ export const ApplyLeaveScreen: React.FC = ({ navigation, route }: any) => {
   //    will route to on submit: Employee RM → HR → CA, RM HR → CA, HR CA,
   //    Exec TL, TL none — all gated by the Master Admin where applicable) ──
   const tierSteps = useMemo(() => {
-    const steps: { key: string; label: string }[] = getEffectiveTiers(user?.role).map((t) => ({
+    const steps: { key: string; label: string }[] = getEffectiveTiers(user?.role, chains).map((t) => ({
       key: t as string,
       label: TIER_LABELS[t],
     }));
     if (requiresMasterAdminGate(user?.role)) steps.push({ key: 'masterAdmin', label: 'Master Admin' });
     return steps;
-  }, [user?.role]);
+  }, [user?.role, chains]);
 
   const handleSubmit = async () => {
     if (!startDate || !endDate || !reason.trim()) {

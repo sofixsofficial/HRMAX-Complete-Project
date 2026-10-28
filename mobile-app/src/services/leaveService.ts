@@ -7,6 +7,7 @@ import { httpsCallable } from '../aws/functions-compat';
 import { functions } from '../aws/clients';
 import { createNotification } from './notificationService';
 import type { LeaveRequest, LeaveType, LeaveStatus, ApprovalTier, ApprovalLevel, ApprovalFlags } from '../types/user';
+import { REQUESTER_ROLES, resolveApprovalChain, type RequesterRole, type ApprovalChainConfig } from '../utils/approvalChains';
 
 const COLLECTION_NAME = 'leaveRequests';
 
@@ -564,13 +565,13 @@ export const reviewMasterAdminLeaveRequest = async (
  * - Executive self-app:   Team Leader -> Master Admin gate
  * - Team Leader self-app: Master Admin gate only
  */
-export const getEffectiveTiers = (applicantRole?: string): ApprovalTier[] => {
-  if (applicantRole === 'reporting-manager') return ['hr', 'companyAdmin'];
-  if (applicantRole === 'hr' || applicantRole === 'hr-manager') return ['companyAdmin'];
-  if (applicantRole === 'executive') return ['teamLeader'];
-  // Team Leader self-apps route DIRECTLY to the Master Admin final gate.
-  if (applicantRole === 'team-leader') return [];
-  if (applicantRole === 'employee') return ['reportingManager', 'hr', 'companyAdmin'];
+export const getEffectiveTiers = (applicantRole?: string, chains?: ApprovalChainConfig | null): ApprovalTier[] => {
+  // hr-manager is a legacy alias for the HR role's chain (company admin only).
+  if (applicantRole === 'hr-manager') return ['companyAdmin'];
+  if (applicantRole && REQUESTER_ROLES.includes(applicantRole as RequesterRole)) {
+    // Company-configured stages (falls back to the shipped per-role default).
+    return resolveApprovalChain(applicantRole, chains);
+  }
   // Unknown / legacy role — show the full chain rather than an empty one.
   return [...TIER_ORDER];
 };
