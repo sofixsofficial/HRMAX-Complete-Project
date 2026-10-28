@@ -111,7 +111,10 @@ export function crudRoutes(cfg: CollectionConfig): Route[] {
    */
   const transferCompany = async (
     caller: Parameters<typeof hasPermission>[0],
-    found: Record<string, unknown>,
+    // locateEntityAcross returns a {doc, companyId} WRAPPER — the document
+    // itself is `.doc` (spreading the wrapper writes a nested `doc` field and
+    // loses `id`, which breaks the row).
+    found: { doc: Record<string, unknown>; companyId: string },
     patch: Record<string, unknown>,
     id: string,
     newCompanyId: string,
@@ -123,8 +126,9 @@ export function crudRoutes(cfg: CollectionConfig): Route[] {
     }
     await assertBranchesInCompany(patch, newCompanyId);
     const moved: Record<string, unknown> = {
-      ...found,
+      ...found.doc,
       ...patch,
+      id,
       companyId: newCompanyId,
       updatedAt: isoNow(),
     };
