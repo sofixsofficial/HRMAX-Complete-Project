@@ -151,7 +151,15 @@ async function getPolicy(companyId: string): Promise<AttendancePolicy> {
     defaultShiftStart: doc_?.defaultShiftStart ?? '09:00',
     defaultShiftEnd: doc_?.defaultShiftEnd ?? '18:00',
     gracePeriodMinutes: doc_?.gracePeriodMinutes ?? GRACE_PERIOD_MINUTES,
-    officeLocation: doc_?.officeLocation,
+    // A zeroed placeholder office (lat/lon 0,0) means the location was never
+    // picked — drop it so geofencing reports NO_OFFICE_LOCATION ("No office
+    // location configured") instead of measuring distance from (0,0) and
+    // returning a misleading "Location required for check-in". The embedded
+    // company fallback above applies the same rule.
+    officeLocation:
+      Number(doc_?.officeLocation?.latitude ?? 0) === 0 && Number(doc_?.officeLocation?.longitude ?? 0) === 0
+        ? undefined
+        : doc_?.officeLocation,
     requireQr: Boolean(doc_?.requireQr ?? doc_?.enableQr ?? false),
     requireFace: Boolean(doc_?.requireFace ?? doc_?.enableFace ?? false),
     ...flags,
