@@ -277,7 +277,9 @@ export const leaveRoutes: Route[] = [
       await fanOutNotifications(pendingApprovers, {
         companyId: input.companyId, type: 'leave_pending_review',
         title: 'Leave pending your review',
-        message: `${input.userId === caller.uid ? 'A team member' : caller.name} applied for ${input.type} leave.`,
+        // `leaveType` — the resolved type (web sends leaveType, mobile type);
+        // `input.type` is undefined on flat web payloads → "undefined leave".
+        message: `${input.userId === caller.uid ? 'A team member' : caller.name} applied for ${leaveType} leave.`,
         link: '/leaves', priority: 'normal',
       }, input.userId);
 
