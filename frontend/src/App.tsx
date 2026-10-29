@@ -145,6 +145,23 @@ function RoleAwareRedirect({ to }: { to: string }) {
   return <Navigate to={{ pathname: `${prefix}${to}`, search: location.search }} replace />
 }
 
+/**
+ * Notification links are written against a "generic" user
+ * ('/my-leaves', '/my-attendance', '/my-leaves-attendance') but every real
+ * page is role-prefixed — clicking one fell through to the marketing 404
+ * page. Land on a page that actually EXISTS for the current role:
+ *   - leaves      → every role has /{role}/leaves (own + managed requests)
+ *   - attendance  → exec/TL/HR/RM have My Leaves & Attendance; the employee
+ *                   and admins have their Attendance page.
+ */
+function RoleAwarePersonalRedirect({ page }: { page: 'leaves' | 'attendance' }) {
+  const { user } = useAuth()
+  if (page === 'leaves') return <RoleAwareRedirect to="/leaves" />
+  const personalRoles = ['executive', 'team-leader', 'hr', 'reporting-manager']
+  const to = personalRoles.includes(String(user?.role)) ? '/my-leaves-attendance' : '/attendance'
+  return <RoleAwareRedirect to={to} />
+}
+
 function AppRoutes() {
   const { isAuthenticated, isLoading, user } = useAuth();
   const location = useLocation();
@@ -466,6 +483,12 @@ function AppRoutes() {
       <Route path="/company-admin-approvals" element={<RoleAwareRedirect to="/company-admin-approvals" />} />
       <Route path="/my-profile" element={<RoleAwareRedirect to="/my-profile" />} />
       <Route path="/performance" element={<RoleAwareRedirect to="/performance" />} />
+      {/* Notification links (personal pages) — role-aware targets so a click
+          never falls through to the marketing 404 page. */}
+      <Route path="/my-leaves" element={<RoleAwarePersonalRedirect page="leaves" />} />
+      <Route path="/leave" element={<RoleAwarePersonalRedirect page="leaves" />} />
+      <Route path="/my-attendance" element={<RoleAwarePersonalRedirect page="attendance" />} />
+      <Route path="/my-leaves-attendance" element={<RoleAwarePersonalRedirect page="attendance" />} />
 
       <Route path="/unauthorized" element={
         <div style={{ 

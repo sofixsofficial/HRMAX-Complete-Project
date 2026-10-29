@@ -41,6 +41,11 @@ const MODULE_SCREENS: Record<string, string> = {
   '/assets': 'Assets',
   '/access-management': 'AccessManagement',
   '/notifications': 'Notifications',
+  // Personal links from notifications — resolve to the screens that exist
+  // for every role (Drawer + DashboardRouter both register these).
+  '/my-leaves': 'Leaves',
+  '/my-attendance': 'MyLeavesAttendance',
+  '/my-leaves-attendance': 'MyLeavesAttendance',
 };
 
 /**
