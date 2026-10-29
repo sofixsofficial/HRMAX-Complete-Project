@@ -284,7 +284,11 @@ export const attendanceRoutes: Route[] = [
           const bLat = Number(branch?.latitude ?? 0);
           const bLon = Number(branch?.longitude ?? 0);
           const loc = branch && (bLat !== 0 || bLon !== 0)
-            ? { latitude: bLat, longitude: bLon, radiusMeters: Number(branch.radiusMeters ?? policy.officeLocation?.radiusMeters ?? 100) }
+            // Both spellings accepted: the web Branches form writes
+            // `radiusInMeters`, mobile/backend use `radiusMeters` — without the
+            // fallback a web-configured per-branch radius was silently ignored
+            // and the company-office radius applied instead.
+            ? { latitude: bLat, longitude: bLon, radiusMeters: Number(branch.radiusMeters ?? branch.radiusInMeters ?? policy.officeLocation?.radiusMeters ?? 100) }
             : policy.officeLocation;
           if (!loc) return fail('NO_OFFICE_LOCATION', 'No office location configured');
           if (latitude === undefined || longitude === undefined) return fail('GPS_REQUIRED', 'Location required for check-in');

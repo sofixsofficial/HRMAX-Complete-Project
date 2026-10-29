@@ -98,7 +98,9 @@ export const mapBranch = (id: string, data: Record<string, unknown>): Branch => 
   city: data.city ? String(data.city) : '',
   latitude: toFiniteNumber(data.latitude),
   longitude: toFiniteNumber(data.longitude),
-  radiusInMeters: toFiniteNumber(data.radiusInMeters) ?? DEFAULT_RADIUS_IN_METERS,
+  // Both spellings exist in stored rows: this form historically wrote
+  // `radiusInMeters` while the backend geofence / mobile read `radiusMeters`.
+  radiusInMeters: toFiniteNumber(data.radiusInMeters) ?? toFiniteNumber(data.radiusMeters) ?? DEFAULT_RADIUS_IN_METERS,
   managerId: data.managerId ? String(data.managerId) : '',
   managerName: data.managerName ? String(data.managerName) : '',
   shifts: Array.isArray(data.shifts)
@@ -151,6 +153,10 @@ export const createBranch = async (branch: BranchInput): Promise<Branch> => {
     isActive: branch.isActive !== false,
     radiusInMeters:
       typeof branch.radiusInMeters === 'number' ? branch.radiusInMeters : DEFAULT_RADIUS_IN_METERS,
+    // Mirror the canonical backend/mobile field so the server-side geofence
+    // honours the radius configured here (it reads `radiusMeters`).
+    radiusMeters:
+      typeof branch.radiusInMeters === 'number' ? branch.radiusInMeters : DEFAULT_RADIUS_IN_METERS,
     createdAt: serverTimestamp(),
     updatedAt: serverTimestamp()
   });
@@ -165,7 +171,12 @@ export const updateBranch = async (
   updates: Partial<BranchInput>
 ): Promise<void> => {
   const docRef = doc(db, COLLECTION_NAME, id);
-  const clean = stripUndefined({ ...updates, updatedAt: serverTimestamp() });
+  // Keep the canonical `radiusMeters` in lockstep with the form field so the
+  // server-side geofence always sees the latest radius.
+  const mirrored = updates.radiusInMeters !== undefined
+    ? { ...updates, radiusMeters: updates.radiusInMeters }
+    : updates;
+  const clean = stripUndefined({ ...mirrored, updatedAt: serverTimestamp() });
   await updateDoc(docRef, clean);
 };
 

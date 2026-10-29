@@ -39,7 +39,9 @@ const mapBranch = (d: { id: string; data: () => Record<string, unknown> }): Bran
     address: raw.address == null ? undefined : String(raw.address),
     latitude: Number(raw.latitude ?? 0) || undefined,
     longitude: Number(raw.longitude ?? 0) || undefined,
-    radiusMeters: Number(raw.radiusMeters ?? 0) || undefined,
+    // `radiusInMeters` = legacy web-form spelling; accept both so branches
+    // created from the web UI carry their radius into the client check.
+    radiusMeters: Number(raw.radiusMeters ?? raw.radiusInMeters ?? 0) || undefined,
     // A branch archived on the web must not accept punches (the server
     // returns BRANCH_INACTIVE) — filter it out here so it is never offered.
     isActive: raw.isActive !== false,
