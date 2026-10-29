@@ -335,8 +335,8 @@ export const authRoutes: Route[] = [
     handler: async (req) => {
       const email = String(req.body.email ?? '').trim().toLowerCase();
       if (!email) throw new ApiError('bad-request', 'email required');
-      await enforceRateLimit(`forgot#${email}`, 3, 600);
-      await enforceRateLimit(`forgot-ip#${sourceIp(req)}`, 10, 600);
+      await enforceRateLimit(`forgot#${email}`, 8, 300);
+      await enforceRateLimit(`forgot-ip#${sourceIp(req)}`, 30, 300);
 
       const account = await cognitoGetUserByEmail(email);
       if (!account) {
@@ -388,8 +388,8 @@ export const authRoutes: Route[] = [
       const code = String(req.body.code ?? '');
       const newPassword = String(req.body.newPassword ?? '');
       if (!email || !code || !newPassword) throw new ApiError('bad-request', 'email, code, newPassword required');
-      await enforceRateLimit(`reset#${email}`, 5, 600);
-      await enforceRateLimit(`reset-ip#${sourceIp(req)}`, 10, 600);
+      await enforceRateLimit(`reset#${email}`, 10, 300);
+      await enforceRateLimit(`reset-ip#${sourceIp(req)}`, 30, 300);
 
       const policy = validatePasswordPolicy(newPassword);
       if (!policy.valid) throw new ApiError('bad-request', policy.message ?? 'Password does not meet the requirements.');
@@ -434,7 +434,7 @@ export const authRoutes: Route[] = [
       const email = String(req.body.email ?? '').trim().toLowerCase();
       const code = String(req.body.code ?? '');
       if (!email || !code) throw new ApiError('bad-request', 'email, code required');
-      await enforceRateLimit(`verify#${email}`, 10, 600);
+      await enforceRateLimit(`verify#${email}`, 20, 300);
       const codes = await queryEntities<ResetCodeDoc>({ entity: 'resetCode', companyId: 'global', filters: { email, used: false }, limit: 10 });
       const valid = codes.some((c) => c.code === createHash('sha256').update(code).digest('hex') && new Date(c.expiresAt).getTime() > Date.now());
       return { valid };
@@ -450,7 +450,7 @@ export const authRoutes: Route[] = [
       const current = String(req.body.currentPassword ?? '');
       const next = String(req.body.newPassword ?? '');
       if (!current || !next) throw new ApiError('bad-request', 'currentPassword and newPassword required');
-      await enforceRateLimit(`chpw#${caller.uid}`, 10, 600);
+      await enforceRateLimit(`chpw#${caller.uid}`, 15, 300);
       if (current === next) throw new ApiError('bad-request', 'New password must be different from the current password.');
       const policy = validatePasswordPolicy(next);
       if (!policy.valid) throw new ApiError('bad-request', policy.message ?? 'Password does not meet the requirements.');
@@ -499,7 +499,7 @@ export const authRoutes: Route[] = [
       const password = String(req.body.password ?? '');
       const name = String(req.body.name ?? '');
       if (!token || !email || !password || !name) throw new ApiError('bad-request', 'token, email, password, name required');
-      await enforceRateLimit(`invite-ip#${sourceIp(req)}`, 10, 600);
+      await enforceRateLimit(`invite-ip#${sourceIp(req)}`, 20, 300);
       const policy = validatePasswordPolicy(password);
       if (!policy.valid) throw new ApiError('bad-request', policy.message ?? 'Password does not meet the requirements.');
 
@@ -692,8 +692,8 @@ export const authRoutes: Route[] = [
       assertRole(caller, ['master-admin', 'company-admin', 'executive', 'team-leader']);
       const email = String(req.body.email ?? '').trim().toLowerCase();
       if (!email) throw new ApiError('bad-request', 'email required');
-      await enforceRateLimit(`adminreset#${email}`, 5, 600);
-      await enforceRateLimit(`adminreset-ip#${sourceIp(req)}`, 20, 600);
+      await enforceRateLimit(`adminreset#${email}`, 10, 300);
+      await enforceRateLimit(`adminreset-ip#${sourceIp(req)}`, 40, 300);
 
       const account = await cognitoGetUserByEmail(email);
       if (!account) throw new ApiError('not-found', `No HR MAX account exists for ${email}.`);

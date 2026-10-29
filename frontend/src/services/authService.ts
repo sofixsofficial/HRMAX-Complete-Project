@@ -115,7 +115,7 @@ const handleAuthError = (error: AuthError): void => {
     'auth/weak-password': 'Password is too weak (min 8 chars, upper+lower+number+symbol).',
     'auth/invalid-credential': ERROR_MESSAGES.invalidCredentials,
     'auth/requires-recent-login': ERROR_MESSAGES.sessionExpired,
-    'auth/too-many-requests': 'Too many failed attempts. Please try again later.',
+    'auth/too-many-requests': 'Too many attempts — please wait a minute and try again.',
     'auth/network-error': ERROR_MESSAGES.network,
     'auth/session-expired': ERROR_MESSAGES.sessionExpired,
     'auth/access-denied': ERROR_MESSAGES.accessDenied,

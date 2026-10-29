@@ -27,7 +27,7 @@ const handleAuthError = (error: AuthError): void => {
     'auth/invalid-email': ERROR_MESSAGES.invalidEmail,
     'auth/user-disabled': 'This account has been disabled.',
     'auth/invalid-credential': ERROR_MESSAGES.invalidCredentials,
-    'auth/too-many-requests': 'Too many failed attempts. Try again later.',
+    'auth/too-many-requests': 'Too many attempts — please wait a minute and try again.',
     'auth/network-error': ERROR_MESSAGES.network,
     'auth/session-expired': ERROR_MESSAGES.sessionExpired,
     'auth/access-denied': ERROR_MESSAGES.accessDenied,

@@ -33,6 +33,6 @@ export async function enforceRateLimit(bucket: string, limit: number, windowSeco
   );
   const count = Number(res.Attributes?.count ?? 1);
   if (count > limit) {
-    throw new ApiError('resource-exhausted', 'Too many requests. Please wait a moment and try again.');
+    throw new ApiError('resource-exhausted', 'Too many attempts — please wait a minute and try again.');
   }
 }

@@ -99,7 +99,7 @@ const authErrorMessage = (code: string): string => {
     case 'auth/operation-not-allowed':
       return 'Email/Password sign-in is not enabled. Contact your administrator.'
     case 'auth/too-many-requests':
-      return 'Too many attempts. Please try again later.'
+      return 'Too many attempts — please wait a minute and try again.'
     default:
       return code.includes('auth/') ? 'Authentication failed. Please try again.' : ''
   }

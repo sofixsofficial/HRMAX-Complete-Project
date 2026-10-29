@@ -93,7 +93,7 @@ export function friendlyMessage(
     return { code: err?.code ?? 'invalid-argument', message: err.message };
   }
   if (status === 429) {
-    return { code: 'too-many-requests', message: 'Too many attempts. Please wait a moment and try again.' };
+    return { code: 'too-many-requests', message: 'Too many attempts — please wait a minute and try again.' };
   }
   if (status >= 500) return { code: 'internal', message: ERROR_MESSAGES.generic };
   return { code: err?.code ?? 'unknown', message: ERROR_MESSAGES.generic };
