@@ -283,7 +283,9 @@ export function LeaveManagement() {
   }, [leaves, availableCompanies])
 
   // ── lookup helpers ──────────────────────────────────────────
-  const getCompanyName = (cid: string) => companiesById[cid]?.name || cid
+  // Fallback order: loaded company docs → server-stamped `companyName`
+  // (leave rows from a company this viewer is no longer scoped to) → raw id.
+  const getCompanyName = (cid: string) => companiesById[cid]?.name || leaves.find(l => l.companyId === cid)?.companyName || cid
   const getAssignedExecutiveId = (cid: string) => companiesById[cid]?.assignedExecutiveId || ''
   const getAssignedExecutive = (cid: string) => {
     const execId = getAssignedExecutiveId(cid)

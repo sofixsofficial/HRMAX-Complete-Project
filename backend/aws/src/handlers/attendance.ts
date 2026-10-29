@@ -338,8 +338,28 @@ export const attendanceRoutes: Route[] = [
         }
         await writeLog({ companyId, userId: caller.uid, action: 'check-in', status: 'success', date: today });
 
+        // Check-in notifications: a confirmation in the puncher's own inbox
+        // and a live heads-up to THEIR reporting manager (the attendance
+        // approver). The bell used to move only for late punches — every
+        // punch is now visible to the people tracking attendance.
+        const checkInTime = new Date(nowIso).toLocaleTimeString('en-US', { timeZone: tz, hour: '2-digit', minute: '2-digit' });
+        await createNotification({
+          userId: caller.uid, companyId, type: 'attendance_checkin',
+          title: 'Checked in',
+          message: `You checked in at ${checkInTime} (${status}).`,
+          link: '/my-attendance',
+        });
+        const stakeholders = await resolveStakeholders(companyId, caller.uid, caller.name);
+        if (stakeholders.reportingManagerId && stakeholders.reportingManagerId !== caller.uid) {
+          await createNotification({
+            userId: stakeholders.reportingManagerId, companyId, type: 'attendance_checkin',
+            title: 'Check-in',
+            message: `${caller.name} checked in at ${checkInTime} (${status}).`,
+            link: '/attendance',
+          });
+        }
+
         if (status === 'Late') {
-          const stakeholders = await resolveStakeholders(companyId, caller.uid, caller.name);
           await fanOutNotifications(
             [stakeholders.reportingManagerId ?? '', ...stakeholders.teamLeaderIds, ...stakeholders.executiveIds],
             { companyId, type: 'attendance_late', title: 'Late check-in', message: `${caller.name} checked in late (${lateMinutes} min).`, link: '/attendance' },
@@ -377,6 +397,24 @@ export const attendanceRoutes: Route[] = [
         throw err;
       }
       await writeLog({ companyId, userId: caller.uid, action: 'check-out', status: 'success', date: today });
+      // Check-out notifications (parity with check-in): own confirmation
+      // with today's worked hours + a heads-up to the reporting manager.
+      const checkOutTime = new Date().toLocaleTimeString('en-US', { timeZone: tz, hour: '2-digit', minute: '2-digit' });
+      await createNotification({
+        userId: caller.uid, companyId, type: 'attendance_checkout',
+        title: 'Checked out',
+        message: `You checked out at ${checkOutTime} (${updated?.workHours ?? 0} h worked).`,
+        link: '/my-attendance',
+      });
+      const outStakeholders = await resolveStakeholders(companyId, caller.uid, caller.name);
+      if (outStakeholders.reportingManagerId && outStakeholders.reportingManagerId !== caller.uid) {
+        await createNotification({
+          userId: outStakeholders.reportingManagerId, companyId, type: 'attendance_checkout',
+          title: 'Check-out',
+          message: `${caller.name} checked out at ${checkOutTime}.`,
+          link: '/attendance',
+        });
+      }
       return { attendance: updated };
     },
   },

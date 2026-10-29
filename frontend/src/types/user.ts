@@ -547,6 +547,10 @@ export interface LeaveRequest {
   department: string
   departmentId: string
   companyId: string
+  /** Display name of companyId, resolved server-side at read time — used
+   *  when the viewer cannot read the other company's document (e.g. after a
+   *  transfer) so the Company column never falls back to a raw id. */
+  companyName?: string
   leaveType: LeaveType
   startDate: Date
   endDate: Date
@@ -739,6 +743,8 @@ export type NotificationType =
   | 'task_completed'
   | 'attendance_marked'
   | 'attendance_late'
+  | 'attendance_checkin'
+  | 'attendance_checkout'
   | 'missed_punch'
   | 'punch_rectification_requested'
   | 'punch_rectification_resolved'

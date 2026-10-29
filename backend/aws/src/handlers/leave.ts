@@ -306,6 +306,23 @@ export const leaveRoutes: Route[] = [
       if (['employee', 'reporting-manager'].includes(caller.role)) {
         docs = docs.filter((d) => d.userId === caller.uid || (caller.role === 'reporting-manager' && hasPermission(caller, 'leave.approve')));
       }
+
+      // Company-name enrichment: a transferred employee can still read their
+      // old leave rows but is scope-denied on the OTHER company's document,
+      // so the UI's getCompanyById fallback rendered the raw id
+      // ("2GAhPdA4myfsV9hwEQIW"). The name of a row you may already see is
+      // not sensitive — resolve it server-side where every partition is
+      // readable.
+      if (docs.length > 0) {
+        const ids = [...new Set(docs.map((d) => String(d.companyId ?? '')).filter(Boolean))];
+        const names: Record<string, string> = {};
+        await Promise.all(ids.map(async (id) => {
+          const c = await getEntity<Record<string, unknown>>('company', id, id).catch(() => null);
+          const name = c ? String(c.name ?? '').trim() : '';
+          if (name) names[id] = name;
+        }));
+        docs = docs.map((d) => (names[String(d.companyId)] ? { ...d, companyName: names[String(d.companyId)] } : d));
+      }
       return { leaveRequests: docs };
     },
   },

@@ -179,6 +179,10 @@ export interface LeaveRequestDoc extends BaseEntity {
   appliedOn?: string;
   departmentId?: string | null;
   notifiedFinalStatus?: boolean;
+  /** Display name of `companyId`, stamped at read time so scoped viewers
+   *  (e.g. a transferred employee who cannot read the other company's doc)
+   *  never see a raw company id in the UI. */
+  companyName?: string;
 }
 
 export type AttendanceStatus =
