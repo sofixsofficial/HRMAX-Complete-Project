@@ -524,7 +524,7 @@ const CompanyForm = ({ onSubmit, submitLabel, onCancel, isSubmitting, defaultVal
             <input
               type="text"
               {...register('adminUsername')}
-              placeholder="e.g. admin_johndoe"
+              placeholder="admin_username"
             />
             {errors.adminUsername && <span className="field-error">{errors.adminUsername.message}</span>}
           </div>
@@ -696,7 +696,7 @@ const CompanyForm = ({ onSubmit, submitLabel, onCancel, isSubmitting, defaultVal
 
     <div className="form-group">
       <label>Office Full Address *</label>
-      <input type="text" {...register('officeAddress')} placeholder="e.g. Bardibas, Madhesh Province, Nepal" />
+      <input type="text" {...register('officeAddress')} placeholder="Your office address (street, area, city)" />
       {errors.officeAddress && <span className="field-error">{errors.officeAddress.message}</span>}
     </div>
 
@@ -796,7 +796,7 @@ const CompanyForm = ({ onSubmit, submitLabel, onCancel, isSubmitting, defaultVal
     {requireWifi && (
       <div className="form-group conditional-field">
         <label>Office Wi-Fi SSID</label>
-        <input type="text" {...register('wifiSSID')} placeholder="e.g. Sofixs_Office_5G" />
+        <input type="text" {...register('wifiSSID')} placeholder="e.g. Office_WiFi_5G" />
       </div>
     )}
 

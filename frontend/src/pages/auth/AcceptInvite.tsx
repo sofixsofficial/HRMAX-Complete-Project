@@ -230,7 +230,7 @@ export const AcceptInvite: React.FC = () => {
                     name="name"
                     value={formData.name}
                     onChange={handleChange}
-                    placeholder="John Doe"
+                    placeholder="Your Full Name"
                     required
                   />
                 </div>

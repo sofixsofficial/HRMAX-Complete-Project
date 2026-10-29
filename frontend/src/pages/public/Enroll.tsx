@@ -270,7 +270,7 @@ export function Enroll() {
             <div className="form-row">
               <label>
                 <span>Country *</span>
-                <input type="text" value={form.country} onChange={e => set('country', e.target.value)} placeholder="e.g. India, Nepal" />
+                <input type="text" value={form.country} onChange={e => set('country', e.target.value)} placeholder="Your country" />
               </label>
               <label>
                 <span>Organization size *</span>

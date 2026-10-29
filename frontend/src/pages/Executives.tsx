@@ -1478,7 +1478,7 @@ export function Executives() {
             <div className="modal-section-content">
               <div className="modal-field">
                 <label>System Username *</label>
-                <input type="text" {...form.register('username')} placeholder="e.g. sarahj" />
+                <input type="text" {...form.register('username')} placeholder="your_username" />
                 {form.formState.errors.username && <span className="field-error">{form.formState.errors.username.message}</span>}
               </div>
               <div className="modal-field">
@@ -1715,7 +1715,7 @@ export function Executives() {
               <div className="modal-section-content">
                 <div className="modal-field">
                   <label>Office Full Address</label>
-                  <input type="text" {...form.register('officeAddress')} placeholder="e.g. Bardibas, Madhesh Province, Nepal" />
+                  <input type="text" {...form.register('officeAddress')} placeholder="Your office address (street, area, city)" />
                   {form.formState.errors.officeAddress && <span className="field-error">{form.formState.errors.officeAddress.message}</span>}
                 </div>
                 <div className="modal-field">
@@ -1765,7 +1765,7 @@ export function Executives() {
                 {form.watch('requireWifi') && (
                   <div className="modal-field conditional-field">
                     <label>Office Wi-Fi SSID</label>
-                    <input type="text" {...form.register('wifiSSID')} placeholder="e.g. Sofixs_Office_5G" />
+                    <input type="text" {...form.register('wifiSSID')} placeholder="e.g. Office_WiFi_5G" />
                   </div>
                 )}
                 <div className="toggle-card">
@@ -2067,7 +2067,7 @@ export function Executives() {
               <div className="modal-section-content">
                 <div className="modal-field">
                   <label>Office Full Address</label>
-                  <input type="text" {...form.register('officeAddress')} placeholder="e.g. Bardibas, Madhesh Province, Nepal" />
+                  <input type="text" {...form.register('officeAddress')} placeholder="Your office address (street, area, city)" />
                   {form.formState.errors.officeAddress && <span className="field-error">{form.formState.errors.officeAddress.message}</span>}
                 </div>
                 <div className="modal-field">
@@ -2117,7 +2117,7 @@ export function Executives() {
                 {form.watch('requireWifi') && (
                   <div className="modal-field conditional-field">
                     <label>Office Wi-Fi SSID</label>
-                    <input type="text" {...form.register('wifiSSID')} placeholder="e.g. Sofixs_Office_5G" />
+                    <input type="text" {...form.register('wifiSSID')} placeholder="e.g. Office_WiFi_5G" />
                   </div>
                 )}
                 <div className="toggle-card">

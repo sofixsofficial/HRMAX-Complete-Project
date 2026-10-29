@@ -348,7 +348,7 @@ const EmployeeFormContent = forwardRef<EmployeeFormRef, EmployeeFormContentProps
         <div className="modal-section-content">
           <div className="modal-field">
             <label>System Username *</label>
-            <input type="text" {...form.register('username')} placeholder="e.g. johndoe" />
+            <input type="text" {...form.register('username')} placeholder="your_username" />
             {form.formState.errors.username && <span className="field-error">{form.formState.errors.username.message}</span>}
           </div>
           <div className="modal-field">
@@ -590,7 +590,7 @@ const EmployeeFormContent = forwardRef<EmployeeFormRef, EmployeeFormContentProps
           </div>
           <div className="modal-field">
             <label>Account Holder Name</label>
-            <input type="text" {...form.register('accountHolderName')} placeholder="e.g. John Doe" />
+            <input type="text" {...form.register('accountHolderName')} placeholder="Account Holder Full Name" />
           </div>
           <div className="modal-field">
             <label>Account Number</label>

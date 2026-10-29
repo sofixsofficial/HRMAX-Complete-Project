@@ -770,7 +770,7 @@ export function Branches() {
           </div>
           <div className="form-group">
             <label>City</label>
-            <input type="text" {...register('city')} placeholder="City" />
+            <input type="text" {...register('city')} placeholder="Your city" />
             {errors.city && <span className="field-error">{errors.city.message}</span>}
           </div>
           <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap' }}>
@@ -860,7 +860,7 @@ export function Branches() {
           </div>
           <div className="form-group">
             <label>City</label>
-            <input type="text" {...register('city')} placeholder="City" />
+            <input type="text" {...register('city')} placeholder="Your city" />
             {errors.city && <span className="field-error">{errors.city.message}</span>}
           </div>
           <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap' }}>

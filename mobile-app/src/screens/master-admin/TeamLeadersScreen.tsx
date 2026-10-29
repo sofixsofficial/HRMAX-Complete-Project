@@ -617,7 +617,7 @@ export const TeamLeadersScreen: React.FC = () => {
               {!editing && (
                 <>
                   <Text style={s.fieldLabel}>System Username *</Text>
-                  <TextInput style={s.input} placeholder="e.g. rohitk" placeholderTextColor={colors.textTertiary} value={form.username} onChangeText={(t) => setForm({...form, username: t})} autoCapitalize="none" autoCorrect={false} />
+                  <TextInput style={s.input} placeholder="your_username" placeholderTextColor={colors.textTertiary} value={form.username} onChangeText={(t) => setForm({...form, username: t})} autoCapitalize="none" autoCorrect={false} />
                   <Text style={s.fieldLabel}>Temporary Password *</Text>
                   <TextInput style={s.input} placeholder="Min 8 chars (upper+lower+number+symbol)" placeholderTextColor={colors.textTertiary} value={form.password} onChangeText={(t) => setForm({...form, password: t})} />
                 </>

@@ -753,7 +753,7 @@ export function AccessManagement() {
                       type="text"
                       value={inviteForm.name}
                       onChange={(e) => setInviteForm(prev => ({ ...prev, name: e.target.value }))}
-                      placeholder="John Doe"
+                      placeholder="Your Full Name"
                       required={!inviteForm.employeeId}
                       className="w-full px-3.5 py-2.5 text-sm border border-gray-300 rounded-xl bg-white text-gray-900 placeholder-gray-400 outline-none focus:border-blue-500 focus:ring-[3px] focus:ring-blue-100 transition-all"
                     />

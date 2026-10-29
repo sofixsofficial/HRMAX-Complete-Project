@@ -555,7 +555,7 @@ export function CompanyProfile() {
               <div className="modal-body" style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
                 <div>
                   <label style={{ fontSize: 12, fontWeight: 600, color: '#374151', display: 'block', marginBottom: 4 }}>Policy Name *</label>
-                  <input type="text" value={policyName} onChange={e => setPolicyName(e.target.value)} placeholder="e.g. ABC Standard Policy" style={{ border: '1px solid #d1d5db', borderRadius: 6, padding: '8px 10px', fontSize: 14, width: '100%', boxSizing: 'border-box', outline: 'none' }} />
+                  <input type="text" value={policyName} onChange={e => setPolicyName(e.target.value)} placeholder="e.g. Standard Leave Policy" style={{ border: '1px solid #d1d5db', borderRadius: 6, padding: '8px 10px', fontSize: 14, width: '100%', boxSizing: 'border-box', outline: 'none' }} />
                 </div>
                 <div>
                   <label style={{ fontSize: 12, fontWeight: 600, color: '#374151', display: 'block', marginBottom: 4 }}>Description</label>
