@@ -188,6 +188,36 @@ export async function readPartitions(caller: Caller): Promise<string[]> {
 }
 
 /**
+ * Partitions a `GET /api/users` listing may read for this caller.
+ *
+ * `?role=master-admin` is the platform-master lookup every authenticated role
+ * performs (executive/TL self-submissions resolving the MA approval gate,
+ * CA-registration fan-out, manager-inbox notifications). Master Admin docs
+ * live in the 'global' platform partition, which company-scoped callers
+ * (executive → assigned companies, employee/CA/HR → own company) never
+ * enumerate — without appending it the lookup came back empty and clients
+ * raised "Master Admin is not assigned" on every submission.
+ */
+export function userListingPartitions(caller: Caller, partitions: string[], roleFilter?: string): string[] {
+  if (isSuperAdmin(caller)) return partitions;
+  if (String(roleFilter ?? '') !== 'master-admin') return partitions;
+  return partitions.includes('global') ? partitions : [...partitions, 'global'];
+}
+
+/**
+ * Company-visibility line for a `GET /api/users` row. Master Admin rows pass
+ * whenever the request filters role=master-admin (the platform approver is a
+ * legitimate answer for every role); everything else keeps the company-scope
+ * rule: platform rows (empty companyId), own company, or assigned companies.
+ */
+export function userDocVisible(caller: Caller, doc: Record<string, unknown>, roleFilter?: string): boolean {
+  if (isSuperAdmin(caller)) return true;
+  if (String(roleFilter ?? '') === 'master-admin' && String(doc.role ?? '') === 'master-admin') return true;
+  const c = String(doc.companyId ?? '');
+  return !c || c === caller.companyId || caller.assignedCompanyIds.includes(c);
+}
+
+/**
  * hasPermission with legacy fallback semantics:
  *  - '*' grants everything
  *  - exact match or module.* / module.manage wildcards

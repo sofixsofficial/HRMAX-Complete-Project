@@ -9,7 +9,7 @@
 import type { Route } from '../lib/http.js';
 import { must, equalityFilters, parseOrderBy } from '../lib/http.js';
 import { writeUserDoc } from './auth.js';
-import { assertCompanyScope, assertPermission, assertRole, hasPermission, isSuperAdmin, readPartitions } from '../lib/auth.js';
+import { assertCompanyScope, assertPermission, assertRole, hasPermission, isSuperAdmin, readPartitions, userDocVisible, userListingPartitions } from '../lib/auth.js';
 import { putEntity, getEntity, patchEntity, deleteEntity, queryEntities, queryEntitiesAcross, locateEntityAcross, allPartitions, getUserDoc } from '../lib/db.js';
 import { ApiError, newId, isoNow, type UserRole } from '../lib/types.js';
 
@@ -466,16 +466,16 @@ export const coreCrudRoutes: Route[] = [
         // union must be id-deduped.
         docs = await queryEntitiesAcross<Record<string, unknown>>(base, await allPartitions());
       } else {
-        const partitions = await readPartitions(caller);
+        const partitions = userListingPartitions(caller, await readPartitions(caller), req.query.role);
         docs = partitions.length === 1
           ? await queryEntities<Record<string, unknown>>({ ...base, companyId: partitions[0] })
           : await queryEntitiesAcross<Record<string, unknown>>(base, partitions);
       }
-      // Non-admins only see users in their company scope
-      const visible = isSuperAdmin(caller) ? docs : docs.filter((d) => {
-        const c = String(d.companyId ?? '');
-        return !c || c === caller.companyId || caller.assignedCompanyIds.includes(c);
-      });
+      // Non-admins only see users in their company scope — except the
+      // platform-master answer (role=master-admin), which every role may read.
+      const visible = isSuperAdmin(caller)
+        ? docs
+        : docs.filter((d) => userDocVisible(caller, d, req.query.role));
       return { users: visible };
     },
   },

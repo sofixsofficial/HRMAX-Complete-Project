@@ -157,6 +157,42 @@ test('scopedCompanyIds: master-admin unscoped, employee single-company', () => {
   assert.deepEqual(auth.scopedCompanyIds(caller({ role: 'executive', companyId: 'x', assignedCompanyIds: ['a', 'b'] })), ['a', 'b']);
 });
 
+test('userListingPartitions: role=master-admin appends the global platform partition', () => {
+  // Executive scope = assigned companies only; the MA doc lives in 'global',
+  // so the lookup must widen there (regression: "Master Admin is not assigned").
+  const exec = caller({ role: 'executive', companyId: 'global', assignedCompanyIds: ['a', 'b'] });
+  assert.deepEqual(auth.userListingPartitions(exec, ['a', 'b'], 'master-admin'), ['a', 'b', 'global']);
+  // No role filter (or a different role) keeps the caller's partitions as-is.
+  assert.deepEqual(auth.userListingPartitions(exec, ['a', 'b'], undefined), ['a', 'b']);
+  assert.deepEqual(auth.userListingPartitions(exec, ['a', 'b'], 'team-leader'), ['a', 'b']);
+  // Already including global (team-leader reads every partition) -> no dup.
+  assert.deepEqual(auth.userListingPartitions(exec, ['global'], 'master-admin'), ['global']);
+  // Super-admin partitions are never adjusted here.
+  const ma = caller({ role: 'master-admin' });
+  assert.deepEqual(auth.userListingPartitions(ma, ['a'], 'master-admin'), ['a']);
+});
+
+test('userDocVisible: master-admin rows pass the role=master-admin lookup for any caller', () => {
+  const maDoc = { id: 'ma-1', role: 'master-admin', companyId: 'global' };
+  const empDoc = { id: 'e-1', role: 'employee', companyId: 'other' };
+  // Employee in acme may resolve the platform approver...
+  const emp = caller({ role: 'employee', companyId: 'acme' });
+  assert.equal(auth.userDocVisible(emp, maDoc, 'master-admin'), true);
+  // ...but the same caller never sees another company's ordinary users.
+  assert.equal(auth.userDocVisible(emp, empDoc, 'master-admin'), false);
+  assert.equal(auth.userDocVisible(emp, empDoc, undefined), false);
+  // Own-company rows stay visible with or without the role filter.
+  assert.equal(auth.userDocVisible(emp, { role: 'employee', companyId: 'acme' }, undefined), true);
+  // Executive with 'global' companyId: MA row passes both via the filter rule
+  // and via the ordinary same-company rule.
+  const exec = caller({ role: 'executive', companyId: 'global' });
+  assert.equal(auth.userDocVisible(exec, maDoc, undefined), true);
+  assert.equal(auth.userDocVisible(exec, maDoc, 'master-admin'), true);
+  // Master-admin caller sees everything, filtered or not.
+  const ma = caller({ role: 'master-admin', companyId: 'global' });
+  assert.equal(auth.userDocVisible(ma, empDoc, undefined), true);
+});
+
 // ---------------------------------------------------------------------------
 // 4. Leave-tier contract (sequential approval chain with an HR tier)
 // ---------------------------------------------------------------------------
