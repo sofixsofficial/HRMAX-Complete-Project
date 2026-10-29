@@ -19,6 +19,9 @@ interface LeaveInput {
   companyId: string;
   userId: string;
   type: string;
+  /** The web apply form posts `leaveType` (its model field) instead of the
+   *  API's `type` — accepted as an alias so the stored type is never absent. */
+  leaveType?: string;
   startDate: string;
   endDate: string;
   totalDays: number;
@@ -219,6 +222,10 @@ export const leaveRoutes: Route[] = [
       // must not produce the admin's own chain or name.
       const targetDoc = await getUserDoc(input.userId).catch(() => null);
       const applicantRole = (targetDoc?.role as UserRole) || caller.role;
+      // Resolve the leave type once: web sends `leaveType`, API/mobile send
+      // `type`. A missing value used to store no type at all ("Your undefined
+      // leave" in the confirmation notification, empty Type column in lists).
+      const leaveType = String(input.type ?? input.leaveType ?? '').trim() || 'Casual';
       // Configurable approval chain: read the company's per-role stage override
       // (falls back to the shipped per-role defaults inside resolveApprovalChain).
       const companyMeta = await getCompanyMeta(input.companyId).catch(() => null);
@@ -231,7 +238,7 @@ export const leaveRoutes: Route[] = [
         companyId: input.companyId,
         userId: input.userId,
         employeeName: String(targetDoc?.name ?? caller.name),
-        type: input.type,
+        type: leaveType,
         startDate: input.startDate,
         endDate: input.endDate,
         totalDays,
@@ -253,7 +260,7 @@ export const leaveRoutes: Route[] = [
       await createNotification({
         userId: input.userId, companyId: input.companyId, type: 'leave_applied',
         title: 'Leave application submitted',
-        message: `Your ${input.type} leave (${input.startDate} → ${input.endDate}) has been submitted.`,
+        message: `Your ${leaveType} leave (${input.startDate} → ${input.endDate}) has been submitted.`,
         link: '/my-leaves',
       });
       const pendingApprovers = TIER_ORDER.filter((t) => doc_.approvalStatus[t] === 'Pending')
@@ -321,7 +328,13 @@ export const leaveRoutes: Route[] = [
           const name = c ? String(c.name ?? '').trim() : '';
           if (name) names[id] = name;
         }));
-        docs = docs.map((d) => (names[String(d.companyId)] ? { ...d, companyName: names[String(d.companyId)] } : d));
+        docs = docs.map((d) => ({
+          ...d,
+          // Legacy rows created by older clients stored no `type` at all —
+          // normalise at read time so lists never show an empty Type cell.
+          type: d.type || 'Casual',
+          ...(names[String(d.companyId)] ? { companyName: names[String(d.companyId)] } : {}),
+        }));
       }
       return { leaveRequests: docs };
     },

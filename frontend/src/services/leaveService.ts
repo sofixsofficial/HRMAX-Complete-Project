@@ -587,7 +587,12 @@ const mapLeave = (d: any): LeaveRequest => {
     department: data.department,
     departmentId: data.departmentId,
     companyId: data.companyId,
-    leaveType: data.leaveType ?? data.type,
+    // Server-stamped display name (list endpoint) — needed when the viewer
+    // cannot read the other company's document (post-transfer scope).
+    companyName: data.companyName,
+    // `leaveType` is the model field, `type` the API field; legacy rows may
+    // carry neither (older client) — the default matches the apply form.
+    leaveType: data.leaveType ?? data.type ?? 'Casual',
     startDate: data.startDate?.toDate() || new Date(),
     endDate: data.endDate?.toDate() || new Date(),
     totalDays: data.totalDays || 0,
