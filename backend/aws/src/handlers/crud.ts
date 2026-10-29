@@ -132,21 +132,36 @@ export function crudRoutes(cfg: CollectionConfig): Route[] {
       companyId: newCompanyId,
       updatedAt: isoNow(),
     };
-    await putEntity(moved as never, storeOpts);
-    await deleteEntity(cfg.entity, oldCompanyId, id);
     // Employees carry a login account: move its scope too, or the user keeps
     // punching into / reading the company they were transferred OUT of.
-    if (cfg.entity === 'employee') {
-      const uid = String(moved.userId ?? '');
-      if (uid) {
-        const profile = await getUserDoc(uid);
-        if (profile) {
-          await writeUserDoc(uid, { ...profile, companyId: newCompanyId } as Parameters<typeof writeUserDoc>[1]);
-          // Drop the ghost copy left behind in the old company partition
-          // (writeUserDoc only writes the target partition + PROFILE).
-          if (oldCompanyId && oldCompanyId !== 'global') {
-            await deleteEntity('user', oldCompanyId, uid);
-          }
+    // Legacy rows can LACK the userId link (created before Create Employee
+    // provisioned accounts, or edited over time) — fall back to the
+    // email-matched account so the human's login moves with them. Without
+    // this the employee row moved to the new company while the dashboard
+    // (which reads the user doc) kept showing the OLD one.
+    let linkUid = cfg.entity === 'employee' ? String(moved.userId ?? '') : '';
+    if (cfg.entity === 'employee' && !linkUid) {
+      const raw = String(moved.email ?? '').trim();
+      for (const candidate of raw ? [raw, raw.toLowerCase()] : []) {
+        const hits = await queryEntitiesAcross<Record<string, unknown>>(
+          { entity: 'user', filters: { email: candidate } },
+          await allPartitions(),
+        );
+        const hit = hits.find((h) => String(h.id ?? ''));
+        if (hit) { linkUid = String(hit.id); break; }
+      }
+      if (linkUid) moved.userId = linkUid; // persist the recovered link on the moved row
+    }
+    await putEntity(moved as never, storeOpts);
+    await deleteEntity(cfg.entity, oldCompanyId, id);
+    if (linkUid) {
+      const profile = await getUserDoc(linkUid);
+      if (profile) {
+        await writeUserDoc(linkUid, { ...profile, companyId: newCompanyId } as Parameters<typeof writeUserDoc>[1]);
+        // Drop the ghost copy left behind in the old company partition
+        // (writeUserDoc only writes the target partition + PROFILE).
+        if (oldCompanyId && oldCompanyId !== 'global') {
+          await deleteEntity('user', oldCompanyId, linkUid);
         }
       }
     }
