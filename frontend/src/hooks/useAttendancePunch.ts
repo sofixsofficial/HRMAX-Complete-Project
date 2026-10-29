@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import { invalidateSnapshots } from '../aws/firestore-compat'
 import { useAuth } from '../context/AuthContext'
 import { useCompany } from '../context/CompanyContext'
@@ -35,7 +35,7 @@ export interface PunchMsg {
  */
 export function useAttendancePunch() {
   const { user } = useAuth()
-  const { effectiveCompanyId } = useCompany()
+  const { effectiveCompanyId, availableCompanies } = useCompany()
   const personal = useEmployeePersonalStats()
   const [attendancePolicy, setAttendancePolicy] = useState<AttendancePolicy | null>(null)
   const [employeeData, setEmployeeData] = useState<Employee | null>(null)
@@ -51,7 +51,18 @@ export function useAttendancePunch() {
   const [qrToken, setQrToken] = useState('')
 
   const todayRecord = personal.todayRecord
-  const companyId = effectiveCompanyId || user?.companyId || ''
+  // All-Companies mode leaves effectiveCompanyId null while the user doc still
+  // carries the `global` placeholder — resolve a REAL company the punch can
+  // land in: active selection → first assigned/available → own non-global id.
+  // (Executive/Team-Leader punch used to send `global` and 403 scope.)
+  const resolvedCompanyId = useMemo(() => {
+    if (effectiveCompanyId && effectiveCompanyId !== 'global') return effectiveCompanyId
+    const first = availableCompanies?.[0]?.id || ''
+    if (first && first !== 'global') return first
+    const own = user?.companyId || ''
+    return own && own !== 'global' ? own : ''
+  }, [effectiveCompanyId, availableCompanies, user?.companyId])
+  const companyId = resolvedCompanyId
   const role = user?.role || 'employee'
   const isMasterAdmin = role === 'master-admin'
   const isCompanyAdmin = role === 'company-admin'
@@ -141,7 +152,7 @@ export function useAttendancePunch() {
     setCheckingIn(true)
     setMsg(null)
     try {
-      const cid = effectiveCompanyId || user.companyId || ''
+      const cid = resolvedCompanyId
       if (!cid) throw new Error('Company is not assigned. Contact your administrator.')
 
       let lat = gpsStatus?.lat ?? null
@@ -263,7 +274,7 @@ export function useAttendancePunch() {
     } finally {
       setCheckingIn(false)
     }
-  }, [user, checkingIn, todayRecord?.checkIn, effectiveCompanyId, gpsStatus, employeeData, isCompanyAdmin, isMasterAdmin, runPolicyCheck, deviceId, qrToken])
+  }, [user, checkingIn, todayRecord?.checkIn, resolvedCompanyId, gpsStatus, employeeData, isCompanyAdmin, isMasterAdmin, runPolicyCheck, deviceId, qrToken])
 
   const checkOutNow = useCallback(async () => {
     if (!user || !todayRecord || checkingOut) return

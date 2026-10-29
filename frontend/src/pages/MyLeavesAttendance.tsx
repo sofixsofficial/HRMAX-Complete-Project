@@ -139,7 +139,7 @@ const TD_TEXT: React.CSSProperties = {
 
 export function MyLeavesAttendance() {
   const { user } = useAuth()
-  const { effectiveCompanyId } = useCompany()
+  const { effectiveCompanyId, availableCompanies } = useCompany()
   const personal = useEmployeePersonalStats()
 
   const [tab, setTab] = useState<TabKey>('leaves')
@@ -167,7 +167,13 @@ export function MyLeavesAttendance() {
   const roleLabel = ROLE_LABELS[role] || role || ''
   const isManagement = MA_ROLES.has(role)
   const isRM = role === 'reporting-manager'
-  const companyId = effectiveCompanyId || user?.companyId || ''
+  // All-Companies mode (Executive/Team-Leader): effectiveCompanyId is null and
+  // the user doc carries `global` — resolve a real company so leave policy,
+  // correction window, holidays and Apply-Leave all work (the `global`
+  // placeholder 403'd leave-create and resolved no policy/holidays).
+  const companyId = [effectiveCompanyId, availableCompanies?.[0]?.id, user?.companyId]
+    .map(v => String(v ?? ''))
+    .find(v => v && v !== 'global') ?? ''
 
   const mapLeave = (d: any): LeaveRequest => ({
     ...d,

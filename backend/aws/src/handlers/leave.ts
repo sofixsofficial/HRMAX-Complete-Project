@@ -7,7 +7,7 @@
 
 import type { Route } from '../lib/http.js';
 import { must, equalityFilters, parseOrderBy } from '../lib/http.js';
-import { assertCompanyScope, hasPermission, isSuperAdmin, readPartitions } from '../lib/auth.js';
+import { assertCompanyScope, hasPermission, isSuperAdmin, readPartitions, resolvePersonalCompanyId } from '../lib/auth.js';
 import { putEntity, getEntity, patchEntity, queryEntities, queryEntitiesAcross, locateEntityAcross, allPartitions, getUserDoc, getCompanyMeta } from '../lib/db.js';
 import { resolveStakeholders } from '../lib/stakeholders.js';
 import { createNotification, fanOutNotifications } from '../lib/notify.js';
@@ -170,6 +170,14 @@ export const leaveRoutes: Route[] = [
       const rawBody = req.body as Record<string, unknown>;
       // The mobile client nests the payload under `leaveData`; accept flat too.
       const input = ((rawBody?.leaveData as LeaveInput | undefined) ?? rawBody) as unknown as LeaveInput;
+      // All-Companies mode (web + mobile) sends the `global` placeholder —
+      // resolve it to the caller's own company so Executive/Team-Leader
+      // personal leave applications reach a real partition (scope would 403
+      // the placeholder otherwise).
+      if (!input.companyId || input.companyId === 'global') {
+        const resolved = await resolvePersonalCompanyId(caller);
+        if (resolved) input.companyId = resolved;
+      }
       if (!input.companyId || !input.userId || !input.startDate || !input.endDate) {
         throw new ApiError('bad-request', 'companyId, userId, startDate, endDate required');
       }

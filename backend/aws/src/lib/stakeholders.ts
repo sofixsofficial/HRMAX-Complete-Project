@@ -5,6 +5,14 @@
 
 import { queryEntities, getUserDoc, getEntity, usersByRole } from './db.js';
 
+/**
+ * Roles the employee form's Manager section may select (frontend
+ * MANAGER_ROLES). A Company Admin or HR chosen as manager IS the employee's
+ * attendance/leave approver — rejecting them here silently dropped the
+ * check-in/out + leave notification fan-out to the manager inbox.
+ */
+const MANAGER_ROLES = new Set(['reporting-manager', 'company-admin', 'hr']);
+
 export interface Stakeholders {
   employeeUserId: string;
   employeeName: string;
@@ -46,9 +54,7 @@ export async function resolveStakeholders(
     const rmDoc = employees.find((e) => e.id === rmId);
     if (rmDoc) rmId = String(rmDoc.userId ?? rmId);
     const rmUser = await getUserDoc(rmId);
-    if (rmUser && rmUser.role === 'reporting-manager') {
-      out.reportingManagerId = rmId;
-    } else if (rmUser?.isReportingManager) {
+    if (rmUser && (MANAGER_ROLES.has(String(rmUser.role ?? '')) || rmUser.isReportingManager)) {
       out.reportingManagerId = rmId;
     }
   }
@@ -57,7 +63,7 @@ export async function resolveStakeholders(
     const fallbackRm = (userDoc?.reportingManagerId as string) ?? null;
     if (fallbackRm) {
       const rmUser = await getUserDoc(fallbackRm);
-      if (rmUser && (rmUser.role === 'reporting-manager' || rmUser.isReportingManager)) {
+      if (rmUser && (MANAGER_ROLES.has(String(rmUser.role ?? '')) || rmUser.isReportingManager)) {
         out.reportingManagerId = fallbackRm;
       }
     }

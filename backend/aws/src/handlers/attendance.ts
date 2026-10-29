@@ -6,7 +6,7 @@
 
 import type { Route } from '../lib/http.js';
 import { must, equalityFilters, parseOrderBy } from '../lib/http.js';
-import { assertCompanyScope, hasPermission, isSuperAdmin, readPartitions } from '../lib/auth.js';
+import { assertCompanyScope, hasPermission, isSuperAdmin, readPartitions, resolvePersonalCompanyId } from '../lib/auth.js';
 import { putEntity, patchEntity, deleteEntity, queryEntities, queryEntitiesAcross, locateEntityAcross, allPartitions, getCompanyMeta, getEntity, getUserDoc, ConditionalWriteFailed } from '../lib/db.js';
 import { resolveStakeholders } from '../lib/stakeholders.js';
 import { createNotification, fanOutNotifications } from '../lib/notify.js';
@@ -201,7 +201,7 @@ export const attendanceRoutes: Route[] = [
     handler: async (req) => {
       const caller = must(req);
       const {
-        companyId, type, selfieUrl, latitude, longitude, networkType, wifiSsid,
+        companyId: rawCompanyId, type, selfieUrl, latitude, longitude, networkType, wifiSsid,
       } = req.body as {
         companyId: string; type: 'check-in' | 'check-out'; selfieUrl?: string;
         latitude?: number; longitude?: number; networkType?: string; wifiSsid?: string;
@@ -209,6 +209,19 @@ export const attendanceRoutes: Route[] = [
       // Clients (web/mobile callable shim) send `action`; older payloads send `type`.
       // Accept both so the check-in/check-out contract is stable across platforms.
       const markType = type ?? (req.body as { action?: 'check-in' | 'check-out' }).action;
+      // All-Companies mode (web + mobile) sends the `global` placeholder —
+      // resolve it to the caller's own company so Executive/Team-Leader
+      // personal punches hit a real partition instead of 403-ing scope.
+      let companyId = String(rawCompanyId ?? '').trim();
+      if (!companyId || companyId === 'global') {
+        const resolved = await resolvePersonalCompanyId(caller);
+        if (resolved) companyId = resolved;
+        else if (caller.role === 'executive' || caller.role === 'team-leader') {
+          throw new ApiError('failed-precondition', 'No company is assigned to your account. Ask your master admin to assign one.');
+        }
+        // Master Admin keeps the `global` placeholder: scope allows it and the
+        // personal-attendance guard below returns the proper product error.
+      }
       if (!companyId || !markType) throw new ApiError('bad-request', 'companyId and type required');
       assertCompanyScope(caller, companyId);
 
@@ -269,8 +282,14 @@ export const attendanceRoutes: Route[] = [
           branchId = '';
         }
 
+        // Executives / team leaders have no branch of their own — their punch
+        // anchors to the master-admin-set office location, so the branch QR
+        // and selfie gates must not lock them out of their own attendance.
+        const branchlessManagement =
+          (caller.role === 'executive' || caller.role === 'team-leader') && !branchId;
+
         // ---- QR attendance (company policy) ----
-        if (policy.requireQr) {
+        if (policy.requireQr && !branchlessManagement) {
           if (!branchId) return fail('BRANCH_REQUIRED', 'No branch is assigned to your account. Ask your admin to assign one.');
           if (!qrToken) return fail('QR_REQUIRED', 'Scan the branch QR code to check in.');
           const expected = String(branch?.qrToken ?? '').trim();
@@ -290,19 +309,27 @@ export const attendanceRoutes: Route[] = [
             // and the company-office radius applied instead.
             ? { latitude: bLat, longitude: bLon, radiusMeters: Number(branch.radiusMeters ?? branch.radiusInMeters ?? policy.officeLocation?.radiusMeters ?? 100) }
             : policy.officeLocation;
-          if (!loc) return fail('NO_OFFICE_LOCATION', 'No office location configured');
-          if (latitude === undefined || longitude === undefined) return fail('GPS_REQUIRED', 'Location required for check-in');
-          const dist = haversine(latitude, longitude, loc.latitude, loc.longitude);
-          if (dist > (loc.radiusMeters ?? 100)) {
-            return fail('GPS_OUT_OF_BOUNDS', `You are ${Math.round(dist)}m away from the ${branchId ? 'branch' : 'office'} (allowed ${loc.radiusMeters ?? 100}m)`);
+          // A zeroed office placeholder (lat/lon 0,0) means the master admin
+          // never picked a real location — nothing to fence against. A
+          // branchless management punch then proceeds instead of failing on
+          // coordinates that do not exist; a REAL office is enforced as usual.
+          const officeReal = Boolean(loc) && (Number(loc?.latitude ?? 0) !== 0 || Number(loc?.longitude ?? 0) !== 0);
+          if (!(branchlessManagement && !officeReal)) {
+            if (!loc) return fail('NO_OFFICE_LOCATION', 'No office location configured');
+            if (latitude === undefined || longitude === undefined) return fail('GPS_REQUIRED', 'Location required for check-in');
+            const dist = haversine(latitude, longitude, loc.latitude, loc.longitude);
+            if (dist > (loc.radiusMeters ?? 100)) {
+              return fail('GPS_OUT_OF_BOUNDS', `You are ${Math.round(dist)}m away from the ${branchId ? 'branch' : 'office'} (allowed ${loc.radiusMeters ?? 100}m)`);
+            }
           }
         }
 
         // Selfie — clients send `selfieUri`, older payloads send `selfieUrl`.
         // Face verification is the same capture, toggled by requireFace
-        // (new) or requireSelfie (legacy) at company-policy level.
+        // (new) or requireSelfie (legacy) at company-policy level. Branchless
+        // management punchers have no capture flow of their own — skipped.
         const selfie = selfieUrl ?? (req.body as { selfieUri?: string }).selfieUri;
-        if (policy.requireSelfie || policy.requireFace) {
+        if ((policy.requireSelfie || policy.requireFace) && !branchlessManagement) {
           if (!selfie) return fail('SELFIE_REQUIRED', 'Selfie is required for check-in');
           const decoded = decodeURIComponent(selfie);
           if (!decoded.includes(`/selfies/${companyId}/${caller.uid}`)) {

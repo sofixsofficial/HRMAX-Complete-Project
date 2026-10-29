@@ -53,7 +53,8 @@ const isWithinNext30Days = (date: Date) => {
 
 export function useEmployeePersonalStats(): EmployeePersonalStats {
   const { user } = useAuth();
-  const { effectiveCompanyId } = useCompany();
+  const { effectiveCompanyId, availableCompanies } = useCompany();
+  const firstCompanyId = availableCompanies?.[0]?.id || '';
   const [stats, setStats] = useState<EmployeePersonalStats>(initialStats);
   const [ready, setReady] = useState(0);
   const [expected, setExpected] = useState(6);
@@ -71,7 +72,11 @@ export function useEmployeePersonalStats(): EmployeePersonalStats {
     const monthStart = new Date(today.getFullYear(), today.getMonth(), 1);
 
     const userId = user.id;
-    const companyId = effectiveCompanyId || user.companyId;
+    // All-Companies mode (`global` placeholder) → first assigned company so
+    // holiday/policy lookups resolve for Executive/Team-Leader personal views.
+    const companyId = [effectiveCompanyId, firstCompanyId, user.companyId]
+      .map(v => String(v ?? ''))
+      .find(v => v && v !== 'global') ?? '';
     const totalExpected = companyId ? 6 : 5;
     setExpected(totalExpected);
     setReady(0);
@@ -181,7 +186,7 @@ export function useEmployeePersonalStats(): EmployeePersonalStats {
       });
       setReady(0);
     };
-  }, [user?.id, user?.companyId, effectiveCompanyId]);
+  }, [user?.id, user?.companyId, effectiveCompanyId, firstCompanyId]);
 
   return { ...stats, loading: ready < expected };
 }

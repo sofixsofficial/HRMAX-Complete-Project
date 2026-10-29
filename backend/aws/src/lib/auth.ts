@@ -147,6 +147,31 @@ export function assertCompanyScope(caller: Caller, companyId: string): void {
 }
 
 /**
+ * The caller's OWN company when a client sends the All-Companies placeholder
+ * (`global`) or omits companyId — Executive/Team-Leader personal flows (punch,
+ * apply leave) must land in a real partition instead of failing scope checks.
+ * Executives resolve through their assignment; team leaders through the
+ * executive they report to. Returns '' when nothing resolves so callers can
+ * raise a precise error rather than writing to the `global` partition.
+ */
+export async function resolvePersonalCompanyId(caller: Caller): Promise<string> {
+  if (caller.companyId && caller.companyId !== 'global') return caller.companyId;
+  if (caller.role === 'executive') {
+    return caller.assignedCompanyIds[0] ?? '';
+  }
+  if (caller.role === 'team-leader') {
+    const execId = caller.reportingExecutiveId || caller.linkedExecutiveIds[0] || '';
+    if (execId) {
+      const execDoc = await getUserDoc(execId).catch(() => null);
+      const ids = (execDoc?.assignedCompanyIds as string[] | undefined) ?? [];
+      if (ids.length) return ids[0];
+    }
+    return caller.assignedCompanyIds[0] ?? '';
+  }
+  return '';
+}
+
+/**
  * Company partitions this caller may read from, in dedupe-preferred order.
  * - super-admin → every partition (unfiltered Firestore reads)
  * - executive → assigned companies (falls back to own company)
