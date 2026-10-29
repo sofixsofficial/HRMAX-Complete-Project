@@ -58,3 +58,8 @@ GoogleService-Info.plist
 
 # Website is tracked in its own repository (Sofixs_Website)
 /Sofixs_Website/
+
+# Local AWS one-off provision/verify scripts (run manually, not part of deploy)
+backend/aws/scripts/
+# SAM publishing artifact (deploy pipeline uses backend/aws/template.yaml)
+backend/aws/sar-template-oai.yaml
