@@ -21,6 +21,7 @@ import { isDate } from '../utils/dateUtils'
 import { isActiveMissedPunchRecord } from '../utils/attendanceStatus'
 import { matchesAttendanceSearch } from '../utils/attendanceSearch'
 import { scopedCompanyIds, companyIdWhere, chunkCompanyIds } from '../utils/companyScope'
+import { hasPersonalPage } from '../utils/personalRoles'
 import { notifyTlAction } from '../services/notificationService'
 import { notifyAttendanceCascade } from '../services/attendanceNotifier'
 import { logAudit } from '../services/auditLogService'
@@ -453,7 +454,13 @@ const [submittingRectify, setSubmittingRectify] = useState(false)
       : records
 
   const todayOnly = searchParams.get('period') === 'today'
+  // Management roles with a personal page never see their OWN rows here — the
+  // company/team table is for reviewing others; their punches and leaves live
+  // on My Leaves & Attendance. (Employees keep their rows: their Attendance
+  // page IS the personal view.)
+  const hideOwnRows = hasPersonalPage(role)
   const filtered = visibleRecords.filter(r => {
+    if (hideOwnRows && r.userId === user?.id) return false
     // Server-written records carry employeeName (no name/department) — an
     // empty search must still match them (see utils/attendanceSearch.ts).
     const matchesSearch = matchesAttendanceSearch(r, searchTerm)

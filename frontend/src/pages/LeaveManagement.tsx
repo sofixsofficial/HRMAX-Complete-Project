@@ -34,6 +34,7 @@ import {
 } from '../services/leaveService'
 import { getEmployeesByCompany, getEmployeeByUserId } from '../services/employeeService'
 import { scopedCompanyIds } from '../utils/companyScope'
+import { hasPersonalPage } from '../utils/personalRoles'
 import { getAllUsers } from '../services/authService'
 import { getCompanyById, getAllCompanies } from '../services/companyService'
 import { logAudit } from '../services/auditLogService'
@@ -349,7 +350,12 @@ export function LeaveManagement() {
   }
 
   // ── role-based visibility ───────────────────────────────────
+  const hideOwnRows = hasPersonalPage(user?.role)
   const visibleLeaves = leaves.filter(l => {
+    // Management roles with a personal page keep their OWN requests out of the
+    // management table — they live on My Leaves & Attendance. (Employees are
+    // exempt: their /leaves page is the personal view of their own requests.)
+    if (hideOwnRows && l.userId === user?.id) return false
     if (user?.role === 'master-admin' || user?.role === 'company-admin' || user?.role === 'hr') return true
     if (user?.role === 'executive') {
       // Executives manage ALL companies (CompanyContext model): the management
@@ -619,7 +625,7 @@ export function LeaveManagement() {
           <div className="section-header-companies">
             <h3>Leave Requests</h3>
             <div className="section-actions">
-              {user?.role !== 'company-admin' && user?.role !== 'master-admin' && canPerform('create', 'leave') && (
+              {!hideOwnRows && user?.role !== 'company-admin' && user?.role !== 'master-admin' && canPerform('create', 'leave') && (
                 <button className="btn-primary" onClick={() => { setApplyData(INITIAL_APPLY); setApplyMode('self'); setApplyError(null); setIsApplyOpen(true) }}>
                   <Plus size={16} />Apply for Leave
                 </button>
