@@ -231,6 +231,11 @@ export function Sidebar() {
       title: 'Main',
       items: filterItems([
         { icon: LayoutDashboard, label: 'Dashboard', path: '/' },
+        // Personal leaves + attendance hub. HR already had the /hr route but no
+        // menu entry; employees never had either (their attendance/leaves lived
+        // only on the Operations pages) — both now land on the same personal
+        // page every other role uses.
+        { icon: UserRound, label: 'My Leaves & Attendance', path: '/my-leaves-attendance', requiredRoles: ['employee', 'hr'] },
       ])
     },
     {

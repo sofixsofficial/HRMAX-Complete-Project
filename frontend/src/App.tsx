@@ -151,13 +151,13 @@ function RoleAwareRedirect({ to }: { to: string }) {
  * page is role-prefixed — clicking one fell through to the marketing 404
  * page. Land on a page that actually EXISTS for the current role:
  *   - leaves      → every role has /{role}/leaves (own + managed requests)
- *   - attendance  → exec/TL/HR/RM have My Leaves & Attendance; the employee
- *                   and admins have their Attendance page.
+ *   - attendance  → exec/TL/HR/RM/employee have My Leaves & Attendance; the
+ *                   admins have their Attendance page.
  */
 function RoleAwarePersonalRedirect({ page }: { page: 'leaves' | 'attendance' }) {
   const { user } = useAuth()
   if (page === 'leaves') return <RoleAwareRedirect to="/leaves" />
-  const personalRoles = ['executive', 'team-leader', 'hr', 'reporting-manager']
+  const personalRoles = ['executive', 'team-leader', 'hr', 'reporting-manager', 'employee']
   const to = personalRoles.includes(String(user?.role)) ? '/my-leaves-attendance' : '/attendance'
   return <RoleAwareRedirect to={to} />
 }
@@ -404,6 +404,7 @@ function AppRoutes() {
       {/* Employee Routes */}
       <Route path="/employee/attendance" element={<EmployeePageRoute><Attendance /></EmployeePageRoute>} />
       <Route path="/employee/leaves" element={<EmployeePageRoute><LeaveManagement /></EmployeePageRoute>} />
+      <Route path="/employee/my-leaves-attendance" element={<EmployeePageRoute><MyLeavesAttendance /></EmployeePageRoute>} />
       
       <Route path="/employee/tasks" element={<EmployeePageRoute><Tasks /></EmployeePageRoute>} />
       <Route path="/employee/salary-slips" element={<EmployeePageRoute><SalarySlips /></EmployeePageRoute>} />

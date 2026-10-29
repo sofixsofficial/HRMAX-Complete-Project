@@ -113,7 +113,6 @@ export function LeaveManagement() {
   const { isScopeReady, isViewOnly, canPerform, scopeCompanyId } = useAccessControl()
   const [searchParams] = useSearchParams()
   const isApprover = ['master-admin', 'team-leader', 'reporting-manager'].includes(user?.role || '')
-  const isExecutive = user?.role === 'executive'
   const isReportingManager = user?.role === 'reporting-manager'
 
   const [leaves, setLeaves] = useState<LeaveRequest[]>([])
@@ -618,7 +617,7 @@ export function LeaveManagement() {
 
         <div className="companies-section">
           <div className="section-header-companies">
-            <h3>{isExecutive ? 'My Leave Requests' : 'Leave Requests'}</h3>
+            <h3>Leave Requests</h3>
             <div className="section-actions">
               {user?.role !== 'company-admin' && user?.role !== 'master-admin' && canPerform('create', 'leave') && (
                 <button className="btn-primary" onClick={() => { setApplyData(INITIAL_APPLY); setApplyMode('self'); setApplyError(null); setIsApplyOpen(true) }}>
