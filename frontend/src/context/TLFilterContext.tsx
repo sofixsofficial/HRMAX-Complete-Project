@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useState, useEffect, useCallback, useMemo } from 'react'
+import React, { createContext, useContext, useState, useEffect, useCallback, useMemo, useRef } from 'react'
 import { collection, getDocs, query, where, doc, getDoc, onSnapshot } from '../aws/firestore-compat'
 import { db } from '../aws/clients'
 import { useAuth } from './AuthContext'
@@ -139,8 +139,19 @@ export const TLFilterProvider: React.FC<{ children: React.ReactNode }> = ({ chil
   // Live-sync the TL's scope so admin reassignments (linked executives /
   // reporting executive) propagate without requiring a reload — replaces the old
   // recompute inside CompanyContext, keeping a single source of truth for TLs.
+  //
+  // Change detection compares against the PREVIOUS SNAPSHOT via a ref — the old
+  // version compared linked ids against the loaded executives list, which almost
+  // never matched (list = every executive, linked = a subset), so every
+  // snapshot re-ran loadHierarchy → setExecutives(new ref) → this effect
+  // re-subscribed → initial snapshot fired again → infinite network storm that
+  // froze / auto-reloaded the TL pages.
+  const lastLinkedKeyRef = useRef<string | null>(null)
   useEffect(() => {
-    if (!user || user.role !== 'team-leader') return
+    if (!user || user.role !== 'team-leader') {
+      lastLinkedKeyRef.current = null
+      return
+    }
     const unsub = onSnapshot(
       doc(db, 'users', user.id),
       (snap) => {
@@ -148,15 +159,21 @@ export const TLFilterProvider: React.FC<{ children: React.ReactNode }> = ({ chil
         const linkedExecIds: string[] = snapData?.linkedExecutiveIds || []
         const reportingExecId: string | null = snapData?.reportingExecutiveId || null
         const allExecIds = [...new Set([...linkedExecIds, ...(reportingExecId ? [reportingExecId] : [])])].sort().join(',')
-        const currentIds = [...new Set(executives.map(e => e.id))].sort().join(',')
-        if (allExecIds !== currentIds) {
+        // First snapshot after mount: just record the baseline (loadHierarchy
+        // already ran in the effect above) — never reload from here.
+        if (lastLinkedKeyRef.current === null) {
+          lastLinkedKeyRef.current = allExecIds
+          return
+        }
+        if (allExecIds !== lastLinkedKeyRef.current) {
+          lastLinkedKeyRef.current = allExecIds
           loadHierarchy(user.id)
         }
       },
       () => { /* silent */ }
     )
     return () => unsub()
-  }, [user?.id, user?.role, executives, loadHierarchy])
+  }, [user?.id, user?.role, loadHierarchy])
 
   const setExecutive = useCallback((id: string) => {
     setSelectedExecutiveId(id)

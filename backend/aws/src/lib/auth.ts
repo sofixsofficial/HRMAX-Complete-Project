@@ -209,12 +209,18 @@ export function userListingPartitions(caller: Caller, partitions: string[], role
  * whenever the request filters role=master-admin (the platform approver is a
  * legitimate answer for every role); everything else keeps the company-scope
  * rule: platform rows (empty companyId), own company, or assigned companies.
+ *
+ * Platform rows also carry companyId='global' (writeUserDoc's dual-write for
+ * system-level users: executives live there, not in a company). Treating only
+ * empty companyId as platform dropped every executive from team-leader / HR /
+ * RM listings — the TL scope picker loaded zero executives ("No Executives
+ * Mapped") and approval tables lost their ASSIGNED EXECUTIVE column.
  */
 export function userDocVisible(caller: Caller, doc: Record<string, unknown>, roleFilter?: string): boolean {
   if (isSuperAdmin(caller)) return true;
   if (String(roleFilter ?? '') === 'master-admin' && String(doc.role ?? '') === 'master-admin') return true;
   const c = String(doc.companyId ?? '');
-  return !c || c === caller.companyId || caller.assignedCompanyIds.includes(c);
+  return !c || c === 'global' || c === caller.companyId || caller.assignedCompanyIds.includes(c);
 }
 
 /**
