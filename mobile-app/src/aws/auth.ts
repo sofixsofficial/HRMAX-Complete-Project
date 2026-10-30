@@ -238,19 +238,58 @@ function mapError(err: Error & { code?: string }): AuthError {
   return new AuthError(hit[0], hit[1]);
 }
 
+async function initiateAuthWithPassword(identifier: string, password: string): Promise<UserCredential> {
+  const res = await cognitoCall('InitiateAuth', {
+    AuthFlow: 'USER_PASSWORD_AUTH',
+    AuthParameters: { USERNAME: identifier, PASSWORD: password },
+  });
+  const tokens = await tokensFromAuthResult(res);
+  await saveTokens(tokens);
+  currentUser = buildUser(tokens);
+  emit(currentUser);
+  return { user: currentUser };
+}
+
+/**
+ * Map a System Username (the `username` field admins set in Companies ->
+ * Account Credentials, e.g. info@sofixs.com) to the account email. Cognito
+ * only knows emails (pool username attribute = email; aliases are not
+ * possible in that mode), so the sign-in flow tries the typed name first and
+ * — when Cognito reports no such username — asks the API which email it
+ * belongs to. Returns null when the name matches no account (or the API is
+ * unreachable) so the caller can surface the original error.
+ */
+async function resolveSystemUsername(typed: string): Promise<string | null> {
+  try {
+    const res = await fetch(`${AWS_CONFIG.apiUrl}/api/auth/resolve-username`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ username: typed }),
+    });
+    if (!res.ok) return null;
+    const data = (await res.json().catch(() => ({}))) as { email?: string | null };
+    return data?.email ? String(data.email) : null;
+  } catch {
+    return null;
+  }
+}
+
 export async function signInWithEmailAndPassword(_auth: unknown, email: string, password: string): Promise<UserCredential> {
   try {
-    const res = await cognitoCall('InitiateAuth', {
-      AuthFlow: 'USER_PASSWORD_AUTH',
-      AuthParameters: { USERNAME: email, PASSWORD: password },
-    });
-    const tokens = await tokensFromAuthResult(res);
-    await saveTokens(tokens);
-    currentUser = buildUser(tokens);
-    emit(currentUser);
-    return { user: currentUser };
+    return await initiateAuthWithPassword(email, password);
   } catch (err) {
-    throw mapError(err as Error & { code?: string });
+    // The sign-in box also accepts a System Username. Cognito only knows
+    // emails, so UserNotFoundException can mean "the typed name is a System
+    // Username": resolve it to the account email and retry once with that.
+    // Names that match nothing keep the original "no account found" error.
+    const raw = err as Error & { code?: string };
+    if (raw.code === 'UserNotFoundException') {
+      const resolved = await resolveSystemUsername(email);
+      if (resolved && resolved !== email) {
+        return await initiateAuthWithPassword(resolved, password);
+      }
+    }
+    throw mapError(raw);
   }
 }
 

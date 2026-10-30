@@ -342,18 +342,17 @@ export const authRoutes: Route[] = [
       await enforceRateLimit(`resolveuser#${username}`, 15, 300);
       await enforceRateLimit(`resolveuser-ip#${sourceIp(req)}`, 60, 300);
 
-      // An email is already a Cognito username — nothing to resolve.
-      if (username.includes('@')) return { email: username };
-
-      // Usernames are stored as-typed by the admin forms, so compare them
-      // case-insensitively. allUsers() is the same full-union read the
-      // Master Admin's user listing performs; the rate limit above bounds
-      // repeated attempts.
+      // An email-looking value can STILL be a System Username (Company
+      // Admins commonly get info@company.com as their username), so the
+      // username lookup ALWAYS runs first; only an unmatched '@' value
+      // passes through unchanged (the client then surfaces Cognito's own
+      // "no account found").
       const all = await allUsers();
       const hit = all.find(
         (u) => String(u.username ?? '').trim().toLowerCase() === username && u.isActive !== false,
       );
-      return { email: hit ? String(hit.email ?? '').toLowerCase() : null };
+      if (hit) return { email: String(hit.email ?? '').toLowerCase() };
+      return { email: username.includes('@') ? username : null };
     },
   },
 
