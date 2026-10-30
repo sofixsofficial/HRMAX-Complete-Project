@@ -287,10 +287,16 @@ export const getReportingManagersByCompany = async (companyId: string): Promise<
   // uid (what the rest of the app resolves managers against), so the profile
   // copy is only a display duplicate. Users go first, profiles fill in
   // whatever has no account (profile-only managers with no login yet).
+  //
+  // The email key is CASE-SENSITIVE on purpose: Cognito usernames are
+  // (info.Ajay@... and info.ajay@... are two different accounts), so
+  // lowercasing here silently swallowed the Company Admin whenever an RM
+  // shared their address differing only in case. Profile-vs-account copies
+  // of one person carry the SAME string, so exact matching still dedupes them.
   const occupied = new Set<string>();
   const candidates: Employee[] = [];
   const take = (e: Employee) => {
-    const email = String(e.email || '').trim().toLowerCase();
+    const email = String(e.email || '').trim();
     const keys = [
       email ? `email:${email}` : '',
       e.userId ? `uid:${e.userId}` : '',
