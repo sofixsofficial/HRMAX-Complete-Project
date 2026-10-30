@@ -38,11 +38,17 @@ export const ROLE_LABELS: Record<RequesterRole, string> = {
 /** Per-requester-role override of the live approver stages. */
 export type ApprovalChainConfig = Partial<Record<RequesterRole, ApprovalTier[]>>;
 
-/** The shipped defaults (identical to the historical hard-coded chains). */
+/**
+ * The shipped defaults — the full multi-tier matrix: employee 5 tiers
+ * (RM → HR → CA → Executive → Team Leader), reporting-manager 4 (HR → CA →
+ * Exec → TL), HR 3 (CA → Exec → TL), executive TL → master-admin gate,
+ * team-leader master-admin gate. Execs/TLs are system-level (MA-created), so
+ * every company chain climbs to them.
+ */
 export const DEFAULT_APPROVAL_CHAINS: Record<RequesterRole, ApprovalTier[]> = {
-  employee: ['reportingManager', 'hr', 'companyAdmin'],
-  'reporting-manager': ['hr', 'companyAdmin'],
-  hr: ['companyAdmin'],
+  employee: ['reportingManager', 'hr', 'companyAdmin', 'executive', 'teamLeader'],
+  'reporting-manager': ['hr', 'companyAdmin', 'executive', 'teamLeader'],
+  hr: ['companyAdmin', 'executive', 'teamLeader'],
   executive: ['teamLeader'],
   'team-leader': [],
 };

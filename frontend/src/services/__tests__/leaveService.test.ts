@@ -2,15 +2,15 @@ import { describe, it, expect } from 'vitest';
 import { getEffectiveTiers, getLiveTiers } from '../leaveService';
 
 describe('getEffectiveTiers (role-based chain)', () => {
-  it('employee → reporting manager, HR, company admin', () => {
-    expect(getEffectiveTiers('employee')).toEqual(['reportingManager', 'hr', 'companyAdmin']);
+  it('employee → RM, HR, company admin, executive, team leader (5 tiers)', () => {
+    expect(getEffectiveTiers('employee')).toEqual(['reportingManager', 'hr', 'companyAdmin', 'executive', 'teamLeader']);
   });
-  it('reporting-manager → HR, company admin', () => {
-    expect(getEffectiveTiers('reporting-manager')).toEqual(['hr', 'companyAdmin']);
+  it('reporting-manager → HR, company admin, executive, team leader (4 tiers)', () => {
+    expect(getEffectiveTiers('reporting-manager')).toEqual(['hr', 'companyAdmin', 'executive', 'teamLeader']);
   });
-  it('hr (and hr-manager alias) → company admin only', () => {
-    expect(getEffectiveTiers('hr')).toEqual(['companyAdmin']);
-    expect(getEffectiveTiers('hr-manager')).toEqual(['companyAdmin']);
+  it('hr (and hr-manager alias) → company admin, executive, team leader (3 tiers)', () => {
+    expect(getEffectiveTiers('hr')).toEqual(['companyAdmin', 'executive', 'teamLeader']);
+    expect(getEffectiveTiers('hr-manager')).toEqual(['companyAdmin', 'executive', 'teamLeader']);
   });
   it('executive → team leader only; team leader → straight to master admin', () => {
     expect(getEffectiveTiers('executive')).toEqual(['teamLeader']);
@@ -27,9 +27,9 @@ describe('getEffectiveTiers (configurable company override)', () => {
     expect(getEffectiveTiers('employee', { employee: ['hr', 'reportingManager'] })).toEqual(['reportingManager', 'hr']);
   });
   it('falls back to the default when the override is empty/invalid', () => {
-    expect(getEffectiveTiers('employee', { employee: [] })).toEqual(['reportingManager', 'hr', 'companyAdmin']);
+    expect(getEffectiveTiers('employee', { employee: [] })).toEqual(['reportingManager', 'hr', 'companyAdmin', 'executive', 'teamLeader']);
     expect(getEffectiveTiers('employee', { employee: ['bogus'] as never })).toEqual([]);
-    expect(getEffectiveTiers('employee', null)).toEqual(['reportingManager', 'hr', 'companyAdmin']);
+    expect(getEffectiveTiers('employee', null)).toEqual(['reportingManager', 'hr', 'companyAdmin', 'executive', 'teamLeader']);
   });
 });
 
@@ -45,7 +45,7 @@ describe('getLiveTiers (progress denominator)', () => {
         companyAdmin: 'Pending',
       },
     };
-    expect(getEffectiveTiers(leave.applicantRole)).toHaveLength(3);
+    expect(getEffectiveTiers(leave.applicantRole)).toHaveLength(5);
     expect(getLiveTiers(leave)).toEqual(['reportingManager', 'companyAdmin']);
   });
 

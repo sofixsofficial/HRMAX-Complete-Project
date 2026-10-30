@@ -559,18 +559,18 @@ export const reviewMasterAdminLeaveRequest = async (
  * Returns the effective approval tiers for a given applicant role — the tiers
  * that actually have to decide for THIS requester (all other tiers are
  * Approved/Skipped server-side):
- * - Employee:             Reporting Manager -> HR -> Company Admin
- * - Reporting Manager:    HR -> Company Admin
- * - HR:                   Company Admin
+ * - Employee:             Reporting Manager -> HR -> Company Admin -> Executive -> Team Leader
+ * - Reporting Manager:    HR -> Company Admin -> Executive -> Team Leader
+ * - HR:                   Company Admin -> Executive -> Team Leader
  * - Executive self-app:   Team Leader -> Master Admin gate
  * - Team Leader self-app: Master Admin gate only
  */
 export const getEffectiveTiers = (applicantRole?: string, chains?: ApprovalChainConfig | null): ApprovalTier[] => {
-  // hr-manager is a legacy alias for the HR role's chain (company admin only).
-  if (applicantRole === 'hr-manager') return ['companyAdmin'];
-  if (applicantRole && REQUESTER_ROLES.includes(applicantRole as RequesterRole)) {
+  // hr-manager is a legacy alias for the HR role — same chain (company config included).
+  const role = applicantRole === 'hr-manager' ? 'hr' : applicantRole;
+  if (role && REQUESTER_ROLES.includes(role as RequesterRole)) {
     // Company-configured stages (falls back to the shipped per-role default).
-    return resolveApprovalChain(applicantRole, chains);
+    return resolveApprovalChain(role, chains);
   }
   // Unknown / legacy role — show the full chain rather than an empty one.
   return [...TIER_ORDER];

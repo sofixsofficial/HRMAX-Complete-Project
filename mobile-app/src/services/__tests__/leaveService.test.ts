@@ -8,12 +8,12 @@ describe('TIER_ORDER (canonical 5-tier chain)', () => {
 });
 
 describe('getEffectiveTiers (role-based chain)', () => {
-  it('employee → Reporting Manager → HR → Company Admin', () => {
-    expect(getEffectiveTiers('employee')).toEqual(['reportingManager', 'hr', 'companyAdmin']);
+  it('employee → RM → HR → Company Admin → Executive → Team Leader (5 tiers)', () => {
+    expect(getEffectiveTiers('employee')).toEqual(['reportingManager', 'hr', 'companyAdmin', 'executive', 'teamLeader']);
   });
-  it('reporting-manager → HR + company admin; hr → company admin; executive → team leader; team leader → none', () => {
-    expect(getEffectiveTiers('reporting-manager')).toEqual(['hr', 'companyAdmin']);
-    expect(getEffectiveTiers('hr')).toEqual(['companyAdmin']);
+  it('reporting-manager → HR + CA + Exec + TL (4); hr → CA + Exec + TL (3); executive → team leader; team leader → none', () => {
+    expect(getEffectiveTiers('reporting-manager')).toEqual(['hr', 'companyAdmin', 'executive', 'teamLeader']);
+    expect(getEffectiveTiers('hr')).toEqual(['companyAdmin', 'executive', 'teamLeader']);
     expect(getEffectiveTiers('executive')).toEqual(['teamLeader']);
     expect(getEffectiveTiers('team-leader')).toEqual([]);
   });
@@ -37,7 +37,7 @@ describe('getLiveTiers (progress denominator)', () => {
         teamLeader: 'Skipped',
       },
     };
-    expect(getEffectiveTiers(leave.applicantRole)).toHaveLength(3);
+    expect(getEffectiveTiers(leave.applicantRole)).toHaveLength(5);
     expect(getLiveTiers(leave)).toEqual(['reportingManager', 'companyAdmin']);
   });
 
@@ -60,12 +60,14 @@ describe('getLiveTiers (progress denominator)', () => {
     expect(
       getLiveTiers({ applicantRole: 'reporting-manager', approvalStatus: { hr: 'Skipped', companyAdmin: 'Approved', executive: 'Skipped', teamLeader: 'Skipped' } }),
     ).toEqual(['companyAdmin']);
-    expect(getLiveTiers({ applicantRole: 'hr', approvalStatus: { companyAdmin: 'Pending' } })).toEqual(['companyAdmin']);
+    expect(
+      getLiveTiers({ applicantRole: 'hr', approvalStatus: { companyAdmin: 'Pending', executive: 'Skipped', teamLeader: 'Skipped' } }),
+    ).toEqual(['companyAdmin']);
     expect(getLiveTiers({ applicantRole: 'team-leader', approvalStatus: {} })).toEqual([]);
   });
 
   it('treats a missing approvalStatus as "nothing skipped"', () => {
-    expect(getLiveTiers({ applicantRole: 'employee' })).toHaveLength(3);
-    expect(getLiveTiers({ applicantRole: 'employee', approvalStatus: null })).toHaveLength(3);
+    expect(getLiveTiers({ applicantRole: 'employee' })).toHaveLength(5);
+    expect(getLiveTiers({ applicantRole: 'employee', approvalStatus: null })).toHaveLength(5);
   });
 });

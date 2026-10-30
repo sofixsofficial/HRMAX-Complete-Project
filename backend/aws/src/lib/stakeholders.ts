@@ -103,6 +103,12 @@ export async function resolveStakeholders(
     if (linked.some((e) => execSet.has(e)) || (repExec && execSet.has(repExec))) tlSet.add(String(tl.id));
     const assigned = (tl.assignedCompanyIds as string[]) ?? [];
     if (assigned.includes(companyId)) tlSet.add(String(tl.id));
+    // Company-bound TL (own companyId): TLs are system-level MA-created
+    // accounts that punch/serve a company — without this, a TL holding no
+    // executive links would never resolve and the Team Leader tier of every
+    // chain would silently skip.
+    const ownCid = String((tl.companyId as string) ?? '');
+    if (ownCid && ownCid !== 'global' && ownCid === companyId) tlSet.add(String(tl.id));
   }
   out.teamLeaderIds = [...tlSet];
 

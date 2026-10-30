@@ -5,9 +5,9 @@
  * function that builds them (computeInitialApproval — the same code path
  * POST /api/leave-requests runs, so the UI can never diverge from it):
  *
- *   employee           -> reporting manager -> HR -> company admin
- *   reporting manager  -> HR -> company admin
- *   HR                 -> company admin
+ *   employee           -> reporting manager -> HR -> company admin -> executive -> team leader
+ *   reporting manager  -> HR -> company admin -> executive -> team leader
+ *   HR                 -> company admin -> executive -> team leader
  *   executive          -> team leader -> master-admin gate
  *   team leader        -> (all auto-approved) -> master-admin gate
  *
@@ -48,25 +48,25 @@ const staffed = {
   masterAdminIds: ['ma1'],
 };
 
-test('employee chain: reporting manager -> HR -> company admin', async () => {
+test('employee chain: RM -> HR -> company admin -> executive -> team leader (5 tiers)', async () => {
   const r = await computeInitialApproval(input, 'employee', staffed);
   assert.equal(r.approvalStatus.reportingManager, 'Pending');
   assert.equal(r.approvalStatus.hr, 'Pending');
   assert.equal(r.approvalStatus.companyAdmin, 'Pending');
-  assert.equal(r.approvalStatus.executive, 'Skipped', 'executive tier must not be part of an employee chain');
-  assert.equal(r.approvalStatus.teamLeader, 'Skipped', 'team-leader tier must not be part of an employee chain');
+  assert.equal(r.approvalStatus.executive, 'Pending', 'executive tier is live in the employee chain (system-level)');
+  assert.equal(r.approvalStatus.teamLeader, 'Pending', 'team-leader tier is live in the employee chain (system-level)');
   assert.equal(r.approverIds.hr, 'hr1');
   assert.equal(r.masterAdminRequired, false);
   assert.equal(r.applicantRole, 'employee');
 });
 
-test('reporting manager chain: HR -> company admin (own tier skipped by spec)', async () => {
+test('reporting manager chain: HR -> company admin -> executive -> team leader (4 tiers, own tier skipped)', async () => {
   const r = await computeInitialApproval(input, 'reporting-manager', staffed);
   assert.equal(r.approvalStatus.reportingManager, 'Skipped', 'an RM does not approve their own leave');
   assert.equal(r.approvalStatus.hr, 'Pending');
   assert.equal(r.approvalStatus.companyAdmin, 'Pending');
-  assert.equal(r.approvalStatus.executive, 'Skipped');
-  assert.equal(r.approvalStatus.teamLeader, 'Skipped');
+  assert.equal(r.approvalStatus.executive, 'Pending');
+  assert.equal(r.approvalStatus.teamLeader, 'Pending');
   assert.equal(r.masterAdminRequired, false);
 });
 
@@ -75,15 +75,17 @@ test('reporting manager chain is stable even with no manager configured above', 
   assert.equal(r.approvalStatus.reportingManager, 'Skipped');
   assert.equal(r.approvalStatus.hr, 'Pending');
   assert.equal(r.approvalStatus.companyAdmin, 'Pending');
+  assert.equal(r.approvalStatus.executive, 'Pending');
+  assert.equal(r.approvalStatus.teamLeader, 'Pending');
 });
 
-test('HR chain: company admin only', async () => {
+test('HR chain: company admin -> executive -> team leader (3 tiers)', async () => {
   const r = await computeInitialApproval(input, 'hr', staffed);
   assert.equal(r.approvalStatus.reportingManager, 'Skipped');
   assert.equal(r.approvalStatus.hr, 'Skipped', 'no self-approval of your own HR tier');
   assert.equal(r.approvalStatus.companyAdmin, 'Pending');
-  assert.equal(r.approvalStatus.executive, 'Skipped');
-  assert.equal(r.approvalStatus.teamLeader, 'Skipped');
+  assert.equal(r.approvalStatus.executive, 'Pending');
+  assert.equal(r.approvalStatus.teamLeader, 'Pending');
   assert.equal(r.masterAdminRequired, false);
 });
 
@@ -105,10 +107,12 @@ test('team leader chain: all tiers auto-approved -> master-admin gate', async ()
   assert.equal(r.masterAdminApproveStatus, 'Pending');
 });
 
-test('unassigned HR account: HR tier auto-skips, chain still completes at company admin', async () => {
+test('unassigned HR account: HR tier auto-skips, chain continues through executive and team leader', async () => {
   const r = await computeInitialApproval(input, 'employee', { ...staffed, hrIds: [] });
   assert.equal(r.approvalStatus.hr, 'Skipped');
   assert.equal(r.approvalStatus.companyAdmin, 'Pending');
+  assert.equal(r.approvalStatus.executive, 'Pending');
+  assert.equal(r.approvalStatus.teamLeader, 'Pending');
   assert.equal(r.approverIds.hr ?? null, null);
 });
 

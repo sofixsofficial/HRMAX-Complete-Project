@@ -19,10 +19,16 @@ export const TIER_ORDER: ApprovalTier[] = ['reportingManager', 'hr', 'companyAdm
 
 export type ApprovalChainConfig = Partial<Record<RequesterRole, ApprovalTier[]>>;
 
+/**
+ * The shipped defaults — the full multi-tier matrix: employee 5 tiers
+ * (RM → HR → CA → Executive → Team Leader), reporting-manager 4, HR 3,
+ * executive TL → master-admin gate, team-leader master-admin gate. Mirrors
+ * backend/aws/src/lib/types.ts and the web's utils/approvalChains.ts.
+ */
 export const DEFAULT_APPROVAL_CHAINS: Record<RequesterRole, ApprovalTier[]> = {
-  employee: ['reportingManager', 'hr', 'companyAdmin'],
-  'reporting-manager': ['hr', 'companyAdmin'],
-  hr: ['companyAdmin'],
+  employee: ['reportingManager', 'hr', 'companyAdmin', 'executive', 'teamLeader'],
+  'reporting-manager': ['hr', 'companyAdmin', 'executive', 'teamLeader'],
+  hr: ['companyAdmin', 'executive', 'teamLeader'],
   executive: ['teamLeader'],
   'team-leader': [],
 };

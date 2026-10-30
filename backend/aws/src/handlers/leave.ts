@@ -60,9 +60,9 @@ export async function computeInitialApproval(
   const masterAdminApproverId: string | null = masterAdminRequired ? stakeholders.masterAdminIds[0] ?? null : null;
 
   // ── Configurable chain (company policy) with the shipped per-role defaults:
-  //    employee          -> reporting manager -> HR -> company admin
-  //    reporting manager -> HR -> company admin
-  //    HR                -> company admin
+  //    employee          -> RM -> HR -> CA -> Executive -> Team Leader
+  //    reporting manager -> HR -> CA -> Executive -> Team Leader
+  //    HR                -> CA -> Executive -> Team Leader
   //    executive         -> team leader  -> master admin gate
   //    team leader       -> master admin gate
   // Tiers in the live chain with an assigned (non-self) approver become

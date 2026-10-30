@@ -114,8 +114,9 @@ export const TIER_ORDER: LeaveTier[] = ['reportingManager', 'hr', 'companyAdmin'
 /**
  * Configurable approval chains (company policy).
  *
- * The product's DEFAULT chain is per-requester-role (employee → RM → HR → CA,
- * RM → HR → CA, HR → CA, exec → TL → MA gate, TL → MA gate). A company may
+ * The product's DEFAULT chain is per-requester-role (employee → RM → HR → CA
+ * → Exec → TL, RM → HR → CA → Exec → TL, HR → CA → Exec → TL, exec → TL →
+ * MA gate, TL → MA gate). A company may
  * override WHICH approver stages are active for each of its roles via
  * `company.approvalChains`; the stages always execute in TIER_ORDER (the
  * canonical sequential order), so a config is a per-role set of live tiers.
@@ -132,11 +133,21 @@ export const REQUESTER_ROLES: RequesterRole[] = ['employee', 'reporting-manager'
 /** Per-requester-role override of the live approver stages. */
 export type ApprovalChainConfig = Partial<Record<RequesterRole, LeaveTier[]>>;
 
-/** The shipped defaults (identical to the historical hard-coded chains). */
+/**
+ * The shipped defaults — the full multi-tier matrix (per the approval spec):
+ *   employee          -> RM -> HR -> CA -> Executive -> Team Leader   (5 tiers)
+ *   reporting-manager -> HR -> CA -> Executive -> Team Leader         (4 tiers)
+ *   HR                -> CA -> Executive -> Team Leader               (3 tiers)
+ *   executive         -> Team Leader -> master-admin gate             (2 tiers)
+ *   team-leader       -> master-admin gate                            (1 tier)
+ * Executives and Team Leaders are system-level (Master Admin created), so
+ * every company chain climbs to them; only the two self-service roles end
+ * with the explicit master-admin gate.
+ */
 export const DEFAULT_APPROVAL_CHAINS: Record<RequesterRole, LeaveTier[]> = {
-  employee: ['reportingManager', 'hr', 'companyAdmin'],
-  'reporting-manager': ['hr', 'companyAdmin'],
-  hr: ['companyAdmin'],
+  employee: ['reportingManager', 'hr', 'companyAdmin', 'executive', 'teamLeader'],
+  'reporting-manager': ['hr', 'companyAdmin', 'executive', 'teamLeader'],
+  hr: ['companyAdmin', 'executive', 'teamLeader'],
   executive: ['teamLeader'],
   'team-leader': [],
 };
