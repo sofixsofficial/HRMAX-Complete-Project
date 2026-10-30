@@ -7,7 +7,7 @@
  */
 
 import { createRemoteJWKSet, jwtVerify, type JWTPayload } from 'jose';
-import { ApiError, type Caller, type UserRole, VALID_ROLES } from './types.js';
+import { ApiError, defaultPermissionsForRole, type Caller, type UserRole, VALID_ROLES } from './types.js';
 import { getUserDoc, allPartitions } from './db.js';
 
 const POOL_ID = process.env.COGNITO_USER_POOL_ID ?? '';
@@ -243,6 +243,11 @@ export function hasPermission(caller: Caller, perm: string): boolean {
   if (caller.role === 'reporting-manager') {
     if (perm.startsWith('leave.')) return true;
     if (perm === 'employees.view' || perm === 'attendance.view') return true;
+    // Default RM catalog (types.ts) unless an admin explicitly configured a
+    // matrix. User docs seed `permissions` at CREATION time, so newly shipped
+    // defaults (payroll.view / tasks.view) never reached existing logins —
+    // the salary-slips / tasks pages stayed 403 for every pre-existing RM.
+    if (!caller.permissionsConfigured && defaultPermissionsForRole('reporting-manager').includes(perm)) return true;
   }
 
   // TL / executive: unconfigured matrix = full default access
