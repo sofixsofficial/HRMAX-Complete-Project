@@ -5,6 +5,7 @@ import { useAuth } from '../../context/AuthContext';
 import { useTheme, ThemeColors } from '../../context/ThemeContext';
 import { db } from '../../aws/clients';
 import { collection, query, where, getDocs, orderBy, limit, doc, updateDoc, Timestamp } from '../../aws/firestore-compat';
+import { useReportingTeamScope } from '../../hooks/useReportingTeamScope';
 import { Paths, File } from 'expo-file-system';
 import * as Sharing from 'expo-sharing';
 import { Icon } from '../../utils/icons';
@@ -31,17 +32,36 @@ export const TasksScreen: React.FC = () => {
   const [progressModal, setProgressModal] = useState<{ id: string; progress: number } | null>(null);
   const s = useMemo(() => createStyles(colors), [colors]);
 
+  // Reporting Manager: own + assigned employees' tasks only ("khud ka and
+  // assigned employee ka tasks"). Fail-closed: until the team set resolves,
+  // ONLY the RM's own tasks show — never the whole company's.
+  const isRM = user?.role === 'reporting-manager';
+  const rmScope = useReportingTeamScope(user?.id, user?.companyId, isRM);
+
   const fetchTasks = useCallback(async () => {
     if (!user) return;
     try {
+      if (isRM) {
+        const snap = await getDocs(
+          query(collection(db, 'tasks'), where('companyId', '==', user.companyId || ''), orderBy('createdAt', 'desc'), limit(60))
+        );
+        const scopeIds = new Set<string>([user.id, ...rmScope.userIds, ...rmScope.employeeIds]);
+        setTasks(
+          snap.docs
+            .map((d) => ({ id: d.id, ...d.data() }))
+            .filter((t: any) => scopeIds.has(t.assignedToId) || scopeIds.has(t.assignedTo))
+        );
+        return;
+      }
       const snap = await getDocs(
         query(collection(db, 'tasks'), where('assignedToId', '==', user.id), orderBy('createdAt', 'desc'), limit(30))
       );
       setTasks(snap.docs.map((d) => ({ id: d.id, ...d.data() })));
     } catch (err) { console.error('Failed to fetch tasks:', err); }
-  }, [user?.id]);
+  }, [user?.id, user?.companyId, isRM, rmScope.userIds, rmScope.employeeIds]);
 
-  useEffect(() => { fetchTasks(); }, [fetchTasks]);
+  // Re-run once the team scope resolves so assigned employees' tasks appear.
+  useEffect(() => { fetchTasks(); }, [fetchTasks, rmScope.loading]);
 
   const onRefresh = async () => { setRefreshing(true); await fetchTasks(); setRefreshing(false); };
 

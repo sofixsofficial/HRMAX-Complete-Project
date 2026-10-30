@@ -26,6 +26,8 @@ export interface ReportingTeamStats {
   missPunchPending: number;
   pendingLeaves: number;
   activeTasks: number;
+  /** Team members with an APPROVED leave covering today (real data). */
+  onLeaveToday: number;
 }
 
 export function useReportingTeamStats(managerId?: string, companyId?: string | null, refreshKey?: number, role?: string): ReportingTeamStats {
@@ -83,6 +85,22 @@ export function useReportingTeamStats(managerId?: string, companyId?: string | n
     () => tasks.filter((t) => (t.status === 'Pending' || t.status === 'In Progress') && (scope.userIds.has(t.assignedToId) || scope.userIds.has(t.assignedTo))).length,
     [tasks, scope.userIds]
   );
+  // REAL "On Leave": team members with an APPROVED leave covering today.
+  // employee.status is never set to 'On Leave' by the approval flow, so the
+  // status-based count always read 0 (web parity).
+  const onLeaveToday = useMemo(() => {
+    const now = new Date();
+    const today = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
+    const uids = new Set<string>();
+    leaves.forEach((l: any) => {
+      if (l.status !== 'Approved') return;
+      if (!scope.userIds.has(String(l.userId ?? ''))) return;
+      const start = String(l.startDate || '').slice(0, 10);
+      const end = String(l.endDate || start).slice(0, 10);
+      if (start && end && start <= today && end >= today) uids.add(String(l.userId));
+    });
+    return uids.size;
+  }, [leaves, scope.userIds]);
 
-  return { loading: scope.loading || dataLoading, directReports, presentToday, missPunchPending, pendingLeaves, activeTasks };
+  return { loading: scope.loading || dataLoading, directReports, presentToday, missPunchPending, pendingLeaves, activeTasks, onLeaveToday };
 }

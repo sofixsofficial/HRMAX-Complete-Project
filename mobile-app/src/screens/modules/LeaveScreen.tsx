@@ -138,7 +138,7 @@ export const LeaveScreen: React.FC = () => {
       screen: 'ApplyLeave',
       params: {
         reSubmit: true,
-        leaveType: leave.leaveType,
+        leaveType: leave.leaveType || (leave as any).type || 'Casual',
         startDate: toInput(leave.startDate),
         endDate: toInput(leave.endDate),
         reason: leave.reason,
@@ -166,7 +166,12 @@ export const LeaveScreen: React.FC = () => {
       const snap = await getDocs(
         query(collection(db, 'leaveRequests'), where('userId', '==', user.id), orderBy('appliedOn', 'desc'), limit(50))
       );
-      setLeaves(snap.docs.map((d) => ({ id: d.id, ...d.data() })));
+      // Backend stores the type under `type` (leave.ts) — normalize so every
+      // consumer (list, detail modal, resubmit) sees `leaveType` populated.
+      setLeaves(snap.docs.map((d) => {
+        const raw = d.data() as any;
+        return { id: d.id, ...raw, leaveType: raw.leaveType || raw.type || 'Casual' };
+      }));
     } catch (err) { console.error('Failed to fetch leaves:', err); }
   };
 

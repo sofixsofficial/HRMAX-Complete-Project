@@ -112,7 +112,7 @@ export function getCardDetailConfig(key: string, ctx: DetailCtx): CardDetailConf
         company: companyNameOf(l.companyId),
         executive: execOfCompany(l.companyId),
         teamLeader: tlsOfCompany(l.companyId),
-        leaveType: l.leaveType || '—',
+        leaveType: l.leaveType || l.type || '—',
         from: fmtDate(l.startDate || l.fromDate),
         to: fmtDate(l.endDate || l.toDate),
         status: l.status || '—',

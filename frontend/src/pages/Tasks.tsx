@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react'
+import { useState, useEffect, useRef, useMemo } from 'react'
 import { useSearchParams } from 'react-router-dom'
 import { CheckSquare, CheckCircle, Clock, AlertCircle, CalendarDays, PlusCircle, Search, Download, Plus, ChevronDown, Eye, Pencil, Trash2, Filter, LayoutGrid, List, ChevronLeft, ChevronRight, Loader2, Building2, Briefcase, Crown } from 'lucide-react'
 import { Header } from '../components/Header'
@@ -264,6 +264,12 @@ export function Tasks() {
 
       if (user?.role === 'master-admin') {
         data = await getAllTasks()
+      } else if (user?.role === 'reporting-manager') {
+        // RM: own + assigned employees' tasks. Company fetch, then the
+        // visibleTasks scope below narrows it to self + team (fail-closed).
+        // Without a company scope there is nothing safe to list → own rows.
+        const cid = effectiveCompanyId || user.companyId || ''
+        data = cid ? await getTasksByCompany(cid) : await getTasksByUser(user.id || '')
       } else if (effectiveCompanyId) {
         data = await getTasksByCompany(effectiveCompanyId)
       } else if (user?.role === 'executive' || user?.role === 'team-leader') {
@@ -344,8 +350,30 @@ export function Tasks() {
   }
 
   // ── role-based visibility ───────────────────────────────────
+  // Reporting Manager: own + assigned employees' tasks ONLY ("khud ka and
+  // assigned employee ka tasks"). Team set mirrors the Attendance/Leave RM
+  // resolvers (employee docs whose managerId/reportingManagerId is this RM),
+  // plus the RM's own uid. Fail-closed: while the set is unresolved/empty of
+  // team, ONLY self rows show — never the whole company's tasks.
+  const rmScope = useMemo(() => {
+    if (user?.role !== 'reporting-manager' || !user?.id) return null
+    const ids = new Set<string>([user.id])
+    employees.forEach(e => {
+      if ((e as any).managerId === user.id || e.reportingManagerId === user.id) {
+        if (e.userId) ids.add(e.userId)
+        ids.add(e.id)
+        if (e.employeeId) ids.add(e.employeeId)
+      }
+    })
+    return ids
+  }, [user?.role, user?.id, employees])
+
   const visibleTasks = tasks.filter(t => {
     if (user?.role === 'master-admin') return true
+    if (user?.role === 'reporting-manager') {
+      if (!rmScope) return false
+      return rmScope.has(t.assignedToId) || rmScope.has(t.assignedTo)
+    }
     if (user?.role === 'executive') {
       const execUser = allUsers.find(u => u.id === user.id)
       const cids: string[] = (execUser as any)?.assignedCompanyIds || []
@@ -361,6 +389,28 @@ export function Tasks() {
     }
     return true
   })
+
+  // RM stat cards must reflect the SELF+TEAM list, not the company-wide
+  // getTaskStats totals (those leak other teams' counts).
+  const rmScopedStats = useMemo(() => {
+    if (user?.role !== 'reporting-manager') return null
+    return {
+      total: visibleTasks.length,
+      completed: visibleTasks.filter(t => t.status === 'Completed').length,
+      pending: visibleTasks.filter(t => t.status === 'Pending').length,
+      overdue: visibleTasks.filter(t => new Date(t.dueDate) < new Date() && t.status !== 'Completed').length,
+    }
+  }, [user?.role, visibleTasks])
+  const effStats = rmScopedStats || stats
+
+  // Assignment dropdown for RM: only their assigned employees ("My Team") —
+  // never the whole company's staff.
+  const rmTeamEmployees = useMemo(() => {
+    if (user?.role !== 'reporting-manager') return employees
+    return employees.filter(
+      e => (e as any).managerId === user?.id || e.reportingManagerId === user?.id
+    )
+  }, [user?.role, user?.id, employees])
 
   // ── cascading filter options ──────────────────────────────
   const visibleExecIds = companyFilter === 'all'
@@ -614,25 +664,25 @@ export function Tasks() {
   const getStatsCards = () => {
     if (user?.role === 'executive') {
       return [
-        { icon: CheckSquare, label: 'My Tasks', value: String(stats.total), subtext: 'Assigned to me', color: '#f97316', bgColor: '#fff7ed', filterValue: 'All' as const },
-        { icon: CheckCircle, label: 'Completed', value: String(stats.completed), subtext: 'Done', color: '#10b981', bgColor: '#ecfdf5', filterValue: 'Completed' as const },
-        { icon: AlertCircle, label: 'Pending', value: String(stats.pending), subtext: 'To start', color: '#22c55e', bgColor: '#f0fdf4', filterValue: 'Pending' as const },
+        { icon: CheckSquare, label: 'My Tasks', value: String(effStats.total), subtext: 'Assigned to me', color: '#f97316', bgColor: '#fff7ed', filterValue: 'All' as const },
+        { icon: CheckCircle, label: 'Completed', value: String(effStats.completed), subtext: 'Done', color: '#10b981', bgColor: '#ecfdf5', filterValue: 'Completed' as const },
+        { icon: AlertCircle, label: 'Pending', value: String(effStats.pending), subtext: 'To start', color: '#22c55e', bgColor: '#f0fdf4', filterValue: 'Pending' as const },
       ]
     }
     
     if (isManager) {
       return [
-        { icon: CheckSquare, label: 'Team Tasks', value: String(stats.total), action: 'View all', color: '#f97316', bgColor: '#fff7ed', filterValue: 'All' as const },
-        { icon: CheckCircle, label: 'Completed', value: String(stats.completed), subtext: 'Done', color: '#10b981', bgColor: '#ecfdf5', filterValue: 'Completed' as const },
-        { icon: PlusCircle, label: 'Overdue', value: String(stats.overdue), subtext: 'Requires attention', color: '#ef4444', bgColor: '#fef2f2', filterValue: 'Overdue' as const },
+        { icon: CheckSquare, label: 'Team Tasks', value: String(effStats.total), action: 'View all', color: '#f97316', bgColor: '#fff7ed', filterValue: 'All' as const },
+        { icon: CheckCircle, label: 'Completed', value: String(effStats.completed), subtext: 'Done', color: '#10b981', bgColor: '#ecfdf5', filterValue: 'Completed' as const },
+        { icon: PlusCircle, label: 'Overdue', value: String(effStats.overdue), subtext: 'Requires attention', color: '#ef4444', bgColor: '#fef2f2', filterValue: 'Overdue' as const },
       ]
     }
     
     return [
-      { icon: CheckSquare, label: 'Total Tasks', value: String(stats.total), action: 'View all tasks', color: '#f97316', bgColor: '#fff7ed', filterValue: 'All' as const },
-      { icon: CheckCircle, label: 'Completed', value: String(stats.completed), subtext: 'Done', color: '#10b981', bgColor: '#ecfdf5', filterValue: 'Completed' as const },
-      { icon: AlertCircle, label: 'Pending', value: String(stats.pending), subtext: 'To start', color: '#22c55e', bgColor: '#f0fdf4', filterValue: 'Pending' as const },
-      { icon: PlusCircle, label: 'Overdue', value: String(stats.overdue), subtext: 'Requires attention', color: '#ef4444', bgColor: '#fef2f2', filterValue: 'Overdue' as const },
+      { icon: CheckSquare, label: 'Total Tasks', value: String(effStats.total), action: 'View all tasks', color: '#f97316', bgColor: '#fff7ed', filterValue: 'All' as const },
+      { icon: CheckCircle, label: 'Completed', value: String(effStats.completed), subtext: 'Done', color: '#10b981', bgColor: '#ecfdf5', filterValue: 'Completed' as const },
+      { icon: AlertCircle, label: 'Pending', value: String(effStats.pending), subtext: 'To start', color: '#22c55e', bgColor: '#f0fdf4', filterValue: 'Pending' as const },
+      { icon: PlusCircle, label: 'Overdue', value: String(effStats.overdue), subtext: 'Requires attention', color: '#ef4444', bgColor: '#fef2f2', filterValue: 'Overdue' as const },
     ]
   }
 
@@ -965,7 +1015,7 @@ export function Tasks() {
           submitLabel="Add Task"
           onCancel={() => { setIsAddModalOpen(false); setFormData(INITIAL_FORM_DATA); }}
           isSubmitting={isSubmitting}
-          employees={employees}
+          employees={rmTeamEmployees}
         />
       </Modal>
 
@@ -978,7 +1028,7 @@ export function Tasks() {
           submitLabel="Save Changes"
           onCancel={() => { setIsEditModalOpen(false); setSelectedTask(null); }}
           isSubmitting={isSubmitting}
-          employees={employees}
+          employees={rmTeamEmployees}
         />
       </Modal>
 

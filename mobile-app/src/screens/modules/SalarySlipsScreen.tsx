@@ -15,7 +15,6 @@ import {
   getSalaryStats, salaryStatsFromSlips, markAsPaid, retryFailedPayslips, getCompanyPayslipOptions,
 } from '../../services/salaryService';
 import { scopedCompanyIdsForRole } from '../../utils/companyScope';
-import { useReportingTeamScope } from '../../hooks/useReportingTeamScope';
 import { generatePayslipPdf } from '../../utils/payslipPdf';
 import { HeroBanner, PremiumCard, ShimmerLoader, SegmentControl, EmptyStateView, StatusBadge } from '../../components/PremiumComponents';
 import { ScreenHeader } from '../../components/ScreenHeader';
@@ -54,15 +53,13 @@ export const SalarySlipsScreen: React.FC = () => {
   // ─── Stats ──────────────────────────────────────────────────────────
   const [stats, setStats] = useState({ total: 0, paid: 0, pending: 0, processing: 0, emailed: 0, totalAmount: 0 });
 
-  // Reporting Manager: strict hierarchy — only slips of their assigned
-  // employees (same scope the Attendance/Leave RM views use). Fail-closed:
-  // while the team set is empty or loading, nothing shows.
+  // Reporting Manager: payroll is SELF-ONLY ("khud ka salary slip") — their
+  // own rows only, never the team's (team payroll stays with HR/CA).
   const isRM = user?.role === 'reporting-manager';
-  const scope = useReportingTeamScope(user?.id, companyId, isRM);
   const scopedSlips = useMemo(() => {
     if (!isRM) return slips;
-    return slips.filter((sl) => scope.userIds.has(sl.userId) || scope.employeeIds.has(sl.employeeId));
-  }, [slips, isRM, scope.userIds, scope.employeeIds]);
+    return slips.filter((sl) => sl.userId === user?.id);
+  }, [slips, isRM, user?.id]);
   // RM banner stats come from the TEAM-scoped list; other roles keep the
   // server/company stats object.
   const displayStats = useMemo(
@@ -77,6 +74,11 @@ export const SalarySlipsScreen: React.FC = () => {
       let data: SalarySlip[] = [];
       if (user?.role === 'employee') {
         data = await getSalarySlipsByUser(user.id);
+      } else if (user?.role === 'reporting-manager') {
+        // RM payroll is SELF-ONLY — query their own rows (GSI1 by userId) so
+        // no other employee's slip even reaches the device. Fail-closed: no
+        // uid → nothing.
+        data = user.id ? await getSalarySlipsByUser(user.id) : [];
       } else {
         // 'global' / 'master-admin' are platform sentinels, not tenants:
         // scoping to them matched a partition that does not exist and the

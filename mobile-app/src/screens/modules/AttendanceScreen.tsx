@@ -44,10 +44,7 @@ const getRoleRoutingNote = (role?: string): string | null => {
   if (role === 'team-leader' || role === 'executive') {
     return 'Missed punch and leave requests are routed directly to the Master Admin for final review.';
   }
-  if (role === 'reporting-manager' || role === 'hr-manager') {
-    // Reporting Manager's own tier is skipped — chain starts at HR.
-    return 'Missed punch requests are routed through: HR → Company Admin.';
-  }
+  // Reporting Manager: routing note removed (matches web SelfAttendanceCard).
   if (role === 'hr') {
     return 'Missed punch requests are routed through: Company Admin.';
   }

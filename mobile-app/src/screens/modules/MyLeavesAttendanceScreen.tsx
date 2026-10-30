@@ -146,10 +146,12 @@ export const MyLeavesAttendanceScreen: React.FC<{ navigation: any }> = ({ naviga
       query(collection(db, 'leaveRequests'), where('userId', '==', userId)),
       (snap) => {
         const docs = snap.docs.map((d) => {
-          const data = d.data();
+          const data = d.data() as any;
           return {
             ...data,
             id: d.id,
+            // Backend stores the type under `type` — normalize for display.
+            leaveType: data.leaveType || data.type || 'Casual',
             startDate: toDate(data.startDate),
             endDate: toDate(data.endDate),
             appliedOn: toDate(data.appliedOn),
@@ -315,7 +317,7 @@ export const MyLeavesAttendanceScreen: React.FC<{ navigation: any }> = ({ naviga
       screen: 'ApplyLeave',
       params: {
         reSubmit: true,
-        leaveType: leave.leaveType,
+        leaveType: leave.leaveType || (leave as any).type || 'Casual',
         startDate: toInput(leave.startDate),
         endDate: toInput(leave.endDate),
         reason: leave.reason,

@@ -53,6 +53,7 @@ export function ReportingManagerDashboard() {
   const [leaveError, setLeaveError] = useState<string | null>(null)
   const [missPunchCount, setMissPunchCount] = useState(0)
   const [pendingLeaves, setPendingLeaves] = useState(0)
+  const [leaveTodayUids, setLeaveTodayUids] = useState<Set<string>>(new Set())
   const [showLeaveApply, setShowLeaveApply] = useState(false)
 
   const unsubRef = useRef<(() => void) | null>(null)
@@ -130,8 +131,43 @@ export function ReportingManagerDashboard() {
     }
   }, [user?.id, user?.companyId, user?.role])
 
+  // REAL "On Leave" data: team members with an APPROVED leave covering today.
+  // Deriving from employee.status never moved (nothing sets that field), so
+  // the card always read 0. ScopeUids = self + assigned employees only.
+  useEffect(() => {
+    if (!user?.companyId || scopeUids.size === 0) { setLeaveTodayUids(new Set()); return }
+    const q = query(
+      collection(db, 'leaveRequests'),
+      where('companyId', '==', user.companyId),
+      where('status', '==', 'Approved')
+    )
+    const unsub = onSnapshot(q, (snap) => {
+      const today = new Date()
+      const todayStr = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`
+      const uids = new Set<string>()
+      snap.docs.forEach(d => {
+        const a = d.data()
+        const uid = String(a.userId ?? '')
+        if (!scopeUids.has(uid)) return
+        const start = String(a.startDate || '').slice(0, 10)
+        const end = String(a.endDate || start).slice(0, 10)
+        if (start && end && start <= todayStr && end >= todayStr) uids.add(uid)
+      })
+      setLeaveTodayUids(uids)
+    }, () => setLeaveTodayUids(new Set()))
+    return () => unsub()
+  }, [user?.companyId, scopeUids])
+
   const active = team.filter(e => e.status === 'Active').length
-  const onLeave = team.filter(e => e.status === 'On Leave').length
+  // On Leave = approved leave covering TODAY (real data), not the static
+  // employee.status field. Team members only (status badges keep rendering
+  // from employee.status as before).
+  const onLeave = useMemo(() => {
+    const teamUids = new Set(team.map(e => e.userId).filter(Boolean))
+    let n = 0
+    leaveTodayUids.forEach(uid => { if (teamUids.has(uid)) n++ })
+    return n
+  }, [team, leaveTodayUids])
   const inactive = team.filter(e => e.status === 'Inactive').length
   const filtered = team.filter(e => {
     const s = searchTerm.toLowerCase()

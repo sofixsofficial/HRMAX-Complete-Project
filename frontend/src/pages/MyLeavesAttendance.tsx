@@ -177,6 +177,9 @@ export function MyLeavesAttendance() {
 
   const mapLeave = (d: any): LeaveRequest => ({
     ...d,
+    // Backend stores the type under `type` — normalize so lists/detail never
+    // render an empty Leave Type.
+    leaveType: d.leaveType || d.type || 'Casual',
     startDate: toDate(d.startDate)!,
     endDate: toDate(d.endDate)!,
     appliedOn: toDate(d.appliedOn)!,

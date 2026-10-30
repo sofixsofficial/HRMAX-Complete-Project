@@ -29,7 +29,9 @@ const mapLeave = (d: any): LeaveRequest => {
     department: data.department || '',
     departmentId: data.departmentId || '',
     companyId: data.companyId,
-    leaveType: data.leaveType,
+    // Backend leave docs store the type under `type` (leave.ts) — reading only
+    // `leaveType` rendered "—" in the Leave Type column on every dashboard.
+    leaveType: data.leaveType || data.type || 'Casual',
     startDate: toDate(data.startDate),
     endDate: toDate(data.endDate),
     totalDays: data.totalDays || 0,

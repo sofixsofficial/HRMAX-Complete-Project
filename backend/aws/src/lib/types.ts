@@ -319,6 +319,11 @@ export const REPORTING_MANAGER_PERMISSIONS: string[] = [
   'departments.view',
   'reports.view',
   'company.view', 'companies.view',
+  // RM views their OWN salary slip + their assigned employees' slips/tasks
+  // (client scopes rows to self + team; without these the pages returned
+  // "Access denied" / "Failed to load" straight from assertPermission).
+  'payroll.view',
+  'tasks.view', 'tasks.create', 'tasks.edit',
 ];
 
 /**

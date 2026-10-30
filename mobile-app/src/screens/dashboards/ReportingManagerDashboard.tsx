@@ -71,7 +71,9 @@ export const ReportingManagerDashboard: React.FC<{ navigation: any }> = ({ navig
 
   const members = scope.members || [];
   const active = members.filter((e) => e.status === 'Active').length;
-  const onLeave = members.filter((e) => e.status === 'On Leave').length;
+  // On Leave = approved leave covering TODAY (real data, web parity) — not
+  // the static employee.status field the approval flow never sets.
+  const onLeave = team.onLeaveToday;
   const inactive = members.filter((e) => e.status === 'Inactive').length;
 
   const filtered = members.filter((e) => {

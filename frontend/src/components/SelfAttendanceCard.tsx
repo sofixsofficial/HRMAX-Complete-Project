@@ -166,12 +166,6 @@ export function SelfAttendanceCard({ role }: SelfAttendanceCardProps) {
             Missed punch and leave requests are routed directly to the Master Admin for final review.
           </div>
         )}
-        {role === 'reporting-manager' && (
-          <div style={{ marginTop: 12, padding: '8px 12px', borderRadius: 8, background: '#eff6ff', border: '1px solid #dbeafe', display: 'flex', alignItems: 'center', gap: 8, fontSize: 12, color: '#1e40af' }}>
-            <Info size={14} style={{ flexShrink: 0 }} />
-            Missed punch requests are routed through: Company Admin → Executive → Team Leader.
-          </div>
-        )}
       </div>
 
       {/* Missed Punch Rectification Modal */}

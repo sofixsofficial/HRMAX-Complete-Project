@@ -10,8 +10,7 @@ import { usePermissionScope } from '../hooks/usePermissionScope'
 import { useAccessControl } from '../context/AccessControlContext'
 import { ScopeIndicator } from '../components/ScopeIndicator'
 import { useRoleBasedStats, useRoleBasedTitle } from '../hooks/useRoleBasedData'
-import { getAllSalarySlips, getSalarySlipsByCompany, getSalaryStats, salaryStatsFromSlips, retryFailedPayslips } from '../services/salaryService'
-import { getEmployeesByCompany } from '../services/employeeService'
+import { getAllSalarySlips, getSalarySlipsByCompany, getSalarySlipsByUser, getSalaryStats, salaryStatsFromSlips, retryFailedPayslips } from '../services/salaryService'
 import { generatePayslip } from '../utils/payslip'
 import { scopedCompanyIds } from '../utils/companyScope'
 import { downloadPayslipPdf } from '../utils/payslipPdf'
@@ -65,7 +64,12 @@ export function SalarySlips() {
       // an empty list while the API held the records.
       const isPlatformScope = !companyId || companyId === 'global' || companyId === 'master-admin'
 
-      if (isPlatformScope && user?.role !== 'executive' && user?.role !== 'team-leader') {
+      if (user?.role === 'reporting-manager') {
+        // RM payroll is SELF-ONLY ("khud ka salary slip") — query their own
+        // rows (GSI1 by userId) so no other employee's slip even reaches the
+        // browser. Fail-closed: no uid → nothing.
+        data = user.id ? await getSalarySlipsByUser(user.id) : []
+      } else if (isPlatformScope && user?.role !== 'executive' && user?.role !== 'team-leader') {
         data = await getAllSalarySlips()
       } else if (companyId) {
         data = await getSalarySlipsByCompany(companyId)
@@ -111,42 +115,15 @@ export function SalarySlips() {
     }
   }
 
-  // Reporting Manager: strict hierarchy — only slips of their assigned
-  // employees. The team set mirrors the Attendance/Leave resolvers (employee
-  // docs whose managerId/reportingManagerId is this RM) and every slip is
-  // matched on userId OR employee-doc-id (slips store the doc id in
-  // employeeId). Fail-closed: while the set is empty or still loading, NO
-  // slips show instead of falling through to the whole company's payroll.
-  const [rmTeamIds, setRmTeamIds] = useState<Set<string> | null>(null)
-  useEffect(() => {
-    if (user?.role !== 'reporting-manager' || !user?.id || !companyId) {
-      setRmTeamIds(null)
-      return
-    }
-    let cancelled = false
-    getEmployeesByCompany(companyId)
-      .then(emps => {
-        if (cancelled) return
-        const ids = new Set<string>()
-        emps.forEach(e => {
-          if ((e as any).managerId === user.id || e.reportingManagerId === user.id) {
-            if (e.userId) ids.add(e.userId)
-            ids.add(e.id)
-            if (e.employeeId) ids.add(e.employeeId)
-          }
-        })
-        setRmTeamIds(ids)
-      })
-      .catch(() => { if (!cancelled) setRmTeamIds(new Set()) })
-    return () => { cancelled = true }
-  }, [user?.role, user?.id, companyId])
-
+  // Reporting Manager: payroll is SELF-ONLY — their own slip, nothing else
+  // (their own data is read by HR/CA above them; team slips stay with HR).
+  // The fetch above already queries by userId; this filter is the fail-closed
+  // belt-and-braces so a wrong fetch can never leak the company's payroll.
   const isReportingManager = user?.role === 'reporting-manager'
   const scopedSlips = useMemo(() => {
     if (!isReportingManager) return salarySlips
-    if (rmTeamIds === null) return []
-    return salarySlips.filter(s => rmTeamIds.has(s.userId) || rmTeamIds.has(s.employeeId))
-  }, [isReportingManager, salarySlips, rmTeamIds])
+    return salarySlips.filter(s => s.userId === user?.id)
+  }, [isReportingManager, salarySlips, user?.id])
 
   const scopedStats = useMemo(
     () => (isReportingManager ? salaryStatsFromSlips(scopedSlips) : stats),
