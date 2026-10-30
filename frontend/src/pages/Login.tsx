@@ -128,16 +128,17 @@ export function Login() {
             )}
 
             <form onSubmit={handleSubmit} className="flex flex-col gap-[18px]" noValidate>
-              {/* Email Field */}
+              {/* Email / System Username Field */}
               <div className="flex flex-col gap-1.5">
-                <label className="text-[13px] font-medium text-gray-700">Email Address</label>
+                <label className="text-[13px] font-medium text-gray-700">Email or System Username</label>
                 <div className="relative flex items-center">
                   <Mail size={18} className="absolute left-3.5 text-gray-500 pointer-events-none z-[1]" />
                   <input
-                    type="email"
+                    type="text"
+                    inputMode="email"
                     value={email}
                     onChange={(e) => { setEmail(e.target.value); if (error) setError('') }}
-                    placeholder="Enter your email"
+                    placeholder="Enter your email or system username"
                     required
                     autoComplete="off"
                     className="w-full pl-[46px] pr-4 py-3 text-sm border border-gray-200 rounded-xl outline-none transition-all duration-150 focus:border-orange-500 focus:ring-[3px] focus:ring-orange-100 bg-white text-gray-900 placeholder-gray-500"

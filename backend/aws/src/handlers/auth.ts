@@ -12,7 +12,7 @@ import { createHash, randomBytes } from 'node:crypto';
 import { must, type Route } from '../lib/http.js';
 import { assertRole, assertPermission, scopedCompanyIds } from '../lib/auth.js';
 import { PutCommand } from '@aws-sdk/lib-dynamodb';
-import { putEntity, getUserDoc, queryEntities, deleteUserDoc, patchEntity, patchUserDoc, getEntity, doc, TABLE, userPK } from '../lib/db.js';
+import { putEntity, getUserDoc, queryEntities, deleteUserDoc, patchEntity, patchUserDoc, getEntity, doc, TABLE, userPK, allUsers } from '../lib/db.js';
 import { sendEmailCentral, templates } from '../lib/email.js';
 import { createNotification } from '../lib/notify.js';
 import { enforceRateLimit } from '../lib/rateLimit.js';
@@ -320,6 +320,40 @@ export const authRoutes: Route[] = [
       const token = String(req.body.token ?? '');
       await patchEntity('user', caller.companyId || 'global', caller.uid, { pushToken: token || null }, { entity: 'user' });
       return { success: true };
+    },
+  },
+
+  // --------------------------------------- resolve System Username -> email
+  // The sign-in box accepts a user's System Username (e.g. the Company
+  // Admin's info@sofixs.com) in addition to the account email. Cognito
+  // usernames are always the email (pool UsernameAttributes = email, no
+  // aliases possible), so the client tries the typed name first and — only on
+  // UserNotFoundException — asks THIS endpoint which email (if any) the
+  // System Username belongs to, then retries InitiateAuth with that email.
+  // Unknown names come back as { email: null } so the UI keeps its normal
+  // "no account found" error. Rate-limited like every other public auth route.
+  {
+    method: 'POST',
+    path: '/api/auth/resolve-username',
+    public: true,
+    handler: async (req) => {
+      const username = String(req.body.username ?? '').trim().toLowerCase();
+      if (!username) throw new ApiError('bad-request', 'username required');
+      await enforceRateLimit(`resolveuser#${username}`, 15, 300);
+      await enforceRateLimit(`resolveuser-ip#${sourceIp(req)}`, 60, 300);
+
+      // An email is already a Cognito username — nothing to resolve.
+      if (username.includes('@')) return { email: username };
+
+      // Usernames are stored as-typed by the admin forms, so compare them
+      // case-insensitively. allUsers() is the same full-union read the
+      // Master Admin's user listing performs; the rate limit above bounds
+      // repeated attempts.
+      const all = await allUsers();
+      const hit = all.find(
+        (u) => String(u.username ?? '').trim().toLowerCase() === username && u.isActive !== false,
+      );
+      return { email: hit ? String(hit.email ?? '').toLowerCase() : null };
     },
   },
 
