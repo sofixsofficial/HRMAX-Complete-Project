@@ -250,33 +250,38 @@ html, body {
    (webkit pseudo only: scrollbar-color/width would disable these in
    Chromium and render a thin default bar instead.)
    `.table-scroll` is the class for containers that carry an inline
-   overflowX:auto — without a class the rules below never matched them. */
+   overflowX:auto — without a class the rules below never matched them.
+   `.lap-table-wrap` is the Leave Approvals panel's horizontal wrapper. */
 .table-container,
 .table-wrapper,
 .table-scroll,
 .perm-table-container,
-.audit-table-wrapper {
+.audit-table-wrapper,
+.lap-table-wrap {
   overflow-x: auto;
 }
 .table-container::-webkit-scrollbar,
 .table-wrapper::-webkit-scrollbar,
 .table-scroll::-webkit-scrollbar,
 .perm-table-container::-webkit-scrollbar,
-.audit-table-wrapper::-webkit-scrollbar {
+.audit-table-wrapper::-webkit-scrollbar,
+.lap-table-wrap::-webkit-scrollbar {
   height: 10px;
 }
 .table-container::-webkit-scrollbar-track,
 .table-wrapper::-webkit-scrollbar-track,
 .table-scroll::-webkit-scrollbar-track,
 .perm-table-container::-webkit-scrollbar-track,
-.audit-table-wrapper::-webkit-scrollbar-track {
+.audit-table-wrapper::-webkit-scrollbar-track,
+.lap-table-wrap::-webkit-scrollbar-track {
   background: #e5e7eb;
 }
 .table-container::-webkit-scrollbar-thumb,
 .table-wrapper::-webkit-scrollbar-thumb,
 .table-scroll::-webkit-scrollbar-thumb,
 .perm-table-container::-webkit-scrollbar-thumb,
-.audit-table-wrapper::-webkit-scrollbar-thumb {
+.audit-table-wrapper::-webkit-scrollbar-thumb,
+.lap-table-wrap::-webkit-scrollbar-thumb {
   background: #111827;
   border-radius: 999px;
   border: 2px solid #e5e7eb;
@@ -285,7 +290,8 @@ html, body {
 .table-wrapper::-webkit-scrollbar-thumb:hover,
 .table-scroll::-webkit-scrollbar-thumb:hover,
 .perm-table-container::-webkit-scrollbar-thumb:hover,
-.audit-table-wrapper::-webkit-scrollbar-thumb:hover {
+.audit-table-wrapper::-webkit-scrollbar-thumb:hover,
+.lap-table-wrap::-webkit-scrollbar-thumb:hover {
   background: #000;
 }
 

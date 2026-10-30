@@ -226,6 +226,13 @@ export function userDocVisible(caller: Caller, doc: Record<string, unknown>, rol
 export function hasPermission(caller: Caller, perm: string): boolean {
   if (isSuperAdmin(caller)) return true;
 
+  // Unconfigured roles fall back to the SHIPPED default catalog (types.ts).
+  // User docs seed `permissions` at CREATION time, so newly shipped defaults
+  // (reporting-manager payroll.view/tasks.view, hr payroll.view) never reached
+  // pre-existing logins — their pages kept returning 403 after the catalog
+  // update. Explicit admin-configured matrices still win below.
+  if (!caller.permissionsConfigured && defaultPermissionsForRole(caller.role).includes(perm)) return true;
+
   // company-admin: view-only except explicit allow
   if (caller.role === 'company-admin') {
     const [, action] = perm.split('.');
@@ -243,11 +250,6 @@ export function hasPermission(caller: Caller, perm: string): boolean {
   if (caller.role === 'reporting-manager') {
     if (perm.startsWith('leave.')) return true;
     if (perm === 'employees.view' || perm === 'attendance.view') return true;
-    // Default RM catalog (types.ts) unless an admin explicitly configured a
-    // matrix. User docs seed `permissions` at CREATION time, so newly shipped
-    // defaults (payroll.view / tasks.view) never reached existing logins —
-    // the salary-slips / tasks pages stayed 403 for every pre-existing RM.
-    if (!caller.permissionsConfigured && defaultPermissionsForRole('reporting-manager').includes(perm)) return true;
   }
 
   // TL / executive: unconfigured matrix = full default access

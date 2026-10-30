@@ -348,6 +348,7 @@ function AppRoutes() {
       <Route path="/hr/leaves" element={<RoleRouteGuard allowedRoles={['hr']} requireScope><LeaveManagement /></RoleRouteGuard>} />
       <Route path="/hr/my-leaves-attendance" element={<RoleRouteGuard allowedRoles={['hr']} requireScope={false}><MyLeavesAttendance /></RoleRouteGuard>} />
       <Route path="/hr/tasks" element={<RoleRouteGuard allowedRoles={['hr']} requireScope><Tasks /></RoleRouteGuard>} />
+      <Route path="/hr/salary-slips" element={<RoleRouteGuard allowedRoles={['hr']} requireScope><SalarySlips /></RoleRouteGuard>} />
       <Route path="/hr/holidays" element={<RoleRouteGuard allowedRoles={['hr']} requireScope={false}><HolidayCalendar /></RoleRouteGuard>} />
       <Route path="/hr/announcements" element={<RoleRouteGuard allowedRoles={['hr']} requireScope><Announcements /></RoleRouteGuard>} />
       <Route path="/hr/calendar" element={<RoleRouteGuard allowedRoles={['hr']} requireScope={false}><CalendarCenter /></RoleRouteGuard>} />

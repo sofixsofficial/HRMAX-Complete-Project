@@ -338,6 +338,9 @@ export const HR_PERMISSIONS: string[] = [
   'leave.view', 'leave.create', 'leave.approve', 'leave.manage',
   'holidays.view', 'announcements.view',
   'tasks.view', 'tasks.create', 'tasks.edit',
+  // HR reviews company salary slips (own company only — the page scopes rows
+  // to their companyId; without this the sidebar's Salary Slips entry 403'd).
+  'payroll.view',
   'reports.view', 'reports.export',
   'company.view', 'companies.view',
   'dashboard.view',

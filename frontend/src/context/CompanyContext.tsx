@@ -37,7 +37,7 @@ export const CompanyProvider: React.FC<{ children: React.ReactNode }> = ({ child
 
   const isRestrictedRole = user?.role === 'executive' || user?.role === 'team-leader' || isReportingManager
 
-  const isSingleCompanyRole = user?.role === 'company-admin' || user?.role === 'employee'
+  const isSingleCompanyRole = user?.role === 'company-admin' || user?.role === 'employee' || user?.role === 'hr'
   const isEmployee = user?.role === 'employee'
 
   useEffect(() => {
@@ -56,7 +56,8 @@ export const CompanyProvider: React.FC<{ children: React.ReactNode }> = ({ child
         const fuCompanyId = forceUser?.companyId
         const fuId = forceUser?.id
 
-        const fuSingleCompany = fuRole === 'company-admin' || fuRole === 'employee'
+        // HR belongs to their own company (no "All Companies" cross-tenant view)
+        const fuSingleCompany = fuRole === 'company-admin' || fuRole === 'employee' || fuRole === 'hr'
 
         if (fuRole === 'executive') {
           // Executives manage ALL companies (like master-admin): the company

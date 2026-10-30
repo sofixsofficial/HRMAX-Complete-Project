@@ -265,7 +265,7 @@ export function Sidebar() {
         { icon: CalendarDays, label: 'Leaves', path: '/leaves' },
         { icon: Wallet, label: 'Payroll', path: '/payroll', requiredRoles: ['master-admin', 'company-admin'] },
         { icon: History, label: 'Payroll History', path: '/payroll-history', requiredRoles: ['master-admin', 'company-admin', 'executive', 'team-leader'] },
-        { icon: FileText, label: 'Salary Slips', path: '/salary-slips', requiredRoles: ['master-admin', 'company-admin', 'employee'] },
+        { icon: FileText, label: 'Salary Slips', path: '/salary-slips', requiredRoles: ['master-admin', 'company-admin', 'employee', 'hr'] },
         { icon: Percent, label: 'Salary Structure', path: '/salary-structure', requiredRoles: ['master-admin', 'executive'] },
         { icon: CheckSquare, label: 'Tasks', path: '/tasks' },
       ])

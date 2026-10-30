@@ -52,7 +52,7 @@ export const CompanyProvider: React.FC<{ children: React.ReactNode }> = ({ child
   // NOT company-restricted: their scope is global, matching the backend
   // (scopedCompanyIds returns [] = unrestricted for team-leader).
   const isRestrictedRole = user?.role === 'executive' || isReportingManager;
-  const isSingleCompanyRole = user?.role === 'company-admin' || user?.role === 'employee';
+  const isSingleCompanyRole = user?.role === 'company-admin' || user?.role === 'employee' || user?.role === 'hr';
 
   useEffect(() => {
     if (!user) {
