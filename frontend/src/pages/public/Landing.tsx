@@ -5,9 +5,10 @@ import {
   Clock, CheckSquare, Mail, Phone, MapPin,
   CheckCircle2, PlayCircle, ClipboardList, Wallet, Gauge,
   Compass, SlidersHorizontal,
-  LogIn, Monitor, Tablet, Smartphone
+  LogIn, Monitor, Tablet, Smartphone, Play
 } from 'lucide-react'
 import { modules } from './modules-content'
+import { PLAY_STORE_URL } from './site-nav'
 import './Landing.css'
 
 /**
@@ -452,14 +453,24 @@ export function Landing() {
               <h2 id="getapp-heading">Run HR from <span>any device</span></h2>
               <p className="getapp-lede">
                 HR MAX is a web app, so it opens straight in the browser on a
-                laptop, tablet or phone. There is nothing to install and no
-                store listing to wait for — sign in and your workspace is there.
+                laptop, tablet or phone — sign in and your workspace is there.
+                The HR MAX Android app is also available on Google Play.
               </p>
               <div className="getapp-actions">
                 <Link to="/login" className="hero-btn-primary">
                   <LogIn size={18} aria-hidden="true" />
                   Open HR MAX
                 </Link>
+                <a
+                  href={PLAY_STORE_URL}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="hero-btn-secondary getapp-store"
+                  aria-label="Get HR MAX on Google Play"
+                >
+                  <Play size={17} fill="currentColor" aria-hidden="true" />
+                  Get it on Google Play
+                </a>
                 <Link to="/enroll" className="hero-btn-secondary">
                   Request early access
                   <ArrowRight size={16} aria-hidden="true" />

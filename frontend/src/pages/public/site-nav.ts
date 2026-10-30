@@ -22,6 +22,9 @@ export interface NavLeaf {
   external?: boolean
 }
 
+/** Google Play listing for the HR MAX Android app (package com.hrmax.app). */
+export const PLAY_STORE_URL = 'https://play.google.com/store/apps/details?id=com.hrmax.app'
+
 export interface NavGroup {
   label: string
   /** Plain link (no dropdown) when `items` is omitted. */

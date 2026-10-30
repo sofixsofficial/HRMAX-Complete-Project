@@ -1,9 +1,17 @@
 import { useEffect, useRef, useState } from 'react'
 import { Link, useLocation } from 'react-router-dom'
-import { Menu, X, ArrowRight, ChevronDown } from 'lucide-react'
+import { Menu, X, ArrowRight, ChevronDown, Play } from 'lucide-react'
 import { Logo } from '../../components/Logo'
-import { mainNav } from './site-nav'
+import { mainNav, PLAY_STORE_URL } from './site-nav'
+import { FacebookIcon, InstagramIcon, YoutubeIcon } from './social-icons'
 import './Navbar.css'
+
+/** Official HR MAX social profiles (verified links — never `#`). */
+const socials = [
+  { icon: FacebookIcon, label: 'HR MAX on Facebook', href: 'https://www.facebook.com/profile.php?id=61596110247952' },
+  { icon: InstagramIcon, label: 'HR MAX on Instagram', href: 'https://www.instagram.com/hr.maxx/' },
+  { icon: YoutubeIcon, label: 'HR MAX on YouTube', href: 'https://www.youtube.com/channel/UCc3PMO4Dufc-iXOnpsDm1PA' },
+]
 
 /**
  * Public site navigation.
@@ -176,9 +184,28 @@ export function Navbar() {
 
         {/* Desktop actions */}
         <div className="site-nav-actions">
+          <ul className="site-nav-social" aria-label="HR MAX on social media">
+            {socials.map(s => (
+              <li key={s.href}>
+                <a href={s.href} target="_blank" rel="noopener noreferrer" aria-label={s.label} title={s.label}>
+                  <s.icon size={17} aria-hidden="true" />
+                </a>
+              </li>
+            ))}
+          </ul>
           <Link to="/login" className="site-nav-login">
             Log in
           </Link>
+          <a
+            href={PLAY_STORE_URL}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="site-nav-store"
+            aria-label="Get HR MAX on Google Play"
+          >
+            <Play size={13} fill="currentColor" aria-hidden="true" />
+            Get on Play
+          </a>
           <Link to="/demo" className="site-nav-demo">
             Book a Demo
           </Link>
@@ -269,7 +296,28 @@ export function Navbar() {
             })}
           </ul>
 
+          <ul className="site-nav-social site-drawer-social" aria-label="HR MAX on social media">
+            {socials.map(s => (
+              <li key={s.href}>
+                <a href={s.href} target="_blank" rel="noopener noreferrer" aria-label={s.label} title={s.label} onClick={() => setDrawer(false)}>
+                  <s.icon size={18} aria-hidden="true" />
+                </a>
+              </li>
+            ))}
+          </ul>
+
           <div className="site-drawer-actions">
+            <a
+              href={PLAY_STORE_URL}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="site-nav-store"
+              aria-label="Get HR MAX on Google Play"
+              onClick={() => setDrawer(false)}
+            >
+              <Play size={13} fill="currentColor" aria-hidden="true" />
+              Get on Play
+            </a>
             <Link to="/login" className="site-nav-login" onClick={() => setDrawer(false)}>
               Log in
             </Link>
