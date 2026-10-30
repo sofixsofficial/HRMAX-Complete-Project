@@ -60,9 +60,9 @@ test('employee chain: RM -> HR -> company admin -> executive -> team leader (5 t
   assert.equal(r.applicantRole, 'employee');
 });
 
-test('reporting manager chain: HR -> company admin -> executive -> team leader (4 tiers, own tier skipped)', async () => {
+test('reporting manager chain: HR -> company admin -> executive -> team leader (4 tiers, own tier auto-approved)', async () => {
   const r = await computeInitialApproval(input, 'reporting-manager', staffed);
-  assert.equal(r.approvalStatus.reportingManager, 'Skipped', 'an RM does not approve their own leave');
+  assert.equal(r.approvalStatus.reportingManager, 'Approved', 'own tier is auto-approved — never Skipped');
   assert.equal(r.approvalStatus.hr, 'Pending');
   assert.equal(r.approvalStatus.companyAdmin, 'Pending');
   assert.equal(r.approvalStatus.executive, 'Pending');
@@ -72,17 +72,17 @@ test('reporting manager chain: HR -> company admin -> executive -> team leader (
 
 test('reporting manager chain is stable even with no manager configured above', async () => {
   const r = await computeInitialApproval(input, 'reporting-manager', { ...staffed, reportingManagerId: null });
-  assert.equal(r.approvalStatus.reportingManager, 'Skipped');
+  assert.equal(r.approvalStatus.reportingManager, 'Approved', 'no Skipped anywhere, for any role');
   assert.equal(r.approvalStatus.hr, 'Pending');
   assert.equal(r.approvalStatus.companyAdmin, 'Pending');
   assert.equal(r.approvalStatus.executive, 'Pending');
   assert.equal(r.approvalStatus.teamLeader, 'Pending');
 });
 
-test('HR chain: company admin -> executive -> team leader (3 tiers)', async () => {
+test('HR chain: company admin -> executive -> team leader (3 tiers, own + RM tier auto-approved)', async () => {
   const r = await computeInitialApproval(input, 'hr', staffed);
-  assert.equal(r.approvalStatus.reportingManager, 'Skipped');
-  assert.equal(r.approvalStatus.hr, 'Skipped', 'no self-approval of your own HR tier');
+  assert.equal(r.approvalStatus.reportingManager, 'Approved', 'no Skipped anywhere, for any role');
+  assert.equal(r.approvalStatus.hr, 'Approved', 'own tier auto-approved — no self-approval, no Skipped');
   assert.equal(r.approvalStatus.companyAdmin, 'Pending');
   assert.equal(r.approvalStatus.executive, 'Pending');
   assert.equal(r.approvalStatus.teamLeader, 'Pending');
@@ -125,11 +125,11 @@ test('TIER_ORDER has the HR tier between the reporting manager and the company a
 test('company override replaces the employee chain (skip RM + HR, company admin only)', async () => {
   const chains = { employee: ['companyAdmin'] };
   const r = await computeInitialApproval(input, 'employee', staffed, chains);
-  assert.equal(r.approvalStatus.reportingManager, 'Skipped');
-  assert.equal(r.approvalStatus.hr, 'Skipped');
+  assert.equal(r.approvalStatus.reportingManager, 'Approved', 'out-of-chain tiers are auto-approved, never Skipped');
+  assert.equal(r.approvalStatus.hr, 'Approved');
   assert.equal(r.approvalStatus.companyAdmin, 'Pending');
-  assert.equal(r.approvalStatus.executive, 'Skipped');
-  assert.equal(r.approvalStatus.teamLeader, 'Skipped');
+  assert.equal(r.approvalStatus.executive, 'Approved');
+  assert.equal(r.approvalStatus.teamLeader, 'Approved');
 });
 
 test('override is de-duplicated and re-ordered into canonical TIER_ORDER', async () => {

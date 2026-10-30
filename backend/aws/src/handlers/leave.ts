@@ -69,19 +69,17 @@ export async function computeInitialApproval(
   // (product rule: the full chain shows every approver waiting, even when a
   // slot has no stamped approver — the approve path accepts the natural role
   // holder or master admin, so an empty slot can never deadlock). Tiers
-  // outside the chain are Approved for master-gated roles (exec/TL — so the
-  // MA gate's all-pre-tiers-approved check holds) and Skipped otherwise.
-  const applicantUid = String(input.userId ?? '');
+  // outside this requester's chain (their own tier, non-applicable stages)
+  // are auto-Approved — 'Skipped' is written NOWHERE, for ANY role: every
+  // matrix chip reads either Pending or Approved.
   const liveChain = resolveApprovalChain(applicantRole, chains);
   for (const tier of TIER_ORDER) {
-    const inChain = liveChain.includes(tier);
-    if (inChain) {
+    if (liveChain.includes(tier)) {
       status[tier] = 'Pending';
     } else {
-      status[tier] = masterAdminRequired ? 'Approved' : 'Skipped';
+      status[tier] = 'Approved';
     }
   }
-  void applicantUid; // approver ids are still stamped below for notifications
 
   return {
     approvalStatus: status as LeaveRequestDoc['approvalStatus'],
