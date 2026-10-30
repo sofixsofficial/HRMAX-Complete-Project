@@ -281,18 +281,28 @@ export const getReportingManagersByCompany = async (companyId: string): Promise<
       .map(u => mapUserToEmployee(u, companyId));
   } catch { /* users read unavailable — fall back to employee-based candidates */ }
 
-  // Dedupe by user identity (user id when present, otherwise employee doc id).
-  const seen = new Set<string>();
+  // Dedupe by PERSON, not by doc: the same manager often exists twice — an
+  // employee profile (no userId) AND a user account (uid). Key on the email
+  // first, then the uid, and let the USER entry win: managerId stores the auth
+  // uid (what the rest of the app resolves managers against), so the profile
+  // copy is only a display duplicate. Users go first, profiles fill in
+  // whatever has no account (profile-only managers with no login yet).
+  const occupied = new Set<string>();
   const candidates: Employee[] = [];
-  const push = (e: Employee) => {
-    const key = e.userId || e.id;
-    if (!key || seen.has(key)) return;
-    seen.add(key);
+  const take = (e: Employee) => {
+    const email = String(e.email || '').trim().toLowerCase();
+    const keys = [
+      email ? `email:${email}` : '',
+      e.userId ? `uid:${e.userId}` : '',
+      e.id ? `doc:${e.id}` : '',
+    ].filter(Boolean);
+    if (keys.some(k => occupied.has(k))) return;
+    keys.forEach(k => occupied.add(k));
     candidates.push(e);
   };
 
-  rmEmployees.forEach(push);
-  rmUsers.forEach(push);
+  rmUsers.forEach(take);
+  rmEmployees.forEach(take);
   return candidates;
 };
 
