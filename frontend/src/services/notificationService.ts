@@ -209,6 +209,104 @@ export async function notifyMasterAdmins(
   } catch {}
 }
 
+export interface ApprovalDecisionInput {
+  companyId: string;
+  action: 'Approved' | 'Rejected';
+  /** Overall status AFTER this decision — false = an intermediate tier approved. */
+  isFinal?: boolean;
+  /** The requester whose leave / missed-punch is being decided. */
+  subjectId?: string;
+  subjectName?: string;
+  /** Set when the caller already sent the subject its outcome notification. */
+  subjectAlreadyNotified?: boolean;
+  /** Override the subject message (e.g. "awaits Master Admin verification"). */
+  subjectMessage?: string;
+  /** The reviewer making this decision. */
+  approverId?: string;
+  approverName: string;
+  approverLabel?: string;
+  /** 'leave' | 'punch' — wording only. */
+  kind?: string;
+  /** Human description, e.g. "Casual leave (Oct 30 → Oct 30)". */
+  detail: string;
+  link: string;
+  /** Caller already sent its own MA notice for this decision. */
+  skipMasterAdmins?: boolean;
+}
+
+/**
+ * The three-way approval notification fan-out (requirement):
+ *  1. The SUBJECT hears about EVERY decision — intermediate tier approvals
+ *     included, not just the final outcome.
+ *  2. The APPROVER gets an explicit confirmation of their own action.
+ *  3. ALL master admins get every approval event (actor skipped — they
+ *     already received #2), unless the caller sent its own MA notice.
+ * Never throws: notification failures must not block the review itself.
+ */
+export async function notifyApprovalDecision(i: ApprovalDecisionInput): Promise<void> {
+  try {
+    const kindLabel = i.kind === 'punch' ? 'missed punch correction' : 'leave request';
+    const capKind = kindLabel.charAt(0).toUpperCase() + kindLabel.slice(1);
+    const tier = i.approverLabel ? ` (${i.approverLabel})` : '';
+    const verb = i.action === 'Approved' ? 'approved' : 'rejected';
+    const who = i.subjectName || 'an employee';
+
+    // ── 1. Subject ──
+    if (!i.subjectAlreadyNotified && i.subjectId && i.subjectId !== i.approverId) {
+      const body = i.subjectMessage ?? (
+        i.action === 'Rejected'
+          ? `${i.approverName}${tier} rejected your ${i.detail}.`
+          : i.isFinal
+            ? `Your ${i.detail} has been approved by all levels.`
+            : `${i.approverName}${tier} approved your ${i.detail}. It now awaits the next approval.`
+      );
+      const title = i.action === 'Rejected'
+        ? (i.kind === 'punch' ? 'Missed Punch Rejected' : 'Leave Rejected')
+        : i.isFinal
+          ? (i.kind === 'punch' ? 'Missed Punch Approved' : 'Leave Approved')
+          : (i.kind === 'punch' ? 'Missed Punch Tier Approved' : 'Leave Tier Approved');
+      const type = i.kind === 'punch'
+        ? 'punch_rectification_resolved'
+        : (i.action === 'Rejected' ? 'leave_rejected_by_tier' : i.isFinal ? 'leave_fully_approved' : 'leave_tier_approved');
+      await createNotification(i.subjectId, type as NotificationType, title, body, i.link, i.companyId).catch(() => {});
+    }
+
+    // ── 2. Approver self-confirmation ──
+    if (i.approverId && i.approverId !== i.subjectId) {
+      await createNotification(
+        i.approverId,
+        (i.kind === 'punch' ? 'punch_rectification_requested' : 'leave_tier_approved') as NotificationType,
+        i.subjectName ? `You ${verb} ${i.subjectName}'s ${kindLabel}` : `You ${verb} a ${kindLabel}`,
+        `${i.detail}${tier}`,
+        i.link,
+        i.companyId
+      ).catch(() => {});
+    }
+
+    // ── 3. Every master admin ──
+    if (!i.skipMasterAdmins) {
+      try {
+        const q = query(collection(db, 'users'), where('role', '==', 'master-admin'));
+        const snap = await getDocs(q);
+        const skip = new Set<string>([i.approverId ?? '', i.subjectId ?? '']);
+        for (const d of snap.docs) {
+          if (skip.has(d.id)) continue;
+          await createNotification(
+            d.id,
+            (i.kind === 'punch' ? 'punch_rectification_requested' : 'leave_tier_approved') as NotificationType,
+            `${capKind} ${verb}`,
+            `${i.approverName}${tier} ${verb} ${who}'s ${i.detail}.`,
+            i.link,
+            i.companyId
+          ).catch(() => {});
+        }
+      } catch {}
+    }
+  } catch {
+    // Notification fan-out must never block the approval itself.
+  }
+}
+
 // ── Attendance Notification Helpers ──
 
 export async function notifyMissedPunch(

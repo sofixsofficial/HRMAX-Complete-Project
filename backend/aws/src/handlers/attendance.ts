@@ -9,7 +9,7 @@ import { must, equalityFilters, parseOrderBy } from '../lib/http.js';
 import { assertCompanyScope, hasPermission, isSuperAdmin, readPartitions, resolvePersonalCompanyId } from '../lib/auth.js';
 import { putEntity, patchEntity, deleteEntity, queryEntities, queryEntitiesAcross, locateEntityAcross, allPartitions, getCompanyMeta, getEntity, getUserDoc, ConditionalWriteFailed } from '../lib/db.js';
 import { resolveStakeholders } from '../lib/stakeholders.js';
-import { createNotification, fanOutNotifications } from '../lib/notify.js';
+import { createNotification, fanOutNotifications, notifyApprovalDecision } from '../lib/notify.js';
 import { ApiError, newId, isoNow, TIER_ORDER, resolveApprovalChain, type ApprovalChainConfig, type AttendanceDoc, type AttendanceStatus, type LeaveTier, type UserRole } from '../lib/types.js';
 
 const GRACE_PERIOD_MINUTES = 15;
@@ -662,6 +662,23 @@ export const attendanceRoutes: Route[] = [
         type: 'punch_rectification_resolved',
         title: `Rectification ${decision.toLowerCase()}`,
         message: `Your punch correction for ${rec.date} was ${decision.toLowerCase()}.`, link: '/my-attendance',
+      });
+      // Three-way fan-out: subject (fan-out above covers every decision →
+      // skip), approver self-confirmation, ALL master admins — this route
+      // previously notified nobody but the subject.
+      await notifyApprovalDecision({
+        companyId: rec.companyId,
+        action: decision,
+        isFinal: decision === 'Rejected' || !!r.resolved,
+        subjectId: String(rec.userId),
+        subjectName: String(rec.name ?? 'An employee'),
+        subjectAlreadyNotified: true,
+        approverId: caller.uid,
+        approverName: String(caller.name ?? 'A reviewer'),
+        approverLabel: tier === 'masterAdmin' ? 'Master Admin' : tier,
+        kind: 'punch',
+        detail: `missed punch correction for ${String(rec.date ?? '')}`,
+        link: '/attendance',
       });
 
       return { attendance: updated };

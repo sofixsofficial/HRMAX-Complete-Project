@@ -10,7 +10,7 @@ import { must, equalityFilters, parseOrderBy } from '../lib/http.js';
 import { assertCompanyScope, hasPermission, isSuperAdmin, readPartitions, resolvePersonalCompanyId } from '../lib/auth.js';
 import { putEntity, getEntity, patchEntity, queryEntities, queryEntitiesAcross, locateEntityAcross, allPartitions, getUserDoc, getCompanyMeta } from '../lib/db.js';
 import { resolveStakeholders } from '../lib/stakeholders.js';
-import { createNotification, fanOutNotifications } from '../lib/notify.js';
+import { createNotification, fanOutNotifications, notifyApprovalDecision } from '../lib/notify.js';
 import { ApiError, newId, isoNow, TIER_ORDER, resolveApprovalChain, type ApprovalChainConfig, type LeaveRequestDoc, type LeaveTier, type UserRole } from '../lib/types.js';
 
 const MANAGEMENT_SELF_SERVICE: UserRole[] = ['team-leader', 'executive'];
@@ -492,6 +492,24 @@ export const leaveRoutes: Route[] = [
       const final = await patchEntity<LeaveRequestDoc>('leaveRequest', doc_.companyId, doc_.id, finalPatch, {
         entity: 'leaveRequest', userIdField: 'userId',
       });
+      // Three-way fan-out: subject (terminal outcomes already covered by the
+      // final fan-out above → skip; INTERMEDIATE approvals were never sent),
+      // approver self-confirmation, ALL master admins (this route previously
+      // pinged only the next tier).
+      await notifyApprovalDecision({
+        companyId: doc_.companyId,
+        action: decision,
+        isFinal: derived.status !== 'Pending',
+        subjectId: String(updated.userId),
+        subjectName: String(updated.employeeName ?? updated.userName ?? 'An employee'),
+        subjectAlreadyNotified: derived.status !== 'Pending',
+        approverId: caller.uid,
+        approverName: String(caller.name ?? 'A reviewer'),
+        approverLabel: tier,
+        kind: 'leave',
+        detail: `${String(updated.type ?? 'leave')} leave (${String(updated.startDate ?? '')} → ${String(updated.endDate ?? updated.startDate ?? '')})`,
+        link: '/leaves',
+      });
       return { leaveRequest: final };
     },
   },
@@ -534,6 +552,23 @@ export const leaveRoutes: Route[] = [
           link: '/my-leaves', priority: 'high',
         });
       }
+      // Three-way fan-out: subject (final fan-out above → skip), approver
+      // self-confirmation, ALL master admins (other MAs previously never heard
+      // about the gate decision).
+      await notifyApprovalDecision({
+        companyId: doc_.companyId,
+        action: decision,
+        isFinal: true,
+        subjectId: String(updated.userId),
+        subjectName: String(updated.employeeName ?? updated.userName ?? 'An employee'),
+        subjectAlreadyNotified: true,
+        approverId: caller.uid,
+        approverName: String(caller.name ?? 'Master Admin'),
+        approverLabel: 'Master Admin',
+        kind: 'leave',
+        detail: `${String(updated.type ?? 'leave')} leave (${String(updated.startDate ?? '')} → ${String(updated.endDate ?? updated.startDate ?? '')})`,
+        link: '/leaves',
+      });
       return { leaveRequest: final };
     },
   },

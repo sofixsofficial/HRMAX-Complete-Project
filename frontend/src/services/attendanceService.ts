@@ -17,7 +17,17 @@ import {
   notifyMissedPunchSubmitted,
   notifyMissedPunchSubmittedToTier,
   notifyMasterAdmins,
+  notifyApprovalDecision,
 } from './notificationService';
+
+/** Human day label for notification copy. */
+const fmtDay = (v: unknown): string => {
+  if (!v) return '';
+  const d: Date = v instanceof Date ? v : (typeof (v as { toDate?: () => Date }).toDate === 'function'
+    ? (v as { toDate: () => Date }).toDate()
+    : new Date(v as string | number));
+  return isNaN(d.getTime()) ? String(v) : d.toLocaleDateString('en-US', { day: '2-digit', month: 'short', year: 'numeric' });
+};
 
 const COLLECTION_NAME = 'attendance';
 const attendanceRef = collection(db, COLLECTION_NAME);
@@ -1006,6 +1016,30 @@ export const reviewMissedPunchTier = async (
         await notifyMissedPunchTierApproved(mp.approverIds[nextTier], reviewedByName, nextTier, companyId);
       }
     }
+    // Three-way fan-out: subject (intermediate steps too — unless already
+    // notified above), approver self-confirmation, ALL master admins (the old
+    // code only pinged them when the MA gate itself was next).
+    const awaitingMaPunch = action === 'Approved'
+      && overallStatus !== 'Approved'
+      && isAwaitingMissedPunchMasterAdmin(newApprovalStatus, !!mp.masterAdminRequired, mp.masterAdminApproveStatus);
+    await notifyApprovalDecision({
+      companyId,
+      action,
+      isFinal: overallStatus === 'Approved' || overallStatus === 'Rejected',
+      subjectId: employeeUserId,
+      subjectName: employeeName || 'An employee',
+      subjectAlreadyNotified: action === 'Rejected' || overallStatus === 'Approved',
+      subjectMessage: awaitingMaPunch
+        ? `${reviewedByName} (${MISSED_PUNCH_TIER_LABELS[tier]}) approved your missed punch correction. It now awaits Master Admin verification.`
+        : undefined,
+      approverId: reviewedBy,
+      approverName: reviewedByName,
+      approverLabel: MISSED_PUNCH_TIER_LABELS[tier],
+      kind: 'punch',
+      detail: `missed punch correction for ${fmtDay(data.date)}`,
+      link: '/attendance',
+      skipMasterAdmins: awaitingMaPunch, // the MA-gate branch above already notified them
+    });
   } catch {
     // Notification / resolution failures must not block the tier action.
   }
@@ -1090,6 +1124,23 @@ export const reviewMasterAdminMissedPunch = async (
     } else {
       await notifyMissedPunchRejectedByTier(employeeUserId, reviewedByName, 'masterAdmin', companyId, reviewNote);
     }
+    // Three-way fan-out: subject (final outcome already sent above → skip),
+    // approver self-confirmation, ALL master admins (previously this path sent
+    // them nothing at all).
+    await notifyApprovalDecision({
+      companyId,
+      action,
+      isFinal: true,
+      subjectId: employeeUserId,
+      subjectName: data.name || 'An employee',
+      subjectAlreadyNotified: true,
+      approverId: reviewedBy,
+      approverName: reviewedByName,
+      approverLabel: 'Master Admin',
+      kind: 'punch',
+      detail: `missed punch correction for ${fmtDay(data.date)}`,
+      link: '/attendance',
+    });
   } catch {
     // Notification / resolution failures must not block the review.
   }
@@ -1137,6 +1188,26 @@ export const resolvePunchRectification = async (
     await applyMissedPunchResolution(docRef, corrected, resolvedByName, remark || '');
   } else {
     await updateDoc(docRef, payload);
+  }
+
+  // Three-way fan-out for the single-step resolution: subject + approver
+  // self-confirmation + ALL master admins (this path previously sent NOTHING).
+  try {
+    await notifyApprovalDecision({
+      companyId: data.companyId || '',
+      action: 'Approved',
+      isFinal: true,
+      subjectId: data.userId || '',
+      subjectName: data.name || 'An employee',
+      subjectMessage: `${resolvedByName} approved your missed punch correction for ${fmtDay(data.date)}. It has been applied to your attendance.`,
+      approverId: resolvedBy,
+      approverName: resolvedByName,
+      kind: 'punch',
+      detail: `missed punch correction for ${fmtDay(data.date)}`,
+      link: '/attendance',
+    });
+  } catch {
+    // Notification failures must not block the resolution.
   }
 };
 

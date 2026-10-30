@@ -15,7 +15,7 @@ import type { LeaveRequest, LeaveStatus, LeaveType, ApprovalTier, ApprovalLevel,
 import { REQUESTER_ROLES, resolveApprovalChain, type RequesterRole, type ApprovalChainConfig } from '../utils/approvalChains';
 // Re-exported so consumers (LeaveBalanceCard, leavePolicyService) can import the type from here.
 export type { LeaveType } from '../types/user';
-import { notifyLeaveEvent, notifyLeaveTierApproved, notifyLeaveRejectedByTier, notifyLeaveFullyApproved, notifyMasterAdmins, notifyLeaveSubmittedToTier } from './notificationService';
+import { notifyLeaveEvent, notifyLeaveTierApproved, notifyLeaveRejectedByTier, notifyLeaveFullyApproved, notifyMasterAdmins, notifyLeaveSubmittedToTier, notifyApprovalDecision } from './notificationService';
 
 const COLLECTION_NAME = 'leaveRequests';
 const leaveRef = collection(db, COLLECTION_NAME);
@@ -211,6 +211,15 @@ export const calcLeaveDays = (start: Date, end: Date): number => {
 };
 
 // ── 4-tier approval helpers ──
+
+/** Human day label for notification copy ('Oct 30, 2026' / raw passthrough). */
+const fmtDay = (v: unknown): string => {
+  if (!v) return '';
+  const d: Date = v instanceof Date ? v : (typeof (v as { toDate?: () => Date }).toDate === 'function'
+    ? (v as { toDate: () => Date }).toDate()
+    : new Date(v as string | number));
+  return isNaN(d.getTime()) ? String(v) : d.toLocaleDateString('en-US', { day: '2-digit', month: 'short', year: 'numeric' });
+};
 
 export const TIER_LABELS: Record<ApprovalTier, string> = {
   reportingManager: 'Reporting Manager',
@@ -874,6 +883,31 @@ export const reviewTierLeaveRequest = async (
       `${reviewedByName} (${tier}) ${action === 'Approved' ? 'approved' : 'rejected'} a leave request at the ${tier} level.`,
       '/leave'
     ).catch(() => {});
+    // Three-way fan-out: subject (intermediate steps too — unless already
+    // notified above), approver self-confirmation, all master admins.
+    // skipMasterAdmins: the unconditional notifyMasterAdmins above already
+    // covers every decision for this path.
+    const awaitingMa = action === 'Approved'
+      && overallStatus !== 'Approved'
+      && isAwaitingMasterAdmin(newApprovalStatus, !!leaveData.masterAdminRequired, leaveData.masterAdminApproveStatus);
+    await notifyApprovalDecision({
+      companyId: leaveData.companyId,
+      action,
+      isFinal: overallStatus === 'Approved' || overallStatus === 'Rejected',
+      subjectId: leaveData.userId,
+      subjectName: leaveData.employeeName || leaveData.userName || 'An employee',
+      subjectAlreadyNotified: action === 'Rejected' || overallStatus === 'Approved',
+      subjectMessage: awaitingMa
+        ? `${reviewedByName} (${TIER_LABELS[tier]}) approved your leave request. It now awaits Master Admin verification.`
+        : undefined,
+      approverId: reviewedBy,
+      approverName: reviewedByName,
+      approverLabel: TIER_LABELS[tier],
+      kind: 'leave',
+      detail: `${leaveData.leaveType || leaveData.type || 'leave'} leave (${fmtDay(leaveData.startDate)} → ${fmtDay(leaveData.endDate)})`,
+      link: '/leave',
+      skipMasterAdmins: true,
+    });
   } catch (e) {
     // Notification failures should not block the approval
   }
@@ -962,6 +996,23 @@ export const reviewMasterAdminLeaveRequest = async (
       `${reviewedByName} (Master Admin) ${action === 'Approved' ? 'approved' : 'rejected'} a Team Leader / Executive leave request.`,
       '/leave'
     ).catch(() => {});
+    // Three-way fan-out: subject (final outcome already sent above → skip),
+    // approver self-confirmation, all other master admins.
+    await notifyApprovalDecision({
+      companyId: leaveData.companyId,
+      action,
+      isFinal: true,
+      subjectId: leaveData.userId,
+      subjectName: leaveData.employeeName || leaveData.userName || 'An employee',
+      subjectAlreadyNotified: true,
+      approverId: reviewedBy,
+      approverName: reviewedByName,
+      approverLabel: 'Master Admin',
+      kind: 'leave',
+      detail: `${leaveData.leaveType || leaveData.type || 'leave'} leave (${fmtDay(leaveData.startDate)} → ${fmtDay(leaveData.endDate)})`,
+      link: '/leave',
+      skipMasterAdmins: true, // notifyMasterAdmins above already covered the MA fan-out
+    });
   } catch (e) {
     // Notification failures should not block the review
   }

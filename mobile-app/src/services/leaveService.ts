@@ -5,7 +5,6 @@ import {
 import { db } from '../aws/clients';
 import { httpsCallable } from '../aws/functions-compat';
 import { functions } from '../aws/clients';
-import { createNotification } from './notificationService';
 import type { LeaveRequest, LeaveType, LeaveStatus, ApprovalTier, ApprovalLevel, ApprovalFlags } from '../types/user';
 import { REQUESTER_ROLES, resolveApprovalChain, type RequesterRole, type ApprovalChainConfig } from '../utils/approvalChains';
 
@@ -459,21 +458,9 @@ export const reviewTierLeaveRequest = async (
     reviewNote: reviewNote || '',
   });
 
-  // Notifications
-  try {
-    if (leaveData.userId) {
-      const notifType = action === 'Rejected' ? 'leave_rejected' : overallStatus === 'Approved' ? 'leave_approved' : 'leave_approved';
-      const notifTitle = action === 'Rejected'
-        ? `Leave Rejected by ${TIER_LABELS[tier]}`
-        : overallStatus === 'Approved' ? 'Leave Fully Approved' : `Leave Approved by ${TIER_LABELS[tier]}`;
-      const notifBody = action === 'Rejected'
-        ? `Your ${leaveData.leaveType || 'leave'} request was rejected by ${reviewedByName}. ${reviewNote || ''}`
-        : overallStatus === 'Approved'
-          ? `All approvers have approved your ${leaveData.leaveType || 'leave'} request!`
-          : `Your ${leaveData.leaveType || 'leave'} was approved by ${TIER_LABELS[tier]}. Waiting for next approval.`;
-      await createNotification(leaveData.userId, notifType, notifTitle, notifBody, '/leaves', leaveData.companyId);
-    }
-  } catch {}
+  // Notifications (subject + approver + all master admins) are sent
+  // SERVER-SIDE by the callable now — a client-side copy here doubled every
+  // subject notification.
 };
 
 /**
@@ -541,18 +528,9 @@ export const reviewMasterAdminLeaveRequest = async (
     reviewNote: reviewNote || '',
   });
 
-  try {
-    if (leaveData.userId) {
-      const notifType = action === 'Rejected' ? 'leave_rejected' : 'leave_approved';
-      const notifTitle = action === 'Rejected'
-        ? `Leave Rejected by Master Admin`
-        : `Leave Fully Approved by Master Admin`;
-      const notifBody = action === 'Rejected'
-        ? `Your ${leaveData.leaveType || 'leave'} request was rejected by Master Admin. ${reviewNote || ''}`
-        : `All approvers and the Master Admin have approved your ${leaveData.leaveType || 'leave'} request!`;
-      await createNotification(leaveData.userId, notifType, notifTitle, notifBody, '/leaves', leaveData.companyId);
-    }
-  } catch {}
+  // Notifications (subject + approver + all master admins) are sent
+  // SERVER-SIDE by the callable — a client-side copy doubled the subject's
+  // final notification.
 };
 
 /**

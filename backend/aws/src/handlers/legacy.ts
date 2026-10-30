@@ -30,7 +30,7 @@ import {
   TABLE,
   userPK,
 } from '../lib/db.js';
-import { createNotification, fanOutNotifications } from '../lib/notify.js';
+import { createNotification, fanOutNotifications, notifyApprovalDecision } from '../lib/notify.js';
 import { resolveStakeholders } from '../lib/stakeholders.js';
 import { sendEmailCentral, templates } from '../lib/email.js';
 import { cognitoCreateUser, writeUserDoc } from './auth.js';
@@ -239,6 +239,26 @@ async function reviewLeaveTier(caller: Caller, body: Body): Promise<unknown> {
       link: `/leave/${doc_.id}`,
     });
   }
+  // Three-way fan-out: subject (intermediate steps too — terminal outcomes
+  // already notified above), approver self-confirmation, ALL master admins.
+  // The mobile path previously pinged nobody but the next tier / subject.
+  await notifyApprovalDecision({
+    companyId: String(doc_.companyId),
+    action: decision,
+    isFinal: derived.status !== 'Pending',
+    subjectId: String(updated.userId),
+    subjectName: String(updated.employeeName ?? updated.userName ?? 'An employee'),
+    subjectAlreadyNotified: derived.status !== 'Pending',
+    subjectMessage: decision === 'Rejected' && note
+      ? `${caller.name} (${tier}) rejected your leave request. Reason: ${note}`
+      : undefined,
+    approverId: caller.uid,
+    approverName: String(caller.name ?? 'A reviewer'),
+    approverLabel: tier,
+    kind: 'leave',
+    detail: `${String(updated.type ?? 'leave')} leave (${String(updated.startDate ?? '')} → ${String(updated.endDate ?? updated.startDate ?? '')})`,
+    link: `/leave/${doc_.id}`,
+  });
   return { success: true, status: derived.status, approvalCount: derived.approvalCount };
 }
 
@@ -268,6 +288,22 @@ async function reviewLeaveMasterAdmin(caller: Caller, body: Body): Promise<unkno
     type: status === 'Approved' ? 'leave_approved' : 'leave_rejected',
     title: `Leave ${status.toLowerCase()}`,
     message: note ?? `Your leave request was ${status.toLowerCase()} (final review).`,
+    link: `/leave/${doc_.id}`,
+  });
+  // Three-way fan-out: subject (final outcome already sent above → skip),
+  // approver self-confirmation, ALL master admins (previously silent here).
+  await notifyApprovalDecision({
+    companyId: String(doc_.companyId),
+    action: decision,
+    isFinal: true,
+    subjectId: String(doc_.userId),
+    subjectName: String(doc_.employeeName ?? doc_.userName ?? 'An employee'),
+    subjectAlreadyNotified: true,
+    approverId: caller.uid,
+    approverName: String(caller.name ?? 'Master Admin'),
+    approverLabel: 'Master Admin',
+    kind: 'leave',
+    detail: `${String(doc_.leaveType ?? doc_.type ?? 'leave')} leave (${String(doc_.startDate ?? '')} → ${String(doc_.endDate ?? doc_.startDate ?? '')})`,
     link: `/leave/${doc_.id}`,
   });
   return { success: true, status };
@@ -448,6 +484,25 @@ async function reviewMissedPunchTier(caller: Caller, body: Body): Promise<unknow
     message: note ?? `Your punch rectification was ${decision.toLowerCase()}.`,
     link: `/attendance/${attendanceId}`,
   });
+  // Three-way fan-out: subject (every step incl. intermediate), approver
+  // self-confirmation, ALL master admins — this mobile path previously sent
+  // nothing to the approver and never pinged the master admins.
+  await notifyApprovalDecision({
+    companyId,
+    action: decision,
+    isFinal: decision === 'Rejected' || allApproved,
+    subjectId: String(rec.userId),
+    subjectName: String(rec.name ?? 'An employee'),
+    subjectMessage: decision === 'Rejected' && note
+      ? `${caller.name} (${tier}) rejected your missed punch correction. Reason: ${note}`
+      : undefined,
+    approverId: caller.uid,
+    approverName: String(caller.name ?? 'A reviewer'),
+    approverLabel: tier,
+    kind: 'punch',
+    detail: `missed punch correction for ${String(rec.date ?? '')}`,
+    link: `/attendance/${attendanceId}`,
+  });
   return { success: true, decision, approvalCount: decided };
 }
 
@@ -493,6 +548,22 @@ async function reviewMasterAdminMissedPunch(caller: Caller, body: Body): Promise
     type: 'rectification-resolved',
     title: `Punch rectification ${decision.toLowerCase()}`,
     message: note ?? `Your punch rectification was ${decision.toLowerCase()} (final review).`,
+    link: `/attendance/${attendanceId}`,
+  });
+  // Three-way fan-out: subject (final outcome already sent → skip), approver
+  // self-confirmation, ALL master admins (previously silent here).
+  await notifyApprovalDecision({
+    companyId,
+    action: decision,
+    isFinal: true,
+    subjectId: String(rec.userId),
+    subjectName: String(rec.name ?? 'An employee'),
+    subjectAlreadyNotified: true,
+    approverId: caller.uid,
+    approverName: String(caller.name ?? 'Master Admin'),
+    approverLabel: 'Master Admin',
+    kind: 'punch',
+    detail: `missed punch correction for ${String(rec.date ?? '')}`,
     link: `/attendance/${attendanceId}`,
   });
   return { success: true, decision };
