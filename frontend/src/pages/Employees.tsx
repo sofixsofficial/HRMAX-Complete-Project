@@ -25,7 +25,7 @@ import { useCompany } from '../context/CompanyContext'
 import { usePermissionScope } from '../hooks/usePermissionScope'
 import { useAccessControl } from '../context/AccessControlContext'
 import { ScopeIndicator } from '../components/ScopeIndicator'
-import { createEmployee, updateEmployee, getReportingManagersByCompany, getCompanyAdmins, deleteEmployee } from '../services/employeeService'
+import { createEmployee, updateEmployee, getReportingManagersByCompany, deleteEmployee } from '../services/employeeService'
 import { logAudit } from '../services/auditLogService'
 import { getAllRoles } from '../services/roleService'
 import { getAllUsers, updateUserRole, resetUserPassword } from '../services/authService'
@@ -173,27 +173,11 @@ const EmployeeFormContent = forwardRef<EmployeeFormRef, EmployeeFormContentProps
       : companies.filter(c => c.id === watchCompanyId)
   const isReportingManager = watchRole === 'reporting-manager'
 
-  const [companyAdminCandidates, setCompanyAdminCandidates] = useState<Employee[]>([])
-  const companyAdmins = watchCompanyId ? companyAdminCandidates : []
-
   useEffect(() => {
     if (watchCompanyId) {
       fetchManagers(watchCompanyId)
     }
   }, [watchCompanyId, fetchManagers])
-
-  useEffect(() => {
-    let active = true
-    if (watchCompanyId) {
-      const companyName = companies.find(c => c.id === watchCompanyId)?.name
-      getCompanyAdmins(watchCompanyId, companyName)
-        .then((list) => { if (active) setCompanyAdminCandidates(list) })
-        .catch(() => { if (active) setCompanyAdminCandidates([]) })
-    } else {
-      setCompanyAdminCandidates([])
-    }
-    return () => { active = false }
-  }, [watchCompanyId, companies])
 
   // Re-bind manager / department selections immediately when the target
   // company changes so stale, out-of-scope choices never persist. Skipped on
@@ -290,10 +274,6 @@ const EmployeeFormContent = forwardRef<EmployeeFormRef, EmployeeFormContentProps
     if (r === 'team-leader') return 'Team Leader'
     if (r === 'executive') return 'Executive'
     return 'Reporting Manager'
-  }
-  const adminOptionLabel = (e: Employee): string => {
-    const name = fullNameOf(e)
-    return companyNameOf(e) ? `${companyNameOf(e)} / ${name}` : name
   }
   const managerOptionLabel = (e: Employee): string =>
     [companyNameOf(e), managerRoleLabel(e), fullNameOf(e)].filter(Boolean).join(' / ')
@@ -464,42 +444,26 @@ const EmployeeFormContent = forwardRef<EmployeeFormRef, EmployeeFormContentProps
             control={form.control}
             name="managerId"
             render={({ field }) => (
-              isReportingManager ? (
-                <SearchableSelect
-                  label="Reporting Manager's Company Admin"
-                  placeholder={watchCompanyId ? 'Select Company Admin' : 'Select a company first'}
-                  searchPlaceholder="Search company admins..."
-                  value={field.value || ''}
-                  onChange={(val) => {
-                    field.onChange(val)
-                    const admin = companyAdmins.find(u => u.id === val)
-                    form.setValue('managerName', admin?.name || '')
-                  }}
-                  options={companyAdmins
-                    .filter(u => !excludeEmployeeId || u.id !== excludeEmployeeId)
-                    .map(u => ({ value: u.id, label: adminOptionLabel(u) }))}
-                  disabled={!watchCompanyId}
-                  noOptionsMessage={watchCompanyId ? 'No Company Admin assigned to this company yet' : 'Select a company first'}
-                />
-              ) : (
-                <SearchableSelect
-                  label="Manager"
-                  placeholder="Select manager"
-                  searchPlaceholder="Search managers..."
-                  value={field.value || ''}
-                  onChange={(val) => {
-                    field.onChange(val)
-                    const emp = managerCandidates.find(e => e.id === val || e.userId === val)
-                    form.setValue('managerName', emp?.name || '')
-                  }}
-                  options={managerCandidates
-                    .filter(e => !excludeEmployeeId || (e.id !== excludeEmployeeId && e.userId !== excludeEmployeeId))
-                    .map(e => ({ value: e.userId || e.id, label: managerOptionLabel(e) }))}
-                  disabled={!watchCompanyId}
-                  loading={loadingManagerCandidates}
-                  noOptionsMessage={watchCompanyId ? 'No Reporting Managers or Company Admin found for this company' : 'Select a company first'}
-                />
-              )
+              // One combined picker for every role: the selected company's HR,
+              // Reporting Managers and Company Admin are all assignable — the
+              // Reporting Manager flow no longer narrows to admins only.
+              <SearchableSelect
+                label={isReportingManager ? "Reporting Manager's Manager" : 'Manager'}
+                placeholder={!watchCompanyId ? 'Select a company first' : isReportingManager ? 'Select HR / Reporting Manager / Company Admin' : 'Select manager'}
+                searchPlaceholder="Search HR, reporting managers, company admins..."
+                value={field.value || ''}
+                onChange={(val) => {
+                  field.onChange(val)
+                  const emp = managerCandidates.find(e => e.id === val || e.userId === val)
+                  form.setValue('managerName', emp?.name || '')
+                }}
+                options={managerCandidates
+                  .filter(e => !excludeEmployeeId || (e.id !== excludeEmployeeId && e.userId !== excludeEmployeeId))
+                  .map(e => ({ value: e.userId || e.id, label: managerOptionLabel(e) }))}
+                disabled={!watchCompanyId}
+                loading={loadingManagerCandidates}
+                noOptionsMessage={watchCompanyId ? 'No HR, Reporting Manager or Company Admin found for this company yet' : 'Select a company first'}
+              />
             )}
           />
           <div className="modal-field">
@@ -1175,11 +1139,11 @@ export function Employees() {
         isReportingManager: isReportingManagerRole,
         reportingManagerId: values.managerId || '',
         reportingManagerName: values.managerName || '',
-        reportsToRole: isReportingManagerRole
-          ? 'company-admin'
-          : (values.managerId
-              ? managerCandidates.find(m => m.userId === values.managerId || m.id === values.managerId)?.role
-              : undefined) === 'company-admin'
+        reportsToRole: values.managerId
+          ? (managerCandidates.find(m => m.userId === values.managerId || m.id === values.managerId)?.role === 'company-admin'
+              ? 'company-admin'
+              : 'reporting-manager')
+          : isReportingManagerRole
             ? 'company-admin'
             : 'reporting-manager',
       }
