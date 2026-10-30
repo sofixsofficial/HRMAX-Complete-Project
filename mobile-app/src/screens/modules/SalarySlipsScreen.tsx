@@ -15,6 +15,7 @@ import {
   getSalaryStats, salaryStatsFromSlips, markAsPaid, retryFailedPayslips, getCompanyPayslipOptions,
 } from '../../services/salaryService';
 import { scopedCompanyIdsForRole } from '../../utils/companyScope';
+import { useReportingTeamScope } from '../../hooks/useReportingTeamScope';
 import { generatePayslipPdf } from '../../utils/payslipPdf';
 import { HeroBanner, PremiumCard, ShimmerLoader, SegmentControl, EmptyStateView, StatusBadge } from '../../components/PremiumComponents';
 import { ScreenHeader } from '../../components/ScreenHeader';
@@ -52,7 +53,23 @@ export const SalarySlipsScreen: React.FC = () => {
 
   // ─── Stats ──────────────────────────────────────────────────────────
   const [stats, setStats] = useState({ total: 0, paid: 0, pending: 0, processing: 0, emailed: 0, totalAmount: 0 });
-  const emailedCount = slips.filter(sl => sl.emailStatus === 'sent' || sl.payslipEmailStatus === 'sent').length;
+
+  // Reporting Manager: strict hierarchy — only slips of their assigned
+  // employees (same scope the Attendance/Leave RM views use). Fail-closed:
+  // while the team set is empty or loading, nothing shows.
+  const isRM = user?.role === 'reporting-manager';
+  const scope = useReportingTeamScope(user?.id, companyId, isRM);
+  const scopedSlips = useMemo(() => {
+    if (!isRM) return slips;
+    return slips.filter((sl) => scope.userIds.has(sl.userId) || scope.employeeIds.has(sl.employeeId));
+  }, [slips, isRM, scope.userIds, scope.employeeIds]);
+  // RM banner stats come from the TEAM-scoped list; other roles keep the
+  // server/company stats object.
+  const displayStats = useMemo(
+    () => (isRM ? salaryStatsFromSlips(scopedSlips) : stats),
+    [isRM, scopedSlips, stats],
+  );
+  const emailedCount = scopedSlips.filter(sl => sl.emailStatus === 'sent' || sl.payslipEmailStatus === 'sent').length;
 
   // ─── Data fetching ──────────────────────────────────────────────────
   const fetchData = async () => {
@@ -76,11 +93,16 @@ export const SalarySlipsScreen: React.FC = () => {
       }
       setSlips(data);
 
-      const isPlatformScope = !companyId || companyId === 'global' || companyId === 'master-admin';
-      const st = isPlatformScope
-        ? salaryStatsFromSlips(data)
-        : await getSalaryStats(companyId || undefined);
-      setStats(st);
+      // RM stats are derived from the TEAM-scoped list at render time
+      // (displayStats below) — the company-wide stats endpoint would leak
+      // other teams' payroll totals.
+      if (!isRM) {
+        const isPlatformScope = !companyId || companyId === 'global' || companyId === 'master-admin';
+        const st = isPlatformScope
+          ? salaryStatsFromSlips(data)
+          : await getSalaryStats(companyId || undefined);
+        setStats(st);
+      }
     } catch { /* ignore */ }
     setLoading(false);
   };
@@ -90,7 +112,7 @@ export const SalarySlipsScreen: React.FC = () => {
 
   // ─── Filtering ──────────────────────────────────────────────────────
   const filtered = useMemo(() => {
-    return slips.filter(sl => {
+    return scopedSlips.filter(sl => {
       if (filter !== 'All' && sl.status !== filter) return false;
       if (monthFilter !== 'All' && sl.month !== monthFilter) return false;
       if (search) {
@@ -100,7 +122,7 @@ export const SalarySlipsScreen: React.FC = () => {
       }
       return true;
     });
-  }, [slips, filter, search, monthFilter]);
+  }, [scopedSlips, filter, search, monthFilter]);
 
   const totalPages = Math.max(1, Math.ceil(filtered.length / pageSize));
   const paginated = useMemo(() => filtered.slice((currentPage - 1) * pageSize, currentPage * pageSize), [filtered, currentPage, pageSize]);
@@ -192,11 +214,11 @@ export const SalarySlipsScreen: React.FC = () => {
     <View style={{ flex: 1, backgroundColor: colors.background }}>
       <ScreenHeader title="Salary Slips" onBack={() => navigation.goBack()} />
       <ScrollView refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor="#FF6600" />}>
-        <HeroBanner greeting="Payroll" name="Salary Slips" subtitle={`${stats.paid} paid, ${stats.emailed} emailed, ${stats.pending} pending`}
+        <HeroBanner greeting="Payroll" name="Salary Slips" subtitle={`${displayStats.paid} paid, ${displayStats.emailed} emailed, ${displayStats.pending} pending`}
           stats={[
-            { label: 'Total', value: stats.total, color: '#FF6600' },
-            { label: 'Paid', value: stats.paid, color: '#10b981' },
-            { label: 'Pending', value: stats.pending, color: '#f59e0b' },
+            { label: 'Total', value: displayStats.total, color: '#FF6600' },
+            { label: 'Paid', value: displayStats.paid, color: '#10b981' },
+            { label: 'Pending', value: displayStats.pending, color: '#f59e0b' },
             { label: 'Emails', value: emailedCount, color: '#8b5cf6' },
           ]}
         />

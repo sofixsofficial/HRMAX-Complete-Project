@@ -449,7 +449,10 @@ const [submittingRectify, setSubmittingRectify] = useState(false)
 
   const visibleRecords = showOrgColumns && companyFilter !== 'All'
     ? records.filter(r => r.companyId === companyFilter)
-    : isReportingManager && teamUserIds.length > 0
+    : isReportingManager
+      // Fail-closed: an RM's view is ALWAYS team-exclusive. While the team
+      // set is empty (still resolving, or no reports assigned) NOTHING shows —
+      // the old `length > 0` guard fell through to the whole company list.
       ? records.filter(r => teamUserIds.includes(r.userId) || r.userId === user?.id)
       : records
 

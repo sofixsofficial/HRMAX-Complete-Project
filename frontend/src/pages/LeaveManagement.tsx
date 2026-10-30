@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useMemo } from 'react'
 import { errText } from '../aws/errors';
 import { ActionErrorBanner } from '../components/ActionErrorBanner';
 import { useSearchParams } from 'react-router-dom'
@@ -351,12 +351,47 @@ export function LeaveManagement() {
 
   // ── role-based visibility ───────────────────────────────────
   const hideOwnRows = hasPersonalPage(user?.role)
+
+  // Reporting Manager: strict hierarchy — the RM sees ONLY their assigned
+  // (direct-report) employees' data, never the whole company and never their
+  // own rows (hideOwnRows above). The team set is built from employee docs
+  // whose managerId/reportingManagerId is this RM, and every leave is matched
+  // on userId OR employee-doc-id (docs created before the userId link was
+  // backfilled carry only the doc id). Fail-closed: while the set is empty or
+  // still loading, NO rows are shown instead of falling through to the
+  // company-wide default.
+  const rmTeamIds = useMemo(() => {
+    if (!isReportingManager || !user?.id) return null
+    const ids = new Set<string>()
+    for (const e of employees) {
+      // `managerId` is not on the Employee interface (raw docs carry it; the
+      // Attendance team resolver reads it the same way via an any-cast).
+      if ((e as any).managerId === user.id || e.reportingManagerId === user.id) {
+        if (e.userId) ids.add(e.userId)
+        ids.add(e.id)
+        if (e.employeeId) ids.add(e.employeeId)
+      }
+    }
+    return ids
+  }, [isReportingManager, employees, user?.id])
+
+  // Employee pickers (status filter + apply-on-behalf) follow the same scope.
+  const selectableEmployees = useMemo(
+    () => (rmTeamIds ? employees.filter(e => rmTeamIds.has(e.userId) || rmTeamIds.has(e.id)) : employees),
+    [rmTeamIds, employees]
+  )
+
   const visibleLeaves = leaves.filter(l => {
     // Management roles with a personal page keep their OWN requests out of the
     // management table — they live on My Leaves & Attendance. (Employees are
     // exempt: their /leaves page is the personal view of their own requests.)
     if (hideOwnRows && l.userId === user?.id) return false
     if (user?.role === 'master-admin' || user?.role === 'company-admin' || user?.role === 'hr') return true
+    if (user?.role === 'reporting-manager') {
+      // Strict hierarchy: exclusively the assigned team's requests. The
+      // legacy approverIds fallback below must NOT reopen the company view.
+      return !!rmTeamIds && (rmTeamIds.has(l.userId) || rmTeamIds.has(l.employeeId))
+    }
     if (user?.role === 'executive') {
       // Executives manage ALL companies (CompanyContext model): the management
       // table mirrors the dashboard card scope (active top-nav companies)
@@ -639,8 +674,8 @@ export function LeaveManagement() {
               <input type="text" placeholder="Search..." value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} />
             </div>
             <select className="filter-select" value={employeeFilter} onChange={(e) => setEmployeeFilter(e.target.value)}>
-              <option value="all">All Employees</option>
-              {employees.map(emp => (
+              <option value="all">{isReportingManager ? 'My Team' : 'All Employees'}</option>
+              {selectableEmployees.map(emp => (
                 <option key={emp.id} value={emp.userId || emp.id}>{emp.name} ({emp.employeeId})</option>
               ))}
             </select>
@@ -821,7 +856,7 @@ export function LeaveManagement() {
                 required
               >
                 <option value="">-- Select Employee --</option>
-                {employees.map(emp => (
+                {selectableEmployees.map(emp => (
                   <option key={emp.id} value={emp.id}>{emp.name} ({emp.employeeId})</option>
                 ))}
               </select>

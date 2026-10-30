@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useMemo } from 'react'
 import { useSearchParams } from 'react-router-dom'
 import { FileText, DollarSign, Search, Download, Eye, ChevronLeft, ChevronRight, Loader2, Mail, AlertTriangle, X } from 'lucide-react'
 import { errText, safeDisplayText } from '../aws/errors'
@@ -11,6 +11,7 @@ import { useAccessControl } from '../context/AccessControlContext'
 import { ScopeIndicator } from '../components/ScopeIndicator'
 import { useRoleBasedStats, useRoleBasedTitle } from '../hooks/useRoleBasedData'
 import { getAllSalarySlips, getSalarySlipsByCompany, getSalaryStats, salaryStatsFromSlips, retryFailedPayslips } from '../services/salaryService'
+import { getEmployeesByCompany } from '../services/employeeService'
 import { generatePayslip } from '../utils/payslip'
 import { scopedCompanyIds } from '../utils/companyScope'
 import { downloadPayslipPdf } from '../utils/payslipPdf'
@@ -100,6 +101,9 @@ export function SalarySlips() {
       // a companyId query against the 'global' sentinel would report all zeros.
       const isPlatformScope = !companyId || companyId === 'global' || companyId === 'master-admin'
       if (isPlatformScope) return
+      // Reporting Manager stats are derived from the TEAM-scoped list below —
+      // the company-wide endpoint would leak payroll totals of other teams.
+      if (user?.role === 'reporting-manager') return
       const statsData = await getSalaryStats(companyId || undefined)
       setStats(statsData)
     } catch (err) {
@@ -107,7 +111,49 @@ export function SalarySlips() {
     }
   }
 
-  const filteredSlips = salarySlips.filter(slip => {
+  // Reporting Manager: strict hierarchy — only slips of their assigned
+  // employees. The team set mirrors the Attendance/Leave resolvers (employee
+  // docs whose managerId/reportingManagerId is this RM) and every slip is
+  // matched on userId OR employee-doc-id (slips store the doc id in
+  // employeeId). Fail-closed: while the set is empty or still loading, NO
+  // slips show instead of falling through to the whole company's payroll.
+  const [rmTeamIds, setRmTeamIds] = useState<Set<string> | null>(null)
+  useEffect(() => {
+    if (user?.role !== 'reporting-manager' || !user?.id || !companyId) {
+      setRmTeamIds(null)
+      return
+    }
+    let cancelled = false
+    getEmployeesByCompany(companyId)
+      .then(emps => {
+        if (cancelled) return
+        const ids = new Set<string>()
+        emps.forEach(e => {
+          if ((e as any).managerId === user.id || e.reportingManagerId === user.id) {
+            if (e.userId) ids.add(e.userId)
+            ids.add(e.id)
+            if (e.employeeId) ids.add(e.employeeId)
+          }
+        })
+        setRmTeamIds(ids)
+      })
+      .catch(() => { if (!cancelled) setRmTeamIds(new Set()) })
+    return () => { cancelled = true }
+  }, [user?.role, user?.id, companyId])
+
+  const isReportingManager = user?.role === 'reporting-manager'
+  const scopedSlips = useMemo(() => {
+    if (!isReportingManager) return salarySlips
+    if (rmTeamIds === null) return []
+    return salarySlips.filter(s => rmTeamIds.has(s.userId) || rmTeamIds.has(s.employeeId))
+  }, [isReportingManager, salarySlips, rmTeamIds])
+
+  const scopedStats = useMemo(
+    () => (isReportingManager ? salaryStatsFromSlips(scopedSlips) : stats),
+    [isReportingManager, scopedSlips, stats]
+  )
+
+  const filteredSlips = scopedSlips.filter(slip => {
     if (searchTerm) {
       const search = searchTerm.toLowerCase()
       const matchesSearch = 
@@ -198,21 +244,21 @@ export function SalarySlips() {
     return lines.join('\n')
   }
 
-  const emailedCount = salarySlips.filter(s => s.emailStatus === 'sent' || s.payslipEmailStatus === 'sent').length
+  const emailedCount = scopedSlips.filter(s => s.emailStatus === 'sent' || s.payslipEmailStatus === 'sent').length
 
   const getStatsCards = () => {
     if (user?.role === 'executive') {
-      const mySlip = salarySlips[0]
+      const mySlip = scopedSlips[0]
       return [
         { icon: DollarSign, label: 'Net Salary', value: mySlip ? formatCurrency(mySlip.netSalary) : '₹0', subtext: 'This month', color: '#10b981', bgColor: '#ecfdf5' },
-        { icon: FileText, label: 'Total Slips', value: String(salarySlips.length), subtext: 'Documents', color: '#f97316', bgColor: '#fff7ed' },
-        { icon: Download, label: 'YTD Earnings', value: formatCurrency(salarySlips.reduce((sum, s) => sum + s.netSalary, 0)), subtext: 'Year to date', color: '#22c55e', bgColor: '#f0fdf4' },
+        { icon: FileText, label: 'Total Slips', value: String(scopedSlips.length), subtext: 'Documents', color: '#f97316', bgColor: '#fff7ed' },
+        { icon: Download, label: 'YTD Earnings', value: formatCurrency(scopedSlips.reduce((sum, s) => sum + s.netSalary, 0)), subtext: 'Year to date', color: '#22c55e', bgColor: '#f0fdf4' },
       ]
     }
     
     return [
-      { icon: FileText, label: 'Total Slips', value: String(stats.total), subtext: 'Documents', color: '#f97316', bgColor: '#fff7ed' },
-      { icon: DollarSign, label: 'Total Amount', value: formatCurrency(stats.totalAmount), subtext: 'Net payroll', color: '#ef4444', bgColor: '#fef2f2' },
+      { icon: FileText, label: 'Total Slips', value: String(scopedStats.total), subtext: 'Documents', color: '#f97316', bgColor: '#fff7ed' },
+      { icon: DollarSign, label: 'Total Amount', value: formatCurrency(scopedStats.totalAmount), subtext: 'Net payroll', color: '#ef4444', bgColor: '#fef2f2' },
       { icon: Mail, label: 'Emails Sent', value: String(emailedCount), subtext: 'Slips delivered', color: '#10b981', bgColor: '#ecfdf5' },
     ]
   }
@@ -384,7 +430,7 @@ export function SalarySlips() {
 
           <div className="pagination-bottom">
             <div className="pagination-info">
-              <span className="showing-text">Showing {paginatedSlips.length} of {salarySlips.length} entries</span>
+              <span className="showing-text">Showing {paginatedSlips.length} of {filteredSlips.length} entries</span>
               <select className="page-size-select" value={pageSize} onChange={e => { setPageSize(Number(e.target.value)); setCurrentPage(1) }}>
                 <option value={5}>5/page</option>
                 <option value={10}>10/page</option>
