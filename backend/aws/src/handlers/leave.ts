@@ -63,28 +63,25 @@ export async function computeInitialApproval(
   //    employee          -> RM -> HR -> CA -> Executive -> Team Leader
   //    reporting manager -> HR -> CA -> Executive -> Team Leader
   //    HR                -> CA -> Executive -> Team Leader
-  //    executive         -> team leader  -> master admin gate
+  //    executive         -> team leader -> master admin gate
   //    team leader       -> master admin gate
-  // Tiers in the live chain with an assigned (non-self) approver become
-  // Pending. Tiers outside the chain are Approved for master-gated roles
-  // (exec/TL — so the MA gate's all-pre-tiers-approved check holds) and
-  // Skipped otherwise. Unassigned or self-assigned chain tiers are Skipped so
-  // the x/N progress and "who approves next" both see exactly the live chain.
+  // Tiers in the live chain are ALWAYS Pending — NOTHING is ever skipped
+  // (product rule: the full chain shows every approver waiting, even when a
+  // slot has no stamped approver — the approve path accepts the natural role
+  // holder or master admin, so an empty slot can never deadlock). Tiers
+  // outside the chain are Approved for master-gated roles (exec/TL — so the
+  // MA gate's all-pre-tiers-approved check holds) and Skipped otherwise.
   const applicantUid = String(input.userId ?? '');
   const liveChain = resolveApprovalChain(applicantRole, chains);
   for (const tier of TIER_ORDER) {
     const inChain = liveChain.includes(tier);
-    const approver = approverIds[tier] ?? null;
-    const isSelfApprover = !!approver && !!applicantUid && approver === applicantUid;
-    if (inChain && approver && !isSelfApprover) {
+    if (inChain) {
       status[tier] = 'Pending';
-    } else if (!inChain) {
-      status[tier] = masterAdminRequired ? 'Approved' : 'Skipped';
     } else {
-      // In the chain but unassigned, or the approver is the applicant themself.
-      status[tier] = 'Skipped';
+      status[tier] = masterAdminRequired ? 'Approved' : 'Skipped';
     }
   }
+  void applicantUid; // approver ids are still stamped below for notifications
 
   return {
     approvalStatus: status as LeaveRequestDoc['approvalStatus'],

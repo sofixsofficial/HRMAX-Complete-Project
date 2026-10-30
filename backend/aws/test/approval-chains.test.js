@@ -107,9 +107,9 @@ test('team leader chain: all tiers auto-approved -> master-admin gate', async ()
   assert.equal(r.masterAdminApproveStatus, 'Pending');
 });
 
-test('unassigned HR account: HR tier auto-skips, chain continues through executive and team leader', async () => {
+test('unassigned HR account: EVERY chain tier still stays Pending (nothing is ever skipped)', async () => {
   const r = await computeInitialApproval(input, 'employee', { ...staffed, hrIds: [] });
-  assert.equal(r.approvalStatus.hr, 'Skipped');
+  assert.equal(r.approvalStatus.hr, 'Pending', 'an unassigned slot must remain Pending, not Skipped');
   assert.equal(r.approvalStatus.companyAdmin, 'Pending');
   assert.equal(r.approvalStatus.executive, 'Pending');
   assert.equal(r.approvalStatus.teamLeader, 'Pending');
@@ -152,16 +152,17 @@ test('an override cannot grant company-admin or master-admin a personal chain', 
   assert.deepEqual(resolveApprovalChain('master-admin', { 'master-admin': ['hr'] }), []);
 });
 
-test('safety: a self-assigned approver in the chain is skipped, not pending', async () => {
-  // The applicant IS the company admin — that tier must not let them approve
-  // their own leave.
+test('safety: nothing in the chain is ever skipped, even a self-assigned slot stays Pending', async () => {
+  // Product rule: the applicant IS the stamped company-admin approver — the
+  // tier still shows Pending (the approve path + admin oversight handle it;
+  // no silent skip ever shortens the chain).
   const r = await computeInitialApproval(
     { ...input, userId: 'ca1' },
     'employee',
     { ...staffed, companyAdminIds: ['ca1'] },
     { employee: ['companyAdmin'] },
   );
-  assert.equal(r.approvalStatus.companyAdmin, 'Skipped');
+  assert.equal(r.approvalStatus.companyAdmin, 'Pending');
 });
 
 test('every configurable requester role resolves a chain (and admin roles do not)', () => {
