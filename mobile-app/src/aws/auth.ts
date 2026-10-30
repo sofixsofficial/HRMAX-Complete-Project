@@ -278,12 +278,18 @@ export async function signInWithEmailAndPassword(_auth: unknown, email: string, 
   try {
     return await initiateAuthWithPassword(email, password);
   } catch (err) {
-    // The sign-in box also accepts a System Username. Cognito only knows
-    // emails, so UserNotFoundException can mean "the typed name is a System
-    // Username": resolve it to the account email and retry once with that.
-    // Names that match nothing keep the original "no account found" error.
+    // The sign-in box also accepts a System Username. Cognito HIDES whether
+    // a username exists on this app client (PreventUserExistenceErrors): an
+    // unknown name comes back as NotAuthorizedException "Incorrect username
+    // or password", not UserNotFoundException — so both codes can mean
+    // "maybe a System Username". Skip the retry when Cognito is throttling
+    // attempts (nothing to resolve) or when resolution yields nothing / the
+    // same email (that was a genuinely wrong password for a real login id).
     const raw = err as Error & { code?: string };
-    if (raw.code === 'UserNotFoundException') {
+    const maybeUnknownUser =
+      raw.code === 'UserNotFoundException' ||
+      (raw.code === 'NotAuthorizedException' && !/attempts exceeded|limit exceeded/i.test(raw.message ?? ''));
+    if (maybeUnknownUser) {
       const resolved = await resolveSystemUsername(email);
       if (resolved && resolved !== email) {
         return await initiateAuthWithPassword(resolved, password);
