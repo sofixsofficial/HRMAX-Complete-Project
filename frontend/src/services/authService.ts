@@ -694,6 +694,15 @@ export const getAllUsers = async (): Promise<User[]> => {
     if (currentUserData.role === 'master-admin') {
       // Master admin sees all users
       q = query(collection(db, 'users'));
+    } else if (currentUserData.role === 'team-leader' || currentUserData.role === 'executive') {
+      // TL / executive scope is cross-company by design (backend readPartitions
+      // hands TLs every partition; executives manage ALL companies). Their OWN
+      // docs are platform rows (companyId='global'), and executives/TLs are
+      // platform users too — the companyId filter below matched only company
+      // rows and dropped every linked executive, so LeaveManagement's
+      // team-leader visibility filter computed an empty company set and hid
+      // ALL leave requests from the TL.
+      q = query(collection(db, 'users'));
     } else {
       // Company admin sees only their company users
       q = query(collection(db, 'users'), where('companyId', '==', currentUserData.companyId));
