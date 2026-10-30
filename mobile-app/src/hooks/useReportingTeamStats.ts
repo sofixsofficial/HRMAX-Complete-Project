@@ -3,7 +3,6 @@ import { collection, query, where, onSnapshot } from '../aws/firestore-compat';
 import { db } from '../aws/clients';
 import { useReportingTeamScope } from './useReportingTeamScope';
 import { isActiveMissedPunchRecord, isWithinRecentWindow, recentMissPunchSinceDate } from '../utils/attendanceStatus';
-import { getActionableMissedPunchTier } from '../services/attendanceApi';
 
 function buildScopedQuery(collectionName: string, companyId?: string | null) {
   const colRef = collection(db, collectionName);
@@ -23,7 +22,7 @@ export interface ReportingTeamStats {
   loading: boolean;
   directReports: number;
   presentToday: number;
-  /** Active missed punches awaiting THIS manager's tier decision (web parity). */
+  /** Active missed punches across self + assigned employees (web parity). */
   missPunchPending: number;
   pendingLeaves: number;
   activeTasks: number;
@@ -68,19 +67,17 @@ export function useReportingTeamStats(managerId?: string, companyId?: string | n
     () => attendance.filter((r) => (r.status === 'Present' || r.status === 'Late') && scope.userIds.has(r.userId) && isTodayDate(r.date)).length,
     [attendance, scope.userIds]
   );
-  // Active (unresolved) missed punches awaiting THIS manager's decision —
-  // same rule as the web RM dashboard: within the 14-day look-back window AND
-  // the next pending verification tier is stamped to this manager (or their
-  // natural role for legacy records). The old "today-only + status === Miss
-  // Punch" filter always showed 0 because pending rectifications live on
-  // previous days' records.
+  // Active (unresolved) missed punches across THIS manager's world — their own
+  // punches plus every assigned employee's, within the 14-day look-back
+  // window (covers the 2-working-day correction window + slow tier approvals).
+  // Web RM dashboard parity: same self+team scope, same window predicate.
   const missPunchPending = useMemo(
     () => attendance.filter((r) =>
       isActiveMissedPunchRecord(r) &&
       isWithinRecentWindow(r, recentMissPunchSinceDate()) &&
-      getActionableMissedPunchTier(r, managerId || '', role, companyId ? [companyId] : []) !== null
+      (scope.userIds.has(r.userId) || r.userId === managerId)
     ).length,
-    [attendance, managerId, role, companyId]
+    [attendance, scope.userIds, managerId]
   );
   const activeTasks = useMemo(
     () => tasks.filter((t) => (t.status === 'Pending' || t.status === 'In Progress') && (scope.userIds.has(t.assignedToId) || scope.userIds.has(t.assignedTo))).length,

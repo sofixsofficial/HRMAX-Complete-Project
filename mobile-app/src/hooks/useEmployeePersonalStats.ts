@@ -115,7 +115,11 @@ export function useEmployeePersonalStats(refreshKey?: number): EmployeePersonalS
       query(collection(db, 'attendance'), where('userId', '==', userId), where('date', '>=', dayKey(monthStart)), where('date', '<', dayKey(tomorrow))),
       (snap) => {
         const docs = snap.docs.map((d) => ({ id: d.id, ...d.data() }) as AttendanceRecord);
-        const present = docs.filter((r) => r.status === 'Present').length;
+        // Early Checkout / Half Day have an in-punch on record — they are
+        // attended days and must count toward Present (parity with web).
+        const present = docs.filter(
+          (r) => r.status === 'Present' || r.status === 'Early Checkout' || r.status === 'Half Day'
+        ).length;
         const late = docs.filter((r) => r.status === 'Late').length;
         const absent = docs.filter((r) => r.status === 'Absent').length;
         const onLeave = docs.filter((r) => r.status === 'On Leave').length;

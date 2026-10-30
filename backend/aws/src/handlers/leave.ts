@@ -379,9 +379,11 @@ export const leaveRoutes: Route[] = [
       delete patch.id;
       delete patch.companyId;
       // Identity and the approval chain are server-side facts — a body must
-      // never rewrite who applied or who may approve.
+      // never rewrite who applied or who may approve. The ONE exception: a
+      // master-admin repair pass (data backfill when a stale manager link
+      // stamped the wrong approver). Everyone else loses the field outright.
       delete patch.userId;
-      delete patch.approverIds;
+      if (!isSuperAdmin(caller)) delete patch.approverIds;
 
       // Review outcomes may only be written by an actual approver. The owner
       // passes the permission check above, so without this guard anyone could

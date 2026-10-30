@@ -122,7 +122,7 @@ export interface Employee {
   weekendDays?: number[];
 }
 
-export type AttendanceStatus = 'Present' | 'Absent' | 'Late' | 'On Leave' | 'Approved' | 'Miss Punch' | 'Early Checkout';
+export type AttendanceStatus = 'Present' | 'Absent' | 'Late' | 'On Leave' | 'Approved' | 'Miss Punch' | 'Early Checkout' | 'Half Day';
 
 export interface AttendanceRecord {
   id: string;

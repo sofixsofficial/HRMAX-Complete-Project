@@ -172,6 +172,7 @@ export const ReportingManagerDashboard: React.FC<{ navigation: any }> = ({ navig
           <LeaveApprovalsPanel />
           <StatsGrid>
             <StatCard label="Team Members" value={team.directReports} icon="people-outline" color="#3b82f6" onClick={() => setTab('my-team')} />
+            <StatCard label="Missed Punch" value={team.missPunchPending} icon="alert-circle-outline" color="#9333ea" onClick={() => navigation?.navigate('AttendanceOverview', { status: 'Miss Punch' })} />
             <StatCard label="Active" value={active} icon="checkmark-circle-outline" color="#10b981" onClick={() => setTab('my-team')} />
             <StatCard label="On Leave" value={onLeave} icon="umbrella-outline" color="#f97316" onClick={() => setTab('my-team')} />
             <StatCard label="Pending Leave Approvals" value={team.pendingLeaves} icon="time-outline" color="#eab308" onClick={() => navigation?.navigate('LeaveManagement')} />

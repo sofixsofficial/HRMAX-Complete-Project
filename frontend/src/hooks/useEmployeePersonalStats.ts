@@ -104,7 +104,12 @@ export function useEmployeePersonalStats(): EmployeePersonalStats {
       query(collection(db, 'attendance'), where('userId', '==', userId), where('date', '>=', monthStart), where('date', '<', tomorrow)),
       (snap) => {
         const docs = snap.docs.map((d) => ({ id: d.id, ...d.data() })) as AttendanceRecord[];
-        const present = docs.filter((r) => r.status === 'Present').length;
+        // Early Checkout / Half Day are ATTENDED days (in-punch on record) —
+        // bucketing them out of Present made a month of real punches read
+        // "0 Present 0 Late 0 Absent" on the self-attendance card.
+        const attended = (r: AttendanceRecord) =>
+          r.status === 'Present' || r.status === 'Early Checkout' || r.status === 'Half Day';
+        const present = docs.filter(attended).length;
         const late = docs.filter((r) => r.status === 'Late').length;
         const absent = docs.filter((r) => r.status === 'Absent').length;
         const onLeave = docs.filter((r) => r.status === 'On Leave').length;

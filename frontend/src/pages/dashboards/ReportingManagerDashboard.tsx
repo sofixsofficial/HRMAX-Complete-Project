@@ -1,8 +1,8 @@
-import { useState, useEffect, useRef } from 'react'
+import { useState, useEffect, useRef, useMemo } from 'react'
 import { useNavigate } from 'react-router-dom'
 import {
   Clock, Calendar, CalendarPlus, CheckSquare, Users, Search, Eye,
-  ArrowUpRight, Loader2, X, Check, FileText
+  ArrowUpRight, Loader2, X, Check, FileText, AlertTriangle
 } from 'lucide-react'
 import { Header } from '../../components/Header'
 import { DashboardHero } from '../../components/DashboardHero'
@@ -19,7 +19,6 @@ import { collection, query, where, onSnapshot } from '../../aws/firestore-compat
 import { db } from '../../aws/clients'
 import { subscribeToTeamByManager } from '../../services/employeeService'
 import { createLeaveRequest, calcLeaveDays, isLeaveTypePaid, getActionableLeaveTier } from '../../services/leaveService'
-import { getActionableMissedPunchTier } from '../../services/attendanceService'
 import { logAudit } from '../../services/auditLogService'
 import type { Employee, LeaveType, ApprovalTier, ApprovalLevel } from '../../types/user'
 import { isActiveMissedPunchRecord, recentMissPunchSinceDate } from '../../utils/attendanceStatus'
@@ -75,10 +74,19 @@ export function ReportingManagerDashboard() {
     }
   }, [user?.id, user?.companyId])
 
-  // Realtime count of ACTIVE missed punches currently awaiting THIS RM's
-  // decision, scoped to their company (matches the Attendance page rows the RM
-  // gets Approve/Reject controls on): pending rectifications whose next Pending
-  // tier belongs to the RM, or legacy records with no stamped approver.
+  // Auth uids of MY team (assigned employees) + myself — the personal scope
+  // every "self + team" dashboard metric below is filtered to. Employee rows
+  // carry the login's uid in `userId`; empty rows (never-linked logins) drop
+  // out of the set rather than pulling in another manager's people.
+  const scopeUids = useMemo(() => {
+    const ids = new Set<string>(user?.id ? [user.id] : [])
+    team.forEach(e => { if (e.userId) ids.add(e.userId) })
+    return ids
+  }, [team, user?.id])
+
+  // Realtime count of ACTIVE missed punches across THIS RM's world: their own
+  // punches plus every assigned employee's — within the 14-day look-back
+  // window (covers the 2-working-day correction window + slow tier approvals).
   const scopeCompanyId = user?.companyId
   useEffect(() => {
     if (!user?.id || !scopeCompanyId) { setMissPunchCount(0); return }
@@ -91,15 +99,12 @@ export function ReportingManagerDashboard() {
       let count = 0
       snap.docs.forEach(d => {
         const a = d.data()
-        if (
-          isActiveMissedPunchRecord(a) &&
-          getActionableMissedPunchTier(a, user.id, user.role, [scopeCompanyId])
-        ) count++
+        if (isActiveMissedPunchRecord(a) && scopeUids.has(String(a.userId ?? ''))) count++
       })
       setMissPunchCount(count)
     }, () => setMissPunchCount(0))
     return () => unsub()
-  }, [user?.id, user?.role, scopeCompanyId])
+  }, [user?.id, scopeCompanyId, scopeUids])
 
   // Realtime count of leave requests that await this RM's decision, scoped to
   // their company. Matches the Leave Approvals Panel queue (and the leaves
@@ -268,17 +273,18 @@ export function ReportingManagerDashboard() {
 
         {/* Metric Cards */}
         <div className="stats-grid">
-          {[
+          {([
             { icon: Users, label: 'Team Members', count: team.length, trend: 'Your reports', path: '/reporting-manager/my-team' },
+            { icon: AlertTriangle, label: 'Missed Punch', count: missPunchCount, trend: missPunchCount > 0 ? 'Needs rectification' : 'All punches done', path: '/reporting-manager/attendance?status=Miss Punch', color: '#9333ea' },
             { icon: Clock, label: 'Active', count: active, trend: 'Available now', path: '/reporting-manager/attendance' },
             { icon: Calendar, label: 'On Leave', count: onLeave, trend: 'Away today', path: '/reporting-manager/leaves' },
             { icon: CheckSquare, label: 'Inactive', count: inactive, trend: 'Not active', path: '/reporting-manager/my-team' },
             { icon: CalendarPlus, label: 'Pending Leave Approvals', count: pendingLeaves, trend: pendingLeaves > 0 ? 'Requires your review' : 'All clear', path: '/reporting-manager/leaves?status=Pending' },
-          ].map((card, idx) => {
+          ] as Array<{ icon: typeof Clock; label: string; count: number; trend: string; path: string; color?: string }>).map((card, idx) => {
             const Icon = card.icon
             return (
               <div key={idx} className="stat-card" onClick={() => navigate(card.path)} tabIndex={0} onKeyDown={(e) => handleCardKeyDown(e, card.path)}>
-                <div className="stat-icon">
+                <div className="stat-icon" style={card.color ? { background: `${card.color}15`, color: card.color } : undefined}>
                   <Icon size={24} />
                 </div>
                 <div className="stat-info">

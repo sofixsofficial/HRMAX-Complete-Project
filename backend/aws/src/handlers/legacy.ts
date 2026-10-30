@@ -31,6 +31,7 @@ import {
   userPK,
 } from '../lib/db.js';
 import { createNotification, fanOutNotifications } from '../lib/notify.js';
+import { resolveStakeholders } from '../lib/stakeholders.js';
 import { sendEmailCentral, templates } from '../lib/email.js';
 import { cognitoCreateUser, writeUserDoc } from './auth.js';
 import { assertCompanyScope, isSuperAdmin } from '../lib/auth.js';
@@ -704,14 +705,38 @@ export const legacyRoutes: Route[] = [
     const employeeIds = Array.isArray(b.employeeIds) ? (b.employeeIds as string[]).map(String) : null;
     const slips = await queryEntities<Body>({ entity: 'salarySlip', companyId, filters: { month, year } });
     const picked = employeeIds ? slips.filter((s) => employeeIds.includes(String(s.userId))) : slips;
+    const monthName = MONTH_NAMES[month - 1] ?? String(month);
     let sent = 0;
     let failed = 0;
     for (const slip of picked) {
       const ok = await sendPayslipEmail(companyId, slip);
       ok ? (sent += 1) : (failed += 1);
+      // In-app bell (parity with every other HR event): the slip owner gets
+      // their issuance notice, and THEIR reporting manager sees the team
+      // member's payslip go out — same stakeholder resolution the leave and
+      // attendance fan-outs use.
+      const ownerUid = String(slip.userId ?? '');
+      if (ok && ownerUid) {
+        await createNotification({
+          userId: ownerUid, companyId, type: 'salary_slip',
+          title: 'Salary slip generated',
+          message: `Your salary slip for ${monthName} ${year} has been issued.`,
+          link: '/salary-slips',
+        }).catch(() => {});
+        try {
+          const st = await resolveStakeholders(companyId, ownerUid, String(slip.employeeName ?? ''));
+          if (st.reportingManagerId && st.reportingManagerId !== ownerUid) {
+            await createNotification({
+              userId: st.reportingManagerId, companyId, type: 'salary_slip',
+              title: 'Salary slip issued',
+              message: `${String(slip.employeeName ?? 'A team member')}'s salary slip for ${monthName} ${year} has been issued.`,
+              link: '/salary-slips',
+            });
+          }
+        } catch { /* notification fan-out must never fail the dispatch */ }
+      }
     }
     // Full-payroll summary to admins + company address.
-    const monthName = MONTH_NAMES[month - 1] ?? String(month);
     const totalNet = picked.reduce((sum, s) => sum + Number(s.net ?? s.netSalary ?? 0), 0);
     const admins = (await queryEntities<Body>({ entity: 'user', companyId }))
       .filter((u) => ['company-admin', 'master-admin'].includes(String(u.role)) && u.email && String(u.status ?? 'Active') === 'Active');

@@ -48,11 +48,34 @@ export async function resolveStakeholders(
     filters: { userId: employeeUserId },
     limit: 1,
   });
-  let rmId = (employees[0]?.reportingManagerId as string) ?? null;
+  let empDoc: Record<string, unknown> | undefined = employees[0];
+
+  // Fallback: employee rows created before Create Employee provisioned the
+  // login carry `userId: ""`, so the lookup above misses and the fan-out
+  // silently falls back to the (often stale) user-doc manager. Match the row
+  // by the account's email / username instead — same human, same company.
+  if (!empDoc) {
+    const acct = await getUserDoc(employeeUserId);
+    const raw = [acct?.email, acct?.username].map((v) => String(v ?? '').trim()).filter(Boolean);
+    const keys = [...new Set([...raw, ...raw.map((v) => v.toLowerCase())])];
+    for (const key of keys) {
+      for (const field of ['email', 'username'] as const) {
+        const hits = await queryEntities<Record<string, unknown>>({
+          entity: 'employee',
+          companyId,
+          filters: { [field]: key },
+          limit: 1,
+        }).catch(() => [] as Record<string, unknown>[]);
+        if (hits[0]) { empDoc = hits[0]; break; }
+      }
+      if (empDoc) break;
+    }
+  }
+
+  let rmId = (empDoc?.reportingManagerId as string) ?? null;
   if (rmId) {
     // If it points at an employee-doc id, resolve to the auth uid
-    const rmDoc = employees.find((e) => e.id === rmId);
-    if (rmDoc) rmId = String(rmDoc.userId ?? rmId);
+    if (empDoc && empDoc.id === rmId) rmId = String(empDoc.userId ?? rmId);
     const rmUser = await getUserDoc(rmId);
     if (rmUser && (MANAGER_ROLES.has(String(rmUser.role ?? '')) || rmUser.isReportingManager)) {
       out.reportingManagerId = rmId;
