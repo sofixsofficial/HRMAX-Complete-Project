@@ -355,9 +355,11 @@ export const confirmResetPassword = async (code: string, newPassword: string): P
  * Throws a friendly message when the account does not exist or the caller
  * is outside the target's company scope.
  */
-export const resetUserPassword = async (email: string): Promise<{ tempPassword: string }> => {
+export const resetUserPassword = async (email: string, chosenPassword?: string): Promise<{ tempPassword: string }> => {
   const fn = httpsCallable(getFunctions(), 'adminResetPassword');
-  const res = await fn({ email: email.trim().toLowerCase() }) as { data?: { tempPassword?: string } };
+  const payload: { email: string; password?: string } = { email: email.trim().toLowerCase() };
+  if (chosenPassword) payload.password = chosenPassword;
+  const res = await fn(payload) as { data?: { tempPassword?: string } };
   const tempPassword = String(res?.data?.tempPassword ?? '');
   if (!tempPassword) throw new Error('No temporary password was returned. Please try again.');
   return { tempPassword };

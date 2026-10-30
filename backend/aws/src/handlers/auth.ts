@@ -692,6 +692,9 @@ export const authRoutes: Route[] = [
       assertRole(caller, ['master-admin', 'company-admin', 'executive', 'team-leader']);
       const email = String(req.body.email ?? '').trim().toLowerCase();
       if (!email) throw new ApiError('bad-request', 'email required');
+      // Optional admin-CHOSEN password (Company edit -> Account Credentials):
+      // when supplied, use it verbatim instead of the random temp password.
+      const chosenPassword = String(req.body.password ?? '').trim();
       await enforceRateLimit(`adminreset#${email}`, 10, 300);
       await enforceRateLimit(`adminreset-ip#${sourceIp(req)}`, 40, 300);
 
@@ -709,10 +712,19 @@ export const authRoutes: Route[] = [
 
       // Complies with both the shared app policy and the Cognito pool:
       // upper + lower + digit + symbol, >= 8 chars. The random hex can be
-      // letter-only, so the appended digits guarantee the digit class.
-      const tempPassword = `Hr@${randomBytes(4).toString('hex')}${1000 + Math.floor(Math.random() * 9000)}`;
+      // letter-only, so the appended digits guarantee the digit class. A
+      // caller-chosen password must clear the same policy (bad-request, the
+      // admin can fix it in the form); only a broken *generated* one is
+      // an internal error.
+      const tempPassword = chosenPassword
+        || `Hr@${randomBytes(4).toString('hex')}${1000 + Math.floor(Math.random() * 9000)}`;
       const policy = validatePasswordPolicy(tempPassword);
-      if (!policy.valid) throw new ApiError('internal', 'Could not generate a temporary password. Please try again.');
+      if (!policy.valid) {
+        throw new ApiError(
+          chosenPassword ? 'bad-request' : 'internal',
+          policy.message ?? 'Could not generate a temporary password. Please try again.',
+        );
+      }
 
       try {
         await cognito.send(
@@ -768,7 +780,7 @@ export const authRoutes: Route[] = [
           actorId: caller.uid,
           actorName: caller.name ?? '',
           targetId: account.uid,
-          details: `Admin-issued temporary password for ${email}`,
+          details: `Admin-issued ${chosenPassword ? 'password' : 'temporary password'} for ${email}`,
           ip: sourceIp(req),
           userAgent: '',
           createdAt: isoNow(),

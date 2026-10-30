@@ -15,7 +15,7 @@ import { validatePasswordPolicy } from '../utils/passwordPolicy'
 import { ApprovalChainsEditor } from '../components/ApprovalChainsEditor'
 import type { ApprovalChainConfig } from '../utils/approvalChains'
 import { httpsCallable } from '../aws/functions-compat'
-import { doc, onSnapshot } from '../aws/firestore-compat'
+import { doc, onSnapshot, updateDoc } from '../aws/firestore-compat'
 import { functions, db } from '../aws/clients'
 import { Header } from '../components/Header'
 import { Modal } from '../components/Modal'
@@ -177,6 +177,8 @@ interface CompanyFormProps {
   isSubmitting: boolean;
   defaultValues?: Partial<CompanyFormValues>;
   showCredentials?: boolean;
+  /** Edit mode — the credential fields are optional (blank keeps current). */
+  editing?: boolean;
   /** Configurable per-role approval chains (company policy). */
   approvalChains?: ApprovalChainConfig;
   onApprovalChainsChange?: (next: ApprovalChainConfig) => void;
@@ -248,7 +250,7 @@ const SearchableSelect = ({ label, options, value, onChange, placeholder, disabl
   )
 }
 
-const CompanyForm = ({ onSubmit, submitLabel, onCancel, isSubmitting, defaultValues, showCredentials, approvalChains, onApprovalChainsChange }: CompanyFormProps) => {
+const CompanyForm = ({ onSubmit, submitLabel, onCancel, isSubmitting, defaultValues, showCredentials, editing, approvalChains, onApprovalChainsChange }: CompanyFormProps) => {
   const { register, handleSubmit, setValue, watch, formState: { errors } } = useForm<CompanyFormValues>({
     // Cast: @hookform/resolvers' zod inference doesn't line up with z.infer
     // for this schema (known ecosystem typing limitation — runtime identical).
@@ -520,7 +522,7 @@ const CompanyForm = ({ onSubmit, submitLabel, onCancel, isSubmitting, defaultVal
         <h4 className="form-section-header">Account Credentials</h4>
         <div className="form-row">
           <div className="form-group">
-            <label>System Username *</label>
+            <label>System Username{editing ? '' : ' *'}</label>
             <input
               type="text"
               {...register('adminUsername')}
@@ -529,13 +531,18 @@ const CompanyForm = ({ onSubmit, submitLabel, onCancel, isSubmitting, defaultVal
             {errors.adminUsername && <span className="field-error">{errors.adminUsername.message}</span>}
           </div>
           <div className="form-group">
-            <label>Temporary Password *</label>
+            <label>Temporary Password{editing ? '' : ' *'}</label>
             <input
               type="text"
               {...register('adminPassword')}
-              placeholder="Min 8 chars (upper+lower+number+symbol)"
+              placeholder={editing ? 'Leave blank to keep current password' : 'Min 8 chars (upper+lower+number+symbol)'}
             />
             {errors.adminPassword && <span className="field-error">{errors.adminPassword.message}</span>}
+            {editing && (
+              <span className="field-hint" style={{ fontSize: 11, color: '#6b7280' }}>
+                Passwords cannot be read back — type a new one only to reset the admin's login.
+              </span>
+            )}
           </div>
         </div>
       </>
@@ -1253,14 +1260,43 @@ export function Companies() {
   const handleEditCompany = async (values: CompanyFormValues) => {
     if (!selectedCompany) return
     setFormError(null)
+    const adminUsername = String(values.adminUsername ?? '').trim()
+    const adminPassword = String(values.adminPassword ?? '')
+    // Validate the optional password BEFORE writing anything — an invalid
+    // choice must not half-save the company.
+    if (adminPassword && !validatePasswordPolicy(adminPassword).valid) {
+      const policy = validatePasswordPolicy(adminPassword)
+      setFormError(policy.errors[0] || 'Password does not meet the requirements.')
+      return
+    }
     setIsSubmitting(true)
     try {
-      await updateCompany(selectedCompany.id, { ...(values as any), approvalChains: editChains })
+      // Credential fields are form-only state — the company doc never stores them.
+      const { adminUsername: _ignoredUsername, adminPassword: _ignoredPassword, ...companyValues } = values as any
+      await updateCompany(selectedCompany.id, { ...companyValues, approvalChains: editChains })
+
+      // Account Credentials (edit mode): touch the linked admin account only
+      // when something was actually provided — blank fields keep it as-is.
+      const adminAccount = allUsers.find(u =>
+        u.id === selectedCompany.adminId ||
+        String(u.email || '').toLowerCase() === String(selectedCompany.adminEmail || '').toLowerCase())
+      if (adminPassword) {
+        if (!adminAccount?.email) throw new Error('No admin account is linked to this company yet — cannot set a password.')
+        await resetUserPassword(adminAccount.email, adminPassword)
+      }
+      if (adminUsername && adminAccount && adminUsername !== String(adminAccount.username || '')) {
+        await updateDoc(doc(db, 'users', String(adminAccount.id)), { username: adminUsername })
+      }
+
       setIsEditModalOpen(false)
       setSelectedCompany(null)
-      showToast('Company updated successfully!')
-    } catch (err) {
-      setFormError('Failed to update company')
+      showToast(adminPassword
+        ? `Company updated — admin password set${adminUsername ? ` (username: ${adminUsername})` : ''}`
+        : 'Company updated successfully!')
+    } catch (err: any) {
+      setFormError(err?.message && !String(err.message).includes('Failed to update')
+        ? String(err.message)
+        : 'Failed to update company')
     } finally {
       setIsSubmitting(false)
     }
@@ -1310,6 +1346,13 @@ export function Companies() {
     setSelectedCompany(company)
     setFormError(null)
     setEditChains((company.approvalChains as ApprovalChainConfig) || {})
+    // Account Credentials: prefill the admin's System Username from the linked
+    // account (the password itself is never stored anywhere — Cognito only
+    // keeps a hash — so the field starts blank: leave it blank to keep the
+    // current password, type a new one to reset the login).
+    const adminAccount = allUsers.find(u =>
+      u.id === company.adminId ||
+      String(u.email || '').toLowerCase() === String(company.adminEmail || '').toLowerCase())
     setEditDefaultValues({
       name: company.name,
       code: company.code,
@@ -1328,6 +1371,8 @@ export function Companies() {
       adminName: company.adminName,
       adminEmail: company.adminEmail,
       adminPhone: company.adminPhone || '',
+      adminUsername: adminAccount?.username || adminAccount?.email || company.adminEmail || '',
+      adminPassword: '',
       employeeLimit: company.employeeLimit || 50,
       employees: employeeCounts[company.id] || 0,
       status: company.status,
@@ -1697,6 +1742,8 @@ export function Companies() {
           onCancel={() => { setIsEditModalOpen(false); setSelectedCompany(null); setFormError(null) }}
           isSubmitting={isSubmitting}
           defaultValues={editDefaultValues}
+          showCredentials
+          editing
           approvalChains={editChains}
           onApprovalChainsChange={setEditChains}
         />
