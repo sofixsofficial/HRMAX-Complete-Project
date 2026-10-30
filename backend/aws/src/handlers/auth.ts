@@ -684,6 +684,63 @@ export const authRoutes: Route[] = [
         if (!br) throw new ApiError('bad-request', 'One of the selected branches does not belong to this company.');
       }
 
+      // The staff forms (Add Team Leader / Add Executive) submit the WHOLE
+      // profile: phone, address, bank, documents, salary, join date,
+      // assignedCompanyIds / linkedExecutiveIds, and attendanceSettings (the
+      // office location + radius captured at creation). Only the core account
+      // fields used to be written here, so everything else silently vanished —
+      // a TL created this way ended up with no company-linked data at all and
+      // could never punch. Persist exactly this allowlist; any other body key
+      // is still ignored, so this endpoint can never be used to write
+      // arbitrary fields (role, isActive… stay server-owned).
+      const body = req.body as Record<string, unknown>;
+      const strArr = (v: unknown): string[] =>
+        Array.isArray(v) ? v.map(String).map((s) => s.trim()).filter(Boolean) : [];
+      const extras: Record<string, unknown> = {};
+      for (const f of [
+        'phone', 'address', 'emergencyContactName', 'emergencyContactPhone',
+        'departmentName', 'department', 'executiveTitle', 'contingencyAccess',
+        'employmentType', 'joinDate', 'aadharNumber', 'panNumber',
+        'bankName', 'accountHolderName', 'accountNumber', 'ifscCode',
+        'pfAccountNumber', 'uanNumber', 'monthlyGrossSalary', 'salaryEffectiveDate',
+        'reportingExecutiveId', 'reportingExecutiveName', 'attendanceSettings',
+      ]) {
+        if (body[f] !== undefined && body[f] !== null) extras[f] = body[f];
+      }
+      // Scope/link arrays — plain string arrays only.
+      if (body.assignedCompanyIds !== undefined) extras.assignedCompanyIds = strArr(body.assignedCompanyIds);
+      if (body.assignedTeamLeaderIds !== undefined) extras.assignedTeamLeaderIds = strArr(body.assignedTeamLeaderIds);
+      if (body.linkedExecutiveIds !== undefined) extras.linkedExecutiveIds = strArr(body.linkedExecutiveIds);
+      // Form-chosen status beats the default, but only known values pass.
+      const requestedStatus = String((body.status as string) ?? '');
+      const status: UserDoc['status'] =
+        requestedStatus === 'Pending' || requestedStatus === 'Rejected' || requestedStatus === 'Suspended'
+          ? requestedStatus
+          : 'Active';
+      // The MA's selected permission matrix wins over the role default when
+      // the form actually sent one (permissionsConfigured follows the same).
+      const perms = strArr(body.permissions);
+
+      // Personal attendance / leave / salary of executives and team leaders
+      // resolve through a REAL company (own companyId, an assigned company, or
+      // the executive a TL reports to). Reject accounts that could never
+      // resolve one — otherwise the very next punch dies with
+      // "No company is assigned to your account".
+      if (role === 'executive' || role === 'team-leader') {
+        const hasOwn = !!cid && cid !== 'global';
+        const hasAssigned = ((extras.assignedCompanyIds as string[] | undefined) ?? []).length > 0;
+        const execLink = role === 'team-leader'
+          && (((extras.linkedExecutiveIds as string[] | undefined) ?? []).length > 0 || !!extras.reportingExecutiveId);
+        if (!hasOwn && !hasAssigned && !execLink) {
+          throw new ApiError(
+            'bad-request',
+            role === 'executive'
+              ? 'An Executive needs at least one assigned company — check-in, leave and salary live under it.'
+              : 'A Team Leader needs a company — check-in, leave and salary live under it. Select one in the Company field.',
+          );
+        }
+      }
+
       const uid = await cognitoCreateUser(email, password, name, role, cid);
       const doc_ = await writeUserDoc(uid, {
         email, name, role, companyId: cid,
@@ -692,10 +749,12 @@ export const authRoutes: Route[] = [
         username: username ?? null,
         primaryBranchId: primaryBranchId || null,
         branchIds: extraBranches,
-        permissions: defaultPermissionsForRole(role as UserDoc['role']),
+        permissions: perms.length ? perms : defaultPermissionsForRole(role as UserDoc['role']),
+        ...(perms.length || body.permissionsConfigured === true ? { permissionsConfigured: true } : {}),
         requirePasswordChange: true,
-        status: 'Active',
+        status,
         isActive: true,
+        ...extras,
       });
 
       const t = templates.welcome(name, password);

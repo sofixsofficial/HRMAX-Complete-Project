@@ -449,6 +449,15 @@ export function TeamLeaders() {
     try {
       const selectedExecs = executives.filter(e => values.executiveIds?.includes(e.id))
       const targetCompanyId = values.companyId || authUser?.companyId || null
+      // Check-in, attendance, leave and salary all live under a REAL company
+      // ('global' is only the platform bucket). The creator's own company is
+      // the default; a Master Admin must pick one from Company * — a TL
+      // created without one can never punch ("No company is assigned").
+      if (!targetCompanyId || targetCompanyId === 'global') {
+        setToast({ message: 'Select a company for the Team Leader — attendance, leave and salary need one', type: 'error' })
+        setIsSubmitting(false)
+        return
+      }
 
       const createStaffUser = httpsCallable(functions, 'createStaffUser')
       const { data: result } = await createStaffUser({
@@ -599,7 +608,10 @@ export function TeamLeaders() {
   }
 
   const openAdd = () => {
-    form.reset({ companyId: authUser?.companyId || '', executiveIds: [] })
+    // 'global' is the Master Admin's platform bucket, not a company —
+    // prefilling it left the Company * select blank-looking while the value
+    // saved was 'global', producing a TL that could never punch.
+    form.reset({ companyId: (authUser?.companyId && authUser.companyId !== 'global') ? authUser.companyId : '', executiveIds: [] })
     setAddPermissions(TL_ALL_PERMISSIONS)
     setIsAddModalOpen(true)
   }
@@ -628,6 +640,7 @@ export function TeamLeaders() {
     form.reset({
       name: u.name,
       email: u.email,
+      companyId: (u.companyId && u.companyId !== 'global') ? u.companyId : '',
       phone: (u as any).phone || '',
       executiveIds: linkedIds,
       designation: (u as any).designation || '',
@@ -693,6 +706,13 @@ export function TeamLeaders() {
 
   const handleEdit = async (values: TeamLeaderFormValues) => {
     if (!selectedUser) return
+    // The edit modal shows Company * — persist it (it used to be silently
+    // dropped, so a TL's company could never be fixed from the UI) and refuse
+    // 'global': attendance/leave/salary need a real company.
+    if (!values.companyId || values.companyId === 'global') {
+      setToast({ message: 'Select a company for the Team Leader — attendance, leave and salary need one', type: 'error' })
+      return
+    }
     setIsSubmitting(true)
     try {
       const prevLinkedIds: string[] = (selectedUser as any).linkedExecutiveIds || ((selectedUser as any).reportingExecutiveId ? [(selectedUser as any).reportingExecutiveId] : [])
@@ -732,6 +752,7 @@ export function TeamLeaders() {
       await updateDoc(doc(db, 'users', selectedUser.id), {
         name: values.name,
         email: values.email,
+        companyId: values.companyId,
         phone: values.phone || '',
         linkedExecutiveIds: newIds,
         reportingExecutiveId: newExecs[0]?.id || null,
