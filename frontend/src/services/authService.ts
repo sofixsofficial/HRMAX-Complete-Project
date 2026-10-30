@@ -227,7 +227,10 @@ export const signUpCompany = async (
  * Sign in existing user
  */
 export const signIn = async (email: string, password: string): Promise<User> => {
-  const trimmedEmail = email.trim().toLowerCase();
+  // Case is PRESERVED: Cognito usernames are case-sensitive and the resolve
+  // endpoint matches EXACT first (info.Ajay@... and info.ajay@... can be two
+  // different people) — lowercasing here silently logged the wrong account.
+  const trimmedEmail = email.trim();
   const trimmedPassword = password.trim();
 
   console.log('[AuthService] signIn called:', { email: trimmedEmail, passwordLength: trimmedPassword.length });

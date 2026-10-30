@@ -275,27 +275,21 @@ async function resolveSystemUsername(typed: string): Promise<string | null> {
 }
 
 export async function signInWithEmailAndPassword(_auth: unknown, email: string, password: string): Promise<UserCredential> {
+  // The sign-in box accepts a System Username as well as the account email.
+  // Cognito only knows emails (pool username attribute = email) and HIDES
+  // whether a name exists on this client (NotAuthorized instead of
+  // UserNotFound), so the typed name is resolved to the account's EXACT
+  // stored email FIRST and exactly ONE Cognito attempt follows — no doomed
+  // first attempt (which burned rate-limit slots), no dependence on which
+  // error flavour comes back, and no chance of landing on the case-variant
+  // account that happens to own the lowercased string. When the resolve API
+  // is unreachable, the typed value is used as-is (plain emails need nothing
+  // else).
+  const identifier = (await resolveSystemUsername(email)) || email;
   try {
-    return await initiateAuthWithPassword(email, password);
+    return await initiateAuthWithPassword(identifier, password);
   } catch (err) {
-    // The sign-in box also accepts a System Username. Cognito HIDES whether
-    // a username exists on this app client (PreventUserExistenceErrors): an
-    // unknown name comes back as NotAuthorizedException "Incorrect username
-    // or password", not UserNotFoundException — so both codes can mean
-    // "maybe a System Username". Skip the retry when Cognito is throttling
-    // attempts (nothing to resolve) or when resolution yields nothing / the
-    // same email (that was a genuinely wrong password for a real login id).
-    const raw = err as Error & { code?: string };
-    const maybeUnknownUser =
-      raw.code === 'UserNotFoundException' ||
-      (raw.code === 'NotAuthorizedException' && !/attempts exceeded|limit exceeded/i.test(raw.message ?? ''));
-    if (maybeUnknownUser) {
-      const resolved = await resolveSystemUsername(email);
-      if (resolved && resolved !== email) {
-        return await initiateAuthWithPassword(resolved, password);
-      }
-    }
-    throw mapError(raw);
+    throw mapError(err as Error & { code?: string });
   }
 }
 

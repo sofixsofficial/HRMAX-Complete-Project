@@ -337,22 +337,29 @@ export const authRoutes: Route[] = [
     path: '/api/auth/resolve-username',
     public: true,
     handler: async (req) => {
-      const username = String(req.body.username ?? '').trim().toLowerCase();
-      if (!username) throw new ApiError('bad-request', 'username required');
+      // Resolve order matters: EXACT matches first, then case-insensitive.
+      // The pool treats case-variant usernames as different accounts
+      // (info.Ajay@... and info.ajay@... coexist), so the stored email must
+      // be returned EXACTLY as saved — a lowercased one logs into whichever
+      // account happens to own that case-variant (the wrong person!).
+      //  1. exact System Username  2. exact email
+      //  3. case-insensitive username  4. case-insensitive email
+      //  5. unmatched '@' passes through (Cognito answers); other names -> null.
+      const raw = String(req.body.username ?? '').trim();
+      const username = raw.toLowerCase();
+      if (!raw) throw new ApiError('bad-request', 'username required');
       await enforceRateLimit(`resolveuser#${username}`, 15, 300);
       await enforceRateLimit(`resolveuser-ip#${sourceIp(req)}`, 60, 300);
 
-      // An email-looking value can STILL be a System Username (Company
-      // Admins commonly get info@company.com as their username), so the
-      // username lookup ALWAYS runs first; only an unmatched '@' value
-      // passes through unchanged (the client then surfaces Cognito's own
-      // "no account found").
-      const all = await allUsers();
-      const hit = all.find(
-        (u) => String(u.username ?? '').trim().toLowerCase() === username && u.isActive !== false,
-      );
-      if (hit) return { email: String(hit.email ?? '').toLowerCase() };
-      return { email: username.includes('@') ? username : null };
+      const alive = (await allUsers()).filter((u) => u.isActive !== false);
+      const lower = (v: unknown) => String(v ?? '').trim();
+      const hit =
+        alive.find((u) => lower(u.username) === raw) ??
+        alive.find((u) => lower(u.email) === raw) ??
+        alive.find((u) => lower(u.username).toLowerCase() === username) ??
+        alive.find((u) => lower(u.email).toLowerCase() === username);
+      if (hit && lower(hit.email)) return { email: lower(hit.email) };
+      return { email: username.includes('@') ? raw : null };
     },
   },
 
@@ -673,6 +680,21 @@ export const authRoutes: Route[] = [
         if (!policy.valid) throw new ApiError('bad-request', policy.message ?? 'Password does not meet the requirements.');
       }
       const cid = companyId || caller.companyId;
+
+      // ONE email = ONE account, enforced at the DOC level too. Cognito's
+      // UsernameExists only catches users that still exist there; a second
+      // users/{uid} row for one email would make login resolution and profile
+      // lookups ambiguous (one email pointing at two people).
+      const typedEmail = String(email).trim().toLowerCase();
+      const duplicate = (await allUsers()).find(
+        (u) => String(u.email ?? '').trim().toLowerCase() === typedEmail,
+      );
+      if (duplicate) {
+        throw new ApiError(
+          'bad-request',
+          `An account with ${email} already exists — one email can only have one account. Use a different email or edit the existing account.`,
+        );
+      }
 
       // Branch assignment: every id must exist INSIDE this company before the
       // account is created — permissions are enforced server-side at punch
