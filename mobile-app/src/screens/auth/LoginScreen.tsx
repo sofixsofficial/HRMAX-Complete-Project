@@ -74,10 +74,10 @@ export const LoginScreen: React.FC<Props> = ({ navigation }) => {
         ) : null}
 
         <View style={s.inputContainer}>
-          <Text style={s.label}>Email</Text>
+          <Text style={s.label}>Email or System Username</Text>
           <TextInput
             style={s.input}
-            placeholder="Enter your email"
+            placeholder="Enter your email or system username"
             placeholderTextColor={colors.textTertiary}
             value={email}
             onChangeText={(v) => { setEmail(v); if (error) setError(''); }}
