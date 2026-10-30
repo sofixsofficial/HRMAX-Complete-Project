@@ -48,7 +48,10 @@ export const CompanyProvider: React.FC<{ children: React.ReactNode }> = ({ child
   const [isLoading, setIsLoading] = useState(true);
   const [companyName, setCompanyName] = useState<string | null>(null);
 
-  const isRestrictedRole = user?.role === 'executive' || user?.role === 'team-leader' || isReportingManager;
+  // Team Leaders are SYSTEM-LEVEL (created by the Master Admin) — they are
+  // NOT company-restricted: their scope is global, matching the backend
+  // (scopedCompanyIds returns [] = unrestricted for team-leader).
+  const isRestrictedRole = user?.role === 'executive' || isReportingManager;
   const isSingleCompanyRole = user?.role === 'company-admin' || user?.role === 'employee';
 
   useEffect(() => {
@@ -77,21 +80,9 @@ export const CompanyProvider: React.FC<{ children: React.ReactNode }> = ({ child
               }
             } catch {}
           }
-        } else if (fuRole === 'team-leader') {
-          const linkedExecIds: string[] = (forceUser as any).linkedExecutiveIds || [];
-          const reportingExecId: string | null = (forceUser as any).reportingExecutiveId || null;
-          const allExecIds = [...new Set([...linkedExecIds, ...(reportingExecId ? [reportingExecId] : [])])];
-
-          if (allExecIds.length > 0) {
-            const execDocs = await getDocsInBatches('users', allExecIds);
-            const assignedSets: string[][] = [];
-            execDocs.forEach((d) => {
-              const ids: string[] = (d as any).assignedCompanyIds || [];
-              assignedSets.push(ids);
-            });
-            targetIds = [...new Set(assignedSets.flat())];
-          }
-        }
+        } 
+        // team-leader: no linked-executive derivation — system-level TLs fall
+        // through to the unrestricted branch below and load ALL companies.
 
         if (targetIds.length > 0) {
           const compDocs = await getDocsInBatches('companies', targetIds);
@@ -141,7 +132,10 @@ export const CompanyProvider: React.FC<{ children: React.ReactNode }> = ({ child
           // Never persist the role-sentinel companyId ('master-admin') as the
           // user's *selection* — it poisoned scopedCompanyIdsForRole (scope became
           // ['master-admin'], matching no real company → empty MA panel/queues).
-          setSelectedCompanyIdState(fuCompanyId && fuCompanyId !== 'master-admin' ? fuCompanyId : null);
+          // Team-leader defaults to the aggregated "All Companies" view (global
+          // system-level scope) rather than pinning to their own company.
+          const pinForRole = fuRole === 'team-leader' ? null : (fuCompanyId && fuCompanyId !== 'master-admin' ? fuCompanyId : null);
+          setSelectedCompanyIdState(pinForRole);
         }
       } catch (err) {
         console.error('Error loading assigned companies:', err);
@@ -155,27 +149,8 @@ export const CompanyProvider: React.FC<{ children: React.ReactNode }> = ({ child
 
     loadCompanies(user);
 
-    // Real-time permission sync for executives and team leaders.
-    // Executives carry assignedCompanyIds directly. Team leaders do NOT — their
-    // portfolio derives from the executives they report to (linkedExecutiveIds /
-    // reportingExecutiveId), so recompute it the same way the initial load does
-    // instead of reading the TL's own (empty) assignedCompanyIds.
-    const recomputeTeamLeaderScope = async (snapData: any) => {
-      const linkedExecIds: string[] = snapData.linkedExecutiveIds || [];
-      const reportingExecId: string | null = snapData.reportingExecutiveId || null;
-      const allExecIds = [...new Set([...linkedExecIds, ...(reportingExecId ? [reportingExecId] : [])])];
-      let targetIds: string[] = [];
-      if (allExecIds.length > 0) {
-        const execDocs = await getDocsInBatches('users', allExecIds);
-        const assignedSets: string[][] = [];
-        execDocs.forEach((d: any) => {
-          const ids: string[] = d.assignedCompanyIds || [];
-          assignedSets.push(ids);
-        });
-        targetIds = [...new Set(assignedSets.flat())];
-      }
-      await applyScope(targetIds);
-    };
+    // Real-time permission sync for executives. (Team leaders are system-level
+    // global — their scope does not change with linked-executive edits.)
 
     const applyScope = async (targetIds: string[]) => {
       if (targetIds.length > 0) {
@@ -198,19 +173,17 @@ export const CompanyProvider: React.FC<{ children: React.ReactNode }> = ({ child
       }
     };
 
-    if (user.role === 'executive' || user.role === 'team-leader') {
+    if (user.role === 'executive') {
       const unsub = onSnapshot(doc(db, 'users', user.id), (snap) => {
         if (!snap.exists()) return;
         const snapData = snap.data() as any;
-        if (user.role === 'team-leader') {
-          recomputeTeamLeaderScope(snapData);
-        } else {
-          const newIds: string[] = snapData.assignedCompanyIds || [];
-          applyScope(newIds);
-        }
+        const newIds: string[] = snapData.assignedCompanyIds || [];
+        applyScope(newIds);
       }, () => {});
       return () => unsub();
     }
+    // team-leader: system-level GLOBAL scope (all companies) — constant, no
+    // linked-executive recompute (links no longer drive visibility).
   }, [user?.id, user?.role, user?.companyId]);
 
   const setSelectedCompanyId = useCallback(

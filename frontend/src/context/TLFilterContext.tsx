@@ -69,54 +69,56 @@ export const TLFilterProvider: React.FC<{ children: React.ReactNode }> = ({ chil
     if (!user || user.role !== 'team-leader' || !forceUserId) return
     setIsLoading(true)
     try {
-      const tlDoc = await getDoc(doc(db, 'users', forceUserId))
-      if (!tlDoc.exists()) { setIsLoading(false); return }
+      // SYSTEM-LEVEL DESIGN (HR MAX rule): Executives and Team Leaders are
+      // created by the Master Admin — they are NOT company-employee records
+      // that must pass a company filter. The TL's scope is GLOBAL: every
+      // company and every executive, mirroring the backend (scopedCompanyIds
+      // returns [] = unrestricted for team-leader, readPartitions hands TLs
+      // all partitions) and the cross-company approval hierarchy they serve.
+      // The old logic derived scope ONLY from linked executives — a TL with
+      // no links got an empty scope and every page (dashboard, attendance,
+      // leaves) rendered "No companies assigned" / zero rows.
+      const [execSnap, compSnap, tlSnap] = await Promise.all([
+        getDocs(query(collection(db, 'users'), where('role', '==', 'executive'))),
+        getDocs(collection(db, 'companies')),
+        getDoc(doc(db, 'users', forceUserId)).catch(() => null),
+      ])
 
-      const tlData = tlDoc.data()
-      const linkedExecIds: string[] = tlData.linkedExecutiveIds || []
-      const reportingExecId: string | null = tlData.reportingExecutiveId || null
-      const allExecIds = [...new Set([...linkedExecIds, ...(reportingExecId ? [reportingExecId] : [])])]
+      const tlData = tlSnap && tlSnap.exists() ? (tlSnap.data() as Record<string, unknown>) : {}
+      const linked: string[] = [
+        ...new Set([
+          ...((tlData.linkedExecutiveIds as string[] | undefined) || []),
+          ...((tlData.reportingExecutiveId as string | undefined) ? [tlData.reportingExecutiveId as string] : []),
+        ]),
+      ]
 
-      if (allExecIds.length === 0) {
-        setExecutives([])
-        setAllCompanies([])
-        setIsLoading(false)
-        return
-      }
-
-      const execSnap = await getDocsInBatches('users', allExecIds)
-
-      const execList: ExecutiveInfo[] = []
-      const allCompanyIds = new Set<string>()
-      execSnap.forEach(d => {
-        const data = d
-        if (data.role === 'executive') {
-          const cids: string[] = data.assignedCompanyIds || []
-          cids.forEach(id => allCompanyIds.add(id))
-          execList.push({
-            id: d.id,
-            name: data.name || 'Unnamed Executive',
-            email: data.email || '',
-            assignedCompanyIds: cids,
-          })
+      const execList: ExecutiveInfo[] = execSnap.docs.map(d => {
+        const data = d.data()
+        return {
+          id: d.id,
+          name: data.name || 'Unnamed Executive',
+          email: data.email || '',
+          assignedCompanyIds: Array.isArray(data.assignedCompanyIds) ? data.assignedCompanyIds : [],
         }
+      })
+      // Linked executives first in the picker (reporting context), the rest after.
+      execList.sort((a, b) => {
+        const ai = linked.indexOf(a.id)
+        const bi = linked.indexOf(b.id)
+        return (ai === -1 ? linked.length : ai) - (bi === -1 ? linked.length : bi)
+      })
+
+      const companyList: CompanyInfo[] = compSnap.docs.map(d => {
+        const data = d.data()
+        return { id: d.id, name: data.name || '', code: data.code || '' }
       })
 
       setExecutives(execList)
-
-      if (allCompanyIds.size > 0) {
-        const compSnap = await getDocsInBatches('companies', [...allCompanyIds])
-        const compList: CompanyInfo[] = []
-        compSnap.forEach(d => {
-          const data = d
-          compList.push({ id: d.id, name: data.name || '', code: data.code || '' })
-        })
-        setAllCompanies(compList)
-      } else {
-        setAllCompanies([])
-      }
+      setAllCompanies(companyList)
     } catch (err) {
-      console.error('Error loading TL hierarchy:', err)
+      console.error('Error loading TL scope:', err)
+      setExecutives([])
+      setAllCompanies([])
     } finally {
       setIsLoading(false)
     }

@@ -104,16 +104,10 @@ export const TLOperationalDashboard: React.FC<{ navigation: any }> = ({ navigati
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user?.id]);
 
-  // Executives linked to this TL (drives scope + counters) — only these are shown
-  const linkedExecutives = useMemo(() => {
-    if (!user?.id) return [];
-    const tlData = user as any;
-    const linkedIds = tlData.linkedExecutiveIds || (tlData.reportingExecutiveId ? [tlData.reportingExecutiveId] : []);
-    return executives.filter((e) =>
-      linkedIds.includes(e.id) ||
-      (e.assignedCompanyIds || []).some((cid: string) => (tlData.assignedCompanyIds || []).includes(cid))
-    );
-  }, [executives, user]);
+  // The TL's team = ALL executives (system-level: execs and TLs are created by
+  // the Master Admin, not bound to one company's filter — per the approval
+  // matrix the TL reviews across companies).
+  const linkedExecutives = useMemo(() => executives, [executives]);
 
   const activeExecCount = linkedExecutives.filter((e) => (e as any).isActive !== false).length;
 

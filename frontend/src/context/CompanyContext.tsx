@@ -200,6 +200,10 @@ export const CompanyProvider: React.FC<{ children: React.ReactNode }> = ({ child
       return
     }
     const subset = tlCtx.selectedExecutiveId && tlCtx.currentExecutive
+      // Only narrow by the executive's portfolio when it actually has
+      // companies — an executive with none (system-level, MA-created) must
+      // never collapse the TL's global scope to an empty list.
+      && (tlCtx.currentExecutive.assignedCompanyIds.length > 0)
       ? tlCtx.allCompanies.filter(c => tlCtx.currentExecutive?.assignedCompanyIds.includes(c.id))
       : tlCtx.allCompanies
     const next = Array.isArray(subset) ? subset : []
