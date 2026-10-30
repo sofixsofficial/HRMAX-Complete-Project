@@ -3,7 +3,7 @@ import { errText } from '../../aws/errors';
 import { useNavigate } from 'react-router-dom'
 import {
   Clock, Calendar, Wallet, CheckSquare, Megaphone, Loader2, Edit3, AlertCircle,
-  ArrowUpRight,
+  ArrowUpRight, AlertTriangle,
 } from 'lucide-react'
 import { collection, query, where, onSnapshot } from '../../aws/firestore-compat'
 import { db } from '../../aws/clients'
@@ -168,17 +168,18 @@ export function EmployeeDashboard() {
 
         {/* Top Stats Cards */}
         <div className="stats-grid">
-          {[
+          {([
             { icon: Clock, label: 'My Attendance', count: personal.monthStats.total, trend: 'This month', path: '/attendance' },
+            { icon: AlertTriangle, label: 'Missed Punch', count: missPunchCount, trend: missPunchCount > 0 ? 'Needs rectification' : 'All punches done', path: '/attendance?status=Miss Punch', color: '#9333ea' },
             { icon: Calendar, label: 'Pending Leaves', count: personal.pendingLeaves, trend: personal.pendingLeaves > 0 ? 'Awaiting review' : 'None pending', path: '/leaves?status=Pending' },
             { icon: Wallet, label: 'Salary Slips', count: personal.salarySlips, trend: personal.salarySlips > 0 ? 'Generated for you' : 'No slips yet', path: '/salary-slips' },
             { icon: CheckSquare, label: 'Pending Tasks', count: personal.activeTasks, trend: personal.activeTasks > 0 ? 'Needs attention' : 'All done', path: '/tasks?status=Pending' },
             { icon: Megaphone, label: 'Announcements', count: announcements, trend: 'From company', path: '/announcements' },
-          ].map((card, idx) => {
+          ] as Array<{ icon: typeof Clock; label: string; count: number; trend: string; path: string; color?: string }>).map((card, idx) => {
             const Icon = card.icon
             return (
               <div key={idx} className="stat-card" onClick={() => navigate(card.path)} tabIndex={0} onKeyDown={(e) => handleCardKeyDown(e, card.path)}>
-                <div className="stat-icon">
+                <div className="stat-icon" style={card.color ? { background: `${card.color}15`, color: card.color } : undefined}>
                   <Icon size={24} />
                 </div>
                 <div className="stat-info">

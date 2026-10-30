@@ -497,6 +497,7 @@ export const EmployeeDashboard: React.FC<{ navigation: any }> = ({ navigation })
       </View>
       <StatsGrid>
         <StatCard label="Month Attendance" value={attendanceRate === null ? '—' : `${attendanceRate}%`} icon="pie-chart-outline" color="#10b981" onClick={() => navigation?.navigate('Attendance')} />
+        <StatCard label="Missed Punch" value={unresolvedMissPunch} icon="alert-circle-outline" color="#9333ea" onClick={() => navigation?.navigate('Attendance')} />
         <StatCard label="Pending Leaves" value={pendingLeaves} icon="umbrella-outline" color="#f59e0b" onClick={() => navigation?.navigate('ApplyLeave')} />
         <StatCard label="Active Tasks" value={activeTasks} icon="checkmark-circle-outline" color="#ec4899" onClick={() => navigation?.navigate('Tasks')} />
         <StatCard label="Upcoming Holidays" value={upcomingHolidays.length} icon="calendar-outline" color="#FF6600" />
