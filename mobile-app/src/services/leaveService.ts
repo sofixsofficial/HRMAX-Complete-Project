@@ -7,6 +7,7 @@ import { httpsCallable } from '../aws/functions-compat';
 import { functions } from '../aws/clients';
 import type { LeaveRequest, LeaveType, LeaveStatus, ApprovalTier, ApprovalLevel, ApprovalFlags } from '../types/user';
 import { REQUESTER_ROLES, resolveApprovalChain, type RequesterRole, type ApprovalChainConfig } from '../utils/approvalChains';
+import { notifyLeaveSubmittedToTier } from './notificationService';
 
 const COLLECTION_NAME = 'leaveRequests';
 
@@ -323,6 +324,20 @@ export const createLeaveRequest = async (
   });
 
   const created = result.data as { id?: string };
+  // Web parity: notify the first pending approver that a new leave request
+  // needs their review. The `mobileCreateLeaveRequest` callable writes the row
+  // but notifies nobody, so we send it here with the exact web copy.
+  try {
+    const firstPendingTier = getNextPendingTier(approvalStatus);
+    if (firstPendingTier && approverIds[firstPendingTier]) {
+      await notifyLeaveSubmittedToTier(
+        approverIds[firstPendingTier]!,
+        leave.employeeName || 'An employee',
+        firstPendingTier,
+        leave.companyId
+      );
+    }
+  } catch {}
   return {
     ...leave,
     id: created?.id || '',

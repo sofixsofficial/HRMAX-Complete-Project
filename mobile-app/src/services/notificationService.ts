@@ -131,6 +131,39 @@ export async function notifyPunchRectificationRequested(
   }
 }
 
+// ── Leave tier notification helpers (web parity — exact strings) ──
+
+const LEAVE_TIER_LABEL_MAP: Record<string, string> = {
+  reportingManager: 'Reporting Manager',
+  hr: 'HR',
+  companyAdmin: 'Company Admin',
+  teamLeader: 'Team Leader',
+  executive: 'Executive',
+};
+
+/**
+ * Notify the first pending approver that a new leave request needs their
+ * review. Web parity: `leaveService.createLeaveRequest` fires this on submit —
+ * the mobile `mobileCreateLeaveRequest` callable notifies nobody, so the app
+ * must send it client-side to match the website exactly.
+ */
+export async function notifyLeaveSubmittedToTier(
+  approverUserId: string,
+  employeeName: string,
+  tier: string,
+  companyId: string
+): Promise<void> {
+  const tierLabel = LEAVE_TIER_LABEL_MAP[tier] || tier;
+  await createNotification(
+    approverUserId,
+    'leave_tier_approved',
+    'Leave Request Pending Your Review',
+    `${employeeName} has submitted a leave request that requires your review as ${tierLabel}.`,
+    '/leave',
+    companyId
+  ).catch(() => {});
+}
+
 async function notifyRecipients(
   recipients: Iterable<string>,
   type: string,
@@ -165,7 +198,8 @@ export async function notifyTLAction(
   title: string,
   body: string,
   companyId?: string | null,
-  extraRecipients?: string[]
+  extraRecipients?: string[],
+  link: string = '/notifications'
 ): Promise<void> {
   if (!actorUserId) return;
   try {
@@ -178,7 +212,7 @@ export async function notifyTLAction(
         ? [actor.reportingExecutiveId]
         : [];
     const masterAdmins = await getMasterAdminIds();
-    await notifyRecipients([...execIds, ...masterAdmins, ...(extraRecipients || [])], type, title, body, '/notifications', companyId);
+    await notifyRecipients([...execIds, ...masterAdmins, ...(extraRecipients || [])], type, title, body, link, companyId);
   } catch {}
 }
 
@@ -307,7 +341,7 @@ export async function notifyAttendanceCascade(
     note?: string;
     resolved?: boolean;
   },
-  eventType: 'rectification-requested' | 'rectification-resolved' | 'rectification-rejected' | 'late-checkin'
+  eventType: 'rectification-requested' | 'rectification-resolved' | 'rectification-rejected' | 'late-checkin' | 'missed-punch-marked'
 ): Promise<void> {
   try {
     // Same server-side cascade the website uses (frontend attendanceNotifier.ts):
@@ -316,10 +350,7 @@ export async function notifyAttendanceCascade(
     // mobileCreateNotification path previously failed with 400.
     const cascadeFn = httpsCallable(functions, 'notifyAttendanceCascade');
     const isReject = eventType === 'rectification-rejected';
-    const kind =
-      eventType === 'late-checkin' ? 'late-checkin'
-      : eventType === 'rectification-requested' ? 'rectification-requested'
-      : 'rectification-resolved';
+    const kind = eventType;
     const note = [
       attendanceData.lateMinutes ? `${attendanceData.lateMinutes} min late.` : '',
       isReject

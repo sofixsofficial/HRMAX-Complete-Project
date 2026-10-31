@@ -696,19 +696,52 @@ export const legacyRoutes: Route[] = [
   fn('notifyAttendanceCascade', async (req) => {
     const caller = must(req);
     const b = bodyOf(req);
-    const userId = String(b.userId ?? '');
+    // Clients send EITHER a flat { userId, type/event, title, message } payload
+    // OR the richer cascade shape used by BOTH the web (attendanceNotifier.ts)
+    // and the mobile app: { employeeUserId, employeeName, kind, dateLabel,
+    // note, actorName }. The previous handler only read `userId`/`type`, so
+    // every cascade call 400'd ("userId is required") and NO attendance
+    // notifications were delivered on either platform. Accept both shapes.
+    const userId = String(b.userId ?? b.employeeUserId ?? '');
     if (!userId) throw new ApiError('bad-request', 'userId is required');
     const companyId = String(b.companyId ?? caller.companyId);
     if (!isSuperAdmin(caller) && userId !== caller.uid && !MANAGEMENT_ROLES.includes(caller.role)) {
       throw new ApiError('permission-denied', 'Not authorized to fan out attendance events');
     }
     if (!isSuperAdmin(caller)) assertCompanyScope(caller, companyId);
-    const event = String(b.type ?? b.event ?? 'attendance-update');
+    const event = String(b.type ?? b.event ?? b.kind ?? 'attendance-update');
+
+    // Derive a readable title/body from the cascade shape when the caller did
+    // not supply explicit title/message (parity with the web's bell copy). The
+    // `note` already carries the late-minutes / remark / rejector detail that
+    // both clients compose, so it is appended verbatim.
+    const employeeName = String(b.employeeName ?? '');
+    const dateLabel = String(b.dateLabel ?? '');
+    const note = String(b.note ?? '');
+    const onDate = dateLabel ? ` on ${dateLabel}` : '';
+    const kindLabel =
+      event === 'late-checkin' ? 'Late Check-In'
+      : event === 'missed-punch-marked' ? 'Missed Punch'
+      : event === 'rectification-requested' ? 'Punch Rectification Requested'
+      : event === 'rectification-resolved' || event === 'rectification-rejected' ? 'Punch Rectification'
+      : 'Attendance Update';
+    const verbPhrase =
+      event === 'late-checkin' ? 'checked in late'
+      : event === 'missed-punch-marked' ? 'was marked as Miss Punch'
+      : event === 'rectification-requested' ? 'submitted a missed punch correction'
+      : event === 'rectification-resolved' ? 'had a missed punch correction approved'
+      : event === 'rectification-rejected' ? 'had a missed punch correction rejected'
+      : 'had an attendance update';
+    const who = employeeName || 'An employee';
+    const title = String(b.title ?? (employeeName ? `${kindLabel}: ${employeeName}` : kindLabel));
+    const message = String(
+      b.message ?? `${who} ${verbPhrase}${onDate}${note ? ` — ${note}` : '.'}`
+    );
     const targets = [userId, ...(await managementChainUids(companyId)), ...(await masterAdminUids())];
     await fanOutNotifications(targets, {
       type: event,
-      title: String(b.title ?? 'Attendance update'),
-      message: String(b.message ?? ''),
+      title,
+      message,
       link: b.link ? String(b.link) : `/attendance`,
       companyId,
     }, caller.uid);
@@ -717,7 +750,7 @@ export const legacyRoutes: Route[] = [
       companyId: 'global',
       type: 'attendance-cascade',
       event,
-      title: String(b.title ?? 'Attendance update'),
+      title,
       userIds: targets,
       createdAt: isoNow(),
     }, { entity: 'adminAlert' });

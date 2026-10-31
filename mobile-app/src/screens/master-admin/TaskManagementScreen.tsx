@@ -152,13 +152,15 @@ export const TaskManagementScreen: React.FC<{ route?: any }> = ({ route }) => {
       }
       setModal(false); await fetchTasks();
       const assigneeId = form.assignedToId;
-      if (assigneeId && assigneeId !== user?.id) {
+      if (!editing && assigneeId && assigneeId !== user?.id) {
+        // Web parity: only a NEW task notifies the assignee, with the exact
+        // web copy (`Task Assigned` / "{assigner} assigned you a task: {title}").
         try {
           await createNotification(
             assigneeId,
             'task_assigned',
-            editing ? 'Task Updated' : 'New Task Assigned',
-            `${user?.name || 'Your manager'} ${editing ? 'updated' : 'assigned'} task "${form.title}" to you.`,
+            'Task Assigned',
+            `${user?.name || 'Manager'} assigned you a task: ${form.title}`,
             '/tasks',
             effectiveCompanyId || undefined
           );
@@ -167,10 +169,14 @@ export const TaskManagementScreen: React.FC<{ route?: any }> = ({ route }) => {
       if (user?.role === 'team-leader') {
         await notifyTLAction(
           user.id,
-          editing ? 'task_updated_by_tl' : 'task_created_by_tl',
-          editing ? 'Task Updated by Team Leader' : 'Task Created by Team Leader',
-          `${user?.name || 'A team leader'} ${editing ? 'updated' : 'created'} task "${form.title}".`,
-          effectiveCompanyId
+          editing ? 'task_updated' : 'task_created',
+          editing ? 'Task Updated' : 'New Task Created',
+          editing
+            ? `${user?.name || 'Team Leader'} updated task: ${form.title}`
+            : `${user?.name || 'Team Leader'} assigned a task: ${form.title}`,
+          effectiveCompanyId,
+          undefined,
+          '/tasks'
         );
       }
     } catch (err) { Alert.alert('Error', 'Failed to save task'); }
@@ -185,10 +191,12 @@ export const TaskManagementScreen: React.FC<{ route?: any }> = ({ route }) => {
           if (user?.role === 'team-leader') {
             await notifyTLAction(
               user.id,
-              'task_deleted_by_tl',
-              'Task Deleted by Team Leader',
-              `${user?.name || 'A team leader'} deleted task "${title}".`,
-              effectiveCompanyId
+              'task_deleted',
+              'Task Deleted',
+              `${user?.name || 'Team Leader'} deleted task: ${title}`,
+              effectiveCompanyId,
+              undefined,
+              '/tasks'
             );
           }
           await fetchTasks();

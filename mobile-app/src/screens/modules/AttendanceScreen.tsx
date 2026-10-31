@@ -18,7 +18,7 @@ import * as Sharing from 'expo-sharing';
 import { PremiumCard, ShimmerLoader, SegmentControl, EmptyStateView, StatusBadge, PremiumBottomSheet, PremiumModal } from '../../components/PremiumComponents';
 import { isActiveMissedPunchRecord } from '../../utils/attendanceStatus';
 import { isWithinAttendanceCorrectionWindow, parseWeekendDays, toDateKey } from '../../utils/workingDays';
-import { notifyAttendanceCascade } from '../../services/notificationService';
+import { notifyAttendanceCascade, notifyTLAction } from '../../services/notificationService';
 import { logAudit } from '../../services/auditLogService';
 import NetInfo from '@react-native-community/netinfo';
 
@@ -82,6 +82,19 @@ export const AttendanceScreen: React.FC<{ navigation: any }> = ({ navigation }) 
   const handleApproveAttendance = async (record: any) => {
     try {
       await approveAttendance(record.id, user?.id || '', user?.name || '');
+      // Web parity: a Team Leader's approval fans out to executives + master
+      // admins (Attendance.tsx handleApprove → notifyTlAction).
+      if (user?.role === 'team-leader' && record?.companyId) {
+        notifyTLAction(
+          user.id,
+          'attendance_approved',
+          'Attendance Approved',
+          `${user.name || 'Team Leader'} approved attendance for ${record.name || 'employee'}`,
+          record.companyId,
+          undefined,
+          '/attendance'
+        ).catch(() => {});
+      }
       Alert.alert('Approved', `Approved attendance for ${record.name || 'employee'}`);
       if (tab === 'team') fetchTeamData();
       else fetchMyData();
@@ -100,6 +113,17 @@ export const AttendanceScreen: React.FC<{ navigation: any }> = ({ navigation }) 
     setSubmittingMark(true);
     try {
       await markMissPunch(markRecord.id, markRemark.trim(), user?.id || '', user?.name || '');
+      // Web parity: cascade the miss-punch marking to the employee + the whole
+      // same-company management chain (Attendance.tsx handleMarkMissPunch).
+      notifyAttendanceCascade({
+        id: markRecord.id,
+        userId: markRecord.userId || '',
+        employeeName: markRecord.name || 'Employee',
+        companyId: markRecord.companyId || effectiveCompanyId || '',
+        date: markRecord.date?.toDate ? markRecord.date.toDate().toLocaleDateString('en-IN') : new Date(markRecord.date).toLocaleDateString('en-IN'),
+        note: markRemark.trim(),
+        rejectorName: undefined,
+      }, 'missed-punch-marked').catch(() => {});
       setMarkRecord(null);
       setMarkRemark('');
       Alert.alert('Miss Punch', `Marked ${markRecord.name || 'employee'} as Miss Punch — notifications sent.`);
