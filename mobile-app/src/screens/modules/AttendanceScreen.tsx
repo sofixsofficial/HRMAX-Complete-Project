@@ -4,7 +4,7 @@ import { useAuth } from '../../context/AuthContext';
 import { useTheme, ThemeColors } from '../../context/ThemeContext';
 import { useCompany } from '../../context/CompanyContext';
 import { useAttendanceGate } from '../../hooks/useAttendanceGate';
-import { markCheckIn, markCheckOut, requestPunchRectification, reviewMissedPunchTier, reviewMasterAdminMissedPunch, getNextPendingMissedPunchTier, getActionableMissedPunchTier, getRecordEffectiveMissedPunchTiers, computeMissedPunchProgress, computeMissedPunchTotalTiers, MISSED_PUNCH_TIER_LABELS, MISSED_PUNCH_MASTER_ADMIN_LABEL, missedPunchTierLabel } from '../../services/attendanceApi';
+import { markCheckIn, markCheckOut, approveAttendance, markMissPunch, requestPunchRectification, reviewMissedPunchTier, reviewMasterAdminMissedPunch, getNextPendingMissedPunchTier, getActionableMissedPunchTier, getRecordEffectiveMissedPunchTiers, getEffectiveMissedPunchTiers, computeMissedPunchProgress, computeMissedPunchTotalTiers, MISSED_PUNCH_TIER_LABELS, MISSED_PUNCH_MASTER_ADMIN_LABEL, missedPunchTierLabel } from '../../services/attendanceApi';
 import { SelfieCaptureModal } from '../../components/SelfieCaptureModal';
 import { BranchQrModal } from '../../components/BranchQrModal';
 import { ScreenHeader } from '../../components/ScreenHeader';
@@ -56,6 +56,61 @@ export const AttendanceScreen: React.FC<{ navigation: any }> = ({ navigation }) 
   const { colors } = useTheme();
   const { effectiveCompanyId } = useCompany();
   const s = useMemo(() => createStyles(colors), [colors]);
+
+  // Web parity: missed-punch modal title — "Missed Punch — N-Tier Verification (A → B …)".
+  const rectifyTitleFor = (record: any): string => {
+    const mp = record?.missedPunchRectification || {};
+    const role = mp.applicantRole || (record?.userId && user?.id && record.userId === user.id ? user?.role : undefined);
+    if (!role) return 'Missed Punch — Verification';
+    const tiers = getEffectiveMissedPunchTiers(role);
+    const maGated = mp.masterAdminRequired != null ? !!mp.masterAdminRequired : role === 'executive' || role === 'team-leader';
+    const labels = [...tiers.map((t) => MISSED_PUNCH_TIER_LABELS[t]), ...(maGated ? [MISSED_PUNCH_MASTER_ADMIN_LABEL] : [])];
+    if (labels.length === 0) return 'Missed Punch — Verification';
+    return `Missed Punch — ${labels.length}-Tier Verification (${labels.join(' → ')})`;
+  };
+
+  // The Master Admin final-gate condition (mirrors submitAdminRectify's branch).
+  const isMissedPunchMAGate = (record: any): boolean => {
+    const mp = record?.missedPunchRectification;
+    if (!mp?.requested || mp.resolved) return false;
+    if (user?.role !== 'master-admin') return false;
+    if (!(mp.masterAdminApproveStatus == null || mp.masterAdminApproveStatus === 'Pending')) return false;
+    return getRecordEffectiveMissedPunchTiers(mp).every((t: any) => mp.approvalStatus?.[t] === 'Approved');
+  };
+
+  // Web parity: manager Approve on a plain Present/Late/Absent row.
+  const handleApproveAttendance = async (record: any) => {
+    try {
+      await approveAttendance(record.id, user?.id || '', user?.name || '');
+      Alert.alert('Approved', `Approved attendance for ${record.name || 'employee'}`);
+      if (tab === 'team') fetchTeamData();
+      else fetchMyData();
+    } catch {
+      Alert.alert('Error', 'Approval failed');
+    }
+  };
+
+  // Web parity: "Mark Miss Punch" — remark mandatory.
+  const handleMarkMissPunch = async () => {
+    if (!markRecord) return;
+    if (!markRemark.trim()) {
+      Alert.alert('Remark required', 'A remark is required before marking Miss Punch.');
+      return;
+    }
+    setSubmittingMark(true);
+    try {
+      await markMissPunch(markRecord.id, markRemark.trim(), user?.id || '', user?.name || '');
+      setMarkRecord(null);
+      setMarkRemark('');
+      Alert.alert('Miss Punch', `Marked ${markRecord.name || 'employee'} as Miss Punch — notifications sent.`);
+      if (tab === 'team') fetchTeamData();
+      else fetchMyData();
+    } catch {
+      Alert.alert('Error', 'Failed to mark Miss Punch');
+    } finally {
+      setSubmittingMark(false);
+    }
+  };
   const [tab, setTab] = useState('my');
   const [todayRecord, setTodayRecord] = useState<any>(null);
   const [history, setHistory] = useState<any[]>([]);
@@ -72,6 +127,8 @@ export const AttendanceScreen: React.FC<{ navigation: any }> = ({ navigation }) 
   const [submittingRectify, setSubmittingRectify] = useState(false);
   const [loading, setLoading] = useState(true);
   const [teamRecords, setTeamRecords] = useState<any[]>([]);
+  const [teamCompanyFilter, setTeamCompanyFilter] = useState('');
+  const [companiesList, setCompaniesList] = useState<any[]>([]);
   const [search, setSearch] = useState('');
   const [currentPage, setCurrentPage] = useState(1);
   const [pageSize, setPageSize] = useState(10);
@@ -87,6 +144,9 @@ export const AttendanceScreen: React.FC<{ navigation: any }> = ({ navigation }) 
   const [adminRectifyRecord, setAdminRectifyRecord] = useState<any>(null);
   const [adminRectifyAction, setAdminRectifyAction] = useState<'approve' | 'reject'>('approve');
   const [adminRectifyRemark, setAdminRectifyRemark] = useState('');
+  const [markRecord, setMarkRecord] = useState<any>(null);
+  const [markRemark, setMarkRemark] = useState('');
+  const [submittingMark, setSubmittingMark] = useState(false);
 
   // 2-working-day rectification window (company weekends + holidays, matches web)
   const [rectifyWindow, setRectifyWindow] = useState<{ weekendDays: number[]; holidayKeys: string[] }>({ weekendDays: [0, 6], holidayKeys: [] });
@@ -224,7 +284,10 @@ export const AttendanceScreen: React.FC<{ navigation: any }> = ({ navigation }) 
   };
 
   const fetchTeamData = async () => {
-    if (!effectiveCompanyId) return;
+    // Web parity: master-admin reviews ALL companies' attendance (no company
+    // constraint); every other manager stays on their effective company.
+    const isMA = user?.role === 'master-admin';
+    if (!effectiveCompanyId && !isMA) return;
     try {
       // Web parity: rolling 14-day window instead of TODAY-only. A rectification
       // submitted in the evening is reviewed the next morning — the day-scoped
@@ -233,13 +296,12 @@ export const AttendanceScreen: React.FC<{ navigation: any }> = ({ navigation }) 
       const since = new Date();
       since.setDate(since.getDate() - 14);
       since.setHours(0, 0, 0, 0);
+      const base = [where('date', '>=', dayKey(since)), orderBy('date', 'desc'), limit(isMA ? 500 : 300)];
+      const constraints = isMA ? base : [where('companyId', '==', effectiveCompanyId), ...base];
       const teamSnap = await getDocs(
         query(
           collection(db, 'attendance'),
-          where('companyId', '==', effectiveCompanyId),
-          where('date', '>=', dayKey(since)),
-          orderBy('date', 'desc'),
-          limit(300)
+          ...constraints
         )
       );
       setTeamRecords(teamSnap.docs.map((d) => ({ id: d.id, ...d.data() })).sort((a: any, b: any) => (a.name || '').localeCompare(b.name || '')));
@@ -248,6 +310,15 @@ export const AttendanceScreen: React.FC<{ navigation: any }> = ({ navigation }) 
 
   useEffect(() => { fetchMyData(); }, []);
   useEffect(() => { if (tab === 'team') fetchTeamData(); }, [tab]);
+
+  // Master Admin: company filter chips for the all-companies Team Overview.
+  useEffect(() => {
+    if (user?.role === 'master-admin') {
+      getDocs(collection(db, 'companies'))
+        .then((snap) => setCompaniesList(snap.docs.map((d) => ({ id: d.id, ...(d.data() as any) }))))
+        .catch(() => { /* list stays empty */ });
+    }
+  }, [user?.role]);
 
   const onRefresh = async () => { setRefreshing(true); if (tab === 'my') await fetchMyData(); else await fetchTeamData(); setRefreshing(false); };
 
@@ -424,13 +495,13 @@ export const AttendanceScreen: React.FC<{ navigation: any }> = ({ navigation }) 
     setAdminRectifySheet(true);
   };
 
-  const submitAdminRectify = async () => {
+  const submitAdminRectify = async (preset?: 'approve' | 'reject') => {
     if (!adminRectifyRecord || !adminRectifyRemark.trim()) {
-      Alert.alert('Remark required', 'Please add a mandatory remark before resolving this rectification.');
+      Alert.alert('Remark required', 'A mandatory remark is required to review this missed punch.');
       return;
     }
     setSubmittingRectify(true);
-    const action = adminRectifyAction;
+    const action = preset || adminRectifyAction;
     const mp = adminRectifyRecord.missedPunchRectification || {};
     // Use the single shared routing helper (web getMyMissedPunchTier parity):
     // stamped approver + master-admin + natural-role/legacy/company-scope
@@ -531,7 +602,8 @@ export const AttendanceScreen: React.FC<{ navigation: any }> = ({ navigation }) 
     return `${h}h ${m}m`;
   };
 
-  const activeList = tab === 'team' ? teamRecords : history;
+  const teamList = teamCompanyFilter ? teamRecords.filter((r: any) => r.companyId === teamCompanyFilter) : teamRecords;
+  const activeList = tab === 'team' ? teamList : history;
   const filtered = activeList.filter(r => {
     if (!search) return true;
     const q = search.toLowerCase();
@@ -580,7 +652,7 @@ export const AttendanceScreen: React.FC<{ navigation: any }> = ({ navigation }) 
   };
 
   const needsRectify = todayRecord && isActiveMissedPunchRecord(todayRecord) && rectificationWindowOpen(todayRecord);
-  const pendingRectifications = teamRecords.filter((r: any) => r.missedPunchRectification?.requested && !r.missedPunchRectification.resolved);
+  const pendingRectifications = teamList.filter((r: any) => r.missedPunchRectification?.requested && !r.missedPunchRectification.resolved);
 
   // Which role-specific missed punch tier can the current user act on?
   // Single source of truth = getActionableMissedPunchTier (web parity: incl.
@@ -618,7 +690,15 @@ export const AttendanceScreen: React.FC<{ navigation: any }> = ({ navigation }) 
 
   return (
     <View style={{ flex: 1, backgroundColor: colors.background }}>
-      <ScreenHeader title="Attendance" />
+      <ScreenHeader
+        title={
+          user?.role === 'employee'
+            ? 'My Attendance'
+            : user?.role === 'master-admin'
+              ? 'Master Attendance'
+              : 'Attendance Management'
+        }
+      />
       <ScrollView refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor="#FF6600" />}>
         {/* ── HERO PUNCH BANNER (matching web's AttendancePunchBanner) ──
             Web gates the punch hero with `canCheckInOut && isEmployee` — only
@@ -786,6 +866,23 @@ export const AttendanceScreen: React.FC<{ navigation: any }> = ({ navigation }) 
         </View>
 
         {isManager && <SegmentControl options={['My Attendance', 'Team Overview']} selected={tab === 'my' ? 'My Attendance' : 'Team Overview'} onSelect={(v) => setTab(v === 'My Attendance' ? 'my' : 'team')} />}
+        {tab === 'team' && user?.role === 'master-admin' && companiesList.length > 0 && (
+          <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ paddingHorizontal: 16, marginBottom: 10 }}>
+            <TouchableOpacity
+              style={[s.statusFilterChip, teamCompanyFilter === '' && { borderColor: '#FF6600', backgroundColor: '#FF660015' }]}
+              onPress={() => setTeamCompanyFilter('')}>
+              <Text style={[s.statusFilterChipText, { color: teamCompanyFilter === '' ? '#FF6600' : colors.textSecondary }]}>All Companies</Text>
+            </TouchableOpacity>
+            {companiesList.map((c) => (
+              <TouchableOpacity
+                key={c.id}
+                style={[s.statusFilterChip, teamCompanyFilter === c.id && { borderColor: '#FF6600', backgroundColor: '#FF660015' }]}
+                onPress={() => setTeamCompanyFilter(c.id)}>
+                <Text style={[s.statusFilterChipText, { color: teamCompanyFilter === c.id ? '#FF6600' : colors.textSecondary }]} numberOfLines={1}>{c.name}</Text>
+              </TouchableOpacity>
+            ))}
+          </ScrollView>
+        )}
 
         {/* ── SEARCH + EXPORT ── */}
         <View style={s.searchRow}>
@@ -1002,10 +1099,10 @@ export const AttendanceScreen: React.FC<{ navigation: any }> = ({ navigation }) 
           <>
             <View style={{ flexDirection: 'row', paddingHorizontal: 16, gap: 8, marginBottom: 12, marginTop: 8 }}>
               {[
-                { l: 'Present', v: teamRecords.filter((r: any) => r.status === 'Present' || r.status === 'Approved').length, c: '#10b981' },
-                { l: 'Late', v: teamRecords.filter((r: any) => r.status === 'Late').length, c: '#eab308' },
-                { l: 'Absent', v: teamRecords.filter((r: any) => r.status === 'Absent').length, c: '#ef4444' },
-                { l: 'Miss', v: teamRecords.filter((r: any) => r.status === 'Miss Punch').length, c: '#8b5cf6' },
+                { l: 'Present', v: teamList.filter((r: any) => r.status === 'Present' || r.status === 'Approved').length, c: '#10b981' },
+                { l: 'Late', v: teamList.filter((r: any) => r.status === 'Late').length, c: '#eab308' },
+                { l: 'Absent', v: teamList.filter((r: any) => r.status === 'Absent').length, c: '#ef4444' },
+                { l: 'Miss', v: teamList.filter((r: any) => r.status === 'Miss Punch').length, c: '#8b5cf6' },
               ].map(st => (
                 <View key={st.l} style={{ flex: 1, backgroundColor: colors.card, borderRadius: 12, padding: 10, alignItems: 'center', borderWidth: 1, borderColor: colors.borderLight, borderLeftWidth: 3, borderLeftColor: st.c }}>
                   <Text style={{ fontSize: 18, fontWeight: '700', color: colors.text }}>{st.v}</Text>
@@ -1015,7 +1112,7 @@ export const AttendanceScreen: React.FC<{ navigation: any }> = ({ navigation }) 
             </View>
 
             {filtered.length === 0 ? (
-              teamRecords.length === 0 ? <EmptyStateView icon="clipboard-outline" title="No records" subtitle="No attendance marked today" /> : <Text style={s.emptyText}>No records match your search.</Text>
+              teamList.length === 0 ? <EmptyStateView icon="clipboard-outline" title="No records" subtitle="No attendance marked today" /> : <Text style={s.emptyText}>No records match your search.</Text>
             ) :
             paginated.map((record: any) => {
               const pendingRect = record.missedPunchRectification?.requested && !record.missedPunchRectification.resolved;
@@ -1097,24 +1194,37 @@ export const AttendanceScreen: React.FC<{ navigation: any }> = ({ navigation }) 
                             </TouchableOpacity>
                           )}
                           {pendingRect && overall === 'Pending' && myTier && (
-                            <>
-                              <TouchableOpacity
-                                style={{ flex: 1, backgroundColor: '#10b981', paddingVertical: 6, borderRadius: 8, alignItems: 'center', flexDirection: 'row', justifyContent: 'center', gap: 4 }}
-                                onPress={() => handleAdminRectify(record, 'approve')}>
-                                <Icon name="checkmark-circle-outline" size={12} color="#fff" />
-                                <Text style={{ color: '#fff', fontSize: 12, fontWeight: '600' }}>Approve ({MISSED_PUNCH_TIER_LABELS[myTier].split(' ')[0]})</Text>
-                              </TouchableOpacity>
-                              <TouchableOpacity
-                                style={{ flex: 1, backgroundColor: '#ef4444', paddingVertical: 6, borderRadius: 8, alignItems: 'center', flexDirection: 'row', justifyContent: 'center', gap: 4 }}
-                                onPress={() => handleAdminRectify(record, 'reject')}>
-                                <Icon name="close-circle-outline" size={12} color="#fff" />
-                                <Text style={{ color: '#fff', fontSize: 12, fontWeight: '600' }}>Reject</Text>
-                              </TouchableOpacity>
-                            </>
+                            <TouchableOpacity
+                              style={{ flex: 1, backgroundColor: '#9333ea', paddingVertical: 6, borderRadius: 8, alignItems: 'center', flexDirection: 'row', justifyContent: 'center', gap: 4 }}
+                              onPress={() => handleAdminRectify(record, 'approve')}>
+                              <Icon name="shield-checkmark-outline" size={12} color="#fff" />
+                              <Text style={{ color: '#fff', fontSize: 12, fontWeight: '600' }}>Review ({MISSED_PUNCH_TIER_LABELS[myTier].split(' ')[0]})</Text>
+                            </TouchableOpacity>
                           )}
                           {pendingRect && overall === 'Pending' && !myTier && !isEmployeeRole && user?.role !== 'master-admin' && (
                             <View style={{ flex: 1, backgroundColor: '#e5e7eb', paddingVertical: 6, borderRadius: 8, alignItems: 'center' }}>
                               <Text style={{ color: '#6b7280', fontSize: 12, fontWeight: '600' }}>Awaiting Next Tier</Text>
+                            </View>
+                          )}
+                          {!pendingRect && ['Present', 'Late', 'Absent'].includes(record.status) && (
+                            <TouchableOpacity
+                              style={{ flex: 1, backgroundColor: '#dcfce7', paddingVertical: 6, borderRadius: 8, alignItems: 'center', flexDirection: 'row', justifyContent: 'center', gap: 4 }}
+                              onPress={() => handleApproveAttendance(record)}>
+                              <Icon name="thumbs-up-outline" size={12} color="#16a34a" />
+                              <Text style={{ color: '#16a34a', fontSize: 12, fontWeight: '600' }}>Approve</Text>
+                            </TouchableOpacity>
+                          )}
+                          {record.checkIn && !record.checkOut && record.status !== 'Miss Punch' && (
+                            <TouchableOpacity
+                              style={{ flex: 1, backgroundColor: '#f3e8ff', paddingVertical: 6, borderRadius: 8, alignItems: 'center', flexDirection: 'row', justifyContent: 'center', gap: 4 }}
+                              onPress={() => { setMarkRecord(record); setMarkRemark(''); }}>
+                              <Icon name="alert-circle-outline" size={12} color="#9333ea" />
+                              <Text style={{ color: '#9333ea', fontSize: 12, fontWeight: '600' }}>Miss Punch</Text>
+                            </TouchableOpacity>
+                          )}
+                          {record.status === 'Approved' && record.approvedByName && (
+                            <View style={{ justifyContent: 'center' }}>
+                              <Text style={{ color: '#6b7280', fontSize: 12, fontWeight: '600' }}>by {record.approvedByName || 'Admin'}</Text>
                             </View>
                           )}
                         </View>
@@ -1242,7 +1352,7 @@ export const AttendanceScreen: React.FC<{ navigation: any }> = ({ navigation }) 
       </PremiumModal>
 
       {/* ── RECTIFY SHEET (employee self-rectification, matching web's SelfAttendanceCard modal) ── */}
-      <PremiumBottomSheet visible={rectifySheet} onClose={() => { setRectifySheet(false); setRectifyNote(''); setRectifyTime(''); setRectifyRecord(null); }} title="Rectify Missed Punch">
+      <PremiumBottomSheet visible={rectifySheet} onClose={() => { setRectifySheet(false); setRectifyNote(''); setRectifyTime(''); setRectifyRecord(null); }} title={rectifyRecord ? rectifyTitleFor(rectifyRecord) : 'Missed Punch — Verification'}>
         <Text style={{ fontSize: 14, color: colors.text, marginBottom: 4 }}>
           You missed your checkout on <Text style={{ fontWeight: '600' }}>{rectifyRecord?.date ? formatDateShort(rectifyRecord.date) : 'today'}</Text>.
         </Text>
@@ -1308,12 +1418,12 @@ export const AttendanceScreen: React.FC<{ navigation: any }> = ({ navigation }) 
       <PremiumBottomSheet
         visible={adminRectifySheet}
         onClose={() => { setAdminRectifySheet(false); setAdminRectifyRemark(''); }}
-        title={adminRectifyAction === 'approve' ? 'Approve Rectification' : 'Reject Rectification'}>
+        title={adminRectifyRecord ? rectifyTitleFor(adminRectifyRecord) : 'Missed Punch — Verification'}>
         <Text style={{ fontSize: 13, color: colors.textSecondary, marginBottom: 4 }}>
-          {adminRectifyRecord?.name} requested rectification for a missed punch.
+          {adminRectifyRecord?.name} missed checkout on {adminRectifyRecord ? formatDateShort(adminRectifyRecord.date) : ''}.
         </Text>
         <Text style={{ fontSize: 13, color: colors.textSecondary, marginBottom: 12 }}>
-          A mandatory remark is required to <Text style={{ fontWeight: '700', color: adminRectifyAction === 'approve' ? '#10b981' : '#ef4444' }}>{adminRectifyAction}</Text>.
+          Checked in at {adminRectifyRecord ? formatTime(adminRectifyRecord.checkIn) : '--:--'}. Please review and verify.
         </Text>
 
         {/* Verification chain preview (matching web's modal) */}
@@ -1353,17 +1463,77 @@ export const AttendanceScreen: React.FC<{ navigation: any }> = ({ navigation }) 
         })()}
 
         <View style={{ fontSize: 14 } as any}>
+          <Text style={{ fontSize: 13, fontWeight: '600', color: colors.text, marginBottom: 6 }}>Remark / Reason *</Text>
           <TextInput style={{ backgroundColor: colors.background, borderWidth: 1, borderColor: colors.border, borderRadius: 12, padding: 14, color: colors.text, fontSize: 14, minHeight: 80, textAlignVertical: 'top' }}
-            placeholder="Enter mandatory remark..." placeholderTextColor={colors.textTertiary} value={adminRectifyRemark} onChangeText={setAdminRectifyRemark} multiline />
+            placeholder="Provide a mandatory remark for your verification decision..." placeholderTextColor={colors.textTertiary} value={adminRectifyRemark} onChangeText={setAdminRectifyRemark} multiline />
         </View>
-        <TouchableOpacity
-          style={{ backgroundColor: adminRectifyAction === 'approve' ? '#10b981' : '#ef4444', paddingVertical: 14, borderRadius: 14, alignItems: 'center', marginTop: 16, opacity: (adminRectifyRemark.trim() && !submittingRectify) ? 1 : 0.5, flexDirection: 'row', justifyContent: 'center', gap: 8 }}
-          disabled={!adminRectifyRemark.trim() || submittingRectify}
-          onPress={submitAdminRectify}>
-          {submittingRectify && <ActivityIndicator size={16} color="#fff" />}
-          <Text style={{ color: '#fff', fontWeight: '700', fontSize: 15 }}>{adminRectifyAction === 'approve' ? 'Approve' : 'Reject'}</Text>
-        </TouchableOpacity>
+        {(() => {
+          const myTier2 = adminRectifyRecord ? getActionableMissedPunchTier(adminRectifyRecord, user?.id || '', user?.role) : null;
+          const maMode = adminRectifyRecord ? isMissedPunchMAGate(adminRectifyRecord) : false;
+          const canAct = maMode || !!myTier2;
+          if (!canAct) {
+            return (
+              <View style={{ backgroundColor: '#e5e7eb', paddingVertical: 13, borderRadius: 14, alignItems: 'center', marginTop: 16 }}>
+                <Text style={{ color: '#6b7280', fontWeight: '700', fontSize: 14 }}>Awaiting Next Tier</Text>
+              </View>
+            );
+          }
+          const tierLabel = maMode ? MISSED_PUNCH_MASTER_ADMIN_LABEL : myTier2 ? MISSED_PUNCH_TIER_LABELS[myTier2] : '';
+          const disabled = !adminRectifyRemark.trim() || submittingRectify;
+          return (
+            <View style={{ flexDirection: 'row', gap: 10, marginTop: 16 }}>
+              <TouchableOpacity
+                style={{ flex: 1, backgroundColor: '#16a34a', paddingVertical: 13, borderRadius: 14, alignItems: 'center', opacity: disabled ? 0.5 : 1, flexDirection: 'row', justifyContent: 'center', gap: 8 }}
+                disabled={disabled}
+                onPress={() => submitAdminRectify('approve')}>
+                {submittingRectify && <ActivityIndicator size={16} color="#fff" />}
+                <Text style={{ color: '#fff', fontWeight: '700', fontSize: 14 }}>Approve as {tierLabel}</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={{ flex: 1, backgroundColor: '#ef4444', paddingVertical: 13, borderRadius: 14, alignItems: 'center', opacity: disabled ? 0.5 : 1, justifyContent: 'center' }}
+                disabled={disabled}
+                onPress={() => submitAdminRectify('reject')}>
+                <Text style={{ color: '#fff', fontWeight: '700', fontSize: 14 }}>Reject</Text>
+              </TouchableOpacity>
+            </View>
+          );
+        })()}
       </PremiumBottomSheet>
+
+      {/* ── MARK MISS PUNCH MODAL (web parity) ── */}
+      <PremiumModal visible={!!markRecord} onClose={() => { setMarkRecord(null); setMarkRemark(''); }} title="Mark Miss Punch">
+        <View style={{ gap: 10, paddingBottom: 20 }}>
+          <Text style={{ fontSize: 14, color: colors.text }}>
+            Mark <Text style={{ fontWeight: '700' }}>{markRecord?.name || 'employee'}</Text> as Miss Punch?
+          </Text>
+          <Text style={{ fontSize: 13, color: colors.textSecondary }}>
+            Employee checked in at {markRecord ? formatTime(markRecord.checkIn) : '--:--'} but has not checked out. A remark is required.
+          </Text>
+          <Text style={{ fontSize: 13, fontWeight: '600', color: colors.text }}>Remark *</Text>
+          <TextInput
+            style={{ backgroundColor: colors.background, borderWidth: 1, borderColor: colors.border, borderRadius: 12, padding: 14, color: colors.text, fontSize: 14, minHeight: 80, textAlignVertical: 'top' }}
+            placeholder="Provide a mandatory remark (why this punch is being marked as missed)..."
+            placeholderTextColor={colors.textTertiary}
+            value={markRemark}
+            onChangeText={setMarkRemark}
+            multiline
+          />
+          <View style={{ flexDirection: 'row', gap: 10 }}>
+            <TouchableOpacity
+              style={{ flex: 1, paddingVertical: 13, borderRadius: 12, borderWidth: 1, borderColor: colors.border, alignItems: 'center' }}
+              onPress={() => { setMarkRecord(null); setMarkRemark(''); }}>
+              <Text style={{ color: colors.textSecondary, fontWeight: '600' }}>Cancel</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={{ flex: 1, paddingVertical: 13, borderRadius: 12, alignItems: 'center', backgroundColor: '#9333ea', opacity: markRemark.trim() && !submittingMark ? 1 : 0.5, flexDirection: 'row', justifyContent: 'center', gap: 6 }}
+              disabled={!markRemark.trim() || submittingMark}
+              onPress={handleMarkMissPunch}>
+              {submittingMark && <ActivityIndicator size={14} color="#fff" />}
+              <Text style={{ color: '#fff', fontWeight: '700' }}>Mark Miss Punch</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </PremiumModal>
 
       <SelfieCaptureModal
         visible={showSelfieCapture}

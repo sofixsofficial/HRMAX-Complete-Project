@@ -7,7 +7,7 @@ import { useAuth } from '../../context/AuthContext';
 import { useCompany } from '../../context/CompanyContext';
 import { useTheme, ThemeColors } from '../../context/ThemeContext';
 import { useReportingTeamScope } from '../../hooks/useReportingTeamScope';
-import { reviewTierLeaveRequest, reviewMasterAdminLeaveRequest, getLeaveRequestsByCompany, getAllLeaveRequests, TIER_ORDER, TIER_LABELS, isAwaitingMasterAdmin, getActionableLeaveTier, getEffectiveTiers, getLiveTiers } from '../../services/leaveService';
+import { reviewTierLeaveRequest, reviewMasterAdminLeaveRequest, cancelLeaveRequest, getLeaveRequestsByCompany, getAllLeaveRequests, TIER_ORDER, TIER_LABELS, isAwaitingMasterAdmin, getActionableLeaveTier, getEffectiveTiers, getLiveTiers } from '../../services/leaveService';
 import type { ApprovalTier } from '../../types/user';
 import { scopedCompanyIdsForRole } from '../../utils/companyScope';
 import { Paths, File } from 'expo-file-system';
@@ -28,6 +28,11 @@ export const LeaveManagementScreen: React.FC<{ route?: any }> = ({ route }) => {
   const { effectiveCompanyId, availableCompanies } = useCompany();
   const isRM = user?.role === 'reporting-manager';
   const isRestrictedScope = user?.role === 'executive' || user?.role === 'team-leader';
+  // Web parity (personalRoles.ts): roles with their own "My Leaves" page hide
+  // their OWN rows from this management table.
+  const hasPersonalPage = ['executive', 'team-leader', 'hr', 'reporting-manager', 'hr-manager'].includes(user?.role || '');
+  // Web queue roles count only actionable pending rows in the Pending stat.
+  const isQueueRole = ['executive', 'team-leader', 'reporting-manager'].includes(user?.role || '');
   const scope = useReportingTeamScope(user?.id, effectiveCompanyId, isRM);
   // Active scope: selected company, or every authorized company in "All" mode.
   // Empty array = unrestricted role (master-admin) keeps legacy unfiltered view.
@@ -36,6 +41,8 @@ export const LeaveManagementScreen: React.FC<{ route?: any }> = ({ route }) => {
     [user?.role, effectiveCompanyId, availableCompanies]
   );
   const [leaves, setLeaves] = useState<any[]>([]);
+  const [companies, setCompanies] = useState<any[]>([]);
+  const [companyFilter, setCompanyFilter] = useState('');
   const [filter, setFilter] = useState('Pending');
   const [search, setSearch] = useState('');
   const [currentPage, setCurrentPage] = useState(1);
@@ -46,6 +53,7 @@ export const LeaveManagementScreen: React.FC<{ route?: any }> = ({ route }) => {
   const [reviewModal, setReviewModal] = useState<any>(null);
   const [reviewNote, setReviewNote] = useState('');
   const [reviewAction, setReviewAction] = useState<'Approved' | 'Rejected'>('Approved');
+  const [reviewTier, setReviewTier] = useState<ApprovalTier | 'masterAdmin' | null>(null);
   const [detailModal, setDetailModal] = useState<any>(null);
   const s = useMemo(() => createStyles(colors), [colors]);
   // Web parity: this screen has NO permission-matrix gate — actionable-tier
@@ -92,6 +100,14 @@ export const LeaveManagementScreen: React.FC<{ route?: any }> = ({ route }) => {
 
   useEffect(() => { fetchLeaves(); }, [fetchLeaves]);
 
+  // Company names for row meta + the web's company filter (master-admin /
+  // scoped executives & team leaders see many companies).
+  useEffect(() => {
+    getDocs(collection(db, 'companies'))
+      .then((s) => setCompanies(s.docs.map((d) => ({ id: d.id, ...(d.data() as any) }))))
+      .catch(() => setCompanies([]));
+  }, []);
+
   // Deep-link status filter from dashboard cards (e.g. Pending / Approved / Rejected)
   useEffect(() => {
     const st = route?.params?.status as string | undefined;
@@ -102,6 +118,21 @@ export const LeaveManagementScreen: React.FC<{ route?: any }> = ({ route }) => {
   }, [route?.params?.status]);
 
   const onRefresh = async () => { setRefreshing(true); await fetchLeaves(); setRefreshing(false); };
+
+  // Web parity: cancel() confirm copy — own, not-yet-final requests only.
+  const confirmCancel = (leave: any) => {
+    Alert.alert('Cancel Request', 'Cancel this leave request?', [
+      { text: 'No', style: 'cancel' },
+      { text: 'Yes, cancel', style: 'destructive', onPress: async () => {
+        try {
+          await cancelLeaveRequest(leave.id);
+          await fetchLeaves();
+        } catch {
+          Alert.alert('Error', 'Failed to cancel leave request. Please try again.');
+        }
+      }},
+    ]);
+  };
 
   const getNextPendingTier = (approvalStatus: any): ApprovalTier | null => {
     for (const tier of TIER_ORDER) {
@@ -150,28 +181,47 @@ export const LeaveManagementScreen: React.FC<{ route?: any }> = ({ route }) => {
   };
 
   const filtered = useMemo(() => {
-    const base = isRM ? leaves.filter((l) => scope.userIds.has(l.userId)) : leaves;
+    // Web parity: personal-page roles never see their OWN rows here (they use
+    // "My Leaves & Attendance"), and RMs additionally see only their team.
+    const withoutOwn = hasPersonalPage ? leaves.filter((l) => l.userId !== user?.id) : leaves;
+    const base = isRM ? withoutOwn.filter((l) => scope.userIds.has(l.userId)) : withoutOwn;
     return base.filter((l) => {
       if (filter !== 'All' && l.status !== filter) return false;
+      if (companyFilter && l.companyId !== companyFilter) return false;
       if (search) {
         const q = search.toLowerCase();
-        if (!(l.employeeName || l.name || '').toLowerCase().includes(q) && !(l.leaveType || '').toLowerCase().includes(q) && !(l.department || '').toLowerCase().includes(q)) return false;
+        const companyName = (companies.find((c) => c.id === l.companyId)?.name || l.companyName || '').toLowerCase();
+        if (
+          !(l.employeeName || l.name || '').toLowerCase().includes(q) &&
+          !(l.leaveType || '').toLowerCase().includes(q) &&
+          !(l.department || '').toLowerCase().includes(q) &&
+          !companyName.includes(q)
+        ) return false;
       }
       return true;
     });
-  }, [leaves, isRM, scope.userIds, filter, search]);
+  }, [leaves, hasPersonalPage, user?.id, isRM, scope.userIds, filter, companyFilter, search, companies]);
 
   const displayStats = useMemo(() => {
-    if (!isRM) return stats;
+    // Web parity: for queue roles (exec / team-leader / reporting-manager) the
+    // Pending stat counts only rows THIS user can actually act on.
+    const actionablePending = (rows: any[]) => rows.filter((l) =>
+      l.status === 'Pending' &&
+      getActionableLeaveTier(l, user?.id || '', user?.role, scopeIds.length > 0 ? scopeIds : undefined) !== null
+    ).length;
+    if (!isRM) {
+      if (!isQueueRole) return stats;
+      return { ...stats, pending: actionablePending(leaves) };
+    }
     const team = leaves.filter((l) => scope.userIds.has(l.userId));
     return {
       total: team.length,
-      pending: team.filter((l) => l.status === 'Pending').length,
+      pending: isQueueRole ? actionablePending(team) : team.filter((l) => l.status === 'Pending').length,
       approved: team.filter((l) => l.status === 'Approved').length,
       rejected: team.filter((l) => l.status === 'Rejected').length,
       cancelled: team.filter((l) => l.status === 'Cancelled').length,
     };
-  }, [isRM, stats, leaves, scope.userIds]);
+  }, [isRM, isQueueRole, stats, leaves, scope.userIds, user?.id, user?.role, scopeIds]);
 
   const totalPages = Math.max(1, Math.ceil(filtered.length / pageSize));
   const paginated = useMemo(() => filtered.slice((currentPage - 1) * pageSize, currentPage * pageSize), [filtered, currentPage, pageSize]);
@@ -238,7 +288,7 @@ export const LeaveManagementScreen: React.FC<{ route?: any }> = ({ route }) => {
         <View style={s.searchRow}>
           <View style={s.searchInputWrap}>
             <Icon name="search-outline" size={18} color={colors.textTertiary} />
-            <TextInput style={s.searchInput} placeholder="Search leaves..." placeholderTextColor={colors.textTertiary} value={search} onChangeText={setSearch} />
+            <TextInput style={s.searchInput} placeholder="Search..." placeholderTextColor={colors.textTertiary} value={search} onChangeText={setSearch} />
             {search ? <TouchableOpacity onPress={() => setSearch('')}><Icon name="close-outline" size={18} color={colors.textTertiary} /></TouchableOpacity> : null}
           </View>
           <TouchableOpacity style={s.exportBtn} onPress={handleExport} disabled={exporting}>
@@ -261,16 +311,29 @@ export const LeaveManagementScreen: React.FC<{ route?: any }> = ({ route }) => {
         </View>
 
         <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={s.filterRow}>
-          {['All', 'Pending', 'Approved', 'Rejected', 'Cancelled'].map((f) => (
-            <TouchableOpacity key={f} style={[s.filterBtn, filter === f && s.filterBtnActive]} onPress={() => setFilter(f as any)}>
-              <Text style={[s.filterText, filter === f && s.filterTextActive]}>{f}</Text>
+          {['All Statuses', 'Pending', 'Approved', 'Rejected', 'Cancelled'].map((f) => (
+            <TouchableOpacity key={f} style={[s.filterBtn, filter === f && s.filterBtnActive]} onPress={() => setFilter(f === 'All Statuses' ? 'All' : f)}>
+              <Text style={[s.filterText, (f === 'All Statuses' ? filter === 'All' : filter === f) && s.filterTextActive]}>{f}</Text>
             </TouchableOpacity>
           ))}
         </ScrollView>
 
+        {((user?.role === 'master-admin' && !effectiveCompanyId) || isRestrictedScope) && companies.length > 0 && (
+          <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={s.filterRow}>
+            <TouchableOpacity style={[s.filterBtn, companyFilter === '' && s.filterBtnActive]} onPress={() => setCompanyFilter('')}>
+              <Text style={[s.filterText, companyFilter === '' && s.filterTextActive]}>All Companies</Text>
+            </TouchableOpacity>
+            {companies.map((c) => (
+              <TouchableOpacity key={c.id} style={[s.filterBtn, companyFilter === c.id && s.filterBtnActive]} onPress={() => setCompanyFilter(c.id)}>
+                <Text style={[s.filterText, companyFilter === c.id && s.filterTextActive]} numberOfLines={1}>{c.name}</Text>
+              </TouchableOpacity>
+            ))}
+          </ScrollView>
+        )}
+
         <View style={s.list}>
           {filtered.length === 0 ? (
-            <Text style={s.emptyText}>No leave requests found</Text>
+            <Text style={s.emptyText}>No leave requests found{companyFilter ? ` for ${companies.find((c) => c.id === companyFilter)?.name || ''}` : ''}.</Text>
           ) : (
             paginated.map((leave) => {
               const totalDays = leave.totalDays || 0;
@@ -278,6 +341,9 @@ export const LeaveManagementScreen: React.FC<{ route?: any }> = ({ route }) => {
               const end = formatDate(leave.endDate);
               const startDow = getDayOfWeek(leave.startDate);
               const endDow = getDayOfWeek(leave.endDate);
+              const company = companies.find((c) => c.id === leave.companyId);
+              const companyName = company?.name || leave.companyName || '';
+              const execName = company?.assignedExecutiveName || '';
               return (
                 <TouchableOpacity key={leave.id} onPress={() => setDetailModal(leave)}>
                   <View style={s.card}>
@@ -301,6 +367,21 @@ export const LeaveManagementScreen: React.FC<{ route?: any }> = ({ route }) => {
                         <Icon name="eye-outline" size={17} color="#64748b" />
                       </TouchableOpacity>
                     </View>
+                    {/* Web row parity: company + assigned executive + applied date */}
+                    {(companyName || leave.appliedOn) && (
+                      <View style={s.metaRow}>
+                        <Icon name="business-outline" size={13} color={colors.textTertiary} />
+                        <Text style={s.metaText} numberOfLines={1}>
+                          {companyName || '—'}{execName ? `  ·  ${execName}` : ''}
+                        </Text>
+                        <Text style={s.metaText}>Applied: {leave.appliedOn ? formatDate(leave.appliedOn) : '—'}</Text>
+                      </View>
+                    )}
+                    {isAwaitingMasterAdmin(leave.approvalStatus, leave.masterAdminRequired, leave.masterAdminApproveStatus) && (
+                      <View style={s.awaitingChip}>
+                        <Text style={s.awaitingChipText}>Awaiting Master Admin</Text>
+                      </View>
+                    )}
                     <View style={s.dateRow}>
                       <View style={s.dateBlock}>
                         <Text style={s.dateDow}>{startDow}</Text>
@@ -337,15 +418,15 @@ export const LeaveManagementScreen: React.FC<{ route?: any }> = ({ route }) => {
                               {/* Web parity: row actions open the review modal where the
                                   mandatory remark is captured (no more direct fire with
                                   an empty note). */}
-                              <TouchableOpacity style={s.approveBtn} onPress={() => { setReviewAction('Approved'); setReviewModal(leave); }}>
+                              <TouchableOpacity style={s.approveBtn} onPress={() => { setReviewAction('Approved'); setReviewTier(isMyMAGate ? 'masterAdmin' : nextTier); setReviewModal(leave); }}>
                                 <Text style={s.approveText}>Approve</Text>
                               </TouchableOpacity>
-                              <TouchableOpacity style={s.rejectBtn} onPress={() => { setReviewAction('Rejected'); setReviewModal(leave); }}>
+                              <TouchableOpacity style={s.rejectBtn} onPress={() => { setReviewAction('Rejected'); setReviewTier(isMyMAGate ? 'masterAdmin' : nextTier); setReviewModal(leave); }}>
                                 <Text style={s.rejectText}>Reject</Text>
                               </TouchableOpacity>
                             </>
                           )}
-                          <TouchableOpacity style={s.reviewBtn} onPress={() => { setReviewAction('Approved'); setReviewModal(leave); }}>
+                          <TouchableOpacity style={s.reviewBtn} onPress={() => { setReviewAction('Approved'); setReviewTier(isMyMAGate ? 'masterAdmin' : nextTier); setReviewModal(leave); }}>
                             <Text style={s.reviewText}>Review</Text>
                           </TouchableOpacity>
                         </View>
@@ -373,6 +454,11 @@ export const LeaveManagementScreen: React.FC<{ route?: any }> = ({ route }) => {
                         </View>
                       );
                     })()}
+                    {leave.userId === user?.id && leave.status !== 'Approved' && leave.status !== 'Rejected' && leave.status !== 'Cancelled' && (
+                      <TouchableOpacity style={s.cancelReqBtn} onPress={() => confirmCancel(leave)} onPressIn={() => {}}>
+                        <Text style={s.cancelReqText}>Cancel</Text>
+                      </TouchableOpacity>
+                    )}
                     {leave.reviewedByName && (
                       <Text style={s.reviewedBy}>Reviewed by: {leave.reviewedByName}{leave.reviewedOn ? ` on ${formatDateTime(leave.reviewedOn)}` : ''}</Text>
                     )}
@@ -388,8 +474,31 @@ export const LeaveManagementScreen: React.FC<{ route?: any }> = ({ route }) => {
       <Modal visible={!!reviewModal} transparent animationType="slide">
         <View style={s.modalOverlay}>
           <View style={s.modal}>
-            <Text style={s.modalTitle}>{reviewAction === 'Approved' ? 'Approve' : 'Reject'} Leave</Text>
+            <Text style={s.modalTitle}>
+              {reviewAction === 'Approved' ? 'Approve' : 'Reject'} as{' '}
+              {reviewTier === 'masterAdmin' ? 'Master Admin' : reviewTier ? TIER_LABELS[reviewTier] : 'Approver'}
+            </Text>
             <Text style={s.modalSubtitle}>{reviewModal?.employeeName} • {reviewModal?.leaveType} • {reviewModal?.totalDays} day(s)</Text>
+            {reviewModal?.approvalStatus && (() => {
+              const eff = getEffectiveTiers(reviewModal.applicantRole);
+              const total = eff.length + (reviewModal.masterAdminRequired ? 1 : 0);
+              if (total === 0) {
+                return (
+                  <View style={[s.statusChipInline, { backgroundColor: '#f3f4f6', alignSelf: 'flex-start' }]}>
+                    <Text style={{ fontSize: 12, fontWeight: '600', color: '#6b7280' }}>All tiers auto-completed</Text>
+                  </View>
+                );
+              }
+              const resolved = eff.filter((t) => {
+                const st = reviewModal.approvalStatus[t];
+                return st === 'Approved' || st === 'Rejected' || st === 'Skipped';
+              }).length + (reviewModal.masterAdminRequired && reviewModal.masterAdminApproveStatus && reviewModal.masterAdminApproveStatus !== 'Pending' ? 1 : 0);
+              return (
+                <Text style={s.progressLine}>
+                  Approval Progress: {resolved}/{total} tier{total > 1 ? 's' : ''} resolved
+                </Text>
+              );
+            })()}
             <Text style={s.reviewReason}>{reviewModal?.reason}</Text>
             {reviewModal?.approvalStatus && (
               <View style={s.tierBadgesRow}>
@@ -437,16 +546,21 @@ export const LeaveManagementScreen: React.FC<{ route?: any }> = ({ route }) => {
                 ))}
               </View>
             )}
-            <TextInput style={s.modalInput} placeholder="Remark * (required)" placeholderTextColor={colors.textTertiary} value={reviewNote} onChangeText={setReviewNote} multiline numberOfLines={3} />
+            <Text style={{ fontSize: 13, fontWeight: '600', color: colors.text, marginBottom: 6 }}>Remark / Reason *</Text>
+            <TextInput style={s.modalInput} placeholder="Write a mandatory remark for this approval decision..." placeholderTextColor={colors.textTertiary} value={reviewNote} onChangeText={setReviewNote} multiline numberOfLines={3} />
             <View style={s.modalActions}>
-              <TouchableOpacity style={s.rejectConfirmBtn} onPress={() => handleReview('Rejected')}>
-                <Text style={s.rejectConfirmText}>Reject</Text>
-              </TouchableOpacity>
-              <TouchableOpacity style={s.approveConfirmBtn} onPress={() => handleReview('Approved')}>
-                <Text style={s.approveConfirmText}>Approve</Text>
+              <TouchableOpacity
+                style={[reviewAction === 'Approved' ? s.approveConfirmBtn : s.rejectConfirmBtn, !reviewNote.trim() && { opacity: 0.5 }]}
+                disabled={!reviewNote.trim()}
+                onPress={() => handleReview(reviewAction)}
+              >
+                <Text style={reviewAction === 'Approved' ? s.approveConfirmText : s.rejectConfirmText}>
+                  {reviewAction === 'Approved' ? 'Approve' : 'Reject'} as{' '}
+                  {reviewTier === 'masterAdmin' ? 'Master Admin' : reviewTier ? TIER_LABELS[reviewTier] : 'Approver'}
+                </Text>
               </TouchableOpacity>
             </View>
-            <TouchableOpacity style={s.cancelReviewBtn} onPress={() => { setReviewModal(null); setReviewNote(''); setReviewAction('Approved'); }}>
+            <TouchableOpacity style={s.cancelReviewBtn} onPress={() => { setReviewModal(null); setReviewNote(''); setReviewAction('Approved'); setReviewTier(null); }}>
               <Text style={s.cancelBtnText}>Cancel</Text>
             </TouchableOpacity>
           </View>
@@ -559,6 +673,14 @@ const createStyles = (c: ThemeColors) => StyleSheet.create({
   modalOverlay: { flex: 1, backgroundColor: c.modalOverlay, justifyContent: 'center', padding: 20 },
   modal: { width: '100%', maxWidth: 480, alignSelf: 'center', backgroundColor: c.card, borderRadius: 16, padding: 24 },
   modalTitle: { fontSize: 20, fontWeight: 'bold', color: c.text, marginBottom: 4 },
+  progressLine: { fontSize: 12.5, fontWeight: '600', color: '#374151', marginBottom: 10 },
+  statusChipInline: { paddingHorizontal: 8, paddingVertical: 4, borderRadius: 6, alignSelf: 'flex-start', marginBottom: 8 },
+  awaitingChip: { backgroundColor: '#fff7ed', borderRadius: 6, paddingHorizontal: 8, paddingVertical: 3, alignSelf: 'flex-start', marginTop: 2 },
+  awaitingChipText: { color: '#9a3412', fontSize: 11, fontWeight: '600' },
+  metaRow: { flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 4 },
+  metaText: { fontSize: 12, color: c.textTertiary, flexShrink: 1 },
+  cancelReqBtn: { alignSelf: 'flex-start', marginTop: 8, backgroundColor: '#fee2e2', borderRadius: 8, paddingHorizontal: 14, paddingVertical: 7 },
+  cancelReqText: { color: '#ef4444', fontWeight: '700', fontSize: 13 },
   modalSubtitle: { color: c.textSecondary, fontSize: 14, marginBottom: 12 },
   reviewReason: { color: c.textPrimary, fontSize: 14, marginBottom: 16, backgroundColor: c.background, padding: 12, borderRadius: 8 },
   modalInput: { backgroundColor: c.background, borderWidth: 1, borderColor: c.border, borderRadius: 10, paddingHorizontal: 16, paddingVertical: 12, color: c.text, fontSize: 15, marginBottom: 16, minHeight: 60, textAlignVertical: 'top' },

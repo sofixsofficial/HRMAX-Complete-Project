@@ -1,6 +1,6 @@
 import { httpsCallable } from '../aws/functions-compat';
 import { functions, db } from '../aws/clients';
-import { collection, query, getDocs, where, doc, getDoc } from '../aws/firestore-compat';
+import { collection, query, getDocs, where, doc, getDoc, updateDoc } from '../aws/firestore-compat';
 import NetInfo from '@react-native-community/netinfo';
 import * as Location from 'expo-location';
 import * as Device from 'expo-device';
@@ -83,6 +83,35 @@ export const markCheckOut = async (companyId: string, attendanceId: string): Pro
   const ctx = await getDeviceContext();
   const res = await markAttendanceFn({ action: 'check-out', companyId, attendanceId, ...ctx });
   return res.data as CheckOutResult;
+};
+
+/**
+ * Manager approval of a plain attendance row (web parity: `approveAttendance`
+ * writes status Approved + approver stamps). TL actions also fire the web's
+ * notify cascade there — kept best-effort here.
+ */
+export const approveAttendance = async (id: string, userId: string, userName: string): Promise<void> => {
+  await updateDoc(doc(db, 'attendance', id), {
+    status: 'Approved',
+    approved: true,
+    approvedBy: userId,
+    approvedByName: userName,
+    approvedOn: new Date().toISOString(),
+  });
+};
+
+/**
+ * Manager marks a checked-in-without-checkout row as Miss Punch (web parity:
+ * remark is mandatory — the screen enforces it).
+ */
+export const markMissPunch = async (id: string, remark: string, userId: string, userName: string): Promise<void> => {
+  await updateDoc(doc(db, 'attendance', id), {
+    status: 'Miss Punch',
+    missPunchRemark: remark,
+    missPunchMarkedBy: userId,
+    missPunchMarkedByName: userName,
+    missPunchMarkedAt: new Date().toISOString(),
+  });
 };
 
 export const requestPunchRectification = async (

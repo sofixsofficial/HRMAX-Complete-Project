@@ -1,6 +1,6 @@
 import {
   collection, getDocs, doc, getDoc,
-  query, where
+  query, where, updateDoc, serverTimestamp
 } from '../aws/firestore-compat';
 import { db } from '../aws/clients';
 import { httpsCallable } from '../aws/functions-compat';
@@ -9,6 +9,18 @@ import type { LeaveRequest, LeaveType, LeaveStatus, ApprovalTier, ApprovalLevel,
 import { REQUESTER_ROLES, resolveApprovalChain, type RequesterRole, type ApprovalChainConfig } from '../utils/approvalChains';
 
 const COLLECTION_NAME = 'leaveRequests';
+
+/**
+ * Cancel your own leave request (web parity: `cancelLeaveRequest` writes
+ * `{ status: 'Cancelled' }` on the row — allowed while the request is not
+ * finally Approved/Rejected; the page enforces that gate).
+ */
+export const cancelLeaveRequest = async (id: string): Promise<void> => {
+  await updateDoc(doc(db, COLLECTION_NAME, id), {
+    status: 'Cancelled',
+    updatedAt: serverTimestamp(),
+  });
+};
 
 const PAID_LEAVE_TYPES: LeaveType[] = ['Casual', 'Sick', 'Earned', 'Maternity', 'Paternity'];
 export const isLeaveTypePaid = (type: LeaveType): boolean => PAID_LEAVE_TYPES.includes(type);
