@@ -296,9 +296,10 @@ const resolveApproverIds = async (companyId: string, userId: string): Promise<Re
 
 // Full missed-punch tier ORDER (iteration/ordering only — including 'hr' for
 // legacy docs). Which tiers are LIVE per applicant role is defined by
-// getEffectiveMissedPunchTiers: Employee = Reporting Manager → Company Admin →
-// Executive → Team Leader; RM/HR = Company Admin → Executive → Team Leader;
-// Executive = Team Leader (+ Master Admin); Team Leader = Master Admin only.
+// getEffectiveMissedPunchTiers: Employee = Reporting Manager → HR → Company
+// Admin → Executive → Team Leader; RM = HR → CA → Executive → Team Leader;
+// HR = Company Admin → Executive → Team Leader; Executive = Team Leader (+
+// Master Admin); Team Leader = Master Admin only.
 export const MISSED_PUNCH_TIER_ORDER: ApprovalTier[] = ['reportingManager', 'hr', 'companyAdmin', 'executive', 'teamLeader'];
 
 export const MISSED_PUNCH_TIER_LABELS: Record<ApprovalTier, string> = {
@@ -322,18 +323,18 @@ export const missedPunchTierLabel = (tier: string): string =>
 /**
  * Effective missed-punch verification tiers for an applicant role (mirrors the
  * web attendanceService exactly — same chain, same database):
- * - Employee:             Reporting Manager -> Company Admin -> Executive -> Team Leader
- * - Reporting Manager:    Company Admin -> Executive -> Team Leader
+ * - Employee:             Reporting Manager -> HR -> Company Admin -> Executive -> Team Leader
+ * - Reporting Manager:    HR -> Company Admin -> Executive -> Team Leader
  * - HR:                   Company Admin -> Executive -> Team Leader
  * - Executive self-app:   Team Leader only (Exec → TL → Master Admin)
  * - Team Leader self-app: none (direct to Master Admin)
  */
 export const getEffectiveMissedPunchTiers = (applicantRole?: string): ApprovalTier[] => {
-  if (applicantRole === 'reporting-manager') return ['companyAdmin', 'executive', 'teamLeader'];
+  if (applicantRole === 'reporting-manager') return ['hr', 'companyAdmin', 'executive', 'teamLeader'];
   if (applicantRole === 'hr' || applicantRole === 'hr-manager') return ['companyAdmin', 'executive', 'teamLeader'];
   if (applicantRole === 'executive') return ['teamLeader'];
   if (applicantRole === 'team-leader') return [];
-  if (applicantRole === 'employee') return ['reportingManager', 'companyAdmin', 'executive', 'teamLeader'];
+  if (applicantRole === 'employee') return ['reportingManager', 'hr', 'companyAdmin', 'executive', 'teamLeader'];
   // Unknown / legacy role — show the full chain rather than an empty one.
   return [...MISSED_PUNCH_TIER_ORDER];
 };

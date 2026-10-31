@@ -34,7 +34,7 @@ const MA_ROLES = new Set<UserRole>(['team-leader', 'executive'])
 // Reporting Manager self-applications follow their own 3-tier chain (their own
 // Reporting Manager tier auto-completes): Company Admin → Executive → Team Leader.
 const RM_CHAIN = 'Company Admin → Executive → Team Leader'
-const MP_MISSED_PUNCH_CHAIN = 'Reporting Manager → Company Admin → Executive → Team Leader'
+const MP_MISSED_PUNCH_CHAIN = 'Reporting Manager → HR → Company Admin → Executive → Team Leader'
 
 const ROLE_LABELS: Record<string, string> = {
   'team-leader': 'Team Leader',
