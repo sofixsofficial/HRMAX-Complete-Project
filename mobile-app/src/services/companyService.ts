@@ -3,6 +3,7 @@ import {
   onSnapshot,
 } from '../aws/firestore-compat';
 import { ref, uploadBytes, getDownloadURL } from '../aws/storage-compat';
+import type { ApprovalChainConfig } from '../utils/approvalChains';
 import { db, storage } from '../aws/clients';
 import { httpsCallable } from '../aws/functions-compat';
 import { functions } from '../aws/clients';
@@ -143,6 +144,7 @@ export const onboardCompany = async (data: {
   gstDoc?: string;
   agreementDoc?: string;
   logoColor?: string;
+  approvalChains?: ApprovalChainConfig;
   attendanceSettings: {
     officeAddress: string;
     latitude: number;
@@ -152,6 +154,11 @@ export const onboardCompany = async (data: {
     requireWifi: boolean;
     wifiSSID?: string;
     requireSelfie: boolean;
+    requireGps?: boolean;
+    requireQr?: boolean;
+    defaultShiftStart?: string;
+    defaultShiftEnd?: string;
+    gracePeriodMinutes?: number;
   };
 }): Promise<Company> => {
   const callableFn = httpsCallable(functions, 'mobileOnboardCompany');

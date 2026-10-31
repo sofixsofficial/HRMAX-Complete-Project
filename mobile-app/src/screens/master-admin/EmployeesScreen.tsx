@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { View, Text, ScrollView, StyleSheet, TextInput, TouchableOpacity, Modal, Alert, ActivityIndicator } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
-import { collection, getDocs } from '../../aws/firestore-compat';
+import { collection, getDocs, query, where } from '../../aws/firestore-compat';
 import { ref, uploadBytes, getDownloadURL } from '../../aws/storage-compat';
 import { db, storage } from '../../aws/clients';
 import { Paths, File } from 'expo-file-system';
@@ -13,6 +13,7 @@ import { useCompany } from '../../context/CompanyContext';
 import { useTheme, ThemeColors } from '../../context/ThemeContext';
 import { subscribeEmployees, subscribeEmployeesScoped, createEmployee, updateEmployee, getEmployeesByCompany, type Employee } from '../../services/employeeService';
 import { getDepartmentsByCompany, type Department } from '../../services/departmentService';
+import { fetchCompanyBranches, type Branch } from '../../services/branchService';
 import { scopedCompanyIdsForRole } from '../../utils/companyScope';
 import { PermissionGate } from '../../components/PermissionGate';
 import { FilterChips } from '../../components/FilterChips';
@@ -24,7 +25,9 @@ const EMPLOYMENT_TYPE_OPTIONS = ['Full-time', 'Part-time', 'Contract', 'Intern']
 const ROLE_OPTIONS = [
   { value: 'employee', label: 'Employee' },
   { value: 'reporting-manager', label: 'Reporting Manager' },
+  { value: 'hr', label: 'HR' },
 ];
+const LEAVE_TYPES = ['Casual', 'Sick', 'Earned', 'Unpaid', 'Maternity', 'Paternity'] as const;
 const STATUS_COLORS: Record<string, string> = { Active: '#10b981', Inactive: '#ef4444', 'On Leave': '#FF6600' };
 
 interface EmpForm {
@@ -39,6 +42,8 @@ interface EmpForm {
   monthlyGrossSalary: string; salaryEffectiveDate: string;
   salaryCycle: string; workingDaysPerMonth: string; overtimeRatePerHour: string; weekendDays: number[];
   managerId: string; managerName: string;
+  primaryBranchId: string; branchIds: string[];
+  leaveEnt: Record<string, string>;
 }
 
 const EMPLOYEE_DOC_FIELDS = ['aadharDoc', 'panDoc', 'joiningLetterDoc', 'offerLetterDoc'] as const;
@@ -62,6 +67,8 @@ const emptyForm: EmpForm = {
   monthlyGrossSalary: '0', salaryEffectiveDate: '',
   salaryCycle: 'Monthly', workingDaysPerMonth: '26', overtimeRatePerHour: '1.5', weekendDays: [0, 6],
   managerId: '', managerName: '',
+  primaryBranchId: '', branchIds: [],
+  leaveEnt: { Casual: '', Sick: '', Earned: '', Unpaid: '', Maternity: '', Paternity: '' },
 };
 
 export const EmployeesScreen: React.FC<{ route?: any }> = ({ route }) => {
@@ -73,6 +80,7 @@ export const EmployeesScreen: React.FC<{ route?: any }> = ({ route }) => {
   const [companies, setCompanies] = useState<any[]>([]);
   const [departments, setDepartments] = useState<Department[]>([]);
   const [allManagers, setAllManagers] = useState<Employee[]>([]);
+  const [companyBranches, setCompanyBranches] = useState<Branch[]>([]);
   const [docFiles, setDocFiles] = useState<Partial<Record<EmployeeDocField, DocFile>>>({});
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
@@ -89,12 +97,13 @@ export const EmployeesScreen: React.FC<{ route?: any }> = ({ route }) => {
   const [pageSize, setPageSize] = useState(10);
   const [exporting, setExporting] = useState(false);
   // form section toggles
-  const [showAccount, setShowAccount] = useState(false);
+  const [showAccount, setShowAccount] = useState(true);
   const [showOrg, setShowOrg] = useState(false);
   const [showDocs, setShowDocs] = useState(false);
   const [showBank, setShowBank] = useState(false);
   const [showSalary, setShowSalary] = useState(false);
   const [showEmergency, setShowEmergency] = useState(false);
+  const [showLeave, setShowLeave] = useState(false);
 
   const s = useMemo(() => createStyles(colors), [colors]);
 
@@ -157,16 +166,52 @@ export const EmployeesScreen: React.FC<{ route?: any }> = ({ route }) => {
     }
   }, [form.companyId]);
 
+  // Branches of the selected company (primary + additional check-in locations).
   useEffect(() => {
+    let alive = true;
     if (form.companyId) {
-      getEmployeesByCompany(form.companyId)
-        .then(emps => setAllManagers(emps.filter(e =>
-          (e as any).isReportingManager === true ||
-          e.role === 'reporting-manager' ||
-          e.role === 'company-admin' ||
-          e.role === 'team-leader' ||
-          e.role === 'executive'
-        )))
+      fetchCompanyBranches(form.companyId)
+        .then((rows) => { if (alive) setCompanyBranches(rows); })
+        .catch(() => { if (alive) setCompanyBranches([]); });
+    } else {
+      setCompanyBranches([]);
+    }
+    return () => { alive = false; };
+  }, [form.companyId]);
+
+  useEffect(() => {
+    // Web parity (getReportingManagersByCompany): manager candidates are the
+    // company's Active HR / Reporting Managers / Company Admins — never
+    // executives or team leaders. Sources: employee records (incl. the
+    // isReportingManager flag) + user docs for admin roles without an
+    // employee record, deduped by email/uid.
+    if (form.companyId) {
+      const isManagerRole = (r?: string) => r === 'reporting-manager' || r === 'company-admin' || r === 'hr';
+      Promise.all([
+        getEmployeesByCompany(form.companyId).catch(() => [] as Employee[]),
+        getDocs(query(collection(db, 'users'), where('companyId', '==', form.companyId)))
+          .then(s => s.docs.map(d => ({ id: d.id, ...(d.data() as any) })))
+          .catch(() => [] as any[]),
+      ])
+        .then(([emps, users]) => {
+          const out: Employee[] = [];
+          const seen = new Set<string>();
+          const push = (m: any) => {
+            // Case-SENSITIVE key (web parity): two real accounts may share an
+            // email in different casing — dropping one hides a real manager.
+            const key = String(m.email || m.userId || m.id || '');
+            if (!key || seen.has(key)) return;
+            seen.add(key);
+            out.push(m as Employee);
+          };
+          emps
+            .filter(e => (!e.status || e.status === 'Active') && ((e as any).isReportingManager === true || isManagerRole(e.role)))
+            .forEach(push);
+          users
+            .filter((u: any) => (!u.status || u.status === 'Active') && isManagerRole(u.role))
+            .forEach(push);
+          setAllManagers(out);
+        })
         .catch(() => setAllManagers([]));
     } else {
       setAllManagers([]);
@@ -200,7 +245,7 @@ export const EmployeesScreen: React.FC<{ route?: any }> = ({ route }) => {
     setEditing(null);
     setForm({ ...emptyForm, companyId: effectiveCompanyId || '' });
     setDocFiles({});
-    setShowAccount(false); setShowOrg(false); setShowDocs(false); setShowBank(false); setShowSalary(false); setShowEmergency(false);
+    setShowAccount(true); setShowOrg(false); setShowDocs(false); setShowBank(false); setShowSalary(false); setShowEmergency(false); setShowLeave(false);
     setModal(true);
   };
 
@@ -262,9 +307,17 @@ export const EmployeesScreen: React.FC<{ route?: any }> = ({ route }) => {
       weekendDays: (emp as any).weekendDays && (emp as any).weekendDays.length ? (emp as any).weekendDays : [0, 6],
       managerId: (emp as any).managerId || (emp as any).reportingManagerId || '',
       managerName: (emp as any).managerName || (emp as any).reportingManagerName || '',
+      primaryBranchId: (emp as any).primaryBranchId || '',
+      branchIds: (emp as any).branchIds || [],
+      leaveEnt: (() => {
+        const raw = (emp as any).monthlyLeaveEntitlements || {};
+        const out: Record<string, string> = {};
+        for (const k of LEAVE_TYPES) out[k] = raw[k] !== undefined && raw[k] !== null ? String(raw[k]) : '';
+        return out;
+      })(),
     });
     setDocFiles({});
-    setShowAccount(false); setShowOrg(false); setShowDocs(false); setShowBank(false); setShowSalary(false); setShowEmergency(false);
+    setShowAccount(true); setShowOrg(false); setShowDocs(false); setShowBank(false); setShowSalary(false); setShowEmergency(false); setShowLeave(false);
     setModal(true);
   };
 
@@ -292,11 +345,17 @@ export const EmployeesScreen: React.FC<{ route?: any }> = ({ route }) => {
       if (!form.password) { Alert.alert('Validation', 'Password is required for new employees'); return; }
       if (!form.password || !validatePasswordPolicy(form.password).valid) { Alert.alert('Password does not meet the requirements', validatePasswordPolicy(form.password || '').errors[0] || 'Password must be at least 8 characters with upper, lower, number and symbol.'); return; }
       if (!form.companyId) { Alert.alert('Validation', 'Please assign a company'); return; }
-      if (form.role !== 'reporting-manager' && !form.managerId) { Alert.alert('Validation', 'Manager is required for Employee role'); return; }
+      if (form.role !== 'reporting-manager' && !form.managerId && allManagers.length > 0) { Alert.alert('Validation', 'Manager is required for Employee role'); return; }
     }
+    if (companyBranches.length > 0 && !form.primaryBranchId) { Alert.alert('Validation', 'Primary branch is required for this company.'); return; }
     setSaving(true);
     try {
       const employeeIdFinal = !editing && !form.employeeId.trim() ? await generateEmployeeId(form.companyId) : form.employeeId;
+      const leaveEnt: Record<string, number> = {};
+      for (const [k, v] of Object.entries(form.leaveEnt || {})) {
+        const n = Number(v);
+        if (Number.isFinite(n) && n > 0) leaveEnt[k] = n;
+      }
       const payload: any = {
         name: form.name,
         email: form.email,
@@ -340,6 +399,13 @@ export const EmployeesScreen: React.FC<{ route?: any }> = ({ route }) => {
           : (allManagers.find(m => m.id === form.managerId || m.userId === form.managerId)?.role === 'company-admin'
               ? 'company-admin'
               : 'reporting-manager'),
+        // Web-parity fields (EmployeeFormContent → handleAdd)
+        primaryBranchId: form.primaryBranchId,
+        branchIds: (form.branchIds || []).filter((b) => b && b !== form.primaryBranchId),
+        userId: '',
+        avatar: '',
+        ...(Object.keys(leaveEnt).length > 0 ? { monthlyLeaveEntitlements: leaveEnt } : {}),
+        leaveEntitlementYear: new Date().getFullYear(),
       };
 
       let employeeId = editing;
@@ -440,6 +506,24 @@ export const EmployeesScreen: React.FC<{ route?: any }> = ({ route }) => {
 
   const toggleStatusFilter = (status: string) => {
     setFilterStatus(prev => prev === status ? '' : status);
+  };
+
+  // Branch options for the Primary Branch picker — an already-assigned branch
+  // that has since been archived still needs a visible option in edit mode.
+  const primaryOptions: Branch[] = [...companyBranches];
+  if (form.primaryBranchId && !primaryOptions.some((b) => b.id === form.primaryBranchId)) {
+    primaryOptions.unshift({ id: form.primaryBranchId, companyId: form.companyId, name: 'Current primary branch' } as Branch);
+  }
+  const additionalBranches = companyBranches.filter((b) => b.id !== form.primaryBranchId);
+
+  // Chip label: surface the manager's ROLE like the web ("Company / Role /
+  // Name" combobox) so HR / Reporting Manager / Company Admin read clearly.
+  const managerRoleLabel = (m: Employee): string => {
+    const r = (m as any).role;
+    if (r === 'hr') return 'HR';
+    if (r === 'reporting-manager') return 'Reporting Manager';
+    if (r === 'company-admin') return 'Company Admin';
+    return (m as any).employeeId || r || 'Manager';
   };
 
   const formatDate = (d: any) => {
@@ -671,7 +755,7 @@ export const EmployeesScreen: React.FC<{ route?: any }> = ({ route }) => {
                     <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginBottom: 12 }}>
                       {(isRestrictedScope && availableCompanies.length > 0 ? availableCompanies : companies).map(c => (
                         <TouchableOpacity key={c.id} style={[s.chip, form.companyId === c.id && s.chipActive]} onPress={() => {
-                          setForm({...form, companyId: c.id, departmentId: '', department: '', departmentColor: '#f97316', managerId: '', managerName: ''});
+                          setForm({...form, companyId: c.id, departmentId: '', department: '', departmentColor: '#f97316', managerId: '', managerName: '', primaryBranchId: '', branchIds: []});
                         }}>
                           <Text style={[s.chipText, form.companyId === c.id && { color: '#fff' }]}>{c.name}</Text>
                         </TouchableOpacity>
@@ -697,18 +781,59 @@ export const EmployeesScreen: React.FC<{ route?: any }> = ({ route }) => {
                     <Text style={s.noOptionsText}>{form.companyId ? 'No departments for this company' : 'Select a company first'}</Text>
                   )}
 
-                  <Text style={s.fieldLabel}>Reporting Manager / Team Leader</Text>
+                  <Text style={s.fieldLabel}>Primary Branch {companyBranches.length > 0 ? '*' : ''}</Text>
+                  {!form.companyId ? (
+                    <Text style={s.noOptionsText}>Select a company first</Text>
+                  ) : companyBranches.length === 0 ? (
+                    <Text style={s.noOptionsText}>No branches yet for this company — add one from the Branches page, then assign it here.</Text>
+                  ) : (
+                    <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginBottom: 12 }}>
+                      <TouchableOpacity style={[s.chip, !form.primaryBranchId && s.chipActive]} onPress={() => setForm({...form, primaryBranchId: ''})}>
+                        <Text style={[s.chipText, !form.primaryBranchId && { color: '#fff' }]}>None</Text>
+                      </TouchableOpacity>
+                      {primaryOptions.map(br => (
+                        <TouchableOpacity key={br.id} style={[s.chip, form.primaryBranchId === br.id && s.chipActive]} onPress={() => setForm({...form, primaryBranchId: br.id, branchIds: form.branchIds.filter(x => x !== br.id)})}>
+                          <Text style={[s.chipText, form.primaryBranchId === br.id && { color: '#fff' }]}>{br.name}</Text>
+                        </TouchableOpacity>
+                      ))}
+                    </ScrollView>
+                  )}
+
+                  {additionalBranches.length > 0 && (
+                    <>
+                      <Text style={s.fieldLabel}>Additional Authorized Branches (optional)</Text>
+                      <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginBottom: 6 }}>
+                        {additionalBranches.map(br => {
+                          const selected = form.branchIds.includes(br.id);
+                          return (
+                            <TouchableOpacity key={br.id} style={[s.chip, selected && s.chipActive]} onPress={() => {
+                              setForm({...form, branchIds: selected ? form.branchIds.filter(x => x !== br.id) : [...form.branchIds, br.id]});
+                            }}>
+                              <Text style={[s.chipText, selected && { color: '#fff' }]}>{br.name}</Text>
+                            </TouchableOpacity>
+                          );
+                        })}
+                      </ScrollView>
+                      <Text style={s.noOptionsText}>The employee can check in at these locations in addition to their primary branch.</Text>
+                    </>
+                  )}
+
+                  <Text style={s.fieldLabel}>{form.role === 'reporting-manager' ? "Reporting Manager's Manager" : 'Manager'}</Text>
                   <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginBottom: 12 }}>
                     <TouchableOpacity style={[s.chip, !form.managerId && s.chipActive]} onPress={() => setForm({...form, managerId: '', managerName: ''})}>
                       <Text style={[s.chipText, !form.managerId && { color: '#fff' }]}>None</Text>
                     </TouchableOpacity>
-                    {allManagers.filter(m => !editing || (m.id !== editing && m.userId !== editing)).map(m => (
-                      <TouchableOpacity key={m.id} style={[s.chip, form.managerId === m.id && s.chipActive]} onPress={() => setForm({...form, managerId: m.id, managerName: m.name})}>
-                        <Text style={[s.chipText, form.managerId === m.id && { color: '#fff' }]}>{m.name} ({m.employeeId || m.role})</Text>
-                      </TouchableOpacity>
-                    ))}
+                    {allManagers.filter(m => !editing || (m.id !== editing && m.userId !== editing)).map(m => {
+                      const mid = ((m.userId as string) || m.id);
+                      const selected = form.managerId === mid || form.managerId === m.id;
+                      return (
+                        <TouchableOpacity key={m.id} style={[s.chip, selected && s.chipActive]} onPress={() => setForm({...form, managerId: mid, managerName: m.name})}>
+                          <Text style={[s.chipText, selected && { color: '#fff' }]}>{m.name} ({managerRoleLabel(m)})</Text>
+                        </TouchableOpacity>
+                      );
+                    })}
                   </ScrollView>
-                  {form.role === 'reporting-manager' ? <Text style={s.noOptionsText}>N/A — Reporting Manager</Text> : null}
+                  {form.role === 'reporting-manager' && !form.managerId ? <Text style={s.noOptionsText}>Select HR / Reporting Manager / Company Admin</Text> : null}
 
                   <Text style={s.fieldLabel}>Join Date (YYYY-MM-DD)</Text>
                   <TextInput style={s.input} placeholder="Join Date (YYYY-MM-DD)" placeholderTextColor={colors.textTertiary} value={form.joinDate} onChangeText={(t) => setForm({...form, joinDate: t})} />
@@ -803,6 +928,31 @@ export const EmployeesScreen: React.FC<{ route?: any }> = ({ route }) => {
                       );
                     })}
                   </View>
+                </>
+              )}
+
+              {sectionToggle('Leave Entitlements (Monthly → Yearly)', showLeave, setShowLeave)}
+              {showLeave && (
+                <>
+                  <Text style={s.noOptionsText}>Set this employee's monthly leave per type. Yearly entitlement = Monthly × 12. Leave a type blank (or 0) to grant no balance for it.</Text>
+                  {LEAVE_TYPES.map(t => (
+                    <View key={t}>
+                      <Text style={s.fieldLabel}>{t} (days / month)</Text>
+                      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
+                        <TextInput
+                          style={[s.input, { flex: 1, marginBottom: 8 }]}
+                          placeholder="0"
+                          placeholderTextColor={colors.textTertiary}
+                          keyboardType="decimal-pad"
+                          value={form.leaveEnt[t]}
+                          onChangeText={(v) => setForm({ ...form, leaveEnt: { ...form.leaveEnt, [t]: v } })}
+                        />
+                        <Text style={{ color: colors.textTertiary, fontSize: 12, marginBottom: 8, minWidth: 96 }}>
+                          = {(() => { const n = Number(form.leaveEnt[t]); return Number.isFinite(n) && n > 0 ? Math.round(n * 12 * 100) / 100 : 0; })()} days / year
+                        </Text>
+                      </View>
+                    </View>
+                  ))}
                 </>
               )}
 

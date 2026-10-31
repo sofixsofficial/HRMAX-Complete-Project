@@ -9,6 +9,7 @@ import { httpsCallable } from '../../aws/functions-compat';
 import { Paths, File } from 'expo-file-system';
 import * as Sharing from 'expo-sharing';
 import * as DocumentPicker from 'expo-document-picker';
+import * as Location from 'expo-location';
 import { useAuth } from '../../context/AuthContext';
 import { useTheme, ThemeColors } from '../../context/ThemeContext';
 import { Icon } from '../../utils/icons';
@@ -37,6 +38,8 @@ interface TLForm {
   pfAccountNumber: string; uanNumber: string; offerLetterDoc: string; offerLetterDocName: string;
   address: string; emergencyContactName: string; emergencyContactPhone: string;
   monthlyGrossSalary: string; salaryEffectiveDate: string;
+  officeAddress: string; latitude: string; longitude: string; radiusInMeters: string;
+  allowMobileData: boolean; requireWifi: boolean; wifiSSID: string; requireSelfie: boolean;
 }
 
 const emptyForm: TLForm = {
@@ -51,7 +54,33 @@ const emptyForm: TLForm = {
   pfAccountNumber: '', uanNumber: '', offerLetterDoc: '', offerLetterDocName: '',
   address: '', emergencyContactName: '', emergencyContactPhone: '',
   monthlyGrossSalary: '0', salaryEffectiveDate: '',
+  officeAddress: '', latitude: '', longitude: '', radiusInMeters: '100',
+  allowMobileData: true, requireWifi: false, wifiSSID: '', requireSelfie: false,
 };
+
+// Web parity: the Team Leader permission matrix (TeamLeaders.tsx TLPermissionsSection)
+// — same modules/actions and the same `${module}.${action}` key format the
+// web writes into the SHARED AWS user document.
+const TL_PERMISSION_MODULES = [
+  { module: 'Employees', actions: ['view', 'create', 'edit', 'delete'] },
+  { module: 'Attendance', actions: ['view', 'manage', 'approve', 'reject'] },
+  { module: 'Leave', actions: ['view', 'approve', 'create', 'reject', 'cancel'] },
+  { module: 'Payroll', actions: ['view', 'manage', 'calculate', 'create', 'disburse', 'approve'] },
+  { module: 'Salary', actions: ['view', 'manage', 'create', 'edit', 'delete', 'approve', 'export'] },
+  { module: 'Tasks', actions: ['view', 'manage'] },
+  { module: 'Support', actions: ['view', 'create', 'delete', 'manage'] },
+  { module: 'Holidays', actions: ['view', 'manage', 'create', 'edit', 'delete', 'export'] },
+  { module: 'Announcements', actions: ['view', 'create', 'edit', 'delete'] },
+  { module: 'Reports', actions: ['view', 'export', 'download'] },
+  { module: 'Settings', actions: ['view', 'manage'] },
+  { module: 'Companies', actions: ['view', 'manage'] },
+  { module: 'Departments', actions: ['view', 'add', 'edit', 'delete'] },
+  { module: 'Branches', actions: ['view', 'add', 'edit', 'delete'] },
+  { module: 'Executives', actions: ['view', 'create', 'edit', 'delete'] },
+  { module: 'Assets', actions: ['view', 'create', 'edit', 'delete', 'approve', 'manage'] },
+];
+const getPermissionKey = (module: string, action: string) => `${module.toLowerCase().replace(/\s+/g, '_')}.${action}`;
+const TL_ALL_PERMISSIONS = TL_PERMISSION_MODULES.flatMap(g => g.actions.map(a => getPermissionKey(g.module, a)));
 
 export const TeamLeadersScreen: React.FC = () => {
   const { colors } = useTheme();
@@ -77,6 +106,10 @@ export const TeamLeadersScreen: React.FC = () => {
   const [showContact, setShowContact] = useState(false);
   const [showComp, setShowComp] = useState(false);
   const [showAssign, setShowAssign] = useState(false);
+  const [showAtt, setShowAtt] = useState(false);
+  const [showPerms, setShowPerms] = useState(false);
+  const [locating, setLocating] = useState(false);
+  const [permissions, setPermissions] = useState<string[]>(TL_ALL_PERMISSIONS);
   const [contingency, setContingency] = useState(false);
   const [resettingPw, setResettingPw] = useState(false);
   const [currentPage, setCurrentPage] = useState(1);
@@ -142,7 +175,8 @@ export const TeamLeadersScreen: React.FC = () => {
     setEditing(null);
     setForm(emptyForm);
     setContingency(false);
-    setShowEmp(true); setShowBank(false); setShowContact(false); setShowComp(false); setShowAssign(false);
+    setShowEmp(true); setShowBank(false); setShowContact(false); setShowComp(false); setShowAssign(false); setShowAtt(false); setShowPerms(false);
+    setPermissions(TL_ALL_PERMISSIONS);
     setModal(true);
   };
 
@@ -177,9 +211,18 @@ export const TeamLeadersScreen: React.FC = () => {
       emergencyContactPhone: (tl as any).emergencyContactPhone || '',
       monthlyGrossSalary: String((tl as any).monthlyGrossSalary || 0),
       salaryEffectiveDate: (tl as any).salaryEffectiveDate || '',
+      officeAddress: (tl as any).officeAddress || (tl as any).attendanceSettings?.officeAddress || '',
+      latitude: String((tl as any).latitude ?? (tl as any).attendanceSettings?.latitude ?? ''),
+      longitude: String((tl as any).longitude ?? (tl as any).attendanceSettings?.longitude ?? ''),
+      radiusInMeters: String((tl as any).radiusInMeters ?? (tl as any).attendanceSettings?.radiusInMeters ?? 100),
+      allowMobileData: (tl as any).allowMobileData !== false && (tl as any).attendanceSettings?.allowMobileData !== false,
+      requireWifi: !!(tl as any).requireWifi || !!(tl as any).attendanceSettings?.requireWifi,
+      wifiSSID: (tl as any).wifiSSID || (tl as any).attendanceSettings?.wifiSSID || '',
+      requireSelfie: !!(tl as any).requireSelfie || !!(tl as any).attendanceSettings?.requireSelfie,
     });
     setContingency(!!(tl as any).contingencyAccess);
-    setShowEmp(true); setShowBank(false); setShowContact(false); setShowComp(false); setShowAssign(false);
+    setPermissions((tl as any).permissions || TL_ALL_PERMISSIONS);
+    setShowEmp(true); setShowBank(false); setShowContact(false); setShowComp(false); setShowAssign(false); setShowAtt(false); setShowPerms(false);
     setModal(true);
   };
 
@@ -263,8 +306,29 @@ export const TeamLeadersScreen: React.FC = () => {
     return getDownloadURL(sRef);
   };
 
+  const getCurrentLocation = async () => {
+    try {
+      setLocating(true);
+      const perm = await Location.requestForegroundPermissionsAsync();
+      if (perm.status !== 'granted') {
+        Alert.alert('Permission denied', 'Location permission is needed to fill the office coordinates.');
+        return;
+      }
+      const pos = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.High });
+      setForm((f) => ({ ...f, latitude: String(pos.coords.latitude.toFixed(6)), longitude: String(pos.coords.longitude.toFixed(6)) }));
+    } catch {
+      Alert.alert('Error', 'Could not detect your location');
+    } finally {
+      setLocating(false);
+    }
+  };
+
+  const togglePerm = (key: string) =>
+    setPermissions(prev => (prev.includes(key) ? prev.filter(p => p !== key) : [...prev, key]));
+
   const handleSave = async () => {
     if (!form.name.trim() || !form.email.trim()) { Alert.alert('Validation', 'Name and email are required'); return; }
+    if (!form.companyId) { Alert.alert('Validation', 'Select a company for the Team Leader — attendance, leave and salary need one'); return; }
     setSaving(true);
     try {
       const docFields: [keyof TLForm, keyof TLForm, string][] = [
@@ -295,6 +359,18 @@ export const TeamLeadersScreen: React.FC = () => {
         monthlyGrossSalary: Number(form.monthlyGrossSalary) || 0,
         salaryEffectiveDate: form.salaryEffectiveDate,
         contingencyAccess: contingency,
+        attendanceSettings: {
+          officeAddress: form.officeAddress || '',
+          latitude: Number(form.latitude) || 0,
+          longitude: Number(form.longitude) || 0,
+          radiusInMeters: Number(form.radiusInMeters) || 100,
+          allowMobileData: form.allowMobileData,
+          requireWifi: form.requireWifi,
+          wifiSSID: form.requireWifi ? form.wifiSSID : '',
+          requireSelfie: form.requireSelfie,
+        },
+        permissions,
+        permissionsConfigured: true,
       };
 
       if (editing) {
@@ -626,6 +702,18 @@ export const TeamLeadersScreen: React.FC = () => {
               {sectionToggle('Reporting Hierarchy', showAssign, setShowAssign)}
               {showAssign && (
                 <>
+                  <Text style={s.fieldLabel}>Company *</Text>
+                  <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginBottom: 12 }}>
+                    <TouchableOpacity style={[s.chip, !form.companyId && s.chipActive]} onPress={() => setForm({...form, companyId: '', departmentId: '', departmentName: ''})}>
+                      <Text style={[s.chipText, !form.companyId && { color: '#fff' }]}>None</Text>
+                    </TouchableOpacity>
+                    {companies.map(c => (
+                      <TouchableOpacity key={c.id} style={[s.chip, form.companyId === c.id && s.chipActive]} onPress={() => setForm({...form, companyId: c.id, departmentId: '', departmentName: ''})}>
+                        <Text style={[s.chipText, form.companyId === c.id && { color: '#fff' }]}>{c.name}</Text>
+                      </TouchableOpacity>
+                    ))}
+                  </ScrollView>
+
                   <Text style={s.fieldLabel}>Assign to Executive(s)</Text>
                   <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginBottom: 12 }}>
                     {execOptions.length === 0 ? (
@@ -639,10 +727,72 @@ export const TeamLeadersScreen: React.FC = () => {
                       );
                     })}
                   </ScrollView>
+                  {editing ? (
+                    <View style={s.switchRow}>
+                      <Text style={s.switchLabel}>Contingency Access (works across companies)</Text>
+                      <Switch value={contingency} onValueChange={setContingency} />
+                    </View>
+                  ) : null}
+                </>
+              )}
+
+              {sectionToggle('Attendance Configuration', showAtt, setShowAtt)}
+              {showAtt && (
+                <>
+                  <TextInput style={s.input} placeholder="Office Full Address (street, area, city)" placeholderTextColor={colors.textTertiary} value={form.officeAddress} onChangeText={(t) => setForm({...form, officeAddress: t})} />
+                  <TextInput style={s.input} placeholder="Latitude (e.g. 27.0)" placeholderTextColor={colors.textTertiary} value={form.latitude} onChangeText={(t) => setForm({...form, latitude: t})} keyboardType="decimal-pad" />
+                  <TextInput style={s.input} placeholder="Longitude (e.g. 85.0)" placeholderTextColor={colors.textTertiary} value={form.longitude} onChangeText={(t) => setForm({...form, longitude: t})} keyboardType="decimal-pad" />
+                  <TouchableOpacity style={[s.editBtn, { alignSelf: 'flex-start' }]} onPress={getCurrentLocation} disabled={locating}>
+                    {locating ? <ActivityIndicator size={14} color="#3b82f6" /> : <Icon name="navigate-outline" size={14} color="#3b82f6" />}
+                    <Text style={s.editBtnText}>{locating ? 'Detecting...' : 'Get Current Location'}</Text>
+                  </TouchableOpacity>
+                  <TextInput style={s.input} placeholder="Attendance Radius (50–500 meters)" placeholderTextColor={colors.textTertiary} value={form.radiusInMeters} onChangeText={(t) => setForm({...form, radiusInMeters: t})} keyboardType="number-pad" />
                   <View style={s.switchRow}>
-                    <Text style={s.switchLabel}>Contingency Access (works across companies)</Text>
-                    <Switch value={contingency} onValueChange={setContingency} />
+                    <Text style={s.switchLabel}>Allow Mobile Data</Text>
+                    <Switch value={form.allowMobileData} onValueChange={(v) => setForm({...form, allowMobileData: v})} />
                   </View>
+                  <View style={s.switchRow}>
+                    <Text style={s.switchLabel}>Require Office Wi-Fi</Text>
+                    <Switch value={form.requireWifi} onValueChange={(v) => setForm({...form, requireWifi: v})} />
+                  </View>
+                  {form.requireWifi && (
+                    <TextInput style={s.input} placeholder="Office Wi-Fi SSID (e.g. Office_WiFi_5G)" placeholderTextColor={colors.textTertiary} value={form.wifiSSID} onChangeText={(t) => setForm({...form, wifiSSID: t})} />
+                  )}
+                  <View style={s.switchRow}>
+                    <Text style={s.switchLabel}>Require Selfie</Text>
+                    <Switch value={form.requireSelfie} onValueChange={(v) => setForm({...form, requireSelfie: v})} />
+                  </View>
+                </>
+              )}
+
+              {sectionToggle('Access Permissions', showPerms, setShowPerms)}
+              {showPerms && (
+                <>
+                  <Text style={s.fieldLabel}>{permissions.length} of {TL_ALL_PERMISSIONS.length} permissions selected</Text>
+                  <View style={{ flexDirection: 'row', gap: 8, marginBottom: 12 }}>
+                    <TouchableOpacity style={s.chip} onPress={() => setPermissions([...TL_ALL_PERMISSIONS])}>
+                      <Text style={s.chipText}>Select All</Text>
+                    </TouchableOpacity>
+                    <TouchableOpacity style={s.chip} onPress={() => setPermissions([])}>
+                      <Text style={s.chipText}>Clear All</Text>
+                    </TouchableOpacity>
+                  </View>
+                  {TL_PERMISSION_MODULES.map(g => (
+                    <View key={g.module} style={{ marginBottom: 8 }}>
+                      <Text style={s.fieldLabel}>{g.module}</Text>
+                      <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 6 }}>
+                        {g.actions.map(a => {
+                          const key = getPermissionKey(g.module, a);
+                          const on = permissions.includes(key);
+                          return (
+                            <TouchableOpacity key={a} style={[s.chip, on && s.chipActive]} onPress={() => togglePerm(key)}>
+                              <Text style={[s.chipText, on && { color: '#fff' }]}>{a}</Text>
+                            </TouchableOpacity>
+                          );
+                        })}
+                      </View>
+                    </View>
+                  ))}
                 </>
               )}
 
@@ -650,7 +800,17 @@ export const TeamLeadersScreen: React.FC = () => {
               {showEmp && (
                 <>
                   <TextInput style={s.input} placeholder="Designation" placeholderTextColor={colors.textTertiary} value={form.designation} onChangeText={(t) => setForm({...form, designation: t})} />
-                  <TextInput style={s.input} placeholder="Department" placeholderTextColor={colors.textTertiary} value={form.departmentName} onChangeText={(t) => setForm({...form, departmentName: t})} />
+                  <Text style={s.fieldLabel}>Department</Text>
+                  <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginBottom: 12 }}>
+                    <TouchableOpacity style={[s.chip, !form.departmentId && s.chipActive]} onPress={() => setForm({...form, departmentId: '', departmentName: ''})}>
+                      <Text style={[s.chipText, !form.departmentId && { color: '#fff' }]}>None</Text>
+                    </TouchableOpacity>
+                    {departments.filter(d => !form.companyId || !d.companyId || d.companyId === form.companyId).map(d => (
+                      <TouchableOpacity key={d.id} style={[s.chip, form.departmentId === d.id && s.chipActive]} onPress={() => setForm({...form, departmentId: d.id, departmentName: d.name})}>
+                        <Text style={[s.chipText, form.departmentId === d.id && { color: '#fff' }]}>{d.name}</Text>
+                      </TouchableOpacity>
+                    ))}
+                  </ScrollView>
                   <TextInput style={s.input} placeholder="Join Date (YYYY-MM-DD)" placeholderTextColor={colors.textTertiary} value={form.joinDate} onChangeText={(t) => setForm({...form, joinDate: t})} />
                   <Text style={s.fieldLabel}>Employment Type</Text>
                   <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginBottom: 12 }}>

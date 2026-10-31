@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { View, Text, ScrollView, StyleSheet, TextInput, TouchableOpacity, Modal, Alert, ActivityIndicator, useWindowDimensions } from 'react-native';
+import { View, Text, ScrollView, StyleSheet, TextInput, TouchableOpacity, Modal, Alert, ActivityIndicator, useWindowDimensions, Switch } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import { collection, doc, updateDoc, setDoc, getDocs, getDoc, query, where, onSnapshot } from '../../aws/firestore-compat';
 import { createUserWithEmailAndPassword, updateProfile, sendPasswordResetEmail } from '../../aws/auth-compat';
@@ -9,6 +9,7 @@ import { httpsCallable } from '../../aws/functions-compat';
 import { Paths, File } from 'expo-file-system';
 import * as Sharing from 'expo-sharing';
 import * as DocumentPicker from 'expo-document-picker';
+import * as Location from 'expo-location';
 import { useAuth } from '../../context/AuthContext';
 import { useCompany } from '../../context/CompanyContext';
 import { useTheme, ThemeColors } from '../../context/ThemeContext';
@@ -40,6 +41,8 @@ interface ExecForm {
   pfAccountNumber: string; uanNumber: string; offerLetterDoc: string; offerLetterDocName: string;
   address: string; emergencyContactName: string; emergencyContactPhone: string;
   monthlyGrossSalary: string; salaryEffectiveDate: string;
+  officeAddress: string; latitude: string; longitude: string; radiusInMeters: string;
+  allowMobileData: boolean; requireWifi: boolean; wifiSSID: string; requireSelfie: boolean;
 }
 
 const emptyForm: ExecForm = {
@@ -54,6 +57,8 @@ const emptyForm: ExecForm = {
   pfAccountNumber: '', uanNumber: '', offerLetterDoc: '', offerLetterDocName: '',
   address: '', emergencyContactName: '', emergencyContactPhone: '',
   monthlyGrossSalary: '0', salaryEffectiveDate: '',
+  officeAddress: '', latitude: '', longitude: '', radiusInMeters: '100',
+  allowMobileData: true, requireWifi: false, wifiSSID: '', requireSelfie: false,
 };
 
 const PERMISSION_MODULES = [
@@ -160,6 +165,8 @@ export const ExecutivesScreen: React.FC = () => {
   const [showComp, setShowComp] = useState(false);
   const [showPerms, setShowPerms] = useState(false);
   const [showAssign, setShowAssign] = useState(false);
+  const [showAtt, setShowAtt] = useState(false);
+  const [locating, setLocating] = useState(false);
   const [resettingPw, setResettingPw] = useState(false);
   const [currentPage, setCurrentPage] = useState(1);
   const [pageSize, setPageSize] = useState(10);
@@ -241,7 +248,7 @@ export const ExecutivesScreen: React.FC = () => {
     setEditing(null);
     setForm(emptyForm);
     setPermissions(ALL_PERMISSIONS);
-    setShowEmp(true); setShowBank(false); setShowContact(false); setShowComp(false); setShowPerms(false); setShowAssign(false);
+    setShowEmp(true); setShowBank(false); setShowContact(false); setShowComp(false); setShowPerms(false); setShowAssign(false); setShowAtt(false);
     setModal(true);
   };
 
@@ -284,9 +291,17 @@ export const ExecutivesScreen: React.FC = () => {
       emergencyContactPhone: (exec as any).emergencyContactPhone || '',
       monthlyGrossSalary: String((exec as any).monthlyGrossSalary || 0),
       salaryEffectiveDate: (exec as any).salaryEffectiveDate || '',
+      officeAddress: (exec as any).officeAddress || (exec as any).attendanceSettings?.officeAddress || '',
+      latitude: String((exec as any).latitude ?? (exec as any).attendanceSettings?.latitude ?? ''),
+      longitude: String((exec as any).longitude ?? (exec as any).attendanceSettings?.longitude ?? ''),
+      radiusInMeters: String((exec as any).radiusInMeters ?? (exec as any).attendanceSettings?.radiusInMeters ?? 100),
+      allowMobileData: (exec as any).allowMobileData !== false && (exec as any).attendanceSettings?.allowMobileData !== false,
+      requireWifi: !!(exec as any).requireWifi || !!(exec as any).attendanceSettings?.requireWifi,
+      wifiSSID: (exec as any).wifiSSID || (exec as any).attendanceSettings?.wifiSSID || '',
+      requireSelfie: !!(exec as any).requireSelfie || !!(exec as any).attendanceSettings?.requireSelfie,
     });
     setPermissions((exec as any).permissions || ALL_PERMISSIONS);
-    setShowEmp(true); setShowBank(false); setShowContact(false); setShowComp(false); setShowPerms(false); setShowAssign(false);
+    setShowEmp(true); setShowBank(false); setShowContact(false); setShowComp(false); setShowPerms(false); setShowAssign(false); setShowAtt(false);
     setModal(true);
   };
 
@@ -396,6 +411,23 @@ export const ExecutivesScreen: React.FC = () => {
     return getDownloadURL(sRef);
   };
 
+  const getCurrentLocation = async () => {
+    try {
+      setLocating(true);
+      const perm = await Location.requestForegroundPermissionsAsync();
+      if (perm.status !== 'granted') {
+        Alert.alert('Permission denied', 'Location permission is needed to fill the office coordinates.');
+        return;
+      }
+      const pos = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.High });
+      setForm((f) => ({ ...f, latitude: String(pos.coords.latitude.toFixed(6)), longitude: String(pos.coords.longitude.toFixed(6)) }));
+    } catch {
+      Alert.alert('Error', 'Could not detect your location');
+    } finally {
+      setLocating(false);
+    }
+  };
+
   const handleSave = async () => {
     if (!form.name.trim() || !form.email.trim()) { Alert.alert('Validation', 'Name and email are required'); return; }
     setSaving(true);
@@ -474,6 +506,16 @@ export const ExecutivesScreen: React.FC = () => {
           emergencyContactPhone: form.emergencyContactPhone,
           monthlyGrossSalary: Number(form.monthlyGrossSalary) || 0,
           salaryEffectiveDate: form.salaryEffectiveDate,
+          attendanceSettings: {
+            officeAddress: form.officeAddress || '',
+            latitude: Number(form.latitude) || 0,
+            longitude: Number(form.longitude) || 0,
+            radiusInMeters: Number(form.radiusInMeters) || 100,
+            allowMobileData: form.allowMobileData,
+            requireWifi: form.requireWifi,
+            wifiSSID: form.requireWifi ? form.wifiSSID : '',
+            requireSelfie: form.requireSelfie,
+          },
           ...(authUser?.role === 'master-admin' ? { permissions, permissionsConfigured: true } : {}),
         };
         await updateDoc(doc(db, 'users', editing), payload);
@@ -491,6 +533,16 @@ export const ExecutivesScreen: React.FC = () => {
         notifyExecutiveChanged('updated', form.name, form.companyId, masterAdmins.map(m => m.id), editing || undefined);
         setModal(false);
       } else {
+        if (!form.companyId) {
+          Alert.alert('Validation', 'Company is required');
+          setSaving(false);
+          return;
+        }
+        if (!form.assignedCompanyIds || form.assignedCompanyIds.length === 0) {
+          Alert.alert('Validation', 'Assign at least one company — an executive with no company will not be visible in the list');
+          setSaving(false);
+          return;
+        }
         if (!form.username.trim() || form.username.trim().length < 3) {
           Alert.alert('Validation', 'System username must be at least 3 characters');
           setSaving(false);
@@ -533,6 +585,17 @@ export const ExecutivesScreen: React.FC = () => {
           emergencyContactPhone: form.emergencyContactPhone || '',
           monthlyGrossSalary: Number(form.monthlyGrossSalary) || 0,
           salaryEffectiveDate: form.salaryEffectiveDate || '',
+          attendanceSettings: {
+            officeAddress: form.officeAddress || '',
+            latitude: Number(form.latitude) || 0,
+            longitude: Number(form.longitude) || 0,
+            radiusInMeters: Number(form.radiusInMeters) || 100,
+            allowMobileData: form.allowMobileData,
+            requireWifi: form.requireWifi,
+            wifiSSID: form.requireWifi ? form.wifiSSID : '',
+            requireSelfie: form.requireSelfie,
+          },
+          ...(authUser?.role === 'master-admin' ? { permissions, permissionsConfigured: true } : {}),
         } as any);
         const uid = (fnResult as any).uid as string;
 
@@ -933,6 +996,37 @@ export const ExecutivesScreen: React.FC = () => {
                       );
                     })}
                   </ScrollView>
+                </>
+              )}
+
+              {sectionToggle('Attendance Configuration', showAtt, setShowAtt)}
+              {showAtt && (
+                <>
+                  <TextInput style={s.input} placeholder="Office Full Address (street, area, city)" placeholderTextColor={colors.textTertiary} value={form.officeAddress} onChangeText={(t) => setForm({...form, officeAddress: t})} />
+                  <View style={{ flexDirection: 'row', gap: 8 }}>
+                    <TextInput style={[s.input, { flex: 1, marginRight: 6 }]} placeholder="Latitude (e.g. 27.0)" placeholderTextColor={colors.textTertiary} value={form.latitude} onChangeText={(t) => setForm({...form, latitude: t})} keyboardType="decimal-pad" />
+                    <TextInput style={[s.input, { flex: 1, marginLeft: 6 }]} placeholder="Longitude (e.g. 85.0)" placeholderTextColor={colors.textTertiary} value={form.longitude} onChangeText={(t) => setForm({...form, longitude: t})} keyboardType="decimal-pad" />
+                  </View>
+                  <TouchableOpacity style={[s.editBtn, { alignSelf: 'flex-start' }]} onPress={getCurrentLocation} disabled={locating}>
+                    {locating ? <ActivityIndicator size={14} color="#3b82f6" /> : <Icon name="navigate-outline" size={14} color="#3b82f6" />}
+                    <Text style={s.editBtnText}>{locating ? 'Detecting...' : 'Get Current Location'}</Text>
+                  </TouchableOpacity>
+                  <TextInput style={s.input} placeholder="Attendance Radius (50–500 meters)" placeholderTextColor={colors.textTertiary} value={form.radiusInMeters} onChangeText={(t) => setForm({...form, radiusInMeters: t})} keyboardType="number-pad" />
+                  <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
+                    <Text style={s.fieldLabel}>Allow Mobile Data</Text>
+                    <Switch value={form.allowMobileData} onValueChange={(v) => setForm({...form, allowMobileData: v})} />
+                  </View>
+                  <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
+                    <Text style={s.fieldLabel}>Require Office Wi-Fi</Text>
+                    <Switch value={form.requireWifi} onValueChange={(v) => setForm({...form, requireWifi: v})} />
+                  </View>
+                  {form.requireWifi && (
+                    <TextInput style={s.input} placeholder="Office Wi-Fi SSID (e.g. Office_WiFi_5G)" placeholderTextColor={colors.textTertiary} value={form.wifiSSID} onChangeText={(t) => setForm({...form, wifiSSID: t})} />
+                  )}
+                  <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
+                    <Text style={s.fieldLabel}>Require Selfie</Text>
+                    <Switch value={form.requireSelfie} onValueChange={(v) => setForm({...form, requireSelfie: v})} />
+                  </View>
                 </>
               )}
 

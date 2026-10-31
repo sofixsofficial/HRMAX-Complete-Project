@@ -4,7 +4,8 @@ import { useNavigation } from '@react-navigation/native';
 import { collection, doc, query, where, onSnapshot, getDocs } from '../../aws/firestore-compat';
 import * as DocumentPicker from 'expo-document-picker';
 import * as Location from 'expo-location';
-import { db } from '../../aws/clients';
+import { db, functions } from '../../aws/clients';
+import { httpsCallable } from '../../aws/functions-compat';
 import { Paths, File, Directory } from 'expo-file-system';
 import * as Sharing from 'expo-sharing';
 import { useAuth } from '../../context/AuthContext';
@@ -12,6 +13,8 @@ import { useCompany } from '../../context/CompanyContext';
 import { useTheme, ThemeColors } from '../../context/ThemeContext';
 import { subscribeToCompanies, createCompany, updateCompany, deleteCompany, onboardCompany, uploadCompanyDocument, type Company } from '../../services/companyService';
 import { scopedCompanyIdsForRole } from '../../utils/companyScope';
+import { validatePasswordPolicy } from '../../utils/passwordPolicy';
+import { REQUESTER_ROLES, TIER_ORDER, DEFAULT_APPROVAL_CHAINS, type ApprovalChainConfig } from '../../utils/approvalChains';
 import { subscribeEmployees, type Employee } from '../../services/employeeService';
 import { Icon } from '../../utils/icons';
 import { ScreenHeader } from '../../components/ScreenHeader';
@@ -65,6 +68,13 @@ interface CompanyFormData {
   requireWifi: boolean;
   wifiSSID: string;
   requireSelfie: boolean;
+  requireGps: boolean;
+  requireQr: boolean;
+  defaultShiftStart: string;
+  defaultShiftEnd: string;
+  gracePeriodMinutes: string;
+  adminUsername: string;
+  adminPassword: string;
 }
 
 const emptyForm: CompanyFormData = {
@@ -78,6 +88,30 @@ const emptyForm: CompanyFormData = {
   panDoc: '', panDocName: '', gstDoc: '', gstDocName: '', agreementDoc: '', agreementDocName: '',
   officeAddress: '', latitude: '0', longitude: '0', radiusInMeters: '100',
   allowMobileData: true, requireWifi: false, wifiSSID: '', requireSelfie: false,
+  requireGps: true, requireQr: false, defaultShiftStart: '09:00', defaultShiftEnd: '18:00', gracePeriodMinutes: '15',
+  adminUsername: '', adminPassword: '',
+};
+
+const CHAIN_ROLE_LABELS: Record<string, string> = {
+  employee: 'Employee',
+  'reporting-manager': 'Reporting Manager',
+  hr: 'HR',
+  executive: 'Executive',
+  'team-leader': 'Team Leader',
+};
+const TIER_LABELS: Record<string, string> = {
+  reportingManager: 'Reporting Manager',
+  hr: 'HR',
+  companyAdmin: 'Company Admin',
+  executive: 'Executive',
+  teamLeader: 'Team Leader',
+};
+const CHAIN_ROLE_HELP: Record<string, string> = {
+  employee: "Chain an employee's leave follows",
+  'reporting-manager': "A reporting manager's own leave",
+  hr: "An HR member's own leave",
+  executive: "An executive's own leave — always ends at the Master Admin final approval",
+  'team-leader': "A team leader's own leave — always ends at the Master Admin final approval",
 };
 
 const INDIAN_STATES = [
@@ -133,6 +167,9 @@ export const CompaniesScreen: React.FC = () => {
   const [showLocation, setShowLocation] = useState(false);
   const [showDocs, setShowDocs] = useState(false);
   const [showPolicies, setShowPolicies] = useState(false);
+  // Web parity: {} = "all roles at their shipped default"; the editor only
+  // stores a role's chain once the admin actually changes it (Use default deletes it).
+  const [chains, setChains] = useState<ApprovalChainConfig>({});
   const [filterModal, setFilterModal] = useState(false);
   const [currentPage, setCurrentPage] = useState(1);
   const [pageSize, setPageSize] = useState(10);
@@ -231,6 +268,7 @@ export const CompaniesScreen: React.FC = () => {
     }
     setEditing(null);
     setForm(emptyForm);
+    setChains({});
     setShowAttendance(false);
     setShowLocation(false);
     setShowDocs(false);
@@ -284,7 +322,19 @@ export const CompaniesScreen: React.FC = () => {
       requireWifi: !!(company as any).requireWifi || !!(company as any).attendanceSettings?.requireWifi,
       wifiSSID: (company as any).wifiSSID || (company as any).attendanceSettings?.wifiSSID || '',
       requireSelfie: !!(company as any).requireSelfie || !!(company as any).attendanceSettings?.requireSelfie,
+      requireGps: (company as any).requireGps !== false && (company as any).attendanceSettings?.requireGps !== false,
+      requireQr: !!(company as any).requireQr || !!(company as any).attendanceSettings?.requireQr,
+      defaultShiftStart: (company as any).defaultShiftStart || (company as any).attendanceSettings?.defaultShiftStart || '09:00',
+      defaultShiftEnd: (company as any).defaultShiftEnd || (company as any).attendanceSettings?.defaultShiftEnd || '18:00',
+      gracePeriodMinutes: String((company as any).gracePeriodMinutes ?? (company as any).attendanceSettings?.gracePeriodMinutes ?? 15),
+      adminUsername: '',
+      adminPassword: '',
     });
+    setChains(
+      (company as any).approvalChains && typeof (company as any).approvalChains === 'object'
+        ? { ...(company as any).approvalChains }
+        : {}
+    );
     setShowAttendance(false);
     setShowLocation(false);
     setShowDocs(false);
@@ -322,6 +372,21 @@ export const CompaniesScreen: React.FC = () => {
       Alert.alert('Validation', 'Office full address is required in Attendance Configuration');
       return;
     }
+    if (!editing) {
+      if (!form.adminUsername.trim() || form.adminUsername.trim().length < 3) {
+        Alert.alert('Validation', 'System Username is required (min 3 characters)');
+        return;
+      }
+      if (!form.adminPassword) {
+        Alert.alert('Validation', 'Temporary Password is required (min 8 characters)');
+        return;
+      }
+      const pw = validatePasswordPolicy(form.adminPassword);
+      if (!pw.valid) {
+        Alert.alert('Password does not meet the requirements', pw.errors[0] || 'Password must be at least 8 characters with upper, lower, number and symbol.');
+        return;
+      }
+    }
     setSaving(true);
     try {
       const companyId = editing || doc(collection(db, 'companies')).id;
@@ -339,6 +404,21 @@ export const CompaniesScreen: React.FC = () => {
         agreementDoc = await uploadCompanyDocument(companyId, 'agreement', { uri: agreementDoc, name: form.agreementDocName || 'agreement' });
       }
 
+      const attendanceSettings = {
+        officeAddress: form.officeAddress,
+        latitude: Number(form.latitude) || 0,
+        longitude: Number(form.longitude) || 0,
+        radiusInMeters: Number(form.radiusInMeters) || 100,
+        allowMobileData: form.allowMobileData,
+        requireWifi: form.requireWifi,
+        wifiSSID: form.requireWifi ? form.wifiSSID : '',
+        requireSelfie: form.requireSelfie,
+        requireGps: form.requireGps,
+        requireQr: form.requireQr,
+        defaultShiftStart: form.defaultShiftStart || '09:00',
+        defaultShiftEnd: form.defaultShiftEnd || '18:00',
+        gracePeriodMinutes: Number(form.gracePeriodMinutes) || 0,
+      };
       const payload: any = {
         name: form.name,
         code: form.code,
@@ -376,38 +456,38 @@ export const CompaniesScreen: React.FC = () => {
         requireWifi: form.requireWifi,
         wifiSSID: form.requireWifi ? form.wifiSSID : '',
         requireSelfie: form.requireSelfie,
+        approvalChains: chains,
       };
 
       if (editing) {
         const { code, ...updatePayload } = payload;
         await updateCompany(editing, {
           ...updatePayload,
-          attendanceSettings: {
-            officeAddress: form.officeAddress,
-            latitude: Number(form.latitude) || 0,
-            longitude: Number(form.longitude) || 0,
-            radiusInMeters: Number(form.radiusInMeters) || 100,
-            allowMobileData: form.allowMobileData,
-            requireWifi: form.requireWifi,
-            wifiSSID: form.requireWifi ? form.wifiSSID : '',
-            requireSelfie: form.requireSelfie,
-          },
+          attendanceSettings,
         });
       } else {
-        await onboardCompany({
+        const created = await onboardCompany({
           companyId,
           ...payload,
-          attendanceSettings: {
-            officeAddress: form.officeAddress,
-            latitude: Number(form.latitude) || 0,
-            longitude: Number(form.longitude) || 0,
-            radiusInMeters: Number(form.radiusInMeters) || 100,
-            allowMobileData: form.allowMobileData,
-            requireWifi: form.requireWifi,
-            wifiSSID: form.requireWifi ? form.wifiSSID : '',
-            requireSelfie: form.requireSelfie,
-          },
+          attendanceSettings,
         });
+        // Web parity: create the company-admin login for the new company and
+        // link it back on the company doc (web handleAddCompany flow).
+        const newCompanyId = (created && created.id) || companyId;
+        const createStaffUser = httpsCallable(functions, 'createStaffUser');
+        const { data: staffResult } = await createStaffUser({
+          name: form.adminName,
+          email: form.adminEmail,
+          username: form.adminUsername.trim(),
+          password: form.adminPassword,
+          tempPassword: form.adminPassword,
+          role: 'company-admin',
+          companyId: newCompanyId,
+        } as any);
+        const adminUid = (staffResult as any)?.uid;
+        if (adminUid) {
+          await updateCompany(newCompanyId, { adminId: adminUid } as any);
+        }
       }
       setModal(false);
     } catch (err: any) {
@@ -744,6 +824,22 @@ export const CompaniesScreen: React.FC = () => {
               <TextInput style={s.input} placeholder="Admin Email *" placeholderTextColor={colors.textTertiary} value={form.adminEmail} onChangeText={(t) => setForm({...form, adminEmail: t})} keyboardType="email-address" autoCapitalize="none" />
               <TextInput style={s.input} placeholder="Admin Phone" placeholderTextColor={colors.textTertiary} value={form.adminPhone} onChangeText={(t) => setForm({...form, adminPhone: t})} keyboardType="phone-pad" />
 
+              <Text style={s.sectionTitle}>Account Credentials</Text>
+              <Text style={s.fieldLabel}>System Username {editing ? '' : '*'}</Text>
+              <TextInput style={s.input} placeholder="admin_username" placeholderTextColor={colors.textTertiary} value={form.adminUsername} onChangeText={(t) => setForm({...form, adminUsername: t})} autoCapitalize="none" autoCorrect={false} />
+              <Text style={s.fieldLabel}>Temporary Password {editing ? '' : '*'}</Text>
+              <TextInput
+                style={s.input}
+                placeholder={editing ? 'Leave blank to keep current password' : 'Min 8 chars (upper+lower+number+symbol)'}
+                placeholderTextColor={colors.textTertiary}
+                value={form.adminPassword}
+                onChangeText={(t) => setForm({...form, adminPassword: t})}
+                secureTextEntry={!editing}
+              />
+              {editing ? (
+                <Text style={s.fieldLabel}>Passwords cannot be read back — type a new one only to reset the admin's login.</Text>
+              ) : null}
+
               <TouchableOpacity style={s.sectionToggle} onPress={() => setShowDocs(!showDocs)}>
                 <Text style={s.sectionToggleText}>Company Details & Documentation</Text>
                 <Icon name={showDocs ? 'chevron-up-outline' : 'chevron-down-outline'} size={18} color={colors.textSecondary} />
@@ -803,6 +899,17 @@ export const CompaniesScreen: React.FC = () => {
                     <Text style={s.locationBtnText}>{locating ? 'Detecting...' : 'Get Current Location'}</Text>
                   </TouchableOpacity>
                   <TextInput style={s.input} placeholder="Attendance Radius (meters)" placeholderTextColor={colors.textTertiary} value={form.radiusInMeters} onChangeText={(t) => setForm({...form, radiusInMeters: t})} keyboardType="number-pad" />
+                  <TextInput style={s.input} placeholder="Default Shift Start (HH:MM)" placeholderTextColor={colors.textTertiary} value={form.defaultShiftStart} onChangeText={(t) => setForm({...form, defaultShiftStart: t})} />
+                  <TextInput style={s.input} placeholder="Default Shift End (HH:MM)" placeholderTextColor={colors.textTertiary} value={form.defaultShiftEnd} onChangeText={(t) => setForm({...form, defaultShiftEnd: t})} />
+                  <TextInput style={s.input} placeholder="Grace Period (minutes, 0–60)" placeholderTextColor={colors.textTertiary} value={form.gracePeriodMinutes} onChangeText={(t) => setForm({...form, gracePeriodMinutes: t})} keyboardType="number-pad" />
+                  <View style={s.switchRow}>
+                    <Text style={s.switchLabel}>GPS Attendance</Text>
+                    <Switch value={form.requireGps} onValueChange={(v) => setForm({...form, requireGps: v})} />
+                  </View>
+                  <View style={s.switchRow}>
+                    <Text style={s.switchLabel}>QR Attendance</Text>
+                    <Switch value={form.requireQr} onValueChange={(v) => setForm({...form, requireQr: v})} />
+                  </View>
                   <View style={s.switchRow}>
                     <Text style={s.switchLabel}>Allow Mobile Data</Text>
                     <Switch value={form.allowMobileData} onValueChange={(v) => setForm({...form, allowMobileData: v})} />
@@ -818,6 +925,69 @@ export const CompaniesScreen: React.FC = () => {
                     <Text style={s.switchLabel}>Require Selfie</Text>
                     <Switch value={form.requireSelfie} onValueChange={(v) => setForm({...form, requireSelfie: v})} />
                   </View>
+
+                  {/* Web parity: ApprovalChainsEditor lives INSIDE Attendance
+                      Configuration (Leave & Missed Punch), not in the footer. */}
+                  <Text style={[s.fieldLabel, { fontWeight: '700', marginTop: 8 }]}>Approval Chains (Leave &amp; Missed Punch)</Text>
+                  <Text style={s.chainIntro}>
+                    Choose which approvers must sign off on leave for each role. Stages always run in order
+                    (Reporting Manager → HR → Company Admin → Executive → Team Leader); you are choosing which
+                    of them are required. Leave a role at its default by resetting it.
+                  </Text>
+                  {REQUESTER_ROLES.map((roleKey) => {
+                    const configured = chains[roleKey];
+                    const tiers = configured && configured.length > 0 ? configured : DEFAULT_APPROVAL_CHAINS[roleKey];
+                    const isDefault = !configured || configured.length === 0;
+                    const maGated = roleKey === 'executive' || roleKey === 'team-leader';
+                    return (
+                      <View key={roleKey} style={s.chainRoleCard}>
+                        <View style={s.chainRoleHead}>
+                          <View style={{ flex: 1, marginRight: 8 }}>
+                            <Text style={s.chainRoleTitle}>{CHAIN_ROLE_LABELS[roleKey] || roleKey}</Text>
+                            <Text style={s.chainRoleHelp}>{CHAIN_ROLE_HELP[roleKey]}</Text>
+                          </View>
+                          {!isDefault ? (
+                            <TouchableOpacity
+                              onPress={() => setChains((prev) => {
+                                const next = { ...prev };
+                                delete next[roleKey as keyof ApprovalChainConfig];
+                                return next;
+                              })}
+                            >
+                              <Text style={s.chainReset}>Use default</Text>
+                            </TouchableOpacity>
+                          ) : null}
+                        </View>
+                        <View style={s.chainTiers}>
+                          {TIER_ORDER.map((tier) => {
+                            const active = tiers.includes(tier);
+                            return (
+                              <TouchableOpacity
+                                key={tier}
+                                style={[s.chipSmall, active && s.chipSmallActive]}
+                                onPress={() => setChains((prev) => {
+                                  const current = [...tiers];
+                                  const next = active ? current.filter((t) => t !== tier) : [...current, tier];
+                                  return { ...prev, [roleKey]: TIER_ORDER.filter((t) => next.includes(t)) };
+                                })}
+                              >
+                                <Text style={[s.chipSmallText, active && { color: '#fff' }]}>{TIER_LABELS[tier] || tier}</Text>
+                              </TouchableOpacity>
+                            );
+                          })}
+                          {maGated ? (
+                            <View style={[s.chipSmall, s.chipSmallActive, s.chainLocked]}>
+                              <Icon name="lock-closed" size={11} color="#fff" />
+                              <Text style={[s.chipSmallText, { color: '#fff', marginLeft: 4 }]}>Master Admin</Text>
+                            </View>
+                          ) : null}
+                        </View>
+                        <Text style={s.chainSummary}>
+                          Chain: {[...tiers.map((t) => TIER_LABELS[t] || t), ...(maGated ? ['Master Admin'] : [])].join(' → ') || 'No approvers'}
+                        </Text>
+                      </View>
+                    );
+                  })}
                 </>
               )}
 
@@ -1064,6 +1234,15 @@ const createStyles = (c: ThemeColors) => StyleSheet.create({
   chipSmall: { paddingHorizontal: 12, paddingVertical: 6, borderRadius: 6, borderWidth: 1, borderColor: c.borderLight, marginRight: 6, marginBottom: 4 },
   chipSmallActive: { backgroundColor: '#FF6600', borderColor: '#FF6600' },
   chipSmallText: { color: c.textSecondary, fontSize: 12 },
+  chainIntro: { fontSize: 12, color: c.textTertiary, lineHeight: 17, marginBottom: 10 },
+  chainRoleCard: { backgroundColor: c.background, borderWidth: 1, borderColor: c.borderLight, borderRadius: 12, padding: 12, marginBottom: 10 },
+  chainRoleHead: { flexDirection: 'row', alignItems: 'flex-start', justifyContent: 'space-between', marginBottom: 8 },
+  chainRoleTitle: { fontSize: 14, fontWeight: '700', color: c.text },
+  chainRoleHelp: { fontSize: 11.5, color: c.textTertiary, marginTop: 2 },
+  chainReset: { fontSize: 12, fontWeight: '700', color: '#FF6600' },
+  chainTiers: { flexDirection: 'row', flexWrap: 'wrap', gap: 6, marginBottom: 6 },
+  chainLocked: { flexDirection: 'row', alignItems: 'center', opacity: 0.85 },
+  chainSummary: { fontSize: 11.5, color: c.textSecondary },
   switchRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12, paddingVertical: 4 },
   switchLabel: { color: c.text, fontSize: 14 },
   filterSwitchRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16, paddingVertical: 4 },
