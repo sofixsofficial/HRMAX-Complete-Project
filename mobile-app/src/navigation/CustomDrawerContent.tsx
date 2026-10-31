@@ -59,11 +59,11 @@ export const getSectionsByRole = (userRole?: UserRole): DrawerSection[] => {
             // screen, so the drawer must too — otherwise the approver has no
             // way to reach the multi-tier chain from the app.
             { label: 'Leave Management', icon: 'umbrella-outline', ...home('LeaveManagement') },
-            { label: 'Payroll', icon: 'wallet-outline', ...home('SalarySlips') },
-            { label: 'Run Payroll', icon: 'calculator-outline', ...home('RunPayroll') },
+            { label: 'Payroll', icon: 'wallet-outline', ...home('RunPayroll') },
             { label: 'Payroll History', icon: 'time-outline', ...home('PayrollHistory') },
-            { label: 'Salary Structure', icon: 'document-text-outline', ...home('SalaryStructure') },
-            { label: 'Tasks', icon: 'checkmark-circle-outline', screen: 'Tasks' },
+            { label: 'Salary Slips', icon: 'document-text-outline', ...home('SalarySlips') },
+            { label: 'Salary Structure', icon: 'pricetags-outline', ...home('SalaryStructure') },
+            { label: 'Tasks', icon: 'checkmark-circle-outline', ...home('TaskManagement') },
           ],
         },
         {
@@ -138,12 +138,11 @@ export const getSectionsByRole = (userRole?: UserRole): DrawerSection[] => {
             { label: 'Attendance', icon: 'clipboard-outline', screen: 'Attendance' },
             { label: 'Shift Schedule', icon: 'time-outline', ...home('ShiftSchedule') },
             { label: 'Leave Management', icon: 'umbrella-outline', ...home('LeaveManagement') },
-            { label: 'Tasks', icon: 'checkmark-circle-outline', screen: 'Tasks' },
-            { label: 'Payroll', icon: 'wallet-outline', ...home('SalarySlips') },
-            { label: 'Run Payroll', icon: 'calculator-outline', ...home('RunPayroll') },
-            { label: 'Salary Slips', icon: 'document-text-outline', ...home('SalarySlips') },
+            { label: 'Tasks', icon: 'checkmark-circle-outline', ...home('TaskManagement') },
+            { label: 'Payroll', icon: 'wallet-outline', ...home('RunPayroll') },
             { label: 'Payroll History', icon: 'time-outline', ...home('PayrollHistory') },
-            { label: 'Salary Structure', icon: 'wallet-outline', ...home('SalaryStructure') },
+            { label: 'Salary Slips', icon: 'document-text-outline', ...home('SalarySlips') },
+            { label: 'Salary Structure', icon: 'pricetags-outline', ...home('SalaryStructure') },
             { label: 'Departments', icon: 'git-network-outline', ...home('Departments') },
             { label: 'Branches', icon: 'git-branch-outline', ...home('Branches') },
           ],
@@ -200,9 +199,10 @@ export const getSectionsByRole = (userRole?: UserRole): DrawerSection[] => {
           items: [
             { label: 'Attendance', icon: 'clipboard-outline', screen: 'Attendance' },
             { label: 'Leave Management', icon: 'umbrella-outline', ...home('LeaveManagement') },
-            { label: 'Tasks', icon: 'checkmark-circle-outline', screen: 'Tasks' },
-            { label: 'Payroll', icon: 'wallet-outline', ...home('SalarySlips') },
+            { label: 'Tasks', icon: 'checkmark-circle-outline', ...home('TaskManagement') },
+            { label: 'Payroll', icon: 'wallet-outline', ...home('RunPayroll') },
             { label: 'Payroll History', icon: 'time-outline', ...home('PayrollHistory') },
+            { label: 'Salary Slips', icon: 'document-text-outline', ...home('SalarySlips') },
           ],
         },
         {
@@ -270,16 +270,15 @@ export const getSectionsByRole = (userRole?: UserRole): DrawerSection[] => {
             { label: 'Birthdays', icon: 'gift-outline', ...home('Birthdays') },
             { label: 'Address Book', icon: 'book-outline', ...home('AddressBook') },
             { label: 'Emails', icon: 'mail-outline', ...home('EmailCenter') },
-            { label: 'Payroll', icon: 'wallet-outline', ...home('SalarySlips') },
-            { label: 'Run Payroll', icon: 'calculator-outline', ...home('RunPayroll') },
-            { label: 'Salary Slips', icon: 'document-text-outline', ...home('SalarySlips') },
+            { label: 'Payroll', icon: 'wallet-outline', ...home('RunPayroll') },
             { label: 'Payroll History', icon: 'time-outline', ...home('PayrollHistory') },
+            { label: 'Salary Slips', icon: 'document-text-outline', ...home('SalarySlips') },
           ],
         },
         {
           title: 'Work Management',
           items: [
-            { label: 'Tasks', icon: 'checkmark-circle-outline', screen: 'Tasks' },
+            { label: 'Tasks', icon: 'checkmark-circle-outline', ...home('TaskManagement') },
             { label: 'Calendar', icon: 'calendar-outline', ...home('CalendarCenter') },
           ],
         },
@@ -314,7 +313,8 @@ export const getSectionsByRole = (userRole?: UserRole): DrawerSection[] => {
           title: 'Self Service',
           items: [
             { label: 'My Leaves & Attendance', icon: 'briefcase-outline', screen: 'MyLeavesAttendance' },
-            { label: 'Salary Slips', icon: 'wallet-outline', ...home('SalarySlips') },
+            // Web label: "Payroll" → the /salary-slips page (self-only slips).
+            { label: 'Payroll', icon: 'wallet-outline', ...home('SalarySlips') },
             { label: 'Calendar', icon: 'calendar-outline', ...home('CalendarCenter') },
             { label: 'Tasks', icon: 'checkmark-circle-outline', screen: 'Tasks' },
           ],
@@ -380,7 +380,7 @@ export const getSectionsByRole = (userRole?: UserRole): DrawerSection[] => {
           items: [
             { label: 'My Leaves & Attendance', icon: 'briefcase-outline', screen: 'MyLeavesAttendance' },
             { label: 'Salary Slips', icon: 'wallet-outline', ...home('SalarySlips') },
-            { label: 'Tasks', icon: 'checkmark-circle-outline', screen: 'Tasks' },
+            { label: 'Tasks', icon: 'checkmark-circle-outline', ...home('TaskManagement') },
           ],
         },
         {

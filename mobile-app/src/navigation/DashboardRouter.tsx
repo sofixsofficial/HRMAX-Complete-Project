@@ -71,12 +71,14 @@ const EMPLOYEES_ROLES = ['master-admin', 'company-admin', 'executive', 'team-lea
 const DEPARTMENTS_ROLES = ['master-admin', 'company-admin', 'executive', 'team-leader', 'hr'] as UserRole[];
 const BRANCHES_ROLES = ['master-admin', 'company-admin', 'hr', 'executive', 'team-leader'] as UserRole[];
 const LEAVE_MGMT_ROLES = ['master-admin', 'company-admin', 'executive', 'reporting-manager', 'team-leader', 'hr'] as UserRole[];
-const TASKS_ROLES = ['master-admin', 'company-admin', 'executive', 'team-leader'] as UserRole[];
+const TASKS_ROLES = ['master-admin', 'company-admin', 'executive', 'team-leader', 'hr'] as UserRole[];
 const ATTENDANCE_OVR_ROLES = ['master-admin', 'company-admin', 'executive', 'team-leader', 'reporting-manager', 'hr-manager', 'hr'] as UserRole[];
 const ASSETS_ROLES = ['master-admin', 'executive', 'team-leader'] as UserRole[];
 const SETTINGS_ROLES = ['master-admin', 'executive'] as UserRole[];
 const RM_ROLES = ['reporting-manager'] as UserRole[];
-const PAYROLL_ROLES = ['master-admin', 'executive', 'team-leader'] as UserRole[];
+// Web /payroll routes exist for exactly these four (hr/employee/RM only get
+// the /salary-slips page).
+const PAYROLL_ROLES = ['master-admin', 'company-admin', 'executive', 'team-leader'] as UserRole[];
 // TL/Executive: full CRUD over Companies + Employees
 const COMPANIES_ROLES = ['master-admin', 'team-leader', 'executive'] as UserRole[];
 // Web parity: the Executives list is also a menu entry for executive

@@ -33,7 +33,7 @@ const fmt = (n: number) => `₹${(n || 0).toLocaleString('en-IN', { maximumFract
 
 export const RunPayrollScreen: React.FC = () => {
   const navigation = useNavigation();
-  const { user } = useAuth();
+  const { user, hasPermission } = useAuth();
   const { colors } = useTheme();
   const { effectiveCompanyId, availableCompanies, canAccessAllCompanies, setSelectedCompanyId } = useCompany();
   const companyId = effectiveCompanyId || user?.companyId || '';
@@ -206,10 +206,11 @@ export const RunPayrollScreen: React.FC = () => {
   const busy = previewing || generating;
 
   // ─── Permission gate ──────────────────────────────────────────────
-  const canGeneratePayroll =
-    user?.role === 'master-admin' ||
-    user?.role === 'company-admin' ||
-    user?.role === 'executive';
+  // Web parity (canPerform('create','payroll')): company-admin is strictly
+  // view-only (their hasPermission only passes *.view), while Team Leader /
+  // Executive pass via their permission matrix — the old hard-coded list both
+  // over-privileged CA and locked TL out of payroll generation.
+  const canGeneratePayroll = hasPermission('payroll.create');
 
   // ─── Run actions ────────────────────────────────────────────────────
   const handleStatusUpdate = async (id: string, status: PayrollRun['status']) => {
