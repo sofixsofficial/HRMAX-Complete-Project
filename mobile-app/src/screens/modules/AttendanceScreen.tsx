@@ -46,7 +46,7 @@ const getRoleRoutingNote = (role?: string): string | null => {
   }
   // Reporting Manager: routing note removed (matches web SelfAttendanceCard).
   if (role === 'hr') {
-    return 'Missed punch requests are routed through: Company Admin.';
+    return 'Missed punch requests are routed through: Company Admin → Executive → Team Leader.';
   }
   return null;
 };

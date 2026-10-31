@@ -516,20 +516,20 @@ export const getActionableMissedPunchTier = (
 
 /**
  * Returns the effective missed-punch verification tiers for a given applicant
- * role. Mirrors leave's getEffectiveTiers so every progress/counter/queue view
- * renders the role-correct chain length.
- * - Employee:             Reporting Manager -> HR -> Company Admin
- * - Reporting Manager:    HR -> Company Admin
- * - HR:                   Company Admin
+ * role. The missed-punch chain (as documented on Attendance.tsx and in the
+ * MyLeavesAttendance routing copy) is:
+ * - Employee:             Reporting Manager -> Company Admin -> Executive -> Team Leader
+ * - Reporting Manager:    Company Admin -> Executive -> Team Leader
+ * - HR:                   Company Admin -> Executive -> Team Leader
  * - Executive self-app:   Team Leader -> Master Admin
  * - Team Leader self-app: none (direct to Master Admin)
  */
 export const getEffectiveMissedPunchTiers = (applicantRole?: string): ApprovalTier[] => {
-  if (applicantRole === 'reporting-manager') return ['hr', 'companyAdmin'];
-  if (applicantRole === 'hr' || applicantRole === 'hr-manager') return ['companyAdmin'];
+  if (applicantRole === 'reporting-manager') return ['companyAdmin', 'executive', 'teamLeader'];
+  if (applicantRole === 'hr' || applicantRole === 'hr-manager') return ['companyAdmin', 'executive', 'teamLeader'];
   if (applicantRole === 'executive') return ['teamLeader'];
   if (applicantRole === 'team-leader') return [];
-  if (applicantRole === 'employee') return ['reportingManager', 'hr', 'companyAdmin'];
+  if (applicantRole === 'employee') return ['reportingManager', 'companyAdmin', 'executive', 'teamLeader'];
   return [...MISSED_PUNCH_TIER_ORDER];
 };
 

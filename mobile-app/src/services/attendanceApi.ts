@@ -294,10 +294,11 @@ const resolveApproverIds = async (companyId: string, userId: string): Promise<Re
   return ids;
 };
 
-// Strict sequential missed-punch verification chain (same as leave, matching
-// backend TIER_ORDER): Reporting Manager → HR → Company Admin → Executive →
-// Team Leader. Which tiers are LIVE depends on the applicant's role (see
-// getEffectiveMissedPunchTiers) — the rest are Approved/Skipped.
+// Full missed-punch tier ORDER (iteration/ordering only — including 'hr' for
+// legacy docs). Which tiers are LIVE per applicant role is defined by
+// getEffectiveMissedPunchTiers: Employee = Reporting Manager → Company Admin →
+// Executive → Team Leader; RM/HR = Company Admin → Executive → Team Leader;
+// Executive = Team Leader (+ Master Admin); Team Leader = Master Admin only.
 export const MISSED_PUNCH_TIER_ORDER: ApprovalTier[] = ['reportingManager', 'hr', 'companyAdmin', 'executive', 'teamLeader'];
 
 export const MISSED_PUNCH_TIER_LABELS: Record<ApprovalTier, string> = {
@@ -319,20 +320,20 @@ export const missedPunchTierLabel = (tier: string): string =>
   MISSED_PUNCH_TIER_LABELS[tier as ApprovalTier] || (tier === 'masterAdmin' ? MISSED_PUNCH_MASTER_ADMIN_LABEL : tier);
 
 /**
- * Effective missed-punch verification tiers for an applicant role (mirrors
- * leave's getEffectiveTiers):
- * - Employee:             Reporting Manager -> HR -> Company Admin
- * - Reporting Manager:    HR -> Company Admin
- * - HR:                   Company Admin
+ * Effective missed-punch verification tiers for an applicant role (mirrors the
+ * web attendanceService exactly — same chain, same database):
+ * - Employee:             Reporting Manager -> Company Admin -> Executive -> Team Leader
+ * - Reporting Manager:    Company Admin -> Executive -> Team Leader
+ * - HR:                   Company Admin -> Executive -> Team Leader
  * - Executive self-app:   Team Leader only (Exec → TL → Master Admin)
  * - Team Leader self-app: none (direct to Master Admin)
  */
 export const getEffectiveMissedPunchTiers = (applicantRole?: string): ApprovalTier[] => {
-  if (applicantRole === 'reporting-manager') return ['hr', 'companyAdmin'];
-  if (applicantRole === 'hr' || applicantRole === 'hr-manager') return ['companyAdmin'];
+  if (applicantRole === 'reporting-manager') return ['companyAdmin', 'executive', 'teamLeader'];
+  if (applicantRole === 'hr' || applicantRole === 'hr-manager') return ['companyAdmin', 'executive', 'teamLeader'];
   if (applicantRole === 'executive') return ['teamLeader'];
   if (applicantRole === 'team-leader') return [];
-  if (applicantRole === 'employee') return ['reportingManager', 'hr', 'companyAdmin'];
+  if (applicantRole === 'employee') return ['reportingManager', 'companyAdmin', 'executive', 'teamLeader'];
   // Unknown / legacy role — show the full chain rather than an empty one.
   return [...MISSED_PUNCH_TIER_ORDER];
 };
