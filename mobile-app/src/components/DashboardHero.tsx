@@ -740,7 +740,7 @@ export const DashboardHero: React.FC<DashboardHeroProps> = ({
   }, [statCount, reduceMotion, statAnims]);
 
   const tz = effectiveTimezone(companyTz);
-  const { period } = getHeroScene(now, tz);
+  const { period, greeting } = getHeroScene(now, tz);
 
   const time = formatInZone(now, tz, { hour: '2-digit', minute: '2-digit', hour12: true });
   const periodLabel = period.charAt(0).toUpperCase() + period.slice(1);
@@ -763,10 +763,11 @@ export const DashboardHero: React.FC<DashboardHeroProps> = ({
       <Animated.View style={[styles.container, { opacity: fadeAnim, transform: [{ translateY: slideAnim }] }]}>
         <View style={styles.topRow}>
           <View style={styles.identityCol}>
-            {/* Time-of-day greeting removed by request (matches web) — the hero
-                now shows only the name, role, date and live clock. */}
+            {/* Greeting + person name (restored by request); the date pill now
+                lives on the right, under the period label in the clock card. */}
             <View style={styles.identityRow}>
               <View style={styles.identityText}>
+                <Text style={styles.greeting}>{greeting}</Text>
                 <Text style={styles.name} numberOfLines={1}>{name}</Text>
               </View>
             </View>
@@ -777,12 +778,6 @@ export const DashboardHero: React.FC<DashboardHeroProps> = ({
                   <Text style={styles.rolePillText} numberOfLines={1}>{roleLabel}</Text>
                 </View>
               ) : null}
-              <View style={styles.datePill}>
-                <Icon name="calendar-outline" size={12} color="#cbd5e1" />
-                <Text style={styles.datePillText} numberOfLines={1}>
-                  {formatInZone(now, tz, { weekday: 'short', month: 'short', day: 'numeric' })}
-                </Text>
-              </View>
             </View>
 
             {subtitle ? (
@@ -799,6 +794,12 @@ export const DashboardHero: React.FC<DashboardHeroProps> = ({
             <View style={styles.periodPill}>
               <View style={styles.periodDot} />
               <Text style={styles.periodPillText}>{periodLabel}</Text>
+            </View>
+            <View style={[styles.datePill, { marginTop: 8 }]}>
+              <Icon name="calendar-outline" size={12} color="#cbd5e1" />
+              <Text style={styles.datePillText} numberOfLines={1}>
+                {formatInZone(now, tz, { weekday: 'short', month: 'short', day: 'numeric' })}
+              </Text>
             </View>
           </View>
         </View>

@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { View, Text, ScrollView, StyleSheet, RefreshControl, TouchableOpacity, Alert } from 'react-native';
+import { View, Text, ScrollView, StyleSheet, RefreshControl, TouchableOpacity, Alert, Platform } from 'react-native';
 import { collection, query, where, onSnapshot } from '../../aws/firestore-compat';
 import { db } from '../../aws/clients';
 import { useAuth } from '../../context/AuthContext';
@@ -155,6 +155,27 @@ export const MasterAdminDashboard: React.FC<{ navigation: any }> = ({ navigation
   const s = useMemo(() => createStyles(colors), [colors]);
 
   const onRefresh = () => { setRefreshing(true); setRefreshKey((k) => k + 1); };
+
+  // Quick Actions is a horizontal row. Touch devices swipe it natively, but a
+  // desktop mouse wheel only produces vertical deltas — bridge them to
+  // horizontal scrolling on web so the row actually scrolls in the browser.
+  const quickRowRef = React.useRef<ScrollView>(null);
+  useEffect(() => {
+    if (Platform.OS !== 'web') return;
+    const node: any = (quickRowRef.current as any)?.getScrollableNode?.();
+    if (!node || typeof node.addEventListener !== 'function') return;
+    const onWheel = (e: { deltaY: number; deltaX: number; preventDefault: () => void }) => {
+      if (Math.abs(e.deltaY) <= Math.abs(e.deltaX)) return; // native horizontal gesture
+      const max = node.scrollWidth - node.clientWidth;
+      if (max <= 0) return;
+      const next = node.scrollLeft + e.deltaY;
+      if (next < 0 || next > max) return; // at the ends, let the page scroll
+      e.preventDefault();
+      node.scrollLeft = next;
+    };
+    node.addEventListener('wheel', onWheel, { passive: false } as any);
+    return () => node.removeEventListener('wheel', onWheel as any);
+  }, []);
 
   useEffect(() => {
     if (!loading) setRefreshing(false);
@@ -314,7 +335,7 @@ export const MasterAdminDashboard: React.FC<{ navigation: any }> = ({ navigation
         <Icon name="flash-outline" size={16} color={colors.accent} />
         <Text style={s.sectionTitle}>Quick Actions</Text>
       </View>
-      <ScrollView horizontal showsHorizontalScrollIndicator={false} style={s.quickRow}>
+      <ScrollView ref={quickRowRef} horizontal showsHorizontalScrollIndicator={false} style={s.quickRow}>
         {QUICK_ACTIONS.map((q) => (
           <TouchableOpacity key={q.key} style={[s.quickCard, { backgroundColor: `${q.color}10` }]} onPress={() => navigation?.navigate(q.key, q.params)}>
             <Icon name={q.icon} size={20} color={q.color} />

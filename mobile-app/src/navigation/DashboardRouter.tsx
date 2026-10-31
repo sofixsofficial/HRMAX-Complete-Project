@@ -13,6 +13,7 @@ import { ReportingManagerDashboard } from '../screens/dashboards/ReportingManage
 import { TLOperationalDashboard } from '../screens/dashboards/TLOperationalDashboard';
 import { EmployeesScreen } from '../screens/master-admin/EmployeesScreen';
 import { DepartmentsScreen } from '../screens/master-admin/DepartmentsScreen';
+import { BranchesScreen } from '../screens/master-admin/BranchesScreen';
 import { TaskManagementScreen } from '../screens/master-admin/TaskManagementScreen';
 import { LeaveManagementScreen } from '../screens/master-admin/LeaveManagementScreen';
 import { AssetsScreen } from '../screens/master-admin/AssetsScreen';
@@ -66,10 +67,11 @@ import { MyLeavesAttendanceScreen } from '../screens/modules/MyLeavesAttendanceS
 const Stack = createNativeStackNavigator();
 
 const MA_ONLY = ['master-admin'] as UserRole[];
-const EMPLOYEES_ROLES = ['master-admin', 'company-admin', 'executive', 'team-leader'] as UserRole[];
-const DEPARTMENTS_ROLES = ['master-admin', 'company-admin', 'executive', 'team-leader'] as UserRole[];
+const EMPLOYEES_ROLES = ['master-admin', 'company-admin', 'executive', 'team-leader', 'hr'] as UserRole[];
+const DEPARTMENTS_ROLES = ['master-admin', 'company-admin', 'executive', 'team-leader', 'hr'] as UserRole[];
+const BRANCHES_ROLES = ['master-admin', 'company-admin', 'hr', 'executive', 'team-leader'] as UserRole[];
 const LEAVE_MGMT_ROLES = ['master-admin', 'company-admin', 'executive', 'reporting-manager', 'team-leader', 'hr'] as UserRole[];
-const TASKS_ROLES = ['master-admin', 'executive', 'team-leader'] as UserRole[];
+const TASKS_ROLES = ['master-admin', 'company-admin', 'executive', 'team-leader'] as UserRole[];
 const ATTENDANCE_OVR_ROLES = ['master-admin', 'company-admin', 'executive', 'team-leader', 'reporting-manager', 'hr-manager', 'hr'] as UserRole[];
 const ASSETS_ROLES = ['master-admin', 'executive', 'team-leader'] as UserRole[];
 const SETTINGS_ROLES = ['master-admin', 'executive'] as UserRole[];
@@ -77,7 +79,9 @@ const RM_ROLES = ['reporting-manager'] as UserRole[];
 const PAYROLL_ROLES = ['master-admin', 'executive', 'team-leader'] as UserRole[];
 // TL/Executive: full CRUD over Companies + Employees
 const COMPANIES_ROLES = ['master-admin', 'team-leader', 'executive'] as UserRole[];
-const EXECUTIVES_ROLES = ['master-admin', 'team-leader'] as UserRole[];
+// Web parity: the Executives list is also a menu entry for executive
+// (permission-gated `employees.view` on web — same gate as Employees).
+const EXECUTIVES_ROLES = ['master-admin', 'team-leader', 'executive'] as UserRole[];
 const ACCESS_MGMT_ROLES = ['master-admin', 'executive', 'team-leader'] as UserRole[];
 // Company Admin / Master Admin never create their own leave records —
 // verify-only roles (web parity: LeaveManagement's Apply button explicitly
@@ -96,14 +100,15 @@ const guard = (roles: UserRole[]) =>
 const GuardedCompanies = guard(COMPANIES_ROLES)(CompaniesScreen);
 const GuardedExecutives = guard(EXECUTIVES_ROLES)(ExecutivesScreen);
 const GuardedTeamLeaders = guard(MA_ONLY)(TeamLeadersScreen);
+const GuardedBranches = guard(BRANCHES_ROLES)(BranchesScreen);
 const GuardedCompanyApprovals = guard(MA_ONLY)(CompanyApprovalsScreen);
 const GuardedAuditLogs = guard(['master-admin', 'executive'])(AuditLogsScreen);
 const GuardedExecutiveOversight = guard(MA_ONLY)(ExecutiveOversightScreen);
 const GuardedAccessManagement = guard(MA_ONLY)(AccessManagementScreen);
 const GuardedTransferManagement = guard(MA_ONLY)(TransferManagementScreen);
 const GuardedDocumentsManagement = guard(MA_ONLY)(DocumentsManagementScreen);
-const GuardedSupportTickets = guard(MA_ONLY)(SupportTicketsScreen);
-const GuardedPayrollHistory = guard(['master-admin', 'company-admin'])(PayrollHistoryScreen);
+const GuardedSupportTickets = guard(['master-admin', 'reporting-manager', 'executive', 'team-leader', 'employee'] as UserRole[])(SupportTicketsScreen);
+const GuardedPayrollHistory = guard(['master-admin', 'company-admin', 'executive', 'team-leader'] as UserRole[])(PayrollHistoryScreen);
 const GuardedRunPayroll = guard(PAYROLL_ROLES)(RunPayrollScreen);
 const GuardedEmployees = guard(EMPLOYEES_ROLES)(EmployeesScreen);
 const GuardedDepartments = guard(DEPARTMENTS_ROLES)(DepartmentsScreen);
@@ -116,9 +121,10 @@ const GuardedSalaryStructure = guard(SETTINGS_ROLES)(SalaryStructureScreen);
 const GuardedMyTeam = guard(RM_ROLES)(MyTeamScreen);
 const GuardedPerformance = guard(RM_ROLES)(PerformanceScreen);
 const GuardedApplyLeave = guard(APPLY_LEAVE_ROLES)(ApplyLeaveScreen);
-// Web parity: Address Book is master-admin / executive / team-leader only —
-// Company Admin must not reach it. The next three are Master-Admin-only on web.
-const GuardedAddressBook = guard(['master-admin', 'executive', 'team-leader'])(AddressBookScreen);
+// Web parity: Address Book is master-admin / executive / team-leader / hr on
+// web — Company Admin must not reach it. The next three are Master-Admin-only
+// on web.
+const GuardedAddressBook = guard(['master-admin', 'executive', 'team-leader', 'hr'] as UserRole[])(AddressBookScreen);
 const GuardedCompanyDetailsView = guard(MA_ONLY)(CompanyDetailsViewScreen);
 const GuardedHRMSDashboard = guard(MA_ONLY)(HRMSDashboardScreen);
 const GuardedAttendanceDashboard = guard(MA_ONLY)(AttendanceDashboardScreen);
@@ -128,6 +134,9 @@ const DashboardContent: React.FC<{ navigation: any }> = ({ navigation }) => {
   const dashboards: Record<string, React.FC<any>> = {
     'master-admin': MasterAdminDashboard,
     'company-admin': CompanyDashboard,
+    // Web parity: the HR role resolves to the same CompanyDashboard as
+    // company-admin (DashboardRouter.tsx on web maps hr → CompanyDashboard).
+    hr: CompanyDashboard,
     executive: ExecutiveDashboard,
     'reporting-manager': ReportingManagerDashboard,
     'team-leader': TLOperationalDashboard,
@@ -161,6 +170,7 @@ export const DashboardRouter: React.FC = () => {
       </Stack.Screen>
       <Stack.Screen name="Employees" component={GuardedEmployees} options={{ headerTitle: 'Employees' }} />
       <Stack.Screen name="Departments" component={GuardedDepartments} options={{ headerTitle: 'Departments' }} />
+      <Stack.Screen name="Branches" component={GuardedBranches} options={{ headerTitle: 'Branches' }} />
       <Stack.Screen name="TaskManagement" component={GuardedTaskManagement} options={{ headerTitle: 'Task Management' }} />
       <Stack.Screen name="LeaveManagement" component={GuardedLeaveManagement} options={{ headerTitle: 'Leave Management' }} />
       <Stack.Screen name="Assets" component={GuardedAssets} options={{ headerTitle: 'Assets' }} />

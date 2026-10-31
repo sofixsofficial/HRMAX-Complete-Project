@@ -31,6 +31,7 @@ const MODULE_SCREENS: Record<string, string> = {
   '/my-profile': 'MyProfile',
   '/employees': 'Employees',
   '/departments': 'Departments',
+  '/branches': 'Branches',
   '/companies': 'Companies',
   '/executives': 'Executives',
   '/team-leaders': 'TeamLeaders',
