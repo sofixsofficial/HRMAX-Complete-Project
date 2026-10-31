@@ -1332,6 +1332,51 @@ export const AttendanceScreen: React.FC<{ navigation: any }> = ({ navigation }) 
             })()}
             {!detailRecord.missedPunchRectification?.requested && (() => {
               const canRectify = isActiveMissedPunchRecord(detailRecord) && rectificationWindowOpen(detailRecord);
+              // A marked Miss Punch still shows WHO must verify (web's tiers) —
+              // the chain just has no decisions yet because no rectification has
+              // been submitted. Only non-miss-punch records fall back to the
+              // "no chain" note.
+              const isMiss = detailRecord.status === 'Miss Punch';
+              const selfRole = detailRecord.userId && user?.id && detailRecord.userId === user.id;
+              const chainRole = isMiss ? (selfRole ? user?.role : 'employee') : null;
+              const chainTiers = chainRole ? getEffectiveMissedPunchTiers(chainRole) : [];
+              const chainMa = chainRole === 'executive' || chainRole === 'team-leader';
+              const chainTotal = chainTiers.length + (chainMa ? 1 : 0);
+              if (chainTiers.length > 0 || chainMa) {
+                return (
+                  <View style={s.verificationCard}>
+                    <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
+                      <Text style={{ fontSize: 12, color: '#6b21a8', fontWeight: '700' }}>Verification Progress</Text>
+                      <Text style={{ fontSize: 12, color: '#6b21a8', fontWeight: '700' }}>0/{chainTotal}</Text>
+                    </View>
+                    <View style={{ height: 4, backgroundColor: '#e9d5ff', borderRadius: 2, overflow: 'hidden', marginBottom: 8 }} />
+                    <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 4, marginBottom: 8 }}>
+                      {chainTiers.map((t) => (
+                        <View key={t} style={{ backgroundColor: '#fef3c7', borderRadius: 6, paddingHorizontal: 8, paddingVertical: 3 }}>
+                          <Text style={{ fontSize: 10, fontWeight: '600', color: '#b45309' }}>{MISSED_PUNCH_TIER_LABELS[t]}: Pending</Text>
+                        </View>
+                      ))}
+                      {chainMa && (
+                        <View style={{ backgroundColor: '#fff7ed', borderRadius: 6, paddingHorizontal: 8, paddingVertical: 3 }}>
+                          <Text style={{ fontSize: 10, fontWeight: '600', color: '#9a3412' }}>{MISSED_PUNCH_MASTER_ADMIN_LABEL}: Pending</Text>
+                        </View>
+                      )}
+                    </View>
+                    <Text style={{ fontSize: 11, color: colors.textSecondary, fontStyle: 'italic', marginBottom: canRectify ? 2 : 0 }}>
+                      Awaiting a rectification request — the chain above shows who must verify once it is submitted.
+                    </Text>
+                    {canRectify && (
+                      <TouchableOpacity
+                        style={{ marginTop: 10, alignSelf: 'flex-start', flexDirection: 'row', alignItems: 'center', gap: 6, backgroundColor: '#f3e8ff', borderRadius: 8, paddingHorizontal: 12, paddingVertical: 8 }}
+                        onPress={() => { const rec = detailRecord; setDetailRecord(null); openRectify(rec); }}
+                      >
+                        <Icon name="create-outline" size={14} color="#9333ea" />
+                        <Text style={{ fontSize: 13, fontWeight: '700', color: '#9333ea' }}>Rectify Missed Punch</Text>
+                      </TouchableOpacity>
+                    )}
+                  </View>
+                );
+              }
               return (
                 <View>
                   <Text style={{ fontSize: 13, color: colors.textSecondary, fontStyle: 'italic' }}>No verification chain active for this record.</Text>

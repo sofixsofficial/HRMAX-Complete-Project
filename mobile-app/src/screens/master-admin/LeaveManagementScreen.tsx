@@ -516,7 +516,7 @@ export const LeaveManagementScreen: React.FC<{ route?: any }> = ({ route }) => {
                     }]}>
                       <Text style={[s.tierBadgeText, {
                         color: st === 'Approved' ? '#16a34a' : st === 'Rejected' ? '#ef4444' : isCurrent ? '#2563eb' : '#6b7280',
-                      }]}>{TIER_LABELS[tier].split(' ')[0]}: {st}</Text>
+                      }]}>{TIER_LABELS[tier]}: {st}</Text>
                     </View>
                   );
                 })}
@@ -576,25 +576,44 @@ export const LeaveManagementScreen: React.FC<{ route?: any }> = ({ route }) => {
             <View style={s.detailRow}><Text style={s.detailLabel}>Status:</Text><Text style={[s.detailValue, { color: STATUS_COLORS[detailModal?.status] || '#64748b' }]}>{detailModal?.status}</Text></View>
             {detailModal?.department && <View style={s.detailRow}><Text style={s.detailLabel}>Department:</Text><Text style={s.detailValue}>{detailModal.department}</Text></View>}
             {detailModal?.reason && <View style={s.detailRow}><Text style={s.detailLabel}>Reason:</Text><Text style={s.detailValue}>{detailModal.reason}</Text></View>}
-            {detailModal?.approvalStatus && (
-              <View style={{ marginTop: 12, borderTopWidth: 1, borderTopColor: colors.border, paddingTop: 12 }}>
-                <Text style={{ fontSize: 13, fontWeight: '600', color: colors.text, marginBottom: 8 }}>Tier Approval Progress</Text>
-                <View style={s.tierBadgesRow}>
-                  {TIER_ORDER.map((tier) => {
-                    const st = detailModal.approvalStatus[tier];
-                    return (
-                      <View key={tier} style={[s.tierBadge, {
-                        backgroundColor: st === 'Approved' ? '#dcfce7' : st === 'Rejected' ? '#fee2e2' : '#f3f4f6',
-                      }]}>
-                        <Text style={[s.tierBadgeText, {
-                          color: st === 'Approved' ? '#16a34a' : st === 'Rejected' ? '#ef4444' : '#6b7280',
-                        }]}>{TIER_LABELS[tier].split(' ')[0]}: {st}</Text>
-                      </View>
-                    );
-                  })}
+            {detailModal?.approvalStatus && (() => {
+              const dt = getEffectiveTiers(detailModal.applicantRole);
+              const dTotal = dt.length + (detailModal.masterAdminRequired ? 1 : 0);
+              const dDone = dt.filter((t) => detailModal.approvalStatus[t] !== 'Pending').length
+                + (detailModal.masterAdminApproveStatus === 'Approved' || detailModal.masterAdminApproveStatus === 'Rejected' ? 1 : 0);
+              return (
+                <View style={{ marginTop: 12, borderTopWidth: 1, borderTopColor: colors.border, paddingTop: 12 }}>
+                  <Text style={{ fontSize: 13, fontWeight: '600', color: colors.text, marginBottom: 8 }}>Approval Progress</Text>
+                  <View style={s.tierBadgesRow}>
+                    {dt.map((tier) => {
+                      const st = detailModal.approvalStatus[tier];
+                      return (
+                        <View key={tier} style={[s.tierBadge, {
+                          backgroundColor: st === 'Approved' ? '#dcfce7' : st === 'Rejected' ? '#fee2e2' : '#f3f4f6',
+                        }]}>
+                          <Text style={[s.tierBadgeText, {
+                            color: st === 'Approved' ? '#16a34a' : st === 'Rejected' ? '#ef4444' : '#6b7280',
+                          }]}>{TIER_LABELS[tier]}: {st}</Text>
+                        </View>
+                      );
+                    })}
+                    {detailModal.masterAdminRequired && (() => {
+                      const st = detailModal.masterAdminApproveStatus || 'Pending';
+                      return (
+                        <View style={[s.tierBadge, { backgroundColor: st === 'Approved' ? '#dcfce7' : st === 'Rejected' ? '#fee2e2' : '#fff7ed' }]}>
+                          <Text style={[s.tierBadgeText, { color: st === 'Approved' ? '#16a34a' : st === 'Rejected' ? '#ef4444' : '#9a3412' }]}>
+                            Master Admin: {st}
+                          </Text>
+                        </View>
+                      );
+                    })()}
+                  </View>
+                  <Text style={{ fontSize: 12, color: '#6b7280', marginTop: 6 }}>
+                    <Text style={{ fontWeight: '700', color: colors.text }}>{dDone}</Text>/{dTotal} approval tier{dTotal > 1 ? 's' : ''} resolved
+                  </Text>
                 </View>
-              </View>
-            )}
+              );
+            })()}
             {detailModal?.approvalLog && detailModal.approvalLog.length > 0 && (
               <View style={s.approvalLogSection}>
                 <Text style={s.approvalLogTitle}>Approval Log</Text>
