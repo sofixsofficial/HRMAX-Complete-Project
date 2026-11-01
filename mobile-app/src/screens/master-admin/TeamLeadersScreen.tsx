@@ -173,9 +173,17 @@ export const TeamLeadersScreen: React.FC = () => {
 
   const openCreate = () => {
     setEditing(null);
-    setForm(emptyForm);
+    // Web parity (TeamLeaders.tsx form.reset L614): default the company to the
+    // creator's own company so a Master Admin doesn't have to re-pick it — a TL
+    // created without a company can never punch / take leave / draw salary.
+    // 'global' is only the platform bucket, never a valid TL company.
+    const defaultCompanyId = authUser?.companyId && authUser.companyId !== 'global' ? authUser.companyId : '';
+    setForm({ ...emptyForm, companyId: defaultCompanyId });
     setContingency(false);
-    setShowEmp(true); setShowBank(false); setShowContact(false); setShowComp(false); setShowAssign(false); setShowAtt(false); setShowPerms(false);
+    // Open "Reporting Hierarchy" by default so the Company * chips and Executive
+    // assignment are visible (they were hidden in a collapsed section, so users
+    // hit the "select a company" validation without ever seeing the picker).
+    setShowEmp(true); setShowBank(false); setShowContact(false); setShowComp(false); setShowAssign(true); setShowAtt(false); setShowPerms(false);
     setPermissions(TL_ALL_PERMISSIONS);
     setModal(true);
   };
@@ -328,7 +336,10 @@ export const TeamLeadersScreen: React.FC = () => {
 
   const handleSave = async () => {
     if (!form.name.trim() || !form.email.trim()) { Alert.alert('Validation', 'Name and email are required'); return; }
-    if (!form.companyId) { Alert.alert('Validation', 'Select a company for the Team Leader — attendance, leave and salary need one'); return; }
+    // Web parity (TeamLeaders.tsx L451): fall back to the creator's own company
+    // when none is picked explicitly — 'global' is only the platform bucket.
+    const targetCompanyId = form.companyId || (authUser?.companyId && authUser.companyId !== 'global' ? authUser.companyId : '');
+    if (!targetCompanyId) { Alert.alert('Validation', 'Select a company for the Team Leader — attendance, leave and salary need one'); return; }
     setSaving(true);
     try {
       const docFields: [keyof TLForm, keyof TLForm, string][] = [
@@ -341,7 +352,7 @@ export const TeamLeadersScreen: React.FC = () => {
 
       const basePayload: any = {
         name: form.name, email: form.email, username: form.username.trim(),
-        phone: form.phone, companyId: form.companyId,
+        phone: form.phone, companyId: targetCompanyId,
         linkedExecutiveIds: form.executiveIds,
         reportingExecutiveId: form.executiveIds[0] || null,
         reportingExecutiveName: form.executiveIds[0] ? getExecName(form.executiveIds[0]) : null,
@@ -409,7 +420,7 @@ export const TeamLeadersScreen: React.FC = () => {
         if (Object.keys(uploaded).length > 0) {
           await updateDoc(doc(db, 'users', editing), uploaded);
         }
-        notifyTeamLeaderUpdated(form.name || (current as any)?.name || '', form.companyId, newIds, masterAdmins.map(m => m.id));
+        notifyTeamLeaderUpdated(form.name || (current as any)?.name || '', targetCompanyId, newIds, masterAdmins.map(m => m.id));
         setModal(false);
       } else {
         if (!form.username.trim() || form.username.trim().length < 3) {
@@ -431,7 +442,7 @@ export const TeamLeadersScreen: React.FC = () => {
           username: form.username.trim(),
           phone: form.phone || '',
           role: 'team-leader',
-          companyId: form.companyId || undefined,
+          companyId: targetCompanyId || undefined,
           departmentId: form.departmentId || undefined,
           departmentName: form.departmentName || '',
           designation: form.designation || '',
@@ -467,7 +478,7 @@ export const TeamLeadersScreen: React.FC = () => {
           await updateDoc(doc(db, 'users', uid), uploaded);
         }
 
-        notifyTeamLeaderCreated(form.name, form.companyId, form.executiveIds, masterAdmins.map(m => m.id));
+        notifyTeamLeaderCreated(form.name, targetCompanyId, form.executiveIds, masterAdmins.map(m => m.id));
         setModal(false);
       }
     } catch (err: any) {
