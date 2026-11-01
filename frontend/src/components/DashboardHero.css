@@ -1,12 +1,12 @@
 /* ------------------------------------------------------------------ */
-/* Dashboard hero — SIMPLE LIGHT design                               */
+/* Dashboard hero — SIMPLE + CLEAN design                              */
 /*  • light gradient card (white → pale blue) with soft blue waves     */
 /*    on the right                                                     */
-/*  • "Welcome to," + HRMAX wordmark (HR navy / MAX orange) + role     */
-/*  • blue-left-border tagline + live chips row (role / status /       */
-/*    checked-in time / elapsed pill) + punch actions                  */
-/*  • right-side "Smart HR Management for a Better Workplace"          */
-/*  • dark rounded stats strip BELOW the card (colored circle icons)   */
+/*  • "Welcome back," + user NAME + compact HRMAX wordmark (top-right) */
+/*  • live chips row (role / status / checked-in time / elapsed pill)  */
+/*    + punch actions                                                  */
+/*  • light rounded stat tiles BELOW the card (tinted icon, real       */
+/*    values)                                                          */
 /* All attendance facts come from the backend — never invented.        */
 /* ------------------------------------------------------------------ */
 
@@ -33,8 +33,8 @@ html {
   isolation: isolate;
   border-radius: 18px;
   background: linear-gradient(112deg, #ffffff 0%, #f4f8ff 52%, #e4eefd 78%, #d8e7fc 100%);
-  padding: 34px 38px 30px;
-  min-height: 300px;
+  padding: 26px 30px;
+  min-height: 0;
   display: flex;
   align-items: flex-start;
   justify-content: space-between;
@@ -56,23 +56,43 @@ html {
 .hero .welcome {
   position: relative;
   z-index: 1;
-  max-width: 620px;
+  max-width: 720px;
   min-width: 0;
+  flex: 1;
 }
 
-.hero .welcome small {
+/* Head row: greeting + name (left) · compact wordmark (right) */
+.hero .hero-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+  margin-bottom: 18px;
+}
+
+.hero .hero-greet small {
   display: block;
-  font-size: 25px;
+  font-size: 15px;
   font-weight: 600;
   color: #6b7a90;
   letter-spacing: 0.2px;
 }
 
-.hero .hero-wordmark {
-  font-size: clamp(48px, 6vw, 74px);
+.hero .hero-greet h2.hero-name {
+  margin: 2px 0 0;
+  font-size: clamp(26px, 3vw, 34px);
   font-weight: 800;
-  line-height: 0.98;
-  letter-spacing: -2px;
+  color: #12294a;
+  letter-spacing: -0.5px;
+  line-height: 1.15;
+}
+
+.hero .hero-wordmark {
+  flex: none;
+  font-size: 22px;
+  font-weight: 800;
+  line-height: 1.1;
+  letter-spacing: -0.8px;
   margin-top: 2px;
   user-select: none;
 }
@@ -83,52 +103,6 @@ html {
 
 .hero .hero-wordmark .wm-max {
   color: #f97316;
-}
-
-.hero .welcome h2.hero-role {
-  margin: 8px 0 0;
-  font-size: clamp(30px, 3.6vw, 44px);
-  font-weight: 800;
-  color: #12294a;
-  letter-spacing: -0.5px;
-  line-height: 1.1;
-}
-
-.hero .hero-tagline {
-  margin: 18px 0 22px;
-  border-left: 4px solid #2563eb;
-  padding-left: 14px;
-  max-width: 470px;
-  font-size: 17px;
-  font-weight: 700;
-  line-height: 1.5;
-  color: #1c3d66;
-}
-
-/* ── Right: tagline block ─────────────────────────────────────────── */
-.hero .hero-aside {
-  position: relative;
-  z-index: 1;
-  align-self: center;
-  display: flex;
-  flex-direction: column;
-  padding-bottom: 18px;
-  max-width: 300px;
-  flex: none;
-  font-size: 19px;
-  font-weight: 800;
-  line-height: 1.5;
-  color: #12335c;
-  text-align: right;
-}
-
-.hero .hero-aside-line {
-  display: block;
-  width: 46px;
-  height: 4px;
-  border-radius: 2px;
-  background: #2563eb;
-  margin: 12px 6px 0 auto;
 }
 
 /* ── Chips row (role / status / live attendance facts) ────────────── */
@@ -315,47 +289,31 @@ html {
   }
 }
 
-/* ── Dark stats strip ─────────────────────────────────────────────── */
+/* ── Light stat tiles ─────────────────────────────────────────────── */
 .hero .hero-stats {
-  display: flex;
-  align-items: stretch;
-  justify-content: space-between;
-  gap: 8px;
-  background: #0e1726;
-  border-radius: 18px;
-  padding: 22px 18px;
-  color: #fff;
-  box-shadow: 0 10px 24px rgba(15, 23, 42, 0.18);
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(190px, 1fr));
+  gap: 12px;
 }
 
 .hero .hero-stats .hero-stat {
-  position: relative;
-  flex: 1;
-  min-width: 0;
   display: flex;
   align-items: center;
-  justify-content: center;
-  gap: 14px;
-  padding: 2px 6px;
-}
-
-.hero .hero-stats .hero-stat + .hero-stat::before {
-  content: '';
-  position: absolute;
-  left: 0;
-  top: 14%;
-  bottom: 14%;
-  width: 1px;
-  background: rgba(255, 255, 255, 0.12);
+  gap: 12px;
+  min-width: 0;
+  background: #fff;
+  border: 1px solid #e8eefb;
+  border-radius: 14px;
+  padding: 13px 16px;
+  box-shadow: 0 3px 10px rgba(15, 33, 66, 0.05);
 }
 
 .hero .hero-stat-icon {
-  width: 50px;
-  height: 50px;
-  border-radius: 50%;
+  width: 40px;
+  height: 40px;
+  border-radius: 12px;
   display: grid;
   place-items: center;
-  color: #fff;
   flex: none;
 }
 
@@ -366,71 +324,47 @@ html {
 }
 
 .hero .hero-stats .hero-stat-n {
-  font-size: 28px;
+  font-size: 22px;
   font-weight: 800;
   line-height: 1.1;
+  color: #12294a;
   font-variant-numeric: tabular-nums;
 }
 
 .hero .hero-stats .hero-stat-l {
   margin-top: 2px;
-  font-size: 12.5px;
+  font-size: 11.5px;
   font-weight: 700;
-  letter-spacing: 0.08em;
+  letter-spacing: 0.06em;
   text-transform: uppercase;
-  color: #cbd5e1;
+  color: #64748b;
 }
 
 /* ── Responsive ───────────────────────────────────────────────────── */
 @media (max-width: 980px) {
   .hero .hero-card {
     flex-direction: column;
-    padding: 26px 22px;
+    padding: 22px;
     min-height: 0;
     gap: 18px;
   }
 
-  .hero .welcome small {
-    font-size: 20px;
-  }
-
-  .hero .hero-tagline {
-    margin: 14px 0 18px;
-  }
-
-  .hero .hero-aside {
-    align-self: flex-start;
-    padding-bottom: 0;
-    text-align: left;
-    font-size: 17px;
-  }
-
-  .hero .hero-aside-line {
-    margin: 10px 0 0;
+  .hero .hero-head {
+    margin-bottom: 14px;
   }
 }
 
 @media (max-width: 720px) {
   .hero .hero-stats {
-    flex-wrap: wrap;
-    row-gap: 14px;
-    padding: 18px 12px;
-  }
-
-  .hero .hero-stats .hero-stat {
-    flex: 1 1 40%;
-  }
-
-  .hero .hero-stats .hero-stat + .hero-stat::before {
-    display: none;
+    grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
   }
 
   .hero .hero-stat-icon {
-    width: 42px;
-    height: 42px;
+    width: 36px;
+    height: 36px;
   }
 
   .hero .hero-stats .hero-stat-n {
-    font-size: 23px;
+    font-size: 20px;
   }
 }

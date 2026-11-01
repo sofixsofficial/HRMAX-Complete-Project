@@ -311,17 +311,14 @@ function HeroAttendance({ badge }: { badge: string }) {
 }
 
 /* ------------------------------------------------------------------ */
-/* Hero — simple light design (light gradient card with soft blue      */
-/* waves, HRMAX wordmark, live chips row) + dark rounded stats strip   */
+/* Hero — simple + clean design (light gradient card with soft blue    */
+/* waves, welcome + NAME + compact wordmark, live chips row) + light   */
+/* rounded stat tiles                                                  */
 /* ------------------------------------------------------------------ */
 
 export function DashboardHero({ stats, badge, showAttendance = true }: DashboardHeroProps) {
   const { user } = useAuth()
   const roleBadge = badge || roleDepartmentLabel(user)
-  const tagline =
-    user?.role === 'employee'
-      ? 'Track your attendance and leaves with ease.'
-      : 'Manage your team, track attendance and leaves with ease.'
 
   return (
     <section className="hero" aria-label="Welcome summary">
@@ -335,13 +332,16 @@ export function DashboardHero({ stats, badge, showAttendance = true }: Dashboard
         </svg>
 
         <div className="welcome">
-          <small>Welcome to,</small>
-          <div className="hero-wordmark" aria-label="HRMAX">
-            <span className="wm-hr">HR</span>
-            <span className="wm-max">MAX</span>
+          <div className="hero-head">
+            <div className="hero-greet">
+              <small>Welcome back,</small>
+              <h2 className="hero-name">{user?.name || roleBadge}</h2>
+            </div>
+            <div className="hero-wordmark" aria-label="HRMAX">
+              <span className="wm-hr">HR</span>
+              <span className="wm-max">MAX</span>
+            </div>
           </div>
-          <h2 className="hero-role">{roleBadge}</h2>
-          <p className="hero-tagline">{tagline}</p>
 
           {showAttendance ? (
             <HeroAttendance badge={roleBadge} />
@@ -355,24 +355,18 @@ export function DashboardHero({ stats, badge, showAttendance = true }: Dashboard
             </div>
           )}
         </div>
-
-        <div className="hero-aside">
-          <span>Smart HR Management</span>
-          <span>for a Better Workplace</span>
-          <i className="hero-aside-line" aria-hidden="true" />
-        </div>
       </div>
 
-      {/* Dark rounded stats strip — real values from the role's dashboard */}
+      {/* Light stat tiles — real values from the role's dashboard */}
       <div className="hero-stats" role="list" aria-label="Dashboard statistics">
         {stats.map((s) => (
           <div key={s.label} className="hero-stat" role="listitem">
             <span
               className="hero-stat-icon"
-              style={{ backgroundColor: s.color, boxShadow: `0 8px 18px ${s.color}55` }}
+              style={{ backgroundColor: `${s.color}1A`, color: s.color }}
               aria-hidden="true"
             >
-              {statIcon(s.label)}
+              {statIcon(s.label, 18)}
             </span>
             <div className="hero-stat-meta">
               <div className="hero-stat-n">{s.value ?? '–'}</div>

@@ -25,13 +25,12 @@ import { parseWeekendDays, toDateKey } from '../utils/workingDays';
 import { Icon } from '../utils/icons';
 
 /**
- * Dashboard hero — SIMPLE LIGHT design (web parity):
+ * Dashboard hero — SIMPLE + CLEAN design (web parity):
  *  • light gradient card (white → pale blue) with soft blue waves on the right
- *  • "Welcome to," + HRMAX wordmark (HR navy / MAX orange) + role name
- *  • blue-left-border tagline + live attendance chips (role / status /
- *    checked-in time / elapsed pill) + gate-validated punch actions
- *  • "Smart HR Management for a Better Workplace" note
- *  • dark rounded stats strip BELOW the card (colored circle icons)
+ *  • "Welcome back," + user NAME + compact HRMAX wordmark (top-right)
+ *  • role pill + live attendance chips (status / checked-in time / elapsed
+ *    pill) + gate-validated punch actions
+ *  • light rounded stat tiles BELOW the card (tinted icon, real values)
  *
  * Working Mode derives ONLY from the user's verified today attendance record
  * (`useTodayAttendance`, restored on app resume) — it is never inferred from
@@ -547,15 +546,16 @@ export const DashboardHero: React.FC<DashboardHeroProps> = ({
           <Path d="M1200 250 C1115 295 1165 362 1085 400 L1200 400 Z" fill="#c7dbf8" opacity={0.85} />
         </Svg>
 
-        <View style={styles.identityCol}>
-          <Text style={styles.welcomeSmall}>Welcome to,</Text>
+        <View style={styles.topRow}>
+          <View style={styles.identityCol}>
+            <Text style={styles.welcomeSmall}>Welcome back,</Text>
+            <Text style={styles.userName} numberOfLines={1} ellipsizeMode="tail">{name}</Text>
+            {subtitle ? <Text style={styles.subtitle} numberOfLines={2}>{subtitle}</Text> : null}
+          </View>
           <Text style={styles.wordmark} numberOfLines={1} accessibilityLabel="HRMAX">
             <Text style={styles.wmHr}>HR</Text>
             <Text style={styles.wmMax}>MAX</Text>
           </Text>
-          <Text style={styles.roleLine} numberOfLines={2}>{roleLabel || name}</Text>
-          <Text style={styles.tagline}>Manage your team, track attendance and leaves with ease.</Text>
-          {subtitle ? <Text style={styles.subtitle} numberOfLines={3}>{subtitle}</Text> : null}
         </View>
 
         {/* Role pill + live attendance chips (status, checked-in, elapsed) */}
@@ -576,34 +576,31 @@ export const DashboardHero: React.FC<DashboardHeroProps> = ({
           ) : null}
         </View>
 
-        <View style={styles.aside} pointerEvents="none">
-          <Text style={styles.asideText}>Smart HR Management{'\n'}for a Better Workplace</Text>
-          <View style={styles.asideLine} />
-        </View>
       </LinearGradient>
 
-      {/* ── Dark rounded stats strip (real values from the dashboard) ── */}
+      {/* ── Light stat tiles (real values from the dashboard) ── */}
       {stats && stats.length > 0 && (
-        <View style={styles.statsStrip}>
+        <View style={styles.statsRow}>
           {stats.map((st, i) => {
             const v = statAnims[i];
+            const tint = st.color || '#2563eb';
             return (
               <Animated.View
                 key={`${st.label}-${i}`}
                 style={[
-                  styles.statItem,
+                  styles.statTile,
                   {
                     opacity: v,
                     transform: [{ translateY: v.interpolate({ inputRange: [0, 1], outputRange: [12, 0] }) }],
                   },
                 ]}
               >
-                <View style={[styles.statCircle, { backgroundColor: st.color || '#2563eb' }]}>
-                  <Icon name={statIconName(st.label)} size={16} color="#ffffff" />
+                <View style={[styles.statCircle, { backgroundColor: `${tint}1A` }]}>
+                  <Icon name={statIconName(st.label)} size={17} color={tint} />
                 </View>
                 <View style={styles.statMeta}>
-                  <Text style={styles.statValue}>{st.value}</Text>
-                  <Text style={styles.statLabel} numberOfLines={1}>{st.label}</Text>
+                  <Text style={styles.statValue} selectable={false}>{st.value}</Text>
+                  <Text style={styles.statLabel} numberOfLines={1} selectable={false}>{st.label}</Text>
                 </View>
               </Animated.View>
             );
@@ -624,24 +621,21 @@ const styles = StyleSheet.create({
     paddingBottom: 20,
   },
 
-  identityCol: { position: 'relative', zIndex: 1 },
-  welcomeSmall: { fontSize: 17, fontWeight: '600', color: '#6b7a90' },
-  wordmark: { fontSize: 40, fontWeight: '800', letterSpacing: -1.5, lineHeight: 46, marginTop: 2 },
+  topRow: {
+    position: 'relative',
+    zIndex: 1,
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    justifyContent: 'space-between',
+    gap: 12,
+  },
+  identityCol: { flex: 1, minWidth: 0 },
+  welcomeSmall: { fontSize: 14, fontWeight: '600', color: '#6b7a90', letterSpacing: 0.1 },
+  userName: { fontSize: 26, fontWeight: '800', color: '#12294a', marginTop: 2, letterSpacing: -0.5 },
+  wordmark: { fontSize: 19, fontWeight: '800', letterSpacing: -0.6, lineHeight: 24, marginTop: 2 },
   wmHr: { color: '#12294a' },
   wmMax: { color: '#f97316' },
-  roleLine: { fontSize: 25, fontWeight: '800', color: '#12294a', marginTop: 4, letterSpacing: -0.4 },
-  tagline: {
-    fontSize: 14.5,
-    fontWeight: '700',
-    color: '#1c3d66',
-    lineHeight: 21,
-    marginTop: 12,
-    marginLeft: 12,
-    paddingLeft: 10,
-    borderLeftWidth: 3,
-    borderLeftColor: '#2563eb',
-  },
-  subtitle: { fontSize: 12.5, color: '#64748b', marginTop: 8 },
+  subtitle: { fontSize: 12.5, color: '#64748b', marginTop: 5 },
 
   chipsFlow: {
     position: 'relative',
@@ -716,38 +710,48 @@ const styles = StyleSheet.create({
   punchBtnText: { color: '#fff', fontSize: 13.5, fontWeight: '700' },
   punchMsg: { fontSize: 12.5, fontWeight: '600', flexShrink: 1 },
 
-  aside: { alignSelf: 'flex-end', alignItems: 'flex-end', marginTop: 14, paddingBottom: 2, zIndex: 1 },
-  asideText: { fontSize: 13.5, fontWeight: '800', color: '#12335c', textAlign: 'right', lineHeight: 20 },
-  asideLine: { width: 40, height: 3, borderRadius: 2, backgroundColor: '#2563eb', marginTop: 8 },
-
-  statsStrip: {
+  statsRow: {
     marginTop: 12,
-    backgroundColor: '#0e1726',
-    borderRadius: 18,
     flexDirection: 'row',
     flexWrap: 'wrap',
-    justifyContent: 'space-between',
-    rowGap: 12,
-    paddingHorizontal: 12,
-    paddingVertical: 14,
+    gap: 10,
   },
-  statItem: { width: '47%', flexDirection: 'row', alignItems: 'center', gap: 10, paddingVertical: 2 },
+  statTile: {
+    width: '48%',
+    minWidth: 140,
+    flexGrow: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    backgroundColor: '#ffffff',
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: '#e8eefb',
+    paddingHorizontal: 12,
+    paddingVertical: 12,
+    // Soft elevation (iOS + Android)
+    shadowColor: '#0f2142',
+    shadowOpacity: 0.06,
+    shadowRadius: 8,
+    shadowOffset: { width: 0, height: 3 },
+    elevation: 2,
+  },
   statCircle: {
-    width: 34,
-    height: 34,
-    borderRadius: 17,
+    width: 36,
+    height: 36,
+    borderRadius: 12,
     alignItems: 'center',
     justifyContent: 'center',
     flexShrink: 0,
   },
   statMeta: { flexShrink: 1 },
-  statValue: { fontSize: 17, fontWeight: '800', color: '#ffffff', fontVariant: ['tabular-nums'] },
+  statValue: { fontSize: 18, fontWeight: '800', color: '#12294a', fontVariant: ['tabular-nums'], lineHeight: 21 },
   statLabel: {
-    fontSize: 9.5,
+    fontSize: 10.5,
     fontWeight: '700',
-    color: '#cbd5e1',
+    color: '#64748b',
     textTransform: 'uppercase',
-    letterSpacing: 0.5,
+    letterSpacing: 0.4,
     marginTop: 1,
   },
 });
