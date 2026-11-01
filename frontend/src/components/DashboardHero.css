@@ -56,9 +56,10 @@ html {
 .hero .welcome {
   position: relative;
   z-index: 1;
-  max-width: 720px;
-  min-width: 0;
+  /* Full card width so the head row's space-between pins the compact
+     wordmark to the card's right edge on big screens (no mid-air hang). */
   flex: 1;
+  min-width: 0;
 }
 
 /* Head row: greeting + name (left) · compact wordmark (right) */
