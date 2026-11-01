@@ -465,6 +465,18 @@ export function TeamLeaders() {
     setIsSubmitting(true)
     try {
       const selectedExecs = executives.filter(e => values.executiveIds?.includes(e.id))
+      // Mutual exclusivity: an executive already linked to ANOTHER team
+      // leader cannot be linked here (guards stale pickers / concurrent edits).
+      {
+        const takenExec = (values.executiveIds || [])
+          .map(eid => execOwnerMap.get(eid))
+          .find(owner => owner && owner.id !== editingTlId)
+        if (takenExec) {
+          setToast({ message: `An executive is already assigned to ${takenExec.name} — unselect it before saving`, type: 'error' })
+          setIsSubmitting(false)
+          return
+        }
+      }
       // Company is DERIVED from the linked Executive(s) — there is no manual
       // Company picker ("team leader executive ko manage karhe hai na").
       if (selectedExecs.length === 0) {
@@ -746,6 +758,17 @@ export function TeamLeaders() {
       setToast({ message: 'Link at least one Executive — the Team Leader’s company comes from the Executive', type: 'error' })
       return
     }
+    // Mutual exclusivity (edit): this TL's own linked execs stay allowed; an
+    // executive owned by a DIFFERENT team leader is rejected.
+    {
+      const takenExec = newIds
+        .map(eid => execOwnerMap.get(eid))
+        .find(owner => owner && owner.id !== selectedUser.id)
+      if (takenExec) {
+        setToast({ message: `An executive is already assigned to ${takenExec.name} — unselect it before saving`, type: 'error' })
+        return
+      }
+    }
     const newExecs = executives.filter(e => newIds.includes(e.id))
     // Company follows the linked Executive(s) — no manual Company picker.
     // Fall back to the TL's saved company only for legacy execs that carry no
@@ -1004,11 +1027,29 @@ export function TeamLeaders() {
     }
   }
 
-  const executiveOptions = executives.filter(e => e.isActive).map(e => ({
-    id: e.id,
-    name: e.name,
-    title: (e as any).executiveTitle || 'Executive',
-  }))
+  // ── Mutual exclusivity: an executive already linked to one Team Leader
+  // cannot be linked to another. Owner comes from BOTH link sides
+  // (tl.linkedExecutiveIds + tl.reportingExecutiveId). While editing a TL,
+  // that TL's own linked execs stay selectable (owner.id === editingTlId).
+  const editingTlId = isEditModalOpen && selectedUser ? selectedUser.id : null
+  const execOwnerMap = new Map<string, { id: string; name: string }>()
+  users.forEach(tl => {
+    const linked: string[] = (tl as any).linkedExecutiveIds ||
+      ((tl as any).reportingExecutiveId ? [(tl as any).reportingExecutiveId] : [])
+    linked.forEach(eid => {
+      if (eid && !execOwnerMap.has(eid)) execOwnerMap.set(eid, { id: tl.id, name: tl.name || 'another team leader' })
+    })
+  })
+  const executiveOptions = executives.filter(e => e.isActive).map(e => {
+    const owner = execOwnerMap.get(e.id)
+    const taken = !!owner && owner.id !== editingTlId
+    return {
+      id: e.id,
+      name: e.name,
+      title: taken ? `Assigned to ${owner.name}` : ((e as any).executiveTitle || 'Executive'),
+      disabled: taken,
+    }
+  })
 
   if (loading) {
     return (
@@ -1587,15 +1628,15 @@ export function TeamLeaders() {
                   {executiveOptions.map(e => {
                     const checked = form.watch('executiveIds')?.includes(e.id) || false
                     return (
-                      <label key={e.id} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '6px 8px', borderRadius: 6, cursor: 'pointer', background: checked ? '#fff7ed' : 'transparent', border: checked ? '1px solid #fed7aa' : '1px solid transparent', fontSize: 13 }}>
-                        <input type="checkbox" checked={checked} onChange={() => {
+                      <label key={e.id} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '6px 8px', borderRadius: 6, cursor: e.disabled ? 'not-allowed' : 'pointer', opacity: e.disabled && !checked ? 0.55 : 1, background: checked ? '#fff7ed' : 'transparent', border: checked ? '1px solid #fed7aa' : '1px solid transparent', fontSize: 13 }}>
+                        <input type="checkbox" checked={checked} disabled={e.disabled} onChange={() => {
                           const current = form.getValues('executiveIds') || []
                           if (checked) form.setValue('executiveIds', current.filter(id => id !== e.id), { shouldValidate: true })
-                          else form.setValue('executiveIds', [...current, e.id], { shouldValidate: true })
+                          else if (!e.disabled) form.setValue('executiveIds', [...current, e.id], { shouldValidate: true })
                         }} style={{ accentColor: '#f97316' }} />
-                        <Crown size={14} style={{ color: '#c2410c', flexShrink: 0 }} />
+                        <Crown size={14} style={{ color: e.disabled ? '#9ca3af' : '#c2410c', flexShrink: 0 }} />
                         <div style={{ flex: 1 }}>{e.name}</div>
-                        <span style={{ fontSize: 11, color: '#9ca3af' }}>{e.title}</span>
+                        <span style={{ fontSize: 11, color: e.disabled ? '#dc2626' : '#9ca3af' }}>{e.title}</span>
                       </label>
                     )
                   })}
@@ -1939,15 +1980,15 @@ export function TeamLeaders() {
                 {executiveOptions.map(e => {
                   const checked = form.watch('executiveIds')?.includes(e.id) || false
                   return (
-                    <label key={e.id} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '6px 8px', borderRadius: 6, cursor: 'pointer', background: checked ? '#fff7ed' : 'transparent', border: checked ? '1px solid #fed7aa' : '1px solid transparent', fontSize: 13 }}>
-                      <input type="checkbox" checked={checked} onChange={() => {
+                    <label key={e.id} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '6px 8px', borderRadius: 6, cursor: e.disabled ? 'not-allowed' : 'pointer', opacity: e.disabled && !checked ? 0.55 : 1, background: checked ? '#fff7ed' : 'transparent', border: checked ? '1px solid #fed7aa' : '1px solid transparent', fontSize: 13 }}>
+                      <input type="checkbox" checked={checked} disabled={e.disabled} onChange={() => {
                         const current = form.getValues('executiveIds') || []
                         if (checked) form.setValue('executiveIds', current.filter(id => id !== e.id), { shouldValidate: true })
-                        else form.setValue('executiveIds', [...current, e.id], { shouldValidate: true })
+                        else if (!e.disabled) form.setValue('executiveIds', [...current, e.id], { shouldValidate: true })
                       }} style={{ accentColor: '#f97316' }} />
-                      <Crown size={14} style={{ color: '#c2410c', flexShrink: 0 }} />
+                      <Crown size={14} style={{ color: e.disabled ? '#9ca3af' : '#c2410c', flexShrink: 0 }} />
                       <div style={{ flex: 1 }}>{e.name}</div>
-                      <span style={{ fontSize: 11, color: '#9ca3af' }}>{e.title}</span>
+                      <span style={{ fontSize: 11, color: e.disabled ? '#dc2626' : '#9ca3af' }}>{e.title}</span>
                     </label>
                   )
                 })}

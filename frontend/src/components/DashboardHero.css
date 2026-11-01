@@ -1,8 +1,13 @@
 /* ------------------------------------------------------------------ */
-/* Dashboard hero — cinematic hero matched to the HRMAX design art     */
-/* (deep sky gradient, photographic moon + mountain band cropped from  */
-/* the art, drifting clouds, divider stats). Scrolls with the page     */
-/* (NOT sticky).                                                       */
+/* Dashboard hero — SIMPLE LIGHT design                               */
+/*  • light gradient card (white → pale blue) with soft blue waves     */
+/*    on the right                                                     */
+/*  • "Welcome to," + HRMAX wordmark (HR navy / MAX orange) + role     */
+/*  • blue-left-border tagline + live chips row (role / status /       */
+/*    checked-in time / elapsed pill) + punch actions                  */
+/*  • right-side "Smart HR Management for a Better Workplace"          */
+/*  • dark rounded stats strip BELOW the card (colored circle icons)   */
+/* All attendance facts come from the backend — never invented.        */
 /* ------------------------------------------------------------------ */
 
 /* Scroll offsets so anchor / focus scrolls land clear of the header */
@@ -10,641 +15,422 @@ html {
   scroll-padding-top: calc(var(--header-h, 68px) + 16px);
 }
 
-/* ── Hero shell ───────────────────────────────────────────────────── */
+/* ── Hero shell (card + strip stack) ──────────────────────────────── */
 .hero {
-  position: relative; /* containing block for the absolute sky/hills/orbs
-                         (NOT sticky — hero scrolls with the page) */
-  overflow: hidden;
-  isolation: isolate;
-  margin-bottom: 20px;
+  position: relative;
   display: flex;
   flex-direction: column;
-  min-height: clamp(290px, 28vw, 400px);
+  gap: 16px;
+  margin-bottom: 20px;
+  font-family: inherit;
+  color: #12294a;
+}
+
+/* ── Light card ───────────────────────────────────────────────────── */
+.hero .hero-card {
+  position: relative;
+  overflow: hidden;
+  isolation: isolate;
   border-radius: 18px;
-  color: #fff;
-  background: var(--sky);
-  transition: background 0.6s ease;
-}
-.hero * {
-  box-sizing: border-box;
-}
-
-/* Sky gradient per day period — matches the day/night design art */
-.hero[data-theme='morning'] {
-  --sky: linear-gradient(180deg, #3b83c5 0%, #6faddd 48%, #a3d1ef 100%);
-  --scrim: linear-gradient(90deg, rgba(8, 28, 54, 0.42), rgba(8, 28, 54, 0.1) 55%, rgba(8, 28, 54, 0));
-  --statbg: rgba(4, 12, 24, 0.55);
-  --stat-fx: saturate(0.2) brightness(0.42);
-  --hill-base: #051426;
-  --hill-fade-from: 30%;
-  --hill-fade-full: 68%;
-}
-.hero[data-theme='afternoon'] {
-  --sky: linear-gradient(180deg, #3682ca 0%, #69ade0 50%, #a9d8f0 100%);
-  --scrim: linear-gradient(90deg, rgba(8, 28, 54, 0.42), rgba(8, 28, 54, 0.1) 55%, rgba(8, 28, 54, 0));
-  --statbg: rgba(4, 12, 24, 0.55);
-  --stat-fx: saturate(0.2) brightness(0.42);
-  --hill-base: #051426;
-  --hill-fade-from: 30%;
-  --hill-fade-full: 68%;
-}
-.hero[data-theme='evening'] {
-  --sky: linear-gradient(160deg, #262a63 0%, #6b4a8e 42%, #c96a3e 80%, #f0a35c 100%);
-  --scrim: linear-gradient(90deg, rgba(28, 16, 40, 0.42), rgba(28, 16, 40, 0.08) 60%, rgba(28, 16, 40, 0));
-  --statbg: rgba(8, 5, 16, 0.55);
-  --stat-fx: saturate(0.3) brightness(0.45);
-  --hill-base: #130a26;
-  --hill-fade-from: 30%;
-  --hill-fade-full: 70%;
-}
-.hero[data-theme='night'] {
-  --sky: radial-gradient(circle at 84% 20%, rgba(104, 142, 214, 0.3) 0%, rgba(104, 142, 214, 0.1) 30%, rgba(104, 142, 214, 0) 58%),
-    linear-gradient(165deg, #050c1d 0%, #0a1730 48%, #12294f 100%);
-  --scrim: linear-gradient(90deg, rgba(3, 8, 20, 0.52), rgba(3, 8, 20, 0.18) 52%, rgba(3, 8, 20, 0.04));
-  --statbg: rgba(1, 3, 8, 0.55);
-  --stat-fx: saturate(0.35) brightness(0.4);
-  --hill-base: #02060f;
-  --hill-fade-from: 32%;
-  --hill-fade-full: 72%;
+  background: linear-gradient(112deg, #ffffff 0%, #f4f8ff 52%, #e4eefd 78%, #d8e7fc 100%);
+  padding: 34px 38px 30px;
+  min-height: 300px;
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 28px;
+  box-shadow: 0 1px 2px rgba(15, 33, 66, 0.05);
 }
 
-/* ── Sky layer: scrim + stars + orbs + clouds + landscape ─────────── */
-.hero .sky {
+/* Soft blue wave shapes — decorative, right side */
+.hero .hero-waves {
   position: absolute;
   inset: 0;
+  width: 100%;
+  height: 100%;
   z-index: 0;
   pointer-events: none;
 }
-/* Scrim keeps white text readable on bright scenes (WCAG contrast) */
-.hero .sky::after {
-  content: '';
-  position: absolute;
-  inset: 0;
-  background: var(--scrim);
-}
 
-/* Realistic DOM stars — per-star brightness (--tw-op), soft glow on the
-   brightest, occasional warm tint. Night full, evening faint. */
-.hero .stars {
-  position: absolute;
-  inset: 0 0 40% 0;
-  opacity: 0;
-  transition: opacity 0.6s ease;
-}
-.hero .star {
-  position: absolute;
-  border-radius: 50%;
-  background: #fff;
-  opacity: var(--tw-op, 0.8);
-}
-.hero .star.warm {
-  background: #ffe9c8;
-}
-.hero .star.glow {
-  box-shadow: 0 0 5px 1px rgba(198, 220, 255, 0.75);
-}
-.hero[data-theme='night'] .stars {
-  opacity: 1;
-}
-.hero[data-theme='evening'] .stars {
-  opacity: 0.35;
-}
-/* Real scintillation: two dip rhythms (tw / tw2), deep uneven dips,
-   per-star speed + phase — reads like real atmospheric twinkling. */
-@keyframes tw {
-  0%,
-  100% {
-    opacity: var(--tw-op, 0.8);
-  }
-  38% {
-    opacity: calc(var(--tw-op, 0.8) * 0.5);
-  }
-  48% {
-    opacity: calc(var(--tw-op, 0.8) * 0.12);
-  }
-  58% {
-    opacity: calc(var(--tw-op, 0.8) * 0.55);
-  }
-  80% {
-    opacity: var(--tw-op, 0.8);
-  }
-}
-@keyframes tw2 {
-  0%,
-  100% {
-    opacity: var(--tw-op, 0.8);
-  }
-  16% {
-    opacity: calc(var(--tw-op, 0.8) * 0.18);
-  }
-  30% {
-    opacity: var(--tw-op, 0.8);
-  }
-  54% {
-    opacity: calc(var(--tw-op, 0.8) * 0.42);
-  }
-  62% {
-    opacity: calc(var(--tw-op, 0.8) * 0.1);
-  }
-  78% {
-    opacity: var(--tw-op, 0.8);
-  }
-}
-@media (prefers-reduced-motion: no-preference) {
-  .hero[data-theme='night'] .star,
-  .hero[data-theme='evening'] .star {
-    animation: tw var(--tw-dur, 4s) ease-in-out infinite;
-    animation-delay: var(--tw-delay, 0s);
-  }
-  .hero[data-theme='night'] .star.tw2,
-  .hero[data-theme='evening'] .star.tw2 {
-    animation-name: tw2;
-  }
-}
-
-/* ── Sun & moon orbs — pure CSS, sized/positioned like the design art ── */
-.hero .orb {
-  position: absolute;
-  width: clamp(72px, 7.6vw, 112px);
-  aspect-ratio: 1;
-  border-radius: 50%;
-  z-index: 1;
-  opacity: 0;
-  transition: opacity 0.5s ease, background 0.6s ease, box-shadow 0.6s ease;
-}
-/* Sun: white-hot core → warm edge, big double glow */
-.hero .sun {
-  top: clamp(14px, 9%, 58px);
-  right: clamp(16px, 11%, 140px);
-  background: radial-gradient(circle at 42% 36%, #ffffff 0 14%, #fff3b0 34%, #ffd84a 60%, #ffb52e 100%);
-  box-shadow: 0 0 60px 18px rgba(255, 205, 110, 0.6), 0 0 170px 64px rgba(255, 187, 84, 0.32);
-}
-/* Evening sun sits lower with a warmer, longer glow */
-.hero[data-theme='evening'] .sun {
-  top: clamp(48px, 26%, 150px);
-  background: radial-gradient(circle at 42% 36%, #fff4d0 0 16%, #ffcf7e 38%, #ff9e4d 68%, #f2793a 100%);
-  box-shadow: 0 0 70px 22px rgba(255, 170, 80, 0.6), 0 0 190px 70px rgba(255, 140, 60, 0.32);
-}
-/* Moon: the exact photographic disc from the design art (asset crop) with
-   a soft halo — background-image is applied inline from the asset import */
-.hero .moon {
-  top: clamp(14px, 9%, 58px);
-  right: clamp(16px, 11%, 140px);
-  width: clamp(76px, 8.2vw, 124px);
-  background-size: cover;
-  background-position: center;
-  background-repeat: no-repeat;
-  background-color: #0a1730;
-  box-shadow: 0 0 30px 6px rgba(214, 232, 255, 0.55), 0 0 110px 36px rgba(150, 188, 255, 0.32);
-}
-.hero[data-theme='morning'] .sun,
-.hero[data-theme='afternoon'] .sun,
-.hero[data-theme='evening'] .sun {
-  opacity: 1;
-}
-.hero[data-theme='night'] .moon {
-  opacity: 1;
-}
-
-/* ── Soft drifting clouds (white puffs by day, moonlit wisps at night) ── */
-.hero .clouds {
-  position: absolute;
-  left: 0;
-  right: 0;
-  top: 0;
-  height: 60%;
-  width: 100%;
-  z-index: 1;
-}
-/* floodColor: currentColor — theme picks the cloud colour and density */
-.hero[data-theme='morning'] .clouds,
-.hero[data-theme='afternoon'] .clouds {
-  color: #ffffff;
-}
-.hero[data-theme='evening'] .clouds {
-  color: #5a4478;
-}
-.hero[data-theme='night'] .clouds {
-  color: #17274c;
-}
-.hero .clouds .cb {
-  opacity: 0.5;
-}
-/* Day: a few soft puffs only — the art's sky stays mostly clear blue */
-.hero[data-theme='morning'] .clouds .cb-a,
-.hero[data-theme='afternoon'] .clouds .cb-a {
-  opacity: 0.75;
-}
-.hero[data-theme='morning'] .clouds .cb-b,
-.hero[data-theme='afternoon'] .clouds .cb-b {
-  opacity: 0.28;
-}
-.hero[data-theme='morning'] .clouds .cb-c,
-.hero[data-theme='afternoon'] .clouds .cb-c {
-  opacity: 0.55;
-}
-.hero[data-theme='morning'] .clouds .cb-d,
-.hero[data-theme='afternoon'] .clouds .cb-d {
-  opacity: 0.55;
-}
-.hero[data-theme='evening'] .clouds .cb-a,
-.hero[data-theme='night'] .clouds .cb-a {
-  opacity: 0.85;
-}
-.hero[data-theme='evening'] .clouds .cb-b,
-.hero[data-theme='night'] .clouds .cb-b {
-  opacity: 0.6;
-}
-.hero[data-theme='evening'] .clouds .cb-c,
-.hero[data-theme='night'] .clouds .cb-c {
-  opacity: 0.42;
-}
-.hero[data-theme='evening'] .clouds .cb-d,
-.hero[data-theme='night'] .clouds .cb-d {
-  opacity: 0.5;
-}
-.hero .clouds .cg-a,
-.hero .clouds .cg-b,
-.hero .clouds .cg-c {
-  transform-box: fill-box;
-}
-@media (prefers-reduced-motion: no-preference) {
-  .hero .clouds .cg-a {
-    animation: cloud-drift 70s ease-in-out infinite alternate;
-  }
-  .hero .clouds .cg-b {
-    animation: cloud-drift 95s ease-in-out infinite alternate;
-    animation-delay: -32s;
-  }
-  .hero .clouds .cg-c {
-    animation: cloud-drift 120s ease-in-out infinite alternate;
-    animation-delay: -60s;
-  }
-}
-@keyframes cloud-drift {
-  from {
-    transform: translateX(-16px);
-  }
-  to {
-    transform: translateX(16px);
-  }
-}
-
-/* ── Bottom scenery: real photographic mountain band (design-art crop) ─
-   Layered hazy ridges + conifer treeline, stretched full width. The top
-   edge fades into the sky via a mask; each theme tints the same photo. */
-.hero .hills {
-  position: absolute;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  width: 100%;
-  height: 52%;
-  z-index: 2;
-  background-size: 100% 100%;
-  background-repeat: no-repeat;
-  /* Long top fade — dissolves the crop's own sky strip so the ridges
-     emerge softly from the live sky gradient (no stray color band) */
-  -webkit-mask-image: linear-gradient(to bottom, transparent 0%, #000 38%);
-  mask-image: linear-gradient(to bottom, transparent 0%, #000 38%);
-}
-/* Day: brighten the night crop into the design art's rich blues (tamed
-   saturation so no electric band sits above the ridges) */
-.hero[data-theme='morning'] .hills,
-.hero[data-theme='afternoon'] .hills {
-  filter: brightness(1.95) contrast(1.3) saturate(1.25);
-}
-/* Evening: dusk violet shift */
-.hero[data-theme='evening'] .hills {
-  filter: hue-rotate(48deg) brightness(1.5) saturate(1.65);
-}
-/* Unfiltered base fade painted OVER the (filtered) hills — melts the
-   crop's bottom haze strip into each theme's dark base color so no
-   foreign tint (e.g. blue at dusk) survives behind the stats. */
-.hero .hill-fade {
-  position: absolute;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  width: 100%;
-  height: 52%;
-  z-index: 2;
-  pointer-events: none;
-  background: linear-gradient(
-    to bottom,
-    transparent 0%,
-    transparent var(--hill-fade-from, 36%),
-    var(--hill-base, #04101f) var(--hill-fade-full, 90%)
-  );
-}
-
-/* ── Content layout ───────────────────────────────────────────────── */
-.hero .hero-main {
-  position: relative;
-  z-index: 3;
-  flex: 1;
-  display: grid;
-  grid-template-columns: 1fr;
-  gap: 14px;
-  padding: clamp(15px, 2.1vw, 32px) clamp(16px, 2.4vw, 36px) clamp(9px, 1vw, 15px);
-}
+/* ── Left: welcome block ──────────────────────────────────────────── */
 .hero .welcome {
-  align-self: start;
+  position: relative;
+  z-index: 1;
+  max-width: 620px;
+  min-width: 0;
 }
+
 .hero .welcome small {
   display: block;
-  font-size: clamp(15px, 1.5vw, 21px);
-  font-weight: 400;
-  opacity: 0.95;
-}
-.hero .welcome h2 {
-  margin: 4px 0 0;
-  font-size: clamp(27px, 3.3vw, 46px);
-  line-height: 1.05;
-  font-weight: 800;
+  font-size: 25px;
+  font-weight: 600;
+  color: #6b7a90;
   letter-spacing: 0.2px;
-  text-shadow: 0 2px 12px rgba(0, 0, 0, 0.28);
 }
 
-/* Role + attendance chips (outlined pills, per the design art) — scoped
-   under .hero .chips so the app's other stylesheet (.chip in
-   Companies.css) can never leak in */
+.hero .hero-wordmark {
+  font-size: clamp(48px, 6vw, 74px);
+  font-weight: 800;
+  line-height: 0.98;
+  letter-spacing: -2px;
+  margin-top: 2px;
+  user-select: none;
+}
+
+.hero .hero-wordmark .wm-hr {
+  color: #12294a;
+}
+
+.hero .hero-wordmark .wm-max {
+  color: #f97316;
+}
+
+.hero .welcome h2.hero-role {
+  margin: 8px 0 0;
+  font-size: clamp(30px, 3.6vw, 44px);
+  font-weight: 800;
+  color: #12294a;
+  letter-spacing: -0.5px;
+  line-height: 1.1;
+}
+
+.hero .hero-tagline {
+  margin: 18px 0 22px;
+  border-left: 4px solid #2563eb;
+  padding-left: 14px;
+  max-width: 470px;
+  font-size: 17px;
+  font-weight: 700;
+  line-height: 1.5;
+  color: #1c3d66;
+}
+
+/* ── Right: tagline block ─────────────────────────────────────────── */
+.hero .hero-aside {
+  position: relative;
+  z-index: 1;
+  align-self: center;
+  display: flex;
+  flex-direction: column;
+  padding-bottom: 18px;
+  max-width: 300px;
+  flex: none;
+  font-size: 19px;
+  font-weight: 800;
+  line-height: 1.5;
+  color: #12335c;
+  text-align: right;
+}
+
+.hero .hero-aside-line {
+  display: block;
+  width: 46px;
+  height: 4px;
+  border-radius: 2px;
+  background: #2563eb;
+  margin: 12px 6px 0 auto;
+}
+
+/* ── Chips row (role / status / live attendance facts) ────────────── */
+/* Scoped under .hero .chips so the app's global `.chip` stylesheet
+   (used by other pages) never wins over the hero pill look. */
 .hero .chips {
   display: flex;
-  gap: 10px;
   flex-wrap: wrap;
-  margin-top: clamp(10px, 1.3vw, 20px);
+  align-items: center;
+  gap: 10px;
 }
+
 .hero .chips .chip {
   display: inline-flex;
   align-items: center;
   gap: 8px;
-  padding: clamp(5px, 0.65vw, 8px) clamp(10px, 1.15vw, 16px);
+  padding: 8px 14px;
   border-radius: 999px;
-  border: 1.6px solid rgba(255, 255, 255, 0.62);
-  background: rgba(5, 12, 28, 0.5);
-  font-size: clamp(11px, 1.1vw, 15px);
-  font-weight: 600;
-  color: #fff;
-  cursor: default;
-}
-/* Role chip: amber outline + amber icon/text on dark */
-.hero .chips .chip.role {
-  border-color: #fbbf24;
-  color: #ffd34d;
-  background: rgba(5, 12, 28, 0.4);
-}
-.hero .chips .chip i {
-  width: 0.62em;
-  height: 0.62em;
-  border-radius: 50%;
-  background: #fff;
-  display: inline-block;
-  flex: 0 0 auto;
-  transition: background 0.25s ease;
-}
-.hero .chips .chip.in i {
-  background: #22c55e;
-}
-.hero .chips .chip.in {
-  border-color: rgba(74, 222, 128, 0.75);
-  color: #d1fae5;
-}
-/* Live attendance state dot colours (real backend pill states) */
-.hero .chips .chip[data-state='working'] i {
-  background: #22c55e;
-  animation: hero-pulse 1.6s ease-in-out infinite;
-}
-.hero .chips .chip[data-state='done'] i {
-  background: #60a5fa;
-}
-.hero .chips .chip[data-state='leave'] i {
-  background: #60a5fa;
-}
-.hero .chips .chip[data-state='holiday'] i {
-  background: #fbbf24;
-}
-.hero .chips .chip[data-state='idle'] i {
-  background: #fff;
-}
-.hero .chips .chip[data-state='loading'] i {
-  background: #94a3b8;
-}
-.hero .chips .chip[data-state='late'] i {
-  background: #fbbf24;
-}
-@keyframes hero-pulse {
-  0%,
-  100% {
-    box-shadow: 0 0 0 0 rgba(34, 197, 94, 0.55);
-  }
-  50% {
-    box-shadow: 0 0 0 5px rgba(34, 197, 94, 0);
-  }
-}
-
-/* Greeting inline right after the name — smaller, lighter, with a gap */
-.hero .welcome h2 .greet-inline {
-  margin-left: 0.4em;
-  font-size: 0.5em;
-  font-weight: 600;
-  opacity: 0.92;
-  white-space: nowrap;
-  letter-spacing: 0.2px;
-  text-shadow: 0 2px 10px rgba(0, 0, 0, 0.25);
-}
-
-/* ── Stats strip — full-bleed, divider columns, icon labels ────────── */
-.hero .stats {
-  position: relative;
-  z-index: 3;
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(0, 1fr));
-  border-top: 1px solid rgba(255, 255, 255, 0.16);
-  background: var(--statbg);
-  /* Desaturate + darken whatever photo sits behind the strip: the forest
-     silhouette stays visible as dark texture while any blue haze is
-     knocked out to near-gray — "no blue" AND "forest shows". */
-  -webkit-backdrop-filter: var(--stat-fx, none);
-  backdrop-filter: var(--stat-fx, none);
-}
-.hero .stat {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: clamp(3px, 0.5vw, 8px);
-  padding: clamp(11px, 1.4vw, 20px) 6px;
-  text-align: center;
-}
-.hero .stat:not(:first-child) {
-  border-left: 1px solid rgba(255, 255, 255, 0.14);
-}
-.hero .stat .n {
-  font-size: clamp(22px, 2.5vw, 36px);
-  font-weight: 800;
+  font-size: 14px;
+  font-weight: 700;
   line-height: 1;
-  text-shadow: 0 2px 10px rgba(0, 0, 0, 0.22);
+  border: 1.5px solid #dbe4f0;
+  background: #fff;
+  color: #334155;
 }
-.hero .stat .l {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: clamp(4px, 0.5vw, 7px);
-  font-size: clamp(10px, 1.05vw, 14px);
-  font-weight: 600;
-  letter-spacing: 0.04em;
-  text-transform: uppercase;
-  color: #fff;
-}
-.hero .stat .l svg {
-  width: 1.05em;
-  height: 1.05em;
-  color: rgba(255, 255, 255, 0.85);
-}
-/* Fallback colours when a stat carries no inline colour */
-.hero .stat:nth-child(1) .n { color: #22c55e; }
-.hero .stat:nth-child(2) .n { color: #ef4444; }
-.hero .stat:nth-child(3) .n { color: #3b82f6; }
-.hero .stat:nth-child(4) .n { color: #ec4899; }
 
-/* ── Live attendance extras (kept from the HRMAX punch flow) ──────── */
+.hero .chips .chip.role {
+  border-color: #9dbdfb;
+  color: #1d4ed8;
+  box-shadow: 0 1px 2px rgba(37, 99, 235, 0.08);
+}
+
+.hero .chips .chip i {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: currentColor;
+  flex: none;
+}
+
+.hero .chips .chip.in {
+  border-color: #a7f3d0;
+}
+
+.hero .chips .chip[data-state='working'] {
+  background: #ecfdf5;
+  border-color: #a7f3d0;
+  color: #047857;
+}
+
+.hero .chips .chip[data-state='done'] {
+  background: #eff6ff;
+  border-color: #bfdbfe;
+  color: #1d4ed8;
+}
+
+.hero .chips .chip[data-state='leave'] {
+  background: #f5f3ff;
+  border-color: #ddd6fe;
+  color: #6d28d9;
+}
+
+.hero .chips .chip[data-state='holiday'] {
+  background: #fffbeb;
+  border-color: #fde68a;
+  color: #b45309;
+}
+
+.hero .chips .chip[data-state='idle'] {
+  background: #f8fafc;
+  border-color: #e2e8f0;
+  color: #475569;
+}
+
+.hero .chips .chip[data-state='late'] {
+  background: #fff7ed;
+  border-color: #fed7aa;
+  color: #c2410c;
+}
+
+.hero .chips .chip[data-state='loading'] {
+  background: #f1f5f9;
+  border-color: #e2e8f0;
+  color: #64748b;
+}
+
+/* Live attendance detail inside the chips row */
 .hero .hero-detail {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 6px;
-  margin-top: 10px;
-  font-size: clamp(12px, 1vw, 14px);
-  color: rgba(255, 255, 255, 0.92);
-  text-shadow: 0 1px 2px rgba(4, 10, 28, 0.45);
-}
-.hero .hero-elapsed {
-  color: #6ee7b7;
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  font-size: 14.5px;
   font-weight: 600;
+  color: #334155;
 }
+
+.hero .hero-detail svg {
+  color: #2563eb;
+  flex: none;
+}
+
+.hero .hero-pill {
+  display: inline-flex;
+  align-items: center;
+  padding: 7px 12px;
+  border-radius: 999px;
+  border: 1px solid #a7f3d0;
+  background: #ecfdf5;
+  font-size: 13.5px;
+  font-weight: 700;
+  color: #047857;
+  line-height: 1;
+}
+
+/* ── Punch actions ────────────────────────────────────────────────── */
 .hero .hero-actions {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
   gap: 10px;
-  margin-top: 12px;
+  margin-top: 14px;
 }
+
 .hero .hero-btn {
   display: inline-flex;
   align-items: center;
-  gap: 7px;
-  padding: 9px 20px;
-  border-radius: 10px;
-  border: 1px solid rgba(255, 255, 255, 0.42);
-  background: rgba(255, 255, 255, 0.16);
+  gap: 8px;
+  padding: 9px 18px;
+  border: 0;
+  border-radius: 999px;
+  background: #2563eb;
   color: #fff;
-  font-size: 13.5px;
-  font-weight: 600;
+  font-size: 14px;
+  font-weight: 700;
+  font-family: inherit;
   cursor: pointer;
-  backdrop-filter: blur(8px);
-  transition: background 0.18s ease, transform 0.12s ease, border-color 0.18s ease;
+  transition: background 0.15s ease;
 }
+
 .hero .hero-btn:hover:not(:disabled) {
-  background: rgba(255, 255, 255, 0.28);
-  border-color: rgba(255, 255, 255, 0.68);
+  background: #1d4ed8;
 }
+
 .hero .hero-btn:active:not(:disabled) {
-  transform: translateY(1px);
+  background: #1e40af;
 }
+
 .hero .hero-btn:focus-visible {
-  outline: 2px solid #93c5fd;
+  outline: 2px solid #2563eb;
   outline-offset: 2px;
 }
+
 .hero .hero-btn:disabled {
-  opacity: 0.65;
-  cursor: not-allowed;
+  opacity: 0.7;
+  cursor: default;
 }
+
 .hero .hero-msg {
   display: inline-flex;
   align-items: center;
   gap: 6px;
-  font-size: 12.5px;
-  font-weight: 500;
-  max-width: 100%;
+  font-size: 13.5px;
+  font-weight: 600;
+  color: #047857;
 }
-.hero .hero-msg[data-type='success'] {
-  color: #6ee7b7;
-}
+
 .hero .hero-msg[data-type='error'] {
-  color: #fca5a5;
+  color: #b91c1c;
 }
+
 .hero .hero-spin {
-  animation: hero-rotate 0.9s linear infinite;
+  animation: hero-spin 1s linear infinite;
 }
-@keyframes hero-rotate {
+
+@keyframes hero-spin {
   to {
     transform: rotate(360deg);
   }
 }
 
-/* ── Responsive ───────────────────────────────────────────────────── */
-@media (max-width: 900px) {
-  .hero {
-    min-height: clamp(265px, 36vw, 330px);
-  }
-  .hero .orb {
-    width: clamp(60px, 10vw, 88px);
-  }
-}
-
-@media (max-width: 600px) {
-  .hero {
-    min-height: 0;
-    border-radius: 14px;
-  }
-  .hero .hero-main {
-    grid-template-columns: 1fr;
-    gap: 10px;
-    padding: 16px 16px 8px;
-  }
-  .hero .welcome small {
-    font-size: 15px;
-  }
-  .hero .welcome h2 {
-    font-size: 28px;
-  }
-  .hero .orb {
-    transform: scale(0.55);
-    transform-origin: top right;
-    top: 8px;
-    right: 8px;
-  }
-  .hero .stats {
-    grid-template-columns: repeat(2, 1fr);
-  }
-  .hero .stat:nth-child(3) {
-    border-left: 0;
-  }
-  .hero .stat:nth-child(n + 3) {
-    border-top: 1px solid rgba(255, 255, 255, 0.14);
-  }
-  /* Attendance extras stay compact on phones */
-  .hero .hero-btn {
-    padding: 7px 14px;
-    font-size: 12.5px;
-  }
-  .hero .hero-detail {
-    font-size: 12px;
-  }
-}
-
-/* Accessibility — respect reduced motion everywhere */
 @media (prefers-reduced-motion: reduce) {
-  .hero .star,
-  .hero .chips .chip i,
-  .hero .hero-spin,
-  .hero .clouds .cg-a,
-  .hero .clouds .cg-b,
-  .hero .clouds .cg-c {
-    animation: none !important;
+  .hero .hero-spin {
+    animation: none;
   }
-  .hero,
-  .hero .orb,
-  .hero .hero-btn {
-    transition: none;
+}
+
+/* ── Dark stats strip ─────────────────────────────────────────────── */
+.hero .hero-stats {
+  display: flex;
+  align-items: stretch;
+  justify-content: space-between;
+  gap: 8px;
+  background: #0e1726;
+  border-radius: 18px;
+  padding: 22px 18px;
+  color: #fff;
+  box-shadow: 0 10px 24px rgba(15, 23, 42, 0.18);
+}
+
+.hero .hero-stats .hero-stat {
+  position: relative;
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 14px;
+  padding: 2px 6px;
+}
+
+.hero .hero-stats .hero-stat + .hero-stat::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 14%;
+  bottom: 14%;
+  width: 1px;
+  background: rgba(255, 255, 255, 0.12);
+}
+
+.hero .hero-stat-icon {
+  width: 50px;
+  height: 50px;
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  color: #fff;
+  flex: none;
+}
+
+.hero .hero-stat-meta {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.hero .hero-stats .hero-stat-n {
+  font-size: 28px;
+  font-weight: 800;
+  line-height: 1.1;
+  font-variant-numeric: tabular-nums;
+}
+
+.hero .hero-stats .hero-stat-l {
+  margin-top: 2px;
+  font-size: 12.5px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: #cbd5e1;
+}
+
+/* ── Responsive ───────────────────────────────────────────────────── */
+@media (max-width: 980px) {
+  .hero .hero-card {
+    flex-direction: column;
+    padding: 26px 22px;
+    min-height: 0;
+    gap: 18px;
+  }
+
+  .hero .welcome small {
+    font-size: 20px;
+  }
+
+  .hero .hero-tagline {
+    margin: 14px 0 18px;
+  }
+
+  .hero .hero-aside {
+    align-self: flex-start;
+    padding-bottom: 0;
+    text-align: left;
+    font-size: 17px;
+  }
+
+  .hero .hero-aside-line {
+    margin: 10px 0 0;
+  }
+}
+
+@media (max-width: 720px) {
+  .hero .hero-stats {
+    flex-wrap: wrap;
+    row-gap: 14px;
+    padding: 18px 12px;
+  }
+
+  .hero .hero-stats .hero-stat {
+    flex: 1 1 40%;
+  }
+
+  .hero .hero-stats .hero-stat + .hero-stat::before {
+    display: none;
+  }
+
+  .hero .hero-stat-icon {
+    width: 42px;
+    height: 42px;
+  }
+
+  .hero .hero-stats .hero-stat-n {
+    font-size: 23px;
   }
 }

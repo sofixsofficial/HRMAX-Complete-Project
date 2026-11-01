@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState, type CSSProperties } from 'react'
+import { useEffect, useState } from 'react'
 import {
   AlertCircle,
   BarChart3,
@@ -26,19 +26,8 @@ import { getLeaveRequestsByUser } from '../services/leaveService'
 import { roleDepartmentLabel } from '../utils/roleLabels'
 import { parseWeekendDays, toDateKey } from '../utils/workingDays'
 import { resolveCharacterMode } from '../utils/characterMode'
-import {
-  formatElapsed,
-  formatInZone,
-  resolveCompanyWeekends,
-  toDate,
-  type DayPeriod,
-} from '../utils/heroScene'
+import { formatElapsed, formatInZone, resolveCompanyWeekends, toDate } from '../utils/heroScene'
 import './DashboardHero.css'
-/* Moon + mountain band cropped from the HRMAX design art (Night & Day
-   Admin Dashboard.png) — the exact photographic scenery the design calls
-   for; theme tints are applied via CSS filters. */
-import moonUrl from '../assets/moon.png'
-import ridgeUrl from '../assets/night-ridge.png'
 
 export interface DashboardHeroStat {
   label: string
@@ -59,116 +48,27 @@ interface DashboardHeroProps {
   showAttendance?: boolean
 }
 
-/* ------------------------------------------------------------------ */
-/* Reference sky — CSS sun/moon orbs + seeded DOM stars + 2-layer hills */
-/* ------------------------------------------------------------------ */
-
-/**
- * Realistic star field: mostly faint pinpoints with a scattering of
- * brighter stars, a few with a soft glow, occasional warm-tinted ones —
- * seeded so re-renders never make the stars jump around. Purely
- * decorative (`aria-hidden` container).
- */
-function useSkyStars() {
-  return useMemo(() => {
-    let seed = 7
-    const rnd = () => (seed = (seed * 16807) % 2147483647) / 2147483647
-    return Array.from({ length: 72 }, () => {
-      const bright = rnd() > 0.84
-      return {
-        left: `${(rnd() * 100).toFixed(2)}%`,
-        top: `${(rnd() * 92).toFixed(2)}%`,
-        size: Number((bright ? 2.2 + rnd() * 1.4 : 1 + rnd() * 1.3).toFixed(2)),
-        opacity: (bright ? 0.85 + rnd() * 0.15 : 0.22 + rnd() * 0.55).toFixed(2),
-        glow: bright && rnd() > 0.45,
-        warm: rnd() > 0.91,
-        blink: rnd() > 0.55,
-        delay: `${(rnd() * 6).toFixed(2)}s`,
-        dur: `${(1.6 + rnd() * 6.6).toFixed(2)}s`,
-      }
-    })
-  }, [])
+/** Stat label icon — matches the dark stats strip (person, umbrella, …). */
+const statIcon = (label: string, size = 20) => {
+  const l = label.toLowerCase()
+  if (l.includes('present')) return <User size={size} />
+  if (l.includes('absent') || l.includes('inactive')) return <UserX size={size} />
+  if (l.includes('leave')) return <Umbrella size={size} />
+  if (l.includes('task')) return <ClipboardList size={size} />
+  if (l.includes('rate') || l.includes('month')) return <Percent size={size} />
+  if (l.includes('active')) return <UserCheck size={size} />
+  if (l.includes('team')) return <Users size={size} />
+  if (l.includes('approved')) return <CheckCircle2 size={size} />
+  return <BarChart3 size={size} />
 }
 
-/* Inline icons from the reference markup — tiny stroke SVGs, no icon lib. */
+/* Inline icon for the role chip — tiny stroke SVG, no icon lib. */
 const PersonIcon = (
   <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
     <circle cx="12" cy="8" r="4" />
     <path d="M4 20c0-4 3.6-6 8-6s8 2 8 6" />
   </svg>
 )
-
-/* ------------------------------------------------------------------ */
-/* Wispy cloud masses — fractal-noise alpha thresholds shaped into      */
-/* organic clouds. `currentColor` from CSS per theme: dark navy wisps   */
-/* at night, white puffs by day, dusk violet at evening. Slow drift,    */
-/* disabled under reduced motion.                                       */
-/* ------------------------------------------------------------------ */
-const Clouds = () => (
-  <svg className="clouds" viewBox="0 0 1200 300" preserveAspectRatio="none" aria-hidden="true" focusable="false">
-    <defs>
-      <filter id="dh-cloud-a" x="-25%" y="-70%" width="150%" height="240%" colorInterpolationFilters="sRGB">
-        <feTurbulence type="fractalNoise" baseFrequency="0.010 0.016" numOctaves="4" seed="17" result="t" />
-        {/* alpha = 2.4·R − 1.4 → distinct puffs only where noise is strong */}
-        <feColorMatrix in="t" type="matrix" values="0 0 0 0 0  0 0 0 0 0  0 0 0 0 0  2.4 0 0 0 -1.4" result="a" />
-        <feGaussianBlur in="a" stdDeviation="3.2" result="b" />
-        <feFlood floodColor="currentColor" result="f" />
-        <feComposite in="f" in2="b" operator="in" />
-      </filter>
-      <filter id="dh-cloud-b" x="-25%" y="-70%" width="150%" height="240%" colorInterpolationFilters="sRGB">
-        <feTurbulence type="fractalNoise" baseFrequency="0.007 0.03" numOctaves="4" seed="43" result="t" />
-        <feColorMatrix in="t" type="matrix" values="0 0 0 0 0  0 0 0 0 0  0 0 0 0 0  2.3 0 0 0 -1.3" result="a" />
-        <feGaussianBlur in="a" stdDeviation="2.4" result="b" />
-        <feFlood floodColor="currentColor" result="f" />
-        <feComposite in="f" in2="b" operator="in" />
-      </filter>
-      {/* Soft elliptical fades — clouds dissolve at the edges instead of
-          being cut straight at the filter-region boundary */}
-      <radialGradient id="dh-fade">
-        <stop offset="0%" stopColor="#fff" />
-        <stop offset="55%" stopColor="#fff" />
-        <stop offset="100%" stopColor="#000" />
-      </radialGradient>
-      <mask id="dh-mask-a" maskUnits="userSpaceOnUse">
-        <ellipse cx="990" cy="112" rx="210" ry="68" fill="url(#dh-fade)" />
-      </mask>
-      <mask id="dh-mask-b" maskUnits="userSpaceOnUse">
-        <ellipse cx="860" cy="185" rx="330" ry="54" fill="url(#dh-fade)" />
-      </mask>
-      <mask id="dh-mask-c" maskUnits="userSpaceOnUse">
-        <ellipse cx="320" cy="110" rx="185" ry="54" fill="url(#dh-fade)" />
-      </mask>
-      <mask id="dh-mask-d" maskUnits="userSpaceOnUse">
-        <ellipse cx="1040" cy="34" rx="160" ry="38" fill="url(#dh-fade)" />
-      </mask>
-    </defs>
-    {/* Mass under the orb (moon/sun corner) + a mid band + a left wisp */}
-    <g className="cg-a">
-      <rect className="cb cb-a" x="790" y="60" width="400" height="105" filter="url(#dh-cloud-a)" mask="url(#dh-mask-a)" />
-    </g>
-    <g className="cg-b">
-      <rect className="cb cb-b" x="540" y="145" width="640" height="80" filter="url(#dh-cloud-b)" mask="url(#dh-mask-b)" />
-    </g>
-    <g className="cg-c">
-      <rect className="cb cb-c" x="150" y="70" width="340" height="80" filter="url(#dh-cloud-a)" mask="url(#dh-mask-c)" />
-      <rect className="cb cb-d" x="880" y="5" width="320" height="60" filter="url(#dh-cloud-b)" mask="url(#dh-mask-d)" />
-    </g>
-  </svg>
-)
-
-/** Stat label icon — matches the reference strip (person, user-x, umbrella, …). */
-const statIcon = (label: string) => {
-  const l = label.toLowerCase()
-  if (l.includes('present')) return <User size={17} />
-  if (l.includes('absent') || l.includes('inactive')) return <UserX size={17} />
-  if (l.includes('leave')) return <Umbrella size={17} />
-  if (l.includes('task')) return <ClipboardList size={17} />
-  if (l.includes('rate') || l.includes('month')) return <Percent size={17} />
-  if (l.includes('active')) return <UserCheck size={17} />
-  if (l.includes('team')) return <Users size={17} />
-  if (l.includes('approved')) return <CheckCircle2 size={17} />
-  return <BarChart3 size={17} />
-}
 
 /* ------------------------------------------------------------------ */
 /* Helpers                                                             */
@@ -208,7 +108,7 @@ const EMPTY_DAY: DayContext = {
 }
 
 /**
- * Loads the non-attendance facts the character resolver needs: an APPROVED
+ * Loads the non-attendance facts the status resolver needs: an APPROVED
  * leave covering today (pending/rejected never count), the company holiday
  * for today, and the assigned weekly-off day. All reads are best-effort — if
  * a source is unavailable the flag stays false and the mode falls back to the
@@ -286,7 +186,7 @@ function useDayContext(): DayContext {
 }
 
 /* ------------------------------------------------------------------ */
-/* Attendance slice (employees) — reference chips + live punch actions */
+/* Attendance slice — live status chip + punch actions                 */
 /* ------------------------------------------------------------------ */
 
 function HeroAttendance({ badge }: { badge: string }) {
@@ -334,45 +234,46 @@ function HeroAttendance({ badge }: { badge: string }) {
         <span className={`chip${hasIn ? ' in' : ''}`} data-state={pillState} role="status" aria-live="polite">
           <i aria-hidden="true" /> {pillText}
         </span>
-      </div>
 
-      {/* Detail line per mode — live attendance facts (never invented) */}
-      {working && (
-        <div className="hero-detail">
-          <Clock3 size={14} aria-hidden="true" />
-          <span>Checked in at {fmtPunchTime(todayRecord?.checkIn, tz)}</span>
-          <span aria-hidden="true">·</span>
-          <span className="hero-elapsed">{formatElapsed(elapsedMs)} elapsed</span>
-        </div>
-      )}
-      {mode === 'complete' && (
-        <div className="hero-detail">
-          <Clock3 size={14} aria-hidden="true" />
-          <span>In {fmtPunchTime(todayRecord?.checkIn, tz)}</span>
-          <span aria-hidden="true">·</span>
-          <span>Out {fmtPunchTime(todayRecord?.checkOut, tz)}</span>
-          <span aria-hidden="true">·</span>
-          <span>{formatElapsed(workedMs)} worked</span>
-        </div>
-      )}
-      {mode === 'on_leave' && (
-        <div className="hero-detail">
-          <Umbrella size={14} aria-hidden="true" />
-          <span>{day.halfDayLeave && !day.onApprovedLeave ? 'Approved half-day leave today' : 'Approved leave today'}</span>
-        </div>
-      )}
-      {mode === 'holiday' && (
-        <div className="hero-detail">
-          <Calendar size={14} aria-hidden="true" />
-          <span>{resolved.pill} · {dateLong}</span>
-        </div>
-      )}
-      {mode === 'resting' && (
-        <div className="hero-detail">
-          <Clock3 size={14} aria-hidden="true" />
-          <span>You are not currently working.</span>
-        </div>
-      )}
+        {/* Detail line per mode — live attendance facts (never invented) */}
+        {working && (
+          <>
+            <span className="hero-detail">
+              <Clock3 size={15} aria-hidden="true" />
+              <span>Checked in at {fmtPunchTime(todayRecord?.checkIn, tz)}</span>
+            </span>
+            <span className="hero-pill elapsed">
+              <span aria-hidden="true">·</span> {formatElapsed(elapsedMs)} elapsed
+            </span>
+          </>
+        )}
+        {mode === 'complete' && (
+          <span className="hero-detail">
+            <Clock3 size={15} aria-hidden="true" />
+            <span>
+              In {fmtPunchTime(todayRecord?.checkIn, tz)} · Out {fmtPunchTime(todayRecord?.checkOut, tz)} · {formatElapsed(workedMs)} worked
+            </span>
+          </span>
+        )}
+        {mode === 'on_leave' && (
+          <span className="hero-detail">
+            <Umbrella size={15} aria-hidden="true" />
+            <span>{day.halfDayLeave && !day.onApprovedLeave ? 'Approved half-day leave today' : 'Approved leave today'}</span>
+          </span>
+        )}
+        {mode === 'holiday' && (
+          <span className="hero-detail">
+            <Calendar size={15} aria-hidden="true" />
+            <span>{resolved.pill} · {dateLong}</span>
+          </span>
+        )}
+        {mode === 'resting' && (
+          <span className="hero-detail">
+            <Clock3 size={15} aria-hidden="true" />
+            <span>You are not currently working.</span>
+          </span>
+        )}
+      </div>
 
       {/* Punch actions — the employee check-in/out entry point */}
       {(showCheckIn || showCheckOut) && (
@@ -410,55 +311,37 @@ function HeroAttendance({ badge }: { badge: string }) {
 }
 
 /* ------------------------------------------------------------------ */
-/* Hero — ported from the hrmax-hero reference (HeroBanner.jsx)        */
+/* Hero — simple light design (light gradient card with soft blue      */
+/* waves, HRMAX wordmark, live chips row) + dark rounded stats strip   */
 /* ------------------------------------------------------------------ */
 
 export function DashboardHero({ stats, badge, showAttendance = true }: DashboardHeroProps) {
   const { user } = useAuth()
-  // Shared clock context — ONE time source for the header AND the hero, so
-  // the two can never drift apart (hrmax-hero reference wiring).
-  const { theme } = useClock()
   const roleBadge = badge || roleDepartmentLabel(user)
-  const stars = useSkyStars()
+  const tagline =
+    user?.role === 'employee'
+      ? 'Track your attendance and leaves with ease.'
+      : 'Manage your team, track attendance and leaves with ease.'
 
   return (
-    <section className="hero" data-theme={theme} aria-label="Welcome summary">
-      <div className="sky" aria-hidden="true">
-        <div className="stars">
-          {stars.map((s, i) => (
-            <i
-              key={i}
-              className={`star${s.glow ? ' glow' : ''}${s.warm ? ' warm' : ''}${s.blink ? ' tw2' : ''}`}
-              style={
-                {
-                  left: s.left,
-                  top: s.top,
-                  width: `${s.size}px`,
-                  height: `${s.size}px`,
-                  '--tw-op': s.opacity,
-                  '--tw-delay': s.delay,
-                  '--tw-dur': s.dur,
-                } as CSSProperties
-              }
-            />
-          ))}
-        </div>
-        <div className="orb sun" />
-        <div className="orb moon" style={{ backgroundImage: `url(${moonUrl})` }} />
-        <Clouds />
-        {/* Real photographic mountain band (cropped from the design art) —
-            layered ridges + conifer treeline; theme tints via CSS filters */}
-        <div className="hills" style={{ backgroundImage: `url(${ridgeUrl})` }} />
-        {/* Base fade — melts the crop's bottom into the theme's dark color */}
-        <div className="hill-fade" />
-      </div>
+    <section className="hero" aria-label="Welcome summary">
+      <div className="hero-card">
+        {/* Soft blue wave shapes on the right (decorative only) */}
+        <svg className="hero-waves" viewBox="0 0 1200 400" preserveAspectRatio="none" aria-hidden="true" focusable="false">
+          <path fill="#dbe9fb" d="M860 0 C1010 90 1130 210 940 330 C875 372 905 400 905 400 L1200 400 L1200 0 Z" />
+          <path fill="#eef4fd" d="M1200 120 C1075 185 1155 320 995 400 L1200 400 Z" />
+          <path fill="#c7dbf8" opacity="0.85" d="M1200 250 C1115 295 1165 362 1085 400 L1200 400 Z" />
+          <path fill="#eaf1fd" d="M1200 0 L960 0 C1075 65 1135 115 1200 145 Z" />
+        </svg>
 
-      <div className="hero-main">
         <div className="welcome">
           <small>Welcome to,</small>
-          <h2>
-            {user?.name || roleDepartmentLabel(user) || 'User'}
-          </h2>
+          <div className="hero-wordmark" aria-label="HRMAX">
+            <span className="wm-hr">HR</span>
+            <span className="wm-max">MAX</span>
+          </div>
+          <h2 className="hero-role">{roleBadge}</h2>
+          <p className="hero-tagline">{tagline}</p>
 
           {showAttendance ? (
             <HeroAttendance badge={roleBadge} />
@@ -472,17 +355,28 @@ export function DashboardHero({ stats, badge, showAttendance = true }: Dashboard
             </div>
           )}
         </div>
+
+        <div className="hero-aside">
+          <span>Smart HR Management</span>
+          <span>for a Better Workplace</span>
+          <i className="hero-aside-line" aria-hidden="true" />
+        </div>
       </div>
 
-      <div className="stats" role="list" aria-label="Dashboard statistics">
+      {/* Dark rounded stats strip — real values from the role's dashboard */}
+      <div className="hero-stats" role="list" aria-label="Dashboard statistics">
         {stats.map((s) => (
-          <div key={s.label} className="stat" role="listitem">
-            <div className="n" style={{ color: s.color }}>
-              {s.value ?? '–'}
-            </div>
-            <div className="l">
+          <div key={s.label} className="hero-stat" role="listitem">
+            <span
+              className="hero-stat-icon"
+              style={{ backgroundColor: s.color, boxShadow: `0 8px 18px ${s.color}55` }}
+              aria-hidden="true"
+            >
               {statIcon(s.label)}
-              <span>{s.label}</span>
+            </span>
+            <div className="hero-stat-meta">
+              <div className="hero-stat-n">{s.value ?? '–'}</div>
+              <div className="hero-stat-l">{s.label}</div>
             </div>
           </div>
         ))}

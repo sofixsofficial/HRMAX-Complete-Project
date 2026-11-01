@@ -31,7 +31,7 @@ import {
   deleteAllCompanyStaff,
   onboardCompany,
 } from '../services/companyService'
-import { getAllEmployees } from '../services/employeeService'
+import { getAllEmployees, getEmployeesByCompanies } from '../services/employeeService'
 import { getAllUsers, resetUserPassword } from '../services/authService'
 import { TempPasswordDialog } from '../components/TempPasswordDialog'
 import { errText } from '../aws/errors'
@@ -993,14 +993,25 @@ export function Companies() {
   }, [scopeCompanyIds.join('|'), isMaster, retryNonce])
 
   useEffect(() => {
-    getAllEmployees().then(emps => {
-      const counts: Record<string, number> = {}
-      for (const emp of emps) {
-        const cid = emp.companyId
-        if (cid && inScopeCompanies(cid)) counts[cid] = (counts[cid] || 0) + 1
-      }
-      setEmployeeCounts(counts)
-    }).catch(() => {})
+    // The unfiltered employees LIST is partition-scoped for restricted roles
+    // (returns 0 docs for a Team Leader) — fetch per-company for scoped viewers
+    // (same pattern as Employees.tsx), full list for masters.
+    const load = async () => {
+      try {
+        const emps = (!isMaster && scopeCompanyIds.length > 0)
+          ? await getEmployeesByCompanies(scopeCompanyIds).catch(() => [])
+          : await getAllEmployees().catch(() => [])
+        const counts: Record<string, number> = {}
+        for (const emp of emps) {
+          const cid = emp.companyId
+          // NOTE: inScopeCompanies takes a company OBJECT; pass { id } here —
+          // passing the raw id string made c.id undefined and zeroed the count.
+          if (cid && inScopeCompanies({ id: cid })) counts[cid] = (counts[cid] || 0) + 1
+        }
+        setEmployeeCounts(counts)
+      } catch { /* keep previous counts */ }
+    }
+    void load()
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [companies.length, scopeCompanyIds.join('|'), isMaster])
 

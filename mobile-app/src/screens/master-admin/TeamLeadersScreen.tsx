@@ -158,8 +158,25 @@ export const TeamLeadersScreen: React.FC = () => {
   useEffect(() => { setCurrentPage(1); }, [search, execFilter]);
 
   const execOptions = useMemo(() => executives.filter(e => e.isActive), [executives]);
-  const getCompanyName = (id: string) => companies.find(c => c.id === id)?.name || id;
-  const getExecName = (id: string) => executives.find(e => e.id === id)?.name || id;
+  const getCompanyName = (id: string) => companies.find(c => c.id === id)?.name || '—';
+  const getExecName = (id: string) => executives.find(e => e.id === id)?.name || '—';
+
+  // ── Mutual exclusivity (web parity): an executive already linked to ANOTHER
+  // team leader cannot be linked here. Owner comes from BOTH link sides
+  // (tl.linkedExecutiveIds + tl.reportingExecutiveId). While editing a TL that
+  // TL's own linked execs stay selectable.
+  const editingTlId = modal && editing ? editing : null;
+  const execOwnerMap = useMemo(() => {
+    const map = new Map<string, { id: string; name: string }>();
+    teamLeaders.forEach(tl => {
+      const linked: string[] = (tl as any).linkedExecutiveIds ||
+        ((tl as any).reportingExecutiveId ? [(tl as any).reportingExecutiveId] : []);
+      linked.forEach(eid => {
+        if (eid && !map.has(eid)) map.set(eid, { id: tl.id, name: tl.name || 'another team leader' });
+      });
+    });
+    return map;
+  }, [teamLeaders]);
 
   const getDerivedCompany = (tl: User) => {
     const linkedExecIds: string[] = (tl as any).linkedExecutiveIds || ((tl as any).reportingExecutiveId ? [(tl as any).reportingExecutiveId] : []);
@@ -277,6 +294,12 @@ export const TeamLeadersScreen: React.FC = () => {
   };
 
   const toggleExec = (id: string) => {
+    // Mutual exclusivity: an executive owned by ANOTHER team leader is blocked.
+    const owner = execOwnerMap.get(id);
+    if (owner && owner.id !== editingTlId && !form.executiveIds.includes(id)) {
+      Alert.alert('Already assigned', `This executive is already assigned to ${owner.name} and cannot be reassigned.`);
+      return;
+    }
     setForm(prev => {
       const executiveIds = prev.executiveIds.includes(id)
         ? prev.executiveIds.filter(e => e !== id)
@@ -362,6 +385,15 @@ export const TeamLeadersScreen: React.FC = () => {
     // (web parity: "team leader executive ko manage karhe hai na").
     if (form.executiveIds.length === 0) {
       Alert.alert('Validation', 'Link at least one Executive — the Team Leader’s company comes from the Executive');
+      return;
+    }
+    // Mutual exclusivity (save-time guard, web parity): reject any executive
+    // owned by a DIFFERENT team leader (stale picker / concurrent assignment).
+    const takenExec = form.executiveIds
+      .map(eid => execOwnerMap.get(eid))
+      .find(o => o && o.id !== editingTlId);
+    if (takenExec) {
+      Alert.alert('Already assigned', `An executive is already assigned to ${takenExec.name} — unselect it before saving.`);
       return;
     }
     const targetCompanyId = deriveCompanyIdFromExecs(form.executiveIds) ||
@@ -765,9 +797,16 @@ export const TeamLeadersScreen: React.FC = () => {
                       <Text style={s.emptyText}>No active executives available</Text>
                     ) : execOptions.map(ex => {
                       const selected = form.executiveIds.includes(ex.id);
+                      const owner = execOwnerMap.get(ex.id);
+                      const taken = !!owner && owner.id !== editingTlId && !selected;
                       return (
-                        <TouchableOpacity key={ex.id} style={[s.chip, selected && s.chipActive]} onPress={() => toggleExec(ex.id)}>
-                          <Text style={[s.chipText, selected && { color: '#fff' }]}>{ex.name}</Text>
+                        <TouchableOpacity
+                          key={ex.id}
+                          disabled={taken}
+                          style={[s.chip, selected && s.chipActive, taken && { opacity: 0.45 }]}
+                          onPress={() => toggleExec(ex.id)}
+                        >
+                          <Text style={[s.chipText, selected && { color: '#fff' }]}>{ex.name}{taken ? ` · ${owner!.name}` : ''}</Text>
                         </TouchableOpacity>
                       );
                     })}

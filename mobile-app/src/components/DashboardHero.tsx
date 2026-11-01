@@ -1,7 +1,7 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { View, Text, StyleSheet, Animated, AccessibilityInfo, Pressable, ActivityIndicator } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
-import Svg, { Circle, Ellipse, Path, Rect } from 'react-native-svg';
+import Svg, { Path } from 'react-native-svg';
 import { collection, getDocs, query, where } from '../aws/firestore-compat';
 import { db } from '../aws/clients';
 import { useAuth } from '../context/AuthContext';
@@ -16,27 +16,28 @@ import {
   effectiveTimezone,
   formatElapsed,
   formatInZone,
-  getHeroScene,
   resolveCompanyTimezone,
   resolveCompanyWeekends,
   toDate,
-  type DayPeriod,
 } from '../utils/heroScene';
-import { resolveCharacterMode, type CharacterMode } from '../utils/characterMode';
+import { resolveCharacterMode } from '../utils/characterMode';
 import { parseWeekendDays, toDateKey } from '../utils/workingDays';
 import { Icon } from '../utils/icons';
 
 /**
- * Premium dashboard hero — time-based scene background + live clock +
- * server-confirmed Working Mode.
+ * Dashboard hero — SIMPLE LIGHT design (web parity):
+ *  • light gradient card (white → pale blue) with soft blue waves on the right
+ *  • "Welcome to," + HRMAX wordmark (HR navy / MAX orange) + role name
+ *  • blue-left-border tagline + live attendance chips (role / status /
+ *    checked-in time / elapsed pill) + gate-validated punch actions
+ *  • "Smart HR Management for a Better Workplace" note
+ *  • dark rounded stats strip BELOW the card (colored circle icons)
  *
- * Drop-in replacement for DashboardHeader (same props) used by all role
- * dashboards. Working Mode derives ONLY from the user's verified today
- * attendance record (`useTodayAttendance`, restored on app resume) — it is
- * never inferred from UI interaction. Check-in/out actions reuse the
- * existing `useAttendanceGate` policy validation + `attendanceApi` cloud
- * functions; the confirmed record is refetched only after the server
- * responds.
+ * Working Mode derives ONLY from the user's verified today attendance record
+ * (`useTodayAttendance`, restored on app resume) — it is never inferred from
+ * UI interaction. Check-in/out actions reuse the existing `useAttendanceGate`
+ * policy validation + `attendanceApi` cloud functions; the confirmed record
+ * is refetched only after the server responds.
  */
 
 export interface DashboardHeroStat {
@@ -61,185 +62,6 @@ interface DashboardHeroProps {
   showAttendance?: boolean;
 }
 
-type PunchUiState =
-  | 'loading'
-  | 'not_checked_in'
-  | 'checking_in'
-  | 'working'
-  | 'checking_out'
-  | 'checked_out'
-  | 'on_leave';
-
-/* ── Shared hero background: the app-wide dark navy card ───────────── */
-/**
- * Shared hero background for EVERY role dashboard (and the employee hero,
- * which hardcodes the same pair): a simple black-to-blue gradient.
- *
- * Kept to two flat stops with no scene art so the card reads as a plain,
- * calm surface on all screens rather than a different illustration per role.
- */
-export const HERO_BG = ['#0b1120', '#152e56'] as const;
-
-
-/* ── Employee character — one identity, five poses (SECTION 5B) ────── */
-
-const SKIN = '#f0c09a';
-const HAIR = '#2b2b3a';
-
-const Character: React.FC<{ mode: CharacterMode; animate: boolean }> = ({ mode, animate }) => {
-  const casual = mode === 'on_leave' || mode === 'holiday';
-  const shirt = casual ? '#3f7d5a' : '#33507e';
-  const shirtDark = casual ? '#356a4d' : '#2b4470';
-  const working = mode === 'working';
-
-  const pulse = useRef(new Animated.Value(0)).current;
-
-  useEffect(() => {
-    if (!animate) {
-      pulse.setValue(working ? 1 : 0);
-      return;
-    }
-    // Working = subtle screen-glow pulse; every other mode = gentle breathing.
-    const hi = 1;
-    const lo = working ? 0.82 : 0;
-    const dur = working ? 1600 : 2500;
-    const loop = Animated.loop(
-      Animated.sequence([
-        Animated.timing(pulse, { toValue: hi, duration: dur, useNativeDriver: true }),
-        Animated.timing(pulse, { toValue: lo, duration: dur, useNativeDriver: true }),
-      ]),
-    );
-    loop.start();
-    return () => loop.stop();
-  }, [animate, mode, pulse, working]);
-
-  const animStyle = working
-    ? { opacity: pulse.interpolate({ inputRange: [0, 1], outputRange: [0.82, 1] }) }
-    : { transform: [{ translateY: pulse.interpolate({ inputRange: [0, 1], outputRange: [0, -2] }) }] };
-
-  const head = (cx: number, cy: number) => (
-    <>
-      <Circle cx={cx} cy={cy} r={12} fill={SKIN} />
-      <Path d={`M${cx - 12} ${cy - 2} q2 -14 12 -14 q12 0 13 14 q-6 -6 -13 -5 q-8 1 -12 5 z`} fill={HAIR} />
-    </>
-  );
-
-  const eyes = (cx: number, cy: number) => (
-    <>
-      <Circle cx={cx - 3} cy={cy + 1} r={1.2} fill={HAIR} />
-      <Circle cx={cx + 3} cy={cy + 1} r={1.2} fill={HAIR} />
-    </>
-  );
-
-  return (
-    <Animated.View style={animStyle} pointerEvents="none">
-      <Svg width="100%" height={132} viewBox="0 0 240 150">
-        {/* Desk */}
-        <Rect x="38" y="92" width="172" height="7" rx="3.5" fill="#ffffff" opacity={0.9} />
-        <Rect x="50" y="99" width="6" height="34" rx="3" fill="#ffffff" opacity={0.6} />
-        <Rect x="192" y="99" width="6" height="34" rx="3" fill="#ffffff" opacity={0.6} />
-
-        {/* Chair */}
-        <Path d="M80 40 q-12 8 -12 30 l0 22 h12 l0 -22 q0 -22 12 -30 z" fill="#0f172a" opacity={0.8} />
-        <Rect x="82" y="90" width="50" height="6" rx="3" fill="#0f172a" opacity={0.8} />
-
-        {/* Desk plant */}
-        <Path d="M42 82 l3 10 h12 l3 -10 z" fill="#ffffff" opacity={0.85} />
-        <Ellipse cx="51" cy="72" rx={7} ry={11} fill="#bbf7d0" opacity={0.85} />
-        <Ellipse cx="44" cy="76" rx={5} ry={8} fill="#86efac" opacity={0.8} />
-        <Ellipse cx="58" cy="76" rx={5} ry={8} fill="#86efac" opacity={0.8} />
-
-        {/* Person — pose varies by mode; same desk, chair, identity */}
-        {mode === 'working' && (
-          <>
-            <Path d="M108 54 q10 -4 22 0 l3 38 h-30 z" fill={shirt} />
-            {head(118, 40)}
-            <Path d="M126 62 L150 82" stroke={shirtDark} strokeWidth={6} strokeLinecap="round" />
-            <Path d="M122 64 L148 84" stroke={shirt} strokeWidth={6} strokeLinecap="round" />
-            <Circle cx={152} cy={83} r={4} fill={SKIN} />
-            <Circle cx={150} cy={85} r={4} fill={SKIN} />
-            {eyes(118, 40)}
-            <Path d="M117 45 h4" stroke={HAIR} strokeWidth={1} strokeLinecap="round" />
-          </>
-        )}
-        {mode === 'complete' && (
-          <>
-            <Path d="M106 54 q10 -5 22 0 l3 38 h-31 z" fill={shirt} />
-            {head(116, 40)}
-            <Path d="M126 62 q10 0 8 -12" stroke={shirt} strokeWidth={6} strokeLinecap="round" fill="none" />
-            <Circle cx={133} cy={48} r={5} fill={SKIN} />
-            <Rect x="132" y="41" width="3.4" height="8" rx="1.7" fill={SKIN} />
-            {eyes(116, 40)}
-            <Path d="M113 45 q3 3.5 6 0" stroke={HAIR} strokeWidth={1.2} fill="none" strokeLinecap="round" />
-          </>
-        )}
-        {mode === 'on_leave' && (
-          <>
-            <Path d="M102 54 q12 -4 24 0 l4 38 h-34 z" fill={shirt} />
-            {head(112, 40)}
-            <Path d="M124 60 q9 2 7 -8" stroke={shirt} strokeWidth={6} strokeLinecap="round" fill="none" />
-            <Circle cx={130} cy={50} r={4} fill={SKIN} />
-            {eyes(112, 40)}
-            <Path d="M109 45 q3 2.5 6 0" stroke={HAIR} strokeWidth={1.1} fill="none" strokeLinecap="round" />
-          </>
-        )}
-        {mode === 'holiday' && (
-          <>
-            <Path d="M104 54 q12 -4 24 0 l3 38 h-32 z" fill={shirt} />
-            {head(114, 40)}
-            <Path d="M104 58 q-6 -14 8 -18" stroke={shirtDark} strokeWidth={6} strokeLinecap="round" fill="none" />
-            <Path d="M128 58 q6 -14 -8 -18" stroke={shirtDark} strokeWidth={6} strokeLinecap="round" fill="none" />
-            {eyes(114, 40)}
-            <Path d="M111 45 q3 3.5 6 0" stroke={HAIR} strokeWidth={1.2} fill="none" strokeLinecap="round" />
-          </>
-        )}
-        {mode === 'resting' && (
-          <>
-            <Path d="M104 54 q10 -6 22 0 l4 38 h-32 z" fill={shirt} />
-            {head(112, 40)}
-            <Path d="M124 60 q10 2 8 -8" stroke={shirt} strokeWidth={6} strokeLinecap="round" fill="none" />
-            <Circle cx={132} cy={50} r={4} fill={SKIN} />
-            {eyes(112, 40)}
-            <Path d="M110 45 q2 1.5 4 0" stroke={HAIR} strokeWidth={1} fill="none" strokeLinecap="round" />
-          </>
-        )}
-
-        {/* Mug — held for rest / leave */}
-        {(mode === 'resting' || mode === 'on_leave') && (
-          <>
-            <Rect x="126" y="44" width="9" height="8" rx="1.5" fill="#ffffff" opacity={0.95} />
-            <Path d="M130 42 q3 -4 0 -8" stroke="#ffffff" strokeWidth={1.4} fill="none" opacity={0.6} strokeLinecap="round" />
-          </>
-        )}
-
-        {/* Laptop — state per mode */}
-        {mode === 'working' ? (
-          <>
-            <Rect x="150" y="86" width="40" height="5" rx="2.5" fill="#0f172a" opacity={0.9} />
-            <Rect x="152" y="62" width="34" height="24" rx="2" fill="#0f172a" opacity={0.9} />
-            <Rect x="155" y="65" width="28" height="18" rx="1.5" fill="#7dd3fc" opacity={0.9} />
-            <Rect x="158" y="68" width="12" height="3" rx="1.5" fill="#0b3a6b" />
-            <Rect x="158" y="73" width="20" height="2" rx="1" fill="#0b3a6b" opacity={0.6} />
-          </>
-        ) : mode === 'resting' ? (
-          <>
-            <Rect x="152" y="86" width="40" height="5" rx="2.5" fill="#0f172a" opacity={0.9} />
-            <Rect x="155" y="64" width="31" height="22" rx="2" fill="#0f172a" opacity={0.9} />
-            <Rect x="158" y="67" width="25" height="16" rx="1.5" fill="#1e293b" />
-            <Circle cx={170} cy={75} r={1.6} fill="#f59e0b" opacity={0.7} />
-          </>
-        ) : (
-          /* complete / on_leave / holiday — laptop closed */
-          <>
-            <Rect x="152" y="88" width="40" height="5" rx="2" fill="#0f172a" opacity={0.9} />
-            <Rect x="155" y="83" width="34" height="5" rx="2" fill="#334155" opacity={0.9} />
-          </>
-        )}
-      </Svg>
-    </Animated.View>
-  );
-};
-
 /* ── Helpers ───────────────────────────────────────────────────────── */
 
 const fmtPunchTime = (value: Parameters<typeof toDate>[0], tz: string | null) => {
@@ -262,38 +84,22 @@ const statIconName = (label: string): string => {
   return 'grid-outline';
 };
 
-const periodIconName = (period: DayPeriod): string => {
-  if (period === 'night') return 'moon-outline';
-  if (period === 'evening') return 'partly-sunny-outline';
-  return 'sunny-outline';
-};
-
-/** '#10b981' + 0.2 → 'rgba(16,185,129,0.2)' — tint for stat badges. */
-const withAlpha = (hex: string, alpha: number): string => {
-  const h = hex.replace('#', '');
-  const full = h.length === 3 ? h.split('').map((c) => c + c).join('') : h;
-  const n = parseInt(full, 16);
-  if (Number.isNaN(n)) return `rgba(255,255,255,${alpha})`;
-  return `rgba(${(n >> 16) & 255}, ${(n >> 8) & 255}, ${n & 255}, ${alpha})`;
-};
-
 interface StatusStyle {
   color: string;
   borderColor: string;
   backgroundColor: string;
 }
 
+/** Light pill palette — mirrors the web hero's data-state chips. */
 const STATUS_STYLES: Record<string, StatusStyle> = {
-  working: { color: '#6ee7b7', borderColor: 'rgba(16,185,129,0.55)', backgroundColor: 'rgba(6,78,59,0.5)' },
-  done: { color: '#93c5fd', borderColor: 'rgba(59,130,246,0.55)', backgroundColor: 'rgba(23,47,94,0.5)' },
-  leave: { color: '#bfdbfe', borderColor: 'rgba(96,165,250,0.5)', backgroundColor: 'rgba(30,58,110,0.5)' },
-  holiday: { color: '#fcd34d', borderColor: 'rgba(245,158,11,0.55)', backgroundColor: 'rgba(69,44,12,0.5)' },
-  idle: { color: '#fde68a', borderColor: 'rgba(245,158,11,0.5)', backgroundColor: 'rgba(2,6,23,0.42)' },
-  pending: { color: '#fdba74', borderColor: 'rgba(249,115,22,0.5)', backgroundColor: 'rgba(2,6,23,0.42)' },
-  loading: { color: '#cbd5e1', borderColor: 'rgba(255,255,255,0.2)', backgroundColor: 'rgba(2,6,23,0.42)' },
+  working: { color: '#047857', borderColor: '#a7f3d0', backgroundColor: '#ecfdf5' },
+  done: { color: '#1d4ed8', borderColor: '#bfdbfe', backgroundColor: '#eff6ff' },
+  leave: { color: '#6d28d9', borderColor: '#ddd6fe', backgroundColor: '#f5f3ff' },
+  holiday: { color: '#b45309', borderColor: '#fde68a', backgroundColor: '#fffbeb' },
+  idle: { color: '#475569', borderColor: '#e2e8f0', backgroundColor: '#f8fafc' },
+  pending: { color: '#c2410c', borderColor: '#fed7aa', backgroundColor: '#fff7ed' },
+  loading: { color: '#64748b', borderColor: '#e2e8f0', backgroundColor: '#f1f5f9' },
 };
-
-/* ── Hero ──────────────────────────────────────────────────────────── */
 
 /* ── Day context — approved leave + holiday + weekly-off (backend data) ── */
 
@@ -317,7 +123,7 @@ const toDateValue = (v: unknown): Date | null => {
 };
 
 /**
- * Loads the non-attendance facts the character resolver needs: an APPROVED
+ * Loads the non-attendance facts the status resolver needs: an APPROVED
  * leave covering today (pending/rejected never count), the company holiday
  * for today, and the assigned weekly-off day. All reads are best-effort — if a
  * source is unavailable the flag stays false and the mode falls back to the
@@ -389,11 +195,11 @@ const useDayContext = (userId?: string, companyId?: string): DayContext => {
 };
 
 /**
- * Personal attendance slice of the mobile hero — status chip, check-in/out
- * actions, and the live Working Mode illustration. This mounts the attendance
- * hooks (today's record, policy gate); it is only rendered for roles that
- * actually punch (not Master/Company Admin), so those dashboards never fetch
- * attendance state.
+ * Personal attendance slice of the hero — status chip, live detail line
+ * (checked-in time / elapsed), and gate-validated check-in/out actions. This
+ * mounts the attendance hooks (today's record, policy gate); it is only
+ * rendered for roles that actually punch (not Master/Company Admin), so those
+ * dashboards never fetch attendance state.
  *
  * Working Mode is derived purely from the server-confirmed `todayRecord`.
  */
@@ -408,17 +214,8 @@ const HeroAttendance: React.FC<{
   const [busy, setBusy] = useState<'in' | 'out' | null>(null);
   const [punchMsg, setPunchMsg] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
   const [showQrSheet, setShowQrSheet] = useState(false);
-  const [reduceMotion, setReduceMotion] = useState(false);
   const { user } = useAuth();
   const day = useDayContext(user?.id, companyId);
-
-  useEffect(() => {
-    AccessibilityInfo.isReduceMotionEnabled()
-      .then(setReduceMotion)
-      .catch(() => {});
-    const sub = AccessibilityInfo.addEventListener('reduceMotionChanged', setReduceMotion);
-    return () => sub.remove();
-  }, []);
 
   const hasIn = !!todayRecord?.checkIn;
   const hasOut = !!todayRecord?.checkOut;
@@ -579,19 +376,17 @@ const HeroAttendance: React.FC<{
       <View style={styles.detailRow}>
         {working && (
           <>
-            <Text style={styles.detailText}>Checked in at {fmtPunchTime(todayRecord?.checkIn, tz)}</Text>
-            <Text style={styles.detailText}>·</Text>
-            <Text style={styles.detailElapsed}>{formatElapsed(elapsedMs)} elapsed</Text>
+            <View style={styles.detailInline}>
+              <Icon name="time-outline" size={13} color="#2563eb" />
+              <Text style={styles.detailText}>Checked in at {fmtPunchTime(todayRecord?.checkIn, tz)}</Text>
+            </View>
+            <Text style={styles.detailElapsed}>· {formatElapsed(elapsedMs)} elapsed</Text>
           </>
         )}
         {mode === 'complete' && (
-          <>
-            <Text style={styles.detailText}>In {fmtPunchTime(todayRecord?.checkIn, tz)}</Text>
-            <Text style={styles.detailText}>·</Text>
-            <Text style={styles.detailText}>Out {fmtPunchTime(todayRecord?.checkOut, tz)}</Text>
-            <Text style={styles.detailText}>·</Text>
-            <Text style={styles.detailText}>{formatElapsed(workedMs)} worked</Text>
-          </>
+          <Text style={styles.detailText}>
+            In {fmtPunchTime(todayRecord?.checkIn, tz)} · Out {fmtPunchTime(todayRecord?.checkOut, tz)} · {formatElapsed(workedMs)} worked
+          </Text>
         )}
         {mode === 'on_leave' && <Text style={styles.detailText}>Approved leave today</Text>}
         {mode === 'holiday' && (
@@ -639,17 +434,10 @@ const HeroAttendance: React.FC<{
             </Pressable>
           )}
           {punchMsg ? (
-            <Text style={[styles.punchMsg, { color: punchMsg.type === 'success' ? '#6ee7b7' : '#fca5a5' }]} numberOfLines={3}>
+            <Text style={[styles.punchMsg, { color: punchMsg.type === 'success' ? '#047857' : '#b91c1c' }]} numberOfLines={3}>
               {punchMsg.text}
             </Text>
           ) : null}
-        </View>
-      )}
-
-      {/* Illustration — one character, five backend-resolved poses. */}
-      {!loading && (
-        <View style={styles.worker} pointerEvents="none">
-          <Character mode={mode} animate={!reduceMotion} />
         </View>
       )}
 
@@ -694,8 +482,7 @@ export const DashboardHero: React.FC<DashboardHeroProps> = ({
     return () => sub.remove();
   }, []);
 
-  // Entrance: the header fades/slides up once. (These values previously stayed
-  // at opacity 0 / translateY 20 forever — nothing ever animated them.)
+  // Entrance: the card fades/slides up once.
   useEffect(() => {
     if (reduceMotion) {
       fadeAnim.setValue(1);
@@ -723,7 +510,7 @@ export const DashboardHero: React.FC<DashboardHeroProps> = ({
     return () => clearInterval(id);
   }, []);
 
-  // Stat tiles reveal one after another once the header has landed.
+  // Stat tiles reveal one after another once the card has landed.
   const statCount = stats?.length ?? 0;
   useEffect(() => {
     while (statAnims.length < statCount) statAnims.push(new Animated.Value(0));
@@ -740,164 +527,150 @@ export const DashboardHero: React.FC<DashboardHeroProps> = ({
   }, [statCount, reduceMotion, statAnims]);
 
   const tz = effectiveTimezone(companyTz);
-  const { period, greeting } = getHeroScene(now, tz);
-
-  const time = formatInZone(now, tz, { hour: '2-digit', minute: '2-digit', hour12: true });
-  const periodLabel = period.charAt(0).toUpperCase() + period.slice(1);
-  // Synchronous fill so the map below always has a value (the effect below
+  // Synchronous fill so the map below always has a value (the effect above
   // is what actually drives them).
   while (statAnims.length < statCount) statAnims.push(new Animated.Value(0));
 
   return (
-    <LinearGradient
-      colors={[...HERO_BG]}
-      start={{ x: 0, y: 0 }}
-      end={{ x: 1, y: 1 }}
-      style={styles.gradient}
-    >
-      {/* The hero is a plain black-to-blue surface for every role - no scene
-          art, so the card stays identical across all dashboards. */}
-      {/* Contrast scrim for white text on bright scenes */}
-      <View pointerEvents="none" style={[StyleSheet.absoluteFill, styles.scrim]} />
+    <Animated.View style={[styles.root, { opacity: fadeAnim, transform: [{ translateY: slideAnim }] }]}>
+      {/* ── Light card ── */}
+      <LinearGradient
+        colors={['#ffffff', '#f2f7ff', '#dceafd']}
+        start={{ x: 0, y: 0 }}
+        end={{ x: 1, y: 1 }}
+        style={styles.card}
+      >
+        {/* Soft blue wave shapes on the right (decorative only) */}
+        <Svg pointerEvents="none" style={StyleSheet.absoluteFill} viewBox="0 0 1200 400" preserveAspectRatio="none">
+          <Path d="M860 0 C1010 90 1130 210 940 330 C875 372 905 400 905 400 L1200 400 L1200 0 Z" fill="#dbe9fb" />
+          <Path d="M1200 120 C1075 185 1155 320 995 400 L1200 400 Z" fill="#eef4fd" />
+          <Path d="M1200 250 C1115 295 1165 362 1085 400 L1200 400 Z" fill="#c7dbf8" opacity={0.85} />
+        </Svg>
 
-      <Animated.View style={[styles.container, { opacity: fadeAnim, transform: [{ translateY: slideAnim }] }]}>
-        <View style={styles.topRow}>
-          <View style={styles.identityCol}>
-            {/* Greeting + person name (restored by request); the date pill now
-                lives on the right, under the period label in the clock card. */}
-            <View style={styles.identityRow}>
-              <View style={styles.identityText}>
-                <Text style={styles.greeting}>{greeting}</Text>
-                <Text style={styles.name} numberOfLines={1}>{name}</Text>
-              </View>
-            </View>
-
-            <View style={styles.tagRow}>
-              {roleLabel ? (
-                <View style={styles.rolePill}>
-                  <Text style={styles.rolePillText} numberOfLines={1}>{roleLabel}</Text>
-                </View>
-              ) : null}
-            </View>
-
-            {subtitle ? (
-              <Text style={styles.subtitle} numberOfLines={2}>{subtitle}</Text>
-            ) : null}
-          </View>
-
-          {/* Clock card — glass panel, right */}
-          <View style={styles.clockCard}>
-            <View style={styles.clockTimeRow}>
-              <Icon name={periodIconName(period)} size={18} color={period === 'night' ? '#dbe6ff' : '#fde68a'} />
-              <Text style={styles.clockTime}>{time}</Text>
-            </View>
-            <View style={styles.periodPill}>
-              <View style={styles.periodDot} />
-              <Text style={styles.periodPillText}>{periodLabel}</Text>
-            </View>
-            <View style={[styles.datePill, { marginTop: 8 }]}>
-              <Icon name="calendar-outline" size={12} color="#cbd5e1" />
-              <Text style={styles.datePillText} numberOfLines={1}>
-                {formatInZone(now, tz, { weekday: 'short', month: 'short', day: 'numeric' })}
-              </Text>
-            </View>
-          </View>
+        <View style={styles.identityCol}>
+          <Text style={styles.welcomeSmall}>Welcome to,</Text>
+          <Text style={styles.wordmark} numberOfLines={1} accessibilityLabel="HRMAX">
+            <Text style={styles.wmHr}>HR</Text>
+            <Text style={styles.wmMax}>MAX</Text>
+          </Text>
+          <Text style={styles.roleLine} numberOfLines={2}>{roleLabel || name}</Text>
+          <Text style={styles.tagline}>Manage your team, track attendance and leaves with ease.</Text>
+          {subtitle ? <Text style={styles.subtitle} numberOfLines={3}>{subtitle}</Text> : null}
         </View>
 
-        {showAttendance ? (
-          <View style={styles.attendanceWrap}>
+        {/* Role pill + live attendance chips (status, checked-in, elapsed) */}
+        <View style={styles.chipsFlow}>
+          {roleLabel ? (
+            <View style={styles.rolePill}>
+              <Icon name="people-outline" size={13} color="#1d4ed8" />
+              <Text style={styles.rolePillText} numberOfLines={1}>{roleLabel}</Text>
+            </View>
+          ) : null}
+          {showAttendance ? (
             <HeroAttendance
               now={now}
               tz={tz}
               companyId={effectiveCompanyId || user?.companyId || ''}
               showPunchActions={showPunchActions}
             />
-          </View>
-        ) : null}
+          ) : null}
+        </View>
 
-        {stats && stats.length > 0 && (
-          <View style={styles.statsRow}>
-            {stats.map((st, i) => {
-              const v = statAnims[i];
-              return (
-                <Animated.View
-                  key={`${st.label}-${i}`}
-                  style={[
-                    styles.statTile,
-                    {
-                      opacity: v,
-                      transform: [{ translateY: v.interpolate({ inputRange: [0, 1], outputRange: [12, 0] }) }],
-                    },
-                  ]}
-                >
-                  <Text style={[styles.statValue, { color: st.color || '#10b981' }]}>{st.value}</Text>
+        <View style={styles.aside} pointerEvents="none">
+          <Text style={styles.asideText}>Smart HR Management{'\n'}for a Better Workplace</Text>
+          <View style={styles.asideLine} />
+        </View>
+      </LinearGradient>
+
+      {/* ── Dark rounded stats strip (real values from the dashboard) ── */}
+      {stats && stats.length > 0 && (
+        <View style={styles.statsStrip}>
+          {stats.map((st, i) => {
+            const v = statAnims[i];
+            return (
+              <Animated.View
+                key={`${st.label}-${i}`}
+                style={[
+                  styles.statItem,
+                  {
+                    opacity: v,
+                    transform: [{ translateY: v.interpolate({ inputRange: [0, 1], outputRange: [12, 0] }) }],
+                  },
+                ]}
+              >
+                <View style={[styles.statCircle, { backgroundColor: st.color || '#2563eb' }]}>
+                  <Icon name={statIconName(st.label)} size={16} color="#ffffff" />
+                </View>
+                <View style={styles.statMeta}>
+                  <Text style={styles.statValue}>{st.value}</Text>
                   <Text style={styles.statLabel} numberOfLines={1}>{st.label}</Text>
-                </Animated.View>
-              );
-            })}
-          </View>
-        )}
-      </Animated.View>
-    </LinearGradient>
+                </View>
+              </Animated.View>
+            );
+          })}
+        </View>
+      )}
+    </Animated.View>
   );
 };
 
 const styles = StyleSheet.create({
-  gradient: { overflow: 'hidden', borderBottomLeftRadius: 26, borderBottomRightRadius: 26 },
-  scrim: {
-    backgroundColor: 'rgba(2,6,23,0.30)',
+  root: { marginBottom: 6 },
+  card: {
+    borderRadius: 18,
+    overflow: 'hidden',
+    paddingHorizontal: 18,
+    paddingTop: 22,
+    paddingBottom: 20,
   },
-  container: { paddingHorizontal: 18, paddingTop: 20, paddingBottom: 20 },
-  topRow: { flexDirection: 'row', alignItems: 'flex-start', justifyContent: 'space-between', gap: 10 },
-  identityCol: { flex: 1, minWidth: 0 },
-  identityRow: { flexDirection: 'row', alignItems: 'center', gap: 12 },
-  identityText: { flex: 1, minWidth: 0 },
-  greeting: {
-    fontSize: 11.5,
-    color: 'rgba(203,213,225,0.95)',
+
+  identityCol: { position: 'relative', zIndex: 1 },
+  welcomeSmall: { fontSize: 17, fontWeight: '600', color: '#6b7a90' },
+  wordmark: { fontSize: 40, fontWeight: '800', letterSpacing: -1.5, lineHeight: 46, marginTop: 2 },
+  wmHr: { color: '#12294a' },
+  wmMax: { color: '#f97316' },
+  roleLine: { fontSize: 25, fontWeight: '800', color: '#12294a', marginTop: 4, letterSpacing: -0.4 },
+  tagline: {
+    fontSize: 14.5,
     fontWeight: '700',
-    textTransform: 'uppercase',
-    letterSpacing: 1.1,
+    color: '#1c3d66',
+    lineHeight: 21,
+    marginTop: 12,
+    marginLeft: 12,
+    paddingLeft: 10,
+    borderLeftWidth: 3,
+    borderLeftColor: '#2563eb',
   },
-  name: { fontSize: 24, fontWeight: '800', color: '#fff', marginTop: 2, letterSpacing: -0.3 },
-  tagRow: { flexDirection: 'row', alignItems: 'center', flexWrap: 'wrap', gap: 8, marginTop: 11 },
-  rolePill: {
-    paddingHorizontal: 13,
-    paddingVertical: 5,
-    borderRadius: 100,
-    backgroundColor: 'rgba(17,24,39,0.72)',
-    borderWidth: 1.5,
-    borderColor: 'rgba(251,191,36,0.75)',
-  },
-  rolePillText: { fontSize: 12.5, fontWeight: '700', color: '#fbbf24' },
-  datePill: {
+  subtitle: { fontSize: 12.5, color: '#64748b', marginTop: 8 },
+
+  chipsFlow: {
+    position: 'relative',
+    zIndex: 1,
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 5,
-    paddingHorizontal: 11,
-    paddingVertical: 5,
-    borderRadius: 100,
-    backgroundColor: 'rgba(2,6,23,0.42)',
-    borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.18)',
-  },
-  datePillText: { fontSize: 11.5, fontWeight: '600', color: '#cbd5e1' },
-  attendanceWrap: {
+    flexWrap: 'wrap',
+    gap: 8,
     marginTop: 14,
-    borderRadius: 16,
-    backgroundColor: 'rgba(2,6,23,0.30)',
-    borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.14)',
-    paddingHorizontal: 14,
-    paddingTop: 12,
-    paddingBottom: 10,
   },
+  rolePill: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    paddingHorizontal: 12,
+    paddingVertical: 7,
+    borderRadius: 100,
+    backgroundColor: '#ffffff',
+    borderWidth: 1.5,
+    borderColor: '#9dbdfb',
+  },
+  rolePillText: { fontSize: 13, fontWeight: '700', color: '#1d4ed8' },
+
   statusChip: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 6,
     paddingHorizontal: 12,
-    paddingVertical: 5,
+    paddingVertical: 6,
     borderRadius: 100,
     borderWidth: 1,
     maxWidth: '100%',
@@ -905,145 +678,77 @@ const styles = StyleSheet.create({
   statusDot: { width: 7, height: 7, borderRadius: 4 },
   statusDotPulse: {
     // Static ring substitute — no continuous animation (battery friendly)
-    shadowColor: '#6ee7b7',
+    shadowColor: '#10b981',
     shadowOpacity: 0.9,
     shadowRadius: 4,
     shadowOffset: { width: 0, height: 0 },
     elevation: 3,
   },
   statusText: { fontSize: 12, fontWeight: '700' },
-  detailRow: { flexDirection: 'row', alignItems: 'center', flexWrap: 'wrap', gap: 5, marginTop: 9 },
-  detailText: { fontSize: 12.5, color: 'rgba(226,232,240,0.92)' },
-  detailElapsed: { fontSize: 12.5, color: '#6ee7b7', fontWeight: '700' },
-  detailLate: { fontSize: 12.5, color: '#fdba74' },
-  subtitle: { fontSize: 12.5, color: '#cbd5e1', marginTop: 9 },
-  actionsRow: { flexDirection: 'row', alignItems: 'center', flexWrap: 'wrap', gap: 10, marginTop: 13 },
+  detailRow: { flexDirection: 'row', alignItems: 'center', flexWrap: 'wrap', gap: 6 },
+  detailInline: { flexDirection: 'row', alignItems: 'center', gap: 5 },
+  detailText: { fontSize: 13, color: '#334155', fontWeight: '600' },
+  detailElapsed: {
+    fontSize: 12.5,
+    color: '#047857',
+    fontWeight: '700',
+    backgroundColor: '#ecfdf5',
+    borderWidth: 1,
+    borderColor: '#a7f3d0',
+    borderRadius: 100,
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    overflow: 'hidden',
+  },
+  detailLate: { fontSize: 12.5, color: '#c2410c', fontWeight: '600' },
+  actionsRow: { flexDirection: 'row', alignItems: 'center', flexWrap: 'wrap', gap: 10 },
   punchBtn: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 7,
     paddingVertical: 9,
     paddingHorizontal: 18,
-    borderRadius: 10,
-    backgroundColor: 'rgba(255,255,255,0.16)',
-    borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.42)',
+    borderRadius: 100,
+    backgroundColor: '#2563eb',
   },
-  punchBtnPressed: { backgroundColor: 'rgba(255,255,255,0.28)' },
+  punchBtnPressed: { backgroundColor: '#1d4ed8' },
   punchBtnDisabled: { opacity: 0.65 },
   punchBtnText: { color: '#fff', fontSize: 13.5, fontWeight: '700' },
   punchMsg: { fontSize: 12.5, fontWeight: '600', flexShrink: 1 },
 
-  clockCard: {
-    alignItems: 'flex-end',
-    backgroundColor: 'rgba(2,6,23,0.38)',
-    borderRadius: 16,
-    borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.16)',
+  aside: { alignSelf: 'flex-end', alignItems: 'flex-end', marginTop: 14, paddingBottom: 2, zIndex: 1 },
+  asideText: { fontSize: 13.5, fontWeight: '800', color: '#12335c', textAlign: 'right', lineHeight: 20 },
+  asideLine: { width: 40, height: 3, borderRadius: 2, backgroundColor: '#2563eb', marginTop: 8 },
+
+  statsStrip: {
+    marginTop: 12,
+    backgroundColor: '#0e1726',
+    borderRadius: 18,
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    justifyContent: 'space-between',
+    rowGap: 12,
     paddingHorizontal: 12,
-    paddingVertical: 10,
-    maxWidth: 165,
+    paddingVertical: 14,
   },
-  clockTimeRow: { flexDirection: 'row', alignItems: 'center', gap: 7 },
-  clockTime: {
-    fontSize: 21,
-    fontWeight: '800',
-    color: '#fff',
-    fontVariant: ['tabular-nums'],
-    letterSpacing: 0.4,
-  },
-  periodPill: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 5,
-    marginTop: 8,
-    paddingHorizontal: 9,
-    paddingVertical: 3,
-    borderRadius: 100,
-    backgroundColor: 'rgba(255,255,255,0.14)',
-  },
-  periodDot: { width: 6, height: 6, borderRadius: 3, backgroundColor: '#fbbf24' },
-  periodPillText: {
-    fontSize: 10,
-    fontWeight: '700',
-    color: '#e2e8f0',
-    textTransform: 'uppercase',
-    letterSpacing: 0.6,
-  },
-
-  worker: { alignSelf: 'flex-end', width: 190, marginTop: 6, marginBottom: -4 },
-
-  statsRow: {
-    flexDirection: 'row',
-    gap: 8,
-    marginTop: 16,
-    paddingTop: 14,
-    borderTopWidth: 1,
-    borderTopColor: 'rgba(255,255,255,0.14)',
-  },
-  statTile: {
-    flex: 1,
-    minWidth: 0,
-    alignItems: 'center',
-    gap: 3,
-    paddingVertical: 2,
-  },
-  statBadge: {
-    width: 26,
-    height: 26,
-    borderRadius: 13,
+  statItem: { width: '47%', flexDirection: 'row', alignItems: 'center', gap: 10, paddingVertical: 2 },
+  statCircle: {
+    width: 34,
+    height: 34,
+    borderRadius: 17,
     alignItems: 'center',
     justifyContent: 'center',
+    flexShrink: 0,
   },
-  statValue: { fontSize: 21, fontWeight: '800', fontVariant: ['tabular-nums'] },
+  statMeta: { flexShrink: 1 },
+  statValue: { fontSize: 17, fontWeight: '800', color: '#ffffff', fontVariant: ['tabular-nums'] },
   statLabel: {
-    fontSize: 10.5,
+    fontSize: 9.5,
     fontWeight: '700',
-    color: '#94a3b8',
+    color: '#cbd5e1',
     textTransform: 'uppercase',
     letterSpacing: 0.5,
-    textAlign: 'center',
-  },
-
-  // Scene decor
-  star: { position: 'absolute', borderRadius: 2, backgroundColor: '#e8eeff', opacity: 0.85 },
-  moonWrap: { position: 'absolute', top: 18, right: 44 },
-  moon: { width: 34, height: 34, borderRadius: 17, backgroundColor: '#f5f3d8' },
-  moonBite: {
-    position: 'absolute',
-    top: -4,
-    left: 10,
-    width: 30,
-    height: 30,
-    borderRadius: 15,
-    backgroundColor: '#0d1430',
-    opacity: 0.92,
-  },
-  skyline: {
-    position: 'absolute',
-    bottom: 0,
-    left: 0,
-    right: 0,
-    flexDirection: 'row',
-    alignItems: 'flex-end',
-    justifyContent: 'space-between',
-    opacity: 0.85,
-  },
-  skylineBar: { backgroundColor: '#0a1128', borderTopLeftRadius: 2, borderTopRightRadius: 2, justifyContent: 'flex-start', alignItems: 'center' },
-  windowLight: { width: 5, height: 6, backgroundColor: '#ffd58a', marginTop: 6, opacity: 0.85 },
-  sunHalo: { position: 'absolute', width: 120, height: 120, borderRadius: 60, opacity: 0.28 },
-  sun: { position: 'absolute', width: 64, height: 64, borderRadius: 32 },
-  sunSmall: { position: 'absolute', width: 44, height: 44, borderRadius: 22 },
-  cloud: { position: 'absolute', borderRadius: 100, backgroundColor: '#ffffff', opacity: 0.7 },
-  ridge: {
-    position: 'absolute',
-    bottom: 0,
-    left: 0,
-    right: 0,
-    height: 54,
-    borderTopLeftRadius: 64,
-    borderTopRightRadius: 96,
-    opacity: 0.55,
+    marginTop: 1,
   },
 });
 

@@ -144,6 +144,9 @@ export const ExecutivesScreen: React.FC = () => {
   const { user: authUser, hasPermission } = useAuth();
   const { effectiveCompanyId, availableCompanies } = useCompany();
   const [executives, setExecutives] = useState<User[]>([]);
+  // Unscoped snapshot of every executive — exclusivity must hold globally even
+  // when the visible list is scope-filtered (never allow a double assignment).
+  const [allExecs, setAllExecs] = useState<User[]>([]);
   const [masterAdmins, setMasterAdmins] = useState<User[]>([]);
   const [companies, setCompanies] = useState<any[]>([]);
   const [departments, setDepartments] = useState<any[]>([]);
@@ -182,10 +185,48 @@ export const ExecutivesScreen: React.FC = () => {
     [authUser?.role, effectiveCompanyId, availableCompanies]
   );
 
+  // ── Mutual exclusivity (web parity): one company ↔ one executive, one TL ↔
+  // one executive. Owners come from BOTH link sides. While editing, the
+  // current executive's own assignments stay selectable.
+  const editingExecId = modal && editing ? editing : null;
+  const companyOwnerMap = useMemo(() => {
+    const map = new Map<string, { id: string; name: string }>();
+    allExecs.forEach(e => {
+      ((e as any).assignedCompanyIds || []).forEach((cid: string) => {
+        if (cid && !map.has(cid)) map.set(cid, { id: e.id, name: e.name || 'another executive' });
+      });
+    });
+    companies.forEach(c => {
+      const exId = (c as any).assignedExecutiveId;
+      if (exId && !map.has(c.id)) {
+        const ex = allExecs.find(e => e.id === exId);
+        map.set(c.id, { id: exId, name: (c as any).assignedExecutiveName || ex?.name || 'another executive' });
+      }
+    });
+    return map;
+  }, [allExecs, companies]);
+  const tlOwnerMap = useMemo(() => {
+    const map = new Map<string, { id: string; name: string }>();
+    allExecs.forEach(e => {
+      ((e as any).assignedTeamLeaderIds || []).forEach((tlId: string) => {
+        if (tlId && !map.has(tlId)) map.set(tlId, { id: e.id, name: e.name || 'another executive' });
+      });
+    });
+    allTeamLeaders.forEach(tl => {
+      const exId = (tl as any).reportingExecutiveId;
+      if (exId && !map.has(tl.id)) {
+        const ex = allExecs.find(e => e.id === exId);
+        map.set(tl.id, { id: exId, name: (tl as any).reportingExecutiveName || ex?.name || 'another executive' });
+      }
+    });
+    return map;
+  }, [allExecs, allTeamLeaders]);
+
   useEffect(() => {
     const q = query(collection(db, 'users'), where('role', '==', 'executive'));
     const unsubExec = onSnapshot(q, (snap) => {
       const all = snap.docs.map(d => ({ id: d.id, ...d.data() } as User));
+      setAllExecs(all);
       const scoped = isRestrictedScope && scopeIds.length > 0
         ? all.filter(e => {
             const ids: string[] = (e as any).assignedCompanyIds || [];
@@ -337,6 +378,12 @@ export const ExecutivesScreen: React.FC = () => {
   };
 
   const toggleCompany = (id: string) => {
+    // Mutual exclusivity: a company owned by ANOTHER executive cannot be added.
+    const owner = companyOwnerMap.get(id);
+    if (owner && owner.id !== editingExecId && !form.assignedCompanyIds.includes(id)) {
+      Alert.alert('Already assigned', `This company is already assigned to ${owner.name} and cannot be reassigned.`);
+      return;
+    }
     setForm(prev => ({
       ...prev,
       assignedCompanyIds: prev.assignedCompanyIds.includes(id)
@@ -346,6 +393,12 @@ export const ExecutivesScreen: React.FC = () => {
   };
 
   const toggleTL = (id: string) => {
+    // Mutual exclusivity: a TL already linked to ANOTHER executive is blocked.
+    const owner = tlOwnerMap.get(id);
+    if (owner && owner.id !== editingExecId && !form.assignedTeamLeaderIds.includes(id)) {
+      Alert.alert('Already assigned', `This team leader is already assigned to ${owner.name} and cannot be reassigned.`);
+      return;
+    }
     setForm(prev => ({
       ...prev,
       assignedTeamLeaderIds: prev.assignedTeamLeaderIds.includes(id)
@@ -430,6 +483,22 @@ export const ExecutivesScreen: React.FC = () => {
 
   const handleSave = async () => {
     if (!form.name.trim() || !form.email.trim()) { Alert.alert('Validation', 'Name and email are required'); return; }
+    // Mutual exclusivity (save-time guard, web parity): reject any company/TL
+    // owned by a different executive (stale picker / concurrent assignment).
+    const takenCompany = form.assignedCompanyIds
+      .map(cid => companyOwnerMap.get(cid))
+      .find(o => o && o.id !== editingExecId);
+    if (takenCompany) {
+      Alert.alert('Already assigned', `This company is already assigned to ${takenCompany.name} — unselect it before saving.`);
+      return;
+    }
+    const takenTL = form.assignedTeamLeaderIds
+      .map(tid => tlOwnerMap.get(tid))
+      .find(o => o && o.id !== editingExecId);
+    if (takenTL) {
+      Alert.alert('Already assigned', `This team leader is already assigned to ${takenTL.name} — unselect it before saving.`);
+      return;
+    }
     setSaving(true);
     try {
       const docFields: [keyof ExecForm, keyof ExecForm, string][] = [
@@ -656,7 +725,7 @@ export const ExecutivesScreen: React.FC = () => {
     try {
       const headers = ['Name,Email,Title,Company,Status,Employment Type,TLs Assigned,Companies Assigned'];
       const rows = filtered.map(e => {
-        const tlNames = (e as any).assignedTeamLeaderIds?.map((id: string) => allTeamLeaders.find(tl => tl.id === id)?.name || id).join('; ') || '';
+        const tlNames = (e as any).assignedTeamLeaderIds?.map((id: string) => allTeamLeaders.find(tl => tl.id === id)?.name || '—').join('; ') || '';
         const coNames = (e as any).assignedCompanyIds?.map((id: string) => getCompanyName(id)).join('; ') || '';
         return `${e.name},${e.email},${(e as any).executiveTitle || ''},${getCompanyName(e.companyId || '')},${(e as any).status || 'Active'},${(e as any).employmentType || ''},${tlNames},${coNames}`;
       });
@@ -977,9 +1046,16 @@ export const ExecutivesScreen: React.FC = () => {
                   <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginBottom: 16 }}>
                     {companies.filter(c => c.id !== form.companyId).map(c => {
                       const selected = form.assignedCompanyIds.includes(c.id);
+                      const owner = companyOwnerMap.get(c.id);
+                      const taken = !!owner && owner.id !== editingExecId && !selected;
                       return (
-                        <TouchableOpacity key={c.id} style={[s.chip, selected && s.chipActive]} onPress={() => toggleCompany(c.id)}>
-                          <Text style={[s.chipText, selected && { color: '#fff' }]}>{c.name}</Text>
+                        <TouchableOpacity
+                          key={c.id}
+                          disabled={taken}
+                          style={[s.chip, selected && s.chipActive, taken && { opacity: 0.45 }]}
+                          onPress={() => toggleCompany(c.id)}
+                        >
+                          <Text style={[s.chipText, selected && { color: '#fff' }]}>{c.name}{taken ? ` · Assigned to ${owner!.name}` : ''}</Text>
                         </TouchableOpacity>
                       );
                     })}
@@ -989,9 +1065,16 @@ export const ExecutivesScreen: React.FC = () => {
                   <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginBottom: 16 }}>
                     {allTeamLeaders.filter(tl => tl.isActive !== false).map(tl => {
                       const selected = form.assignedTeamLeaderIds.includes(tl.id);
+                      const owner = tlOwnerMap.get(tl.id);
+                      const taken = !!owner && owner.id !== editingExecId && !selected;
                       return (
-                        <TouchableOpacity key={tl.id} style={[s.chip, selected && s.chipActive]} onPress={() => toggleTL(tl.id)}>
-                          <Text style={[s.chipText, selected && { color: '#fff' }]}>{tl.name}</Text>
+                        <TouchableOpacity
+                          key={tl.id}
+                          disabled={taken}
+                          style={[s.chip, selected && s.chipActive, taken && { opacity: 0.45 }]}
+                          onPress={() => toggleTL(tl.id)}
+                        >
+                          <Text style={[s.chipText, selected && { color: '#fff' }]}>{tl.name}{taken ? ` · Assigned to ${owner!.name}` : ''}</Text>
                         </TouchableOpacity>
                       );
                     })}
@@ -1115,7 +1198,7 @@ export const ExecutivesScreen: React.FC = () => {
                   </View>
                   <View style={s.detailSection}>
                     <Text style={s.detailSectionTitle}>Assigned Team Leaders</Text>
-                    <Text style={s.detailValue}>{(selected as any).assignedTeamLeaderIds?.length ? (selected as any).assignedTeamLeaderIds.map((id: string) => allTeamLeaders.find(tl => tl.id === id)?.name || id).join(', ') : 'None'}</Text>
+                    <Text style={s.detailValue}>{(selected as any).assignedTeamLeaderIds?.length ? (selected as any).assignedTeamLeaderIds.map((id: string) => allTeamLeaders.find(tl => tl.id === id)?.name || '—').join(', ') : 'None'}</Text>
                   </View>
                   <View style={s.detailSection}>
                     <Text style={s.detailSectionTitle}>Bank & Compensation</Text>

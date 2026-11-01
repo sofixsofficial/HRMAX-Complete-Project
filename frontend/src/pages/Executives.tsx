@@ -158,7 +158,7 @@ const getPermissionKey = (module: string, action: string) =>
 // â”€â”€ Multi-Select Component â”€â”€
 interface MultiSelectProps {
   label: string
-  options: { id: string; label: string; sublabel?: string }[]
+  options: { id: string; label: string; sublabel?: string; disabled?: boolean }[]
   selected: string[]
   onChange: (selected: string[]) => void
   placeholder?: string
@@ -175,11 +175,13 @@ const MultiSelect = ({ label, options, selected, onChange, placeholder, searchPl
   )
 
   const toggle = (id: string) => {
+    if (options.find(o => o.id === id)?.disabled) return
     onChange(selected.includes(id) ? selected.filter(s => s !== id) : [...selected, id])
   }
 
   const toggleAll = () => {
-    onChange(selected.length === options.length ? [] : options.map(o => o.id))
+    const selectable = options.filter(o => !o.disabled)
+    onChange(selected.length === selectable.length ? [] : selectable.map(o => o.id))
   }
 
   return (
@@ -218,8 +220,8 @@ const MultiSelect = ({ label, options, selected, onChange, placeholder, searchPl
             {filtered.length === 0 ? (
               <div className="hms-empty">No options found</div>
             ) : filtered.map(opt => (
-              <label key={opt.id} className={`hms-option ${selected.includes(opt.id) ? 'selected' : ''}`}>
-                <input type="checkbox" checked={selected.includes(opt.id)} onChange={() => toggle(opt.id)} />
+              <label key={opt.id} className={`hms-option ${selected.includes(opt.id) ? 'selected' : ''}`} style={opt.disabled ? { opacity: 0.55, cursor: 'not-allowed' } : undefined}>
+                <input type="checkbox" checked={selected.includes(opt.id)} disabled={opt.disabled} onChange={() => toggle(opt.id)} />
                 <div className="hms-option-info">
                   <span className="hms-option-label">{opt.label}</span>
                   {opt.sublabel && <span className="hms-option-sub">{opt.sublabel}</span>}
@@ -510,11 +512,84 @@ export function Executives() {
   const [currentPage, setCurrentPage] = useState(1)
   const [pageSize, setPageSize] = useState(10)
   const [selectedUser, setSelectedUser] = useState<User | null>(null)
+  // Per-doc resolution for user names the partition-scoped users LIST doesn't
+  // include (e.g. team leaders of the linked executives). Single-doc reads are
+  // allowed even when the list endpoint is scoped — never show raw UUIDs.
+  const [extraUsers, setExtraUsers] = useState<Record<string, User>>({})
+  // TL ids referenced by the table that the partition-scoped users LIST didn't
+  // return — resolve them per-doc (single-doc reads are allowed) so the chips
+  // always show real names, never raw UUIDs.
+  const missingTlIds = useMemo(() => {
+    const ids = new Set<string>()
+    users.forEach(u => ((u as any).assignedTeamLeaderIds || []).forEach((id: string) => {
+      if (id && !extraUsers[id] && !allUsers.some(t => t.id === id) && !allTLUsers.some(t => t.id === id)) ids.add(id)
+    }))
+    return [...ids]
+  }, [users, allUsers, allTLUsers, extraUsers])
+  useEffect(() => {
+    if (missingTlIds.length === 0) return
+    let cancelled = false
+    void Promise.all(
+      missingTlIds.map(id => getDoc(doc(db, 'users', id)).catch(() => null))
+    ).then(snaps => {
+      if (cancelled) return
+      const next: Record<string, User> = {}
+      snaps.forEach(s => { if (s && s.exists()) next[s.id] = { id: s.id, ...(s.data() as any) } as User })
+      if (Object.keys(next).length) setExtraUsers(prev => ({ ...prev, ...next }))
+    })
+    return () => { cancelled = true }
+  }, [missingTlIds])
+  const findUserById = (id: string): User | undefined =>
+    allTLUsers.find(t => t.id === id) || allUsers.find(t => t.id === id) || extraUsers[id]
+  // ── Mutual exclusivity (one company ↔ one executive, one TL ↔ one exec) ──
+  // Owners come from BOTH link sides (exec.assignedCompanyIds +
+  // company.assignedExecutiveId, exec.assignedTeamLeaderIds +
+  // tl.reportingExecutiveId) so a stale side never lets the same entity be
+  // assigned twice. While editing, the current executive's own assignments
+  // stay selectable (owner.id === editingExecId is not "taken").
+  const companyOwnerMap = useMemo(() => {
+    const map = new Map<string, { id: string; name: string }>()
+    // Global view from allUsers — the visible `users` list is scope-filtered
+    // (TL sees only linked execs) but exclusivity must hold across every
+    // executive, otherwise a scoped admin could double-assign a company.
+    const execs = allUsers.filter(u => u.role === 'executive')
+    execs.forEach(e => {
+      ;((e as any).assignedCompanyIds || []).forEach((cid: string) => {
+        if (cid && !map.has(cid)) map.set(cid, { id: e.id, name: e.name || 'another executive' })
+      })
+    })
+    companies.forEach(c => {
+      const exId = (c as any).assignedExecutiveId
+      if (exId && !map.has(c.id)) {
+        const ex = execs.find(e => e.id === exId)
+        map.set(c.id, { id: exId, name: (c as any).assignedExecutiveName || ex?.name || 'another executive' })
+      }
+    })
+    return map
+  }, [allUsers, companies])
+  const tlOwnerMap = useMemo(() => {
+    const map = new Map<string, { id: string; name: string }>()
+    const execs = allUsers.filter(u => u.role === 'executive')
+    execs.forEach(e => {
+      ;((e as any).assignedTeamLeaderIds || []).forEach((tlId: string) => {
+        if (tlId && !map.has(tlId)) map.set(tlId, { id: e.id, name: e.name || 'another executive' })
+      })
+    })
+    allTLUsers.forEach(tl => {
+      const exId = (tl as any).reportingExecutiveId
+      if (exId && !map.has(tl.id)) {
+        const ex = execs.find(e => e.id === exId)
+        map.set(tl.id, { id: exId, name: (tl as any).reportingExecutiveName || ex?.name || 'another executive' })
+      }
+    })
+    return map
+  }, [allUsers, allTLUsers])
   const [isViewModalOpen, setIsViewModalOpen] = useState(false)
   const [isAddModalOpen, setIsAddModalOpen] = useState(false)
   const [isEditModalOpen, setIsEditModalOpen] = useState(false)
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' } | null>(null)
+  const editingExecId = isEditModalOpen && selectedUser ? selectedUser.id : null
 
   const [addPermissions, setAddPermissions] = useState<string[]>(ALL_PERMISSIONS)
   const [editPermissions, setEditPermissions] = useState<string[]>([])
@@ -705,6 +780,26 @@ export function Executives() {
         setToast({ message: 'You do not have permission to create executives', type: 'error' })
         setIsSubmitting(false)
         return
+      }
+      // Mutual exclusivity: reject any company/TL already owned by another
+      // executive (guards against stale pickers or a concurrent assignment).
+      {
+        const takenCompany = (values.assignedCompanyIds || [])
+          .map(cid => companyOwnerMap.get(cid))
+          .find(owner => owner && owner.id !== editingExecId)
+        if (takenCompany) {
+          setToast({ message: `This company is already assigned to ${takenCompany.name} — unselect it before saving`, type: 'error' })
+          setIsSubmitting(false)
+          return
+        }
+        const takenTL = (values.assignedTeamLeaderIds || [])
+          .map(tid => tlOwnerMap.get(tid))
+          .find(owner => owner && owner.id !== editingExecId)
+        if (takenTL) {
+          setToast({ message: `This team leader is already assigned to ${takenTL.name} — unselect it before saving`, type: 'error' })
+          setIsSubmitting(false)
+          return
+        }
       }
       if (!values.username || values.username.length < 3) {
         setToast({ message: 'Username must be at least 3 characters', type: 'error' })
@@ -935,6 +1030,27 @@ export function Executives() {
     if (!selectedUser) return
     setIsSubmitting(true)
     try {
+      // Mutual exclusivity (edit): the edited executive's own assignments are
+      // allowed (owner.id === selectedUser.id); anything owned by a DIFFERENT
+      // executive is rejected.
+      {
+        const takenCompany = (values.assignedCompanyIds || [])
+          .map(cid => companyOwnerMap.get(cid))
+          .find(owner => owner && owner.id !== selectedUser.id)
+        if (takenCompany) {
+          setToast({ message: `This company is already assigned to ${takenCompany.name} — unselect it before saving`, type: 'error' })
+          setIsSubmitting(false)
+          return
+        }
+        const takenTL = (values.assignedTeamLeaderIds || [])
+          .map(tid => tlOwnerMap.get(tid))
+          .find(owner => owner && owner.id !== selectedUser.id)
+        if (takenTL) {
+          setToast({ message: `This team leader is already assigned to ${takenTL.name} — unselect it before saving`, type: 'error' })
+          setIsSubmitting(false)
+          return
+        }
+      }
       const dept = departments.find(d => d.id === values.departmentId)
       const prevCompanyIds = (selectedUser as any).assignedCompanyIds || []
       const newCompanyIds = values.assignedCompanyIds
@@ -1220,8 +1336,26 @@ export function Executives() {
   const totalPages = Math.ceil(filtered.length / pageSize)
   const paginated = filtered.slice((currentPage - 1) * pageSize, currentPage * pageSize)
 
-  const companyOptions = companies.map(c => ({ id: c.id, label: c.name, sublabel: c.code || '' }))
-  const teamLeaderOptions = allTeamLeaders.filter(tl => tl.isActive).map(tl => ({ id: tl.id, label: tl.name, sublabel: tl.email }))
+  const companyOptions = companies.map(c => {
+    const owner = companyOwnerMap.get(c.id)
+    const taken = !!owner && owner.id !== editingExecId
+    return {
+      id: c.id,
+      label: c.name,
+      sublabel: taken ? `Assigned to ${owner.name}` : (c.code || ''),
+      disabled: taken,
+    }
+  })
+  const teamLeaderOptions = allTeamLeaders.filter(tl => tl.isActive).map(tl => {
+    const owner = tlOwnerMap.get(tl.id)
+    const taken = !!owner && owner.id !== editingExecId
+    return {
+      id: tl.id,
+      label: tl.name,
+      sublabel: taken ? `Assigned to ${owner.name}` : tl.email,
+      disabled: taken,
+    }
+  })
 
   if (loading) {
     return (
@@ -1238,8 +1372,11 @@ export function Executives() {
       <div className="page-content">
         <div className="emp-stats-row">
           <div className="emp-mini-stat"><Crown size={22} /><div><strong>{users.length}</strong><span>Total Executives</span></div></div>
-          <div className="emp-mini-stat"><Building2 size={22} /><div><strong>{companies.filter(c => (c as any).assignedExecutiveId).length}</strong><span>Companies Assigned</span></div></div>
-          <div className="emp-mini-stat"><Users size={22} /><div><strong>{allTeamLeaders.filter(tl => (tl as any).reportingExecutiveId).length}</strong><span>Team Leaders Reporting</span></div></div>
+          {/* Real assignment counts from the executives' own link fields — the
+              company LIST is partition-scoped for TLs (missing companies) and
+              the legacy company.assignedExecutiveId side can be empty. */}
+          <div className="emp-mini-stat"><Building2 size={22} /><div><strong>{new Set(users.flatMap(u => ((u as any).assignedCompanyIds || []) as string[])).size}</strong><span>Companies Assigned</span></div></div>
+          <div className="emp-mini-stat"><Users size={22} /><div><strong>{new Set(users.flatMap(u => ((u as any).assignedTeamLeaderIds || []) as string[])).size}</strong><span>Team Leaders Reporting</span></div></div>
           {isMaster && (
             <div className="emp-mini-stat" style={{ background: unassignedCount > 0 ? '#fef3c7' : undefined }}>
               <BadgeAlert size={22} style={{ color: unassignedCount > 0 ? '#d97706' : undefined }} />
@@ -1291,14 +1428,14 @@ export function Executives() {
               ) : paginated.map(u => {
                 const compIds: string[] = (u as any).assignedCompanyIds || []
                 const tlIds: string[] = (u as any).assignedTeamLeaderIds || []
-                const compNames = compIds.map(id => companies.find(c => c.id === id)?.name || id).filter(Boolean)
-                const tlNames = tlIds.map(id => {
-                  const byRole = allTLUsers.find(t => t.id === id)
-                  const resolvedRole = byRole ? resolveName(byRole) : ''
-                  if (resolvedRole) return resolvedRole
-                  const byAny = allUsers.find(t => t.id === id)
-                  return resolveName(byAny) || id
-                }).filter(Boolean)
+                // Resolve company names from the scoped list first, then the
+                // authorized portfolio (partition-scoped lists can miss docs);
+                // never fall back to the raw backend id.
+                const compNames = compIds.map(id =>
+                  companies.find(c => c.id === id)?.name ||
+                  availableCompanies.find(c => c.id === id)?.name || '—'
+                )
+                const tlNames = tlIds.map(id => resolveName(findUserById(id)) || '—')
                 const MAX_VISIBLE = 3
                 return (
                 <tr key={u.id}>
@@ -1377,7 +1514,10 @@ export function Executives() {
       >
         {selectedUser && (() => {
           const assignedIds: string[] = (selectedUser as any).assignedCompanyIds || []
-          const assignedCompanies = assignedIds.map((cId: string) => companies.find(c => c.id === cId)?.name || cId)
+          const assignedCompanies = assignedIds.map((cId: string) =>
+            companies.find(c => c.id === cId)?.name ||
+            availableCompanies.find(c => c.id === cId)?.name || '—'
+          )
           const title = (selectedUser as any).executiveTitle || 'Executive'
           return (
             <div>
