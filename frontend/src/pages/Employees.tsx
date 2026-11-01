@@ -259,7 +259,10 @@ const EmployeeFormContent = forwardRef<EmployeeFormRef, EmployeeFormContentProps
   //   Company Admin  -> "Company Name / Administrator Full Name"
   //   Reporting Mgr  -> "Company Name / Reporting Manager / Manager Full Name"
   const companyNameOf = (e: Employee): string =>
-    companies.find(c => c.id === e.companyId)?.name?.trim() || ''
+    companies.find(c => c.id === e.companyId)?.name?.trim() ||
+    // Scoped roles (exec/TL) can't LIST every company (partition-scoped list) —
+    // fall back to their authorized portfolio (per-doc reads).
+    availableCompanies.find(c => c.id === e.companyId)?.name?.trim() || ''
   const fullNameOf = (e: Employee): string => {
     const raw = (e.name || '').trim()
     if (raw) return raw
@@ -1576,7 +1579,7 @@ export function Employees() {
 
   const activeFilters = [filterDept, filterRole, filterStatus, filterCompany].filter(Boolean).length
 
-  const getCompanyName = (id: string) => companies.find(c => c.id === id)?.name || id
+  const getCompanyName = (id: string) => companies.find(c => c.id === id)?.name || availableCompanies.find(c => c.id === id)?.name || '—'
   const getDeptOptions = () => [...new Set(employees.map(e => e.department))].sort()
   const getCompanyOptions = () => companies
   const getRoleOptions = () => roles.length > 0 ? roles : ROLE_OPTIONS
@@ -1731,7 +1734,7 @@ export function Employees() {
                 const sc = getStatusColor(emp.status)
                 const u = users.find(x => x.id === emp.userId)
                 const roleInfo = ROLE_OPTIONS.find(r => r.value === u?.role)
-                const c = companies.find(x => x.id === emp.companyId)
+                const c = companies.find(x => x.id === emp.companyId) || availableCompanies.find(x => x.id === emp.companyId)
                 return (
                   <tr key={emp.id}>
                     <td><span className="emp-id-badge">{emp.employeeId}</span></td>
@@ -1883,7 +1886,7 @@ export function Employees() {
       >
         {selectedEmployee && (() => {
           const u = users.find(x => x.id === selectedEmployee.userId)
-          const c = companies.find(x => x.id === selectedEmployee.companyId)
+          const c = companies.find(x => x.id === selectedEmployee.companyId) || availableCompanies.find(x => x.id === selectedEmployee.companyId)
           const roleInfo = ROLE_OPTIONS.find(r => r.value === u?.role)
           const sc = getStatusColor(selectedEmployee.status)
           return (

@@ -542,7 +542,10 @@ export const EmployeesScreen: React.FC<{ route?: any }> = ({ route }) => {
   };
 
   const getCompanyName = (id: string) => {
-    return availableCompanies.find(c => c.id === id)?.name || companies.find(c => c.id === id)?.name || id || 'N/A';
+    // availableCompanies first: scoped roles (exec/TL) can't LIST all
+    // companies (partition-scoped list) but can per-doc-read their portfolio.
+    // Never fall back to the raw backend companyId (IDs must not be shown).
+    return availableCompanies.find(c => c.id === id)?.name || companies.find(c => c.id === id)?.name || 'N/A';
   };
 
   const getManagerName = (emp: Employee) => {
@@ -769,7 +772,7 @@ export const EmployeesScreen: React.FC<{ route?: any }> = ({ route }) => {
                       ))}
                     </ScrollView>
                   ) : (
-                    <Text style={s.noOptionsText}>{form.companyId ? (companies.find(c => c.id === form.companyId)?.name || form.companyId) : 'No company assigned'}</Text>
+                    <Text style={s.noOptionsText}>{form.companyId ? (companies.find(c => c.id === form.companyId)?.name || availableCompanies.find(c => c.id === form.companyId)?.name || 'N/A') : 'No company assigned'}</Text>
                   )}
 
                   <Text style={s.fieldLabel}>Department</Text>
