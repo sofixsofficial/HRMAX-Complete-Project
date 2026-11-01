@@ -607,6 +607,13 @@ export function TeamLeaders() {
     }
   }
 
+  // 'global' is the Master Admin's platform bucket, not a real company — a TL
+  // created against it can never punch / take leave / draw salary. When the
+  // creator has no REAL company, the Company * picker must be shown so they can
+  // pick one (a plain !authUser?.companyId check hid it, because 'global' is
+  // truthy — leaving a validation error with no visible way to fix it).
+  const mustPickCompany = !authUser?.companyId || authUser.companyId === 'global'
+
   const openAdd = () => {
     // 'global' is the Master Admin's platform bucket, not a company —
     // prefilling it left the Company * select blank-looking while the value
@@ -1260,7 +1267,7 @@ export function TeamLeaders() {
                 <label>Designation</label>
                 <input type="text" {...form.register('designation')} placeholder="e.g. Senior Team Leader" />
               </div>
-              {!authUser?.companyId && (
+              {mustPickCompany && (
                 <div className="modal-field">
                   <label>Company *</label>                  <select {...form.register('companyId')} onChange={e => {
                     const cId = e.target.value
@@ -1281,7 +1288,7 @@ export function TeamLeaders() {
                   form.setValue('departmentName', dept?.name || '')
                 }}>
                   <option value="">Select department</option>
-                  {departments.filter(d => !authUser?.companyId || d.companyId === (form.watch('companyId') || authUser?.companyId)).map(d => <option key={d.id} value={d.id}>{d.name}</option>)}
+                  {departments.filter(d => mustPickCompany ? d.companyId === (form.watch('companyId') || authUser?.companyId) : true).map(d => <option key={d.id} value={d.id}>{d.name}</option>)}
                 </select>
               </div>
             </div>
@@ -1541,7 +1548,7 @@ export function TeamLeaders() {
               <Crown size={18} /><h4>Reporting Hierarchy</h4>
             </div>
             <div className="modal-section-content">
-              {!authUser?.companyId && (
+              {mustPickCompany && (
                 <div className="modal-field">
                   <label>Company</label>
                   <select {...form.register('companyId')}>
