@@ -53,6 +53,7 @@ export function TLOperationalDashboard() {
     executives, selectedExecutiveId, selectedCompanyId,
     isLoading, isReady,
     currentExecutive, currentCompany,
+    allCompanies,
   } = useTLFilter()
   const { availableCompanies } = useCompany()
 
@@ -110,7 +111,7 @@ export function TLOperationalDashboard() {
     }
 
     setActivitiesLoading(true)
-    const companyNameOf = (cid: string) => availableCompanies.find(c => c.id === cid)?.name || cid
+    const companyNameOf = (cid: string) => availableCompanies.find(c => c.id === cid)?.name || '—'
     const today = new Date()
     today.setHours(0, 0, 0, 0)
 
@@ -355,11 +356,18 @@ export function TLOperationalDashboard() {
   // Assignment overview follows the active scope (see scopedCompanyIds above)
   const totalExecutives = currentExecutive ? 1 : executives.length
   const totalCompanies = scopedCompanyIds.length
+  // Real names (never raw backend IDs) for the card trend lines — first two
+  // names, then "+N more" when the scope is wider.
+  const nameList = (names: string[], empty: string) => {
+    const list = names.filter(Boolean)
+    if (list.length === 0) return empty
+    return list.length <= 2 ? list.join(', ') : `${list.slice(0, 2).join(', ')} +${list.length - 2} more`
+  }
   const scopeLabel = selectedCompanyId
     ? (currentCompany?.name || 'Selected company')
     : currentExecutive
       ? currentExecutive.name
-      : 'All companies'
+      : nameList(allCompanies.map(c => c.name), 'All companies')
 
 
   // Loading state
@@ -454,7 +462,7 @@ export function TLOperationalDashboard() {
         ) : (
         <div className="stats-grid" style={{ marginBottom: 20 }}>
           {[
-            { icon: Users, label: 'Total Executives', count: totalExecutives, trend: currentExecutive ? currentExecutive.name : 'Assigned', path: '/executives' },
+            { icon: Users, label: 'Total Executives', count: totalExecutives, trend: currentExecutive ? currentExecutive.name : nameList(executives.map(e => e.name), 'Assigned'), path: '/executives' },
             { icon: Building2, label: 'Total Companies', count: totalCompanies, trend: scopeLabel, path: '/companies' },
             { icon: Users, label: 'Total Employees', count: overviewStats.totalEmployees, trend: `${overviewStats.activeEmployees} Active`, path: '/employees' },
             { icon: UserCheck, label: 'Active Employees', count: overviewStats.activeEmployees, trend: 'Active', path: '/employees?status=Active' },

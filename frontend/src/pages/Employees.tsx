@@ -1665,7 +1665,7 @@ export function Employees() {
             </div>
             <div className="emp-filter-group">
               <select value={filterCompany} onChange={e => { setFilterCompany(e.target.value); setCurrentPage(1) }}>
-                {canAccessAllCompanies && <option value="">All Companies</option>}
+                {(canAccessAllCompanies || availableCompanies.length > 1) && <option value="">All Companies</option>}
                 {(canAccessAllCompanies ? companies : availableCompanies).map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
               </select>
             </div>

@@ -581,7 +581,7 @@ export function CalendarCenter() {
                     className="text-sm border-none outline-none bg-transparent cursor-pointer text-gray-700"
                     style={{ padding: 0 }}
                   >
-                    {canAccessAllCompanies && <option value="">All Companies</option>}
+                    {(canAccessAllCompanies || availableCompanies.length > 1) && <option value="">All Companies</option>}
                     {(canAccessAllCompanies ? companies : availableCompanies).map(c => (
                       <option key={c.id} value={c.id}>{c.name}</option>
                     ))}

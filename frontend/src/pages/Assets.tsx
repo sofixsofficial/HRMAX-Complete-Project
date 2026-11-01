@@ -421,7 +421,7 @@ export function Assets() {
             <div className="emp-filter-group">
               <Building2 size={16} />
               <select value={companyId} onChange={e => setSelectedCompanyId(e.target.value || '')}>
-                {canAccessAllCompanies && <option value="">All Companies</option>}
+                {(canAccessAllCompanies || availableCompanies.length > 1) && <option value="">All Companies</option>}
                 {availableCompanies.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
               </select>
             </div>

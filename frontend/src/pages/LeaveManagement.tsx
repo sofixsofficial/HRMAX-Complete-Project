@@ -285,7 +285,7 @@ export function LeaveManagement() {
   // ── lookup helpers ──────────────────────────────────────────
   // Fallback order: loaded company docs → server-stamped `companyName`
   // (leave rows from a company this viewer is no longer scoped to) → raw id.
-  const getCompanyName = (cid: string) => companiesById[cid]?.name || leaves.find(l => l.companyId === cid)?.companyName || cid
+  const getCompanyName = (cid: string) => companiesById[cid]?.name || leaves.find(l => l.companyId === cid)?.companyName || '—'
   const getAssignedExecutiveId = (cid: string) => companiesById[cid]?.assignedExecutiveId || ''
   const getAssignedExecutive = (cid: string) => {
     const execId = getAssignedExecutiveId(cid)
@@ -400,12 +400,12 @@ export function LeaveManagement() {
       return scopeIds.length === 0 || scopeIds.includes(l.companyId)
     }
     if (user?.role === 'team-leader') {
-      const tlUser = allUsers.find(u => u.id === user.id)
-      const linkedIds: string[] = (tlUser as any)?.linkedExecutiveIds || ((tlUser as any)?.reportingExecutiveId ? [(tlUser as any).reportingExecutiveId] : [])
-      const allCompanyIds: string[] = allUsers
-        .filter(u => linkedIds.includes(u.id))
-        .flatMap((ex: any) => ex.assignedCompanyIds || [])
-      return allCompanyIds.includes(l.companyId)
+      // Team leaders manage EXECUTIVES — every company under their executives
+      // is in scope (CompanyContext/TLFilterContext derive the portfolio from
+      // the executives' assignedCompanyIds). Mirror the dashboard/fetch scope
+      // so fetch∩filter can never empty the table to zeros.
+      const scopeIds = [...new Set((availableCompanies || []).map(c => c.id).filter(Boolean))]
+      return scopeIds.length === 0 || scopeIds.includes(l.companyId)
     }
     return true
   })
@@ -680,7 +680,7 @@ export function LeaveManagement() {
               ))}
             </select>
             <select className="filter-select" value={companyFilter} onChange={(e) => setCompanyFilter(e.target.value)}>
-              {canAccessAllCompanies && <option value="all">All Companies</option>}
+              {(canAccessAllCompanies || availableCompanies.length > 1) && <option value="all">All Companies</option>}
               {(canAccessAllCompanies ? companies : availableCompanies).map(c => (
                 <option key={c.id} value={c.id}>{c.name}</option>
               ))}

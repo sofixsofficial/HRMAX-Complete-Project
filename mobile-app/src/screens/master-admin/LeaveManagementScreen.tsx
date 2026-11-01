@@ -103,10 +103,18 @@ export const LeaveManagementScreen: React.FC<{ route?: any }> = ({ route }) => {
   // Company names for row meta + the web's company filter (master-admin /
   // scoped executives & team leaders see many companies).
   useEffect(() => {
+    // Scoped roles (exec/TL) can only per-doc-read their own portfolio — the
+    // unfiltered companies LIST is partition-scoped for TLs (returns just their
+    // own company), which used to hide every other company under their
+    // executives. Reuse the context portfolio instead of re-listing.
+    if (isRestrictedScope) {
+      setCompanies(availableCompanies);
+      return;
+    }
     getDocs(collection(db, 'companies'))
       .then((s) => setCompanies(s.docs.map((d) => ({ id: d.id, ...(d.data() as any) }))))
       .catch(() => setCompanies([]));
-  }, []);
+  }, [isRestrictedScope, availableCompanies]);
 
   // Deep-link status filter from dashboard cards (e.g. Pending / Approved / Rejected)
   useEffect(() => {

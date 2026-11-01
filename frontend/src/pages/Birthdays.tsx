@@ -381,7 +381,7 @@ export function Birthdays() {
           <div className="filters-row birthday-filters">
             <div className="emp-filter-group">
               <select className="filter-select" value={companyId} onChange={(e) => setSelectedCompanyId(e.target.value || '')}>
-                {canAccessAllCompanies && <option value="">All Companies</option>}
+                {(canAccessAllCompanies || availableCompanies.length > 1) && <option value="">All Companies</option>}
                 {availableCompanies.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
               </select>
             </div>

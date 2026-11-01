@@ -151,12 +151,19 @@ export const EmployeesScreen: React.FC<{ route?: any }> = ({ route }) => {
   }, [scopeIds, isRestrictedScope]);
 
   useEffect(() => {
+    if (isRestrictedScope) {
+      // Exec/TL: reuse the context portfolio (per-doc reads) — the unfiltered
+      // companies LIST is partition-scoped for TLs and hides the other
+      // companies under their executives.
+      setCompanies(availableCompanies);
+      return;
+    }
     if (scopeIds.length > 0 || isMasterAdmin) {
       getDocs(collection(db, 'companies')).then(snap => {
         setCompanies(snap.docs.map(d => ({ id: d.id, ...d.data() })));
       }).catch(() => {});
     }
-  }, [scopeIds, isMasterAdmin]);
+  }, [scopeIds, isMasterAdmin, isRestrictedScope, availableCompanies]);
 
   useEffect(() => {
     if (form.companyId) {

@@ -160,7 +160,7 @@ export function Announcements() {
           </div>
           <div className="emp-filter-group">
             <select value={effectiveCompanyId || ''} onChange={e => setSelectedCompanyId(e.target.value || '')} style={{ marginRight: 8 }}>
-              {canAccessAllCompanies && <option value="">All Companies</option>}
+              {(canAccessAllCompanies || availableCompanies.length > 1) && <option value="">All Companies</option>}
               {availableCompanies.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
             </select>
             <select value={categoryFilter} onChange={e => setCategoryFilter(e.target.value)}>

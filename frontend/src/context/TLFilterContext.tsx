@@ -113,6 +113,25 @@ export const TLFilterProvider: React.FC<{ children: React.ReactNode }> = ({ chil
         return { id: d.id, name: data.name || '', code: data.code || '' }
       })
 
+      // The unfiltered companies LIST endpoint is partition-scoped for TLs —
+      // it returns only the TL's own company, hiding every other company under
+      // their executives (the TL manages EXECUTIVES, and each executive's
+      // companies are all in scope). Per-document company reads ARE allowed
+      // (verified live: TL GET /api/companies/<other-company> → 200), so derive
+      // the rest of the portfolio from the executives' assignedCompanyIds.
+      const execCompanyIds = [...new Set(execList.flatMap(e => e.assignedCompanyIds).filter(Boolean))]
+      const listedIds = new Set(companyList.map(c => c.id))
+      const missingIds = execCompanyIds.filter(id => !listedIds.has(id))
+      const derived = await Promise.all(
+        missingIds.map(id => getDoc(doc(db, 'companies', id)).catch(() => null))
+      )
+      derived.forEach(s => {
+        if (s && s.exists()) {
+          const data = s.data()
+          companyList.push({ id: s.id, name: data.name || '', code: data.code || '' })
+        }
+      })
+
       setExecutives(execList)
       setAllCompanies(companyList)
     } catch (err) {

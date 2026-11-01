@@ -422,7 +422,7 @@ export function DocumentsManagement() {
             <div className="doc-filter-group">
               <label>Company</label>
               <select value={companyFilter} onChange={e => { setCompanyFilter(e.target.value); setCurrentPage(1) }}>
-                {canAccessAllCompanies && <option value="All">All Companies</option>}
+                {(canAccessAllCompanies || availableCompanies.length > 1) && <option value="All">All Companies</option>}
                 {(canAccessAllCompanies ? companies : availableCompanies).map(c => <option key={c.id} value={c.name}>{c.name}</option>)}
               </select>
             </div>

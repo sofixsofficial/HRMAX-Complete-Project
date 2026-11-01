@@ -81,8 +81,26 @@ export const CompanyProvider: React.FC<{ children: React.ReactNode }> = ({ child
             } catch {}
           }
         } 
-        // team-leader: no linked-executive derivation — system-level TLs fall
-        // through to the unrestricted branch below and load ALL companies.
+        // team-leader: scope = EVERY company under the executives they manage
+        // (web parity: TLFilterContext derives the portfolio from the linked
+        // executives). The unfiltered companies LIST is partition-scoped for
+        // TLs (returns only their own company, hiding Ascon etc.), but listing
+        // executives and reading their assignedCompanyIds works — derive the
+        // full portfolio so leaves/employees/filters show all exec companies.
+        if (fuRole === 'team-leader') {
+          try {
+            const execSnap = await getDocs(query(collection(db, 'users'), where('role', '==', 'executive')));
+            const ids = new Set<string>();
+            execSnap.docs.forEach((d) => {
+              ((d.data() as any).assignedCompanyIds || []).forEach((cid: string) => {
+                if (cid) ids.add(cid);
+              });
+            });
+            targetIds = Array.from(ids);
+          } catch {
+            targetIds = [];
+          }
+        }
 
         if (targetIds.length > 0) {
           const compDocs = await getDocsInBatches('companies', targetIds);
@@ -93,8 +111,11 @@ export const CompanyProvider: React.FC<{ children: React.ReactNode }> = ({ child
           }));
           setAvailableCompanies(comps);
 
-          if (comps.length === 1) {
-            // Single company: auto-select so CRUD flows are ready immediately
+          if (comps.length === 1 && fuRole !== 'team-leader') {
+            // Single company: auto-select so CRUD flows are ready immediately.
+            // Team Leaders always default to the aggregated "All Companies"
+            // view — pinning them to one company looked like a pre-set filter
+            // they never chose.
             setSelectedCompanyIdState(comps[0].id);
           } else {
             // Multiple companies: default to "All Companies" combined view

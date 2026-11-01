@@ -825,7 +825,7 @@ export function Tasks() {
               <option value="Overdue">Overdue</option>
             </select>
             <select className="filter-select" value={companyFilter} onChange={(e) => { setCompanyFilter(e.target.value); setExecutiveFilter('all'); setTlFilter('all'); setCurrentPage(1) }}>
-              {canAccessAllCompanies && <option value="all">All Companies</option>}
+              {(canAccessAllCompanies || userCompanies.length > 1) && <option value="all">All Companies</option>}
               {(canAccessAllCompanies ? companies : userCompanies).map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
             </select>
           </div>

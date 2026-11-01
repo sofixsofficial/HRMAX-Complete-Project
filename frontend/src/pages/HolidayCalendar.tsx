@@ -514,7 +514,7 @@ export function HolidayCalendar() {
               {TYPE_OPTIONS.map(t => <option key={t} value={t}>{t}</option>)}
             </select>
             <select className="filter-select" value={companyFilter} onChange={(e) => setCompanyFilter(e.target.value)}>
-              {canAccessAllCompanies && <option value="all">All Companies</option>}
+              {(canAccessAllCompanies || availableCompanies.length > 1) && <option value="all">All Companies</option>}
               {(canAccessAllCompanies ? companies : availableCompanies).map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
             </select>
           </div>

@@ -278,7 +278,7 @@ export function SupportTickets() {
             </div>
 
             <select className="st-filter-select" value={companyFilter} onChange={e => { setCompanyFilter(e.target.value); setCurrentPage(1) }}>
-              {canAccessAllCompanies && <option value="All">All Companies</option>}
+              {(canAccessAllCompanies || availableCompanies.length > 1) && <option value="All">All Companies</option>}
               {(canAccessAllCompanies ? filterOptions.companies : availableCompanies).map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
             </select>
 

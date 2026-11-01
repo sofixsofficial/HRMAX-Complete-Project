@@ -559,7 +559,7 @@ export function Branches() {
                 // (left:12px, 16px wide → ends at 28px).
                 style={{ width: '100%', padding: '10px 12px 10px 40px', border: '1px solid #e5e7eb', borderRadius: 8, fontSize: 14, background: '#fff' }}
               >
-                {canAccessAllCompanies && <option value="">All Companies</option>}
+                {(canAccessAllCompanies || availableCompanies.length > 1) && <option value="">All Companies</option>}
                 {availableCompanies.map(c => (
                   <option key={c.id} value={c.id}>{c.name}</option>
                 ))}
