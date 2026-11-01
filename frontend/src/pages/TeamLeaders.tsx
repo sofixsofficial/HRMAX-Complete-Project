@@ -11,7 +11,7 @@ import { getAllUsers, resetUserPassword } from '../services/authService'
 import { TempPasswordDialog } from '../components/TempPasswordDialog'
 import { createNotification } from '../services/notificationService'
 import { getAllCompanies } from '../services/companyService'
-import { getDepartmentsByCompany, getAllDepartments } from '../services/departmentService'
+import { getAllDepartments } from '../services/departmentService'
 import { collection, doc, onSnapshot, updateDoc, serverTimestamp } from '../aws/firestore-compat'
 import { ref as storageRef, uploadBytes, getDownloadURL } from '../aws/storage-compat'
 import { httpsCallable } from '../aws/functions-compat'
@@ -27,6 +27,23 @@ import './Employees.css'
 
 const EMPLOYMENT_TYPE_OPTIONS = ['Full-time', 'Part-time', 'Contract', 'Intern'] as const
 const STATUS_OPTIONS = ['Active', 'Inactive', 'On Leave'] as const
+
+// A Team Leader's company is DERIVED from the linked Executive(s) — the TL
+// manages that executive's company, so there is NO manual Company picker
+// ("Company q select karenge team leader create karte time yeh nhi karenge —
+// team leader executive ko manage karhe hai na"; web + mobile parity).
+// Reads the executive's assignedCompanyIds first (the side Executives.tsx
+// writes), then its own companyId; 'global' is only the platform bucket and
+// is never a real TL company.
+const deriveCompanyIdFromExecs = (execs: User[]): string => {
+  for (const e of execs) {
+    const assigned: string[] = ((e as any).assignedCompanyIds || []).filter((x: string) => x && x !== 'global')
+    if (assigned.length > 0) return assigned[0]
+    const own = (e as any).companyId
+    if (own && own !== 'global') return own
+  }
+  return ''
+}
 
 const teamLeaderSchema = z.object({
   name: z.string().min(2, 'Name must be at least 2 characters'),
@@ -448,13 +465,19 @@ export function TeamLeaders() {
     setIsSubmitting(true)
     try {
       const selectedExecs = executives.filter(e => values.executiveIds?.includes(e.id))
-      const targetCompanyId = values.companyId || authUser?.companyId || null
+      // Company is DERIVED from the linked Executive(s) — there is no manual
+      // Company picker ("team leader executive ko manage karhe hai na").
+      if (selectedExecs.length === 0) {
+        setToast({ message: 'Link at least one Executive — the Team Leader’s company comes from the Executive', type: 'error' })
+        setIsSubmitting(false)
+        return
+      }
+      const targetCompanyId = deriveCompanyIdFromExecs(selectedExecs)
       // Check-in, attendance, leave and salary all live under a REAL company
-      // ('global' is only the platform bucket). The creator's own company is
-      // the default; a Master Admin must pick one from Company * — a TL
-      // created without one can never punch ("No company is assigned").
+      // ('global' is only the platform bucket). A TL created without one can
+      // never punch ("No company is assigned").
       if (!targetCompanyId || targetCompanyId === 'global') {
-        setToast({ message: 'Select a company for the Team Leader — attendance, leave and salary need one', type: 'error' })
+        setToast({ message: 'The linked Executive has no company — assign the Executive to a company first', type: 'error' })
         setIsSubmitting(false)
         return
       }
@@ -597,28 +620,32 @@ export function TeamLeaders() {
     }
   }
 
-  const loadDepartments = async (companyId?: string) => {
-    try {
-      const id = companyId || authUser?.companyId
-      const depts = id ? await getDepartmentsByCompany(id) : await getAllDepartments()
-      setDepartments(depts)
-    } catch (err) {
-      console.error('Failed to load departments', err)
-    }
-  }
+  // The TL's company comes from the linked Executive(s) — no manual Company
+  // picker (deriveCompanyIdFromExecs). `form.companyId` survives only as an
+  // edit-time fallback for legacy TLs whose executive carries no company data.
+  // 'global' is the platform bucket, never a real company.
+  const watchedExecutiveIds: string[] = form.watch('executiveIds') || []
+  const execDerivedCompanyId = deriveCompanyIdFromExecs(executives.filter(e => watchedExecutiveIds.includes(e.id)))
+  const watchedFormCompanyId: string = form.watch('companyId') || ''
+  const effectiveCompanyId = execDerivedCompanyId || (watchedFormCompanyId && watchedFormCompanyId !== 'global' ? watchedFormCompanyId : '')
+  const effectiveCompanyName = effectiveCompanyId ? (companies.find(c => c.id === effectiveCompanyId)?.name || effectiveCompanyId) : ''
 
-  // 'global' is the Master Admin's platform bucket, not a real company — a TL
-  // created against it can never punch / take leave / draw salary. When the
-  // creator has no REAL company, the Company * picker must be shown so they can
-  // pick one (a plain !authUser?.companyId check hid it, because 'global' is
-  // truthy — leaving a validation error with no visible way to fix it).
-  const mustPickCompany = !authUser?.companyId || authUser.companyId === 'global'
+  // Linking a different executive changes the derived company — a selected
+  // department from the old company is no longer valid, so clear it.
+  useEffect(() => {
+    if (!effectiveCompanyId) return
+    const dept = departments.find(d => d.id === form.getValues('departmentId'))
+    if (dept && dept.companyId && dept.companyId !== effectiveCompanyId) {
+      form.setValue('departmentId', '')
+      form.setValue('departmentName', '')
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [effectiveCompanyId])
 
   const openAdd = () => {
-    // 'global' is the Master Admin's platform bucket, not a company —
-    // prefilling it left the Company * select blank-looking while the value
-    // saved was 'global', producing a TL that could never punch.
-    form.reset({ companyId: (authUser?.companyId && authUser.companyId !== 'global') ? authUser.companyId : '', executiveIds: [] })
+    // Company is DERIVED from the linked Executive(s) (no manual picker) —
+    // start empty so nothing stale ('global', the platform bucket) is saved.
+    form.reset({ companyId: '', executiveIds: [] })
     setAddPermissions(TL_ALL_PERMISSIONS)
     setIsAddModalOpen(true)
   }
@@ -713,19 +740,24 @@ export function TeamLeaders() {
 
   const handleEdit = async (values: TeamLeaderFormValues) => {
     if (!selectedUser) return
-    // The edit modal shows Company * — persist it (it used to be silently
-    // dropped, so a TL's company could never be fixed from the UI) and refuse
-    // 'global': attendance/leave/salary need a real company.
-    if (!values.companyId || values.companyId === 'global') {
-      setToast({ message: 'Select a company for the Team Leader — attendance, leave and salary need one', type: 'error' })
+    const prevLinkedIds: string[] = (selectedUser as any).linkedExecutiveIds || ((selectedUser as any).reportingExecutiveId ? [(selectedUser as any).reportingExecutiveId] : [])
+    const newIds: string[] = values.executiveIds || []
+    if (newIds.length === 0) {
+      setToast({ message: 'Link at least one Executive — the Team Leader’s company comes from the Executive', type: 'error' })
+      return
+    }
+    const newExecs = executives.filter(e => newIds.includes(e.id))
+    // Company follows the linked Executive(s) — no manual Company picker.
+    // Fall back to the TL's saved company only for legacy execs that carry no
+    // company data; refuse 'global' (attendance/leave/salary need a real one).
+    const targetCompanyId = deriveCompanyIdFromExecs(newExecs) ||
+      (values.companyId && values.companyId !== 'global' ? values.companyId : '')
+    if (!targetCompanyId || targetCompanyId === 'global') {
+      setToast({ message: 'The linked Executive has no company — assign the Executive to a company first', type: 'error' })
       return
     }
     setIsSubmitting(true)
     try {
-      const prevLinkedIds: string[] = (selectedUser as any).linkedExecutiveIds || ((selectedUser as any).reportingExecutiveId ? [(selectedUser as any).reportingExecutiveId] : [])
-      const newIds: string[] = values.executiveIds || []
-      const newExecs = executives.filter(e => newIds.includes(e.id))
-
       const toRemove = prevLinkedIds.filter(id => !newIds.includes(id))
       const toAdd = newIds.filter(id => !prevLinkedIds.includes(id))
 
@@ -759,7 +791,7 @@ export function TeamLeaders() {
       await updateDoc(doc(db, 'users', selectedUser.id), {
         name: values.name,
         email: values.email,
-        companyId: values.companyId,
+        companyId: targetCompanyId,
         phone: values.phone || '',
         linkedExecutiveIds: newIds,
         reportingExecutiveId: newExecs[0]?.id || null,
@@ -1267,20 +1299,18 @@ export function TeamLeaders() {
                 <label>Designation</label>
                 <input type="text" {...form.register('designation')} placeholder="e.g. Senior Team Leader" />
               </div>
-              {mustPickCompany && (
-                <div className="modal-field">
-                  <label>Company *</label>                  <select {...form.register('companyId')} onChange={e => {
-                    const cId = e.target.value
-                    form.setValue('companyId', cId)
-                    form.setValue('departmentId', '')
-                    form.setValue('departmentName', '')
-                    loadDepartments(cId || undefined)
-                  }}>
-                    <option value="">Select company</option>
-                    {companies.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
-                  </select>
-                </div>
-              )}
+              {/* Company is DERIVED from the linked Executive(s) below — no
+                  manual picker ("team leader executive ko manage karhe hai na"). */}
+              <div className="modal-field">
+                <label>Company (set from Linked Executive)</label>
+                <input
+                  type="text"
+                  readOnly
+                  value={effectiveCompanyName}
+                  placeholder="Select a Linked Executive below — the company is set automatically"
+                  style={{ background: '#f9fafb', cursor: 'default' }}
+                />
+              </div>
               <div className="modal-field">
                 <label>Department</label>
                 <select {...form.register('departmentId')} onChange={e => {
@@ -1288,7 +1318,7 @@ export function TeamLeaders() {
                   form.setValue('departmentName', dept?.name || '')
                 }}>
                   <option value="">Select department</option>
-                  {departments.filter(d => mustPickCompany ? d.companyId === (form.watch('companyId') || authUser?.companyId) : true).map(d => <option key={d.id} value={d.id}>{d.name}</option>)}
+                  {departments.filter(d => !effectiveCompanyId || !d.companyId || d.companyId === effectiveCompanyId).map(d => <option key={d.id} value={d.id}>{d.name}</option>)}
                 </select>
               </div>
             </div>
@@ -1548,17 +1578,11 @@ export function TeamLeaders() {
               <Crown size={18} /><h4>Reporting Hierarchy</h4>
             </div>
             <div className="modal-section-content">
-              {mustPickCompany && (
-                <div className="modal-field">
-                  <label>Company</label>
-                  <select {...form.register('companyId')}>
-                    <option value="">Select company</option>
-                    {companies.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
-                  </select>
-                </div>
-              )}
               <div className="modal-field">
                 <label>Linked Executives</label>
+                <span style={{ display: 'block', fontSize: 12, color: '#9ca3af', margin: '-4px 0 6px' }}>
+                  The Team Leader’s company is set automatically from the linked Executive.
+                </span>
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 6, maxHeight: 180, overflowY: 'auto', padding: '4px 0' }}>
                   {executiveOptions.map(e => {
                     const checked = form.watch('executiveIds')?.includes(e.id) || false
@@ -1897,6 +1921,18 @@ export function TeamLeaders() {
             <Crown size={18} /><h4>Reporting Hierarchy</h4>
           </div>
           <div className="modal-section-content">
+            {/* Company is DERIVED from the linked Executive(s) — shown read-only
+                (no manual picker; web + mobile parity). */}
+            <div className="modal-field">
+              <label>Company (set from Linked Executive)</label>
+              <input
+                type="text"
+                readOnly
+                value={effectiveCompanyName}
+                placeholder="Select a Linked Executive below — the company is set automatically"
+                style={{ background: '#f9fafb', cursor: 'default' }}
+              />
+            </div>
             <div className="modal-field">
               <label>Linked Executives</label>
               <div style={{ display: 'flex', flexDirection: 'column', gap: 6, maxHeight: 180, overflowY: 'auto', padding: '4px 0' }}>

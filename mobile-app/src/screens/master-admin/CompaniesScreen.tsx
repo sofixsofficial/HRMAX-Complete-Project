@@ -236,21 +236,46 @@ export const CompaniesScreen: React.FC = () => {
     return filtered.slice((currentPage - 1) * pageSize, currentPage * pageSize);
   }, [filtered, currentPage, pageSize]);
 
-  const getAssigneeName = (companyId: string) => {
-    const c = companies.find(c => c.id === companyId);
-    const execId = (c as any)?.assignedExecutiveId;
-    if (!execId) return '';
-    const exec = executives.find(e => e.id === execId);
-    return exec?.name || '';
+  // An executive↔company assignment can be written from EITHER side: the
+  // executive's own `assignedCompanyIds` or the company doc's
+  // `assignedExecutiveId`/`assignedExecutiveIds` (web Companies.tsx parity) —
+  // reading only one side showed real assignments as "Unassigned".
+  const getExecutivesForCompany = (companyId: string): User[] => {
+    const out = new Map<string, User>();
+    const add = (u?: User | null) => { if (u && u.id && !out.has(u.id)) out.set(u.id, u); };
+    executives.forEach(e => {
+      const assigned: string[] = (e as any).assignedCompanyIds || [];
+      if (assigned.includes(companyId) || ((e as any).companyId && (e as any).companyId === companyId)) add(e);
+    });
+    const c: any = companies.find(x => x.id === companyId) || {};
+    const companySide: string[] = [c.assignedExecutiveId, ...(Array.isArray(c.assignedExecutiveIds) ? c.assignedExecutiveIds : [])].filter(Boolean);
+    companySide.forEach(eid => add(executives.find(e => e.id === eid)));
+    return Array.from(out.values());
   };
 
+  const getAssigneeName = (companyId: string) =>
+    getExecutivesForCompany(companyId).map(e => e.name).filter(Boolean).join('; ');
+
+  // Reporting TLs are linked through their executive(s): read BOTH the
+  // executive's `assignedTeamLeaderIds` and the TL's authoritative
+  // `linkedExecutiveIds` (legacy: `reportingExecutiveId`) — either side may be
+  // the only one written, so a real TL link must never render as "—".
   const getReportingTLs = (companyId: string): string[] => {
-    const c = companies.find(c => c.id === companyId);
-    const execId = (c as any)?.assignedExecutiveId;
-    if (!execId) return [];
-    const exec = executives.find(e => e.id === execId);
-    const tlIds: string[] = (exec as any)?.assignedTeamLeaderIds || [];
-    return tlIds.map((tid: string) => teamLeaders.find(t => t.id === tid)?.name || '').filter(Boolean);
+    const execIds = new Set(getExecutivesForCompany(companyId).map(e => e.id));
+    if (execIds.size === 0) return [];
+    const tlMap = new Map<string, User>();
+    const addTl = (tl?: User | null) => {
+      if (tl && !tlMap.has(tl.id)) tlMap.set(tl.id, tl);
+    };
+    executives.forEach(ex => {
+      if (!execIds.has(ex.id)) return;
+      ((ex as any).assignedTeamLeaderIds || []).forEach((tid: string) => addTl(teamLeaders.find(t => t.id === tid)));
+    });
+    teamLeaders.forEach(tl => {
+      const linked: string[] = (tl as any).linkedExecutiveIds || ((tl as any).reportingExecutiveId ? [(tl as any).reportingExecutiveId] : []);
+      if (linked.some(id => execIds.has(id))) addTl(tl);
+    });
+    return Array.from(tlMap.values()).map(t => t.name).filter(Boolean);
   };
 
   useEffect(() => {

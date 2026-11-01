@@ -164,25 +164,46 @@ export const TeamLeadersScreen: React.FC = () => {
   const getDerivedCompany = (tl: User) => {
     const linkedExecIds: string[] = (tl as any).linkedExecutiveIds || ((tl as any).reportingExecutiveId ? [(tl as any).reportingExecutiveId] : []);
     if (linkedExecIds.length > 0) {
-      const exec = executives.find(e => e.id === linkedExecIds[0]);
-      if (exec?.companyId) return getCompanyName(exec.companyId);
+      const exec: any = executives.find(e => e.id === linkedExecIds[0]);
+      const assigned: string[] = (exec?.assignedCompanyIds || []).filter((x: string) => x && x !== 'global');
+      if (assigned.length > 0) return getCompanyName(assigned[0]);
+      if (exec?.companyId && exec.companyId !== 'global') return getCompanyName(exec.companyId);
     }
-    if (tl.companyId) return getCompanyName(tl.companyId);
+    if (tl.companyId && tl.companyId !== 'global') return getCompanyName(tl.companyId);
     return 'Unassigned';
   };
 
+  // A Team Leader's company is DERIVED from the linked Executive(s) — the TL
+  // manages that executive's company, so there is NO manual Company picker
+  // ("Company q select karenge team leader create karte time yeh nhi karenge —
+  // team leader executive ko manage karhe hai na"; web parity).
+  const deriveCompanyIdFromExecs = (execIds: string[]): string => {
+    for (const id of execIds) {
+      const ex: any = executives.find(e => e.id === id);
+      const assigned: string[] = (ex?.assignedCompanyIds || []).filter((x: string) => x && x !== 'global');
+      if (assigned.length > 0) return assigned[0];
+      if (ex?.companyId && ex.companyId !== 'global') return ex.companyId;
+    }
+    return '';
+  };
+
+  // Company shown in the create/edit form: derived from the linked
+  // Executive(s), with the saved company as a legacy fallback ('global' is
+  // only the platform bucket, never a real company). Mirrors web
+  // `effectiveCompanyId` in TeamLeaders.tsx.
+  const effectiveFormCompanyId = deriveCompanyIdFromExecs(form.executiveIds) ||
+    (form.companyId && form.companyId !== 'global' ? form.companyId : '');
+
   const openCreate = () => {
     setEditing(null);
-    // Web parity (TeamLeaders.tsx form.reset L614): default the company to the
-    // creator's own company so a Master Admin doesn't have to re-pick it — a TL
-    // created without a company can never punch / take leave / draw salary.
-    // 'global' is only the platform bucket, never a valid TL company.
-    const defaultCompanyId = authUser?.companyId && authUser.companyId !== 'global' ? authUser.companyId : '';
-    setForm({ ...emptyForm, companyId: defaultCompanyId });
+    // Company is DERIVED from the linked Executive(s) below — there is no
+    // manual Company picker (web parity), so start empty: nothing stale
+    // ('global', the platform bucket) can ever be saved.
+    setForm({ ...emptyForm, companyId: '' });
     setContingency(false);
-    // Open "Reporting Hierarchy" by default so the Company * chips and Executive
-    // assignment are visible (they were hidden in a collapsed section, so users
-    // hit the "select a company" validation without ever seeing the picker).
+    // Open "Reporting Hierarchy" by default so the Executive assignment (and
+    // the auto-derived company) is visible instead of hidden in a collapsed
+    // section where users hit validation without seeing the field.
     setShowEmp(true); setShowBank(false); setShowContact(false); setShowComp(false); setShowAssign(true); setShowAtt(false); setShowPerms(false);
     setPermissions(TL_ALL_PERMISSIONS);
     setModal(true);
@@ -256,12 +277,13 @@ export const TeamLeadersScreen: React.FC = () => {
   };
 
   const toggleExec = (id: string) => {
-    setForm(prev => ({
-      ...prev,
-      executiveIds: prev.executiveIds.includes(id)
+    setForm(prev => {
+      const executiveIds = prev.executiveIds.includes(id)
         ? prev.executiveIds.filter(e => e !== id)
-        : [...prev.executiveIds, id],
-    }));
+        : [...prev.executiveIds, id];
+      // The company FOLLOWS the linked Executive(s) — no manual Company picker.
+      return { ...prev, executiveIds, companyId: deriveCompanyIdFromExecs(executiveIds) || prev.companyId };
+    });
   };
 
   const toggleContingency = (tl: User) => {
@@ -336,10 +358,18 @@ export const TeamLeadersScreen: React.FC = () => {
 
   const handleSave = async () => {
     if (!form.name.trim() || !form.email.trim()) { Alert.alert('Validation', 'Name and email are required'); return; }
-    // Web parity (TeamLeaders.tsx L451): fall back to the creator's own company
-    // when none is picked explicitly — 'global' is only the platform bucket.
-    const targetCompanyId = form.companyId || (authUser?.companyId && authUser.companyId !== 'global' ? authUser.companyId : '');
-    if (!targetCompanyId) { Alert.alert('Validation', 'Select a company for the Team Leader — attendance, leave and salary need one'); return; }
+    // Company is DERIVED from the linked Executive(s) — no manual picker
+    // (web parity: "team leader executive ko manage karhe hai na").
+    if (form.executiveIds.length === 0) {
+      Alert.alert('Validation', 'Link at least one Executive — the Team Leader’s company comes from the Executive');
+      return;
+    }
+    const targetCompanyId = deriveCompanyIdFromExecs(form.executiveIds) ||
+      (form.companyId && form.companyId !== 'global' ? form.companyId : '');
+    if (!targetCompanyId) {
+      Alert.alert('Validation', 'The linked Executive has no company — assign the Executive to a company first');
+      return;
+    }
     setSaving(true);
     try {
       const docFields: [keyof TLForm, keyof TLForm, string][] = [
@@ -608,7 +638,12 @@ export const TeamLeadersScreen: React.FC = () => {
             ) : paginated.map(tl => {
               const execIds: string[] = (tl as any).linkedExecutiveIds || ((tl as any).reportingExecutiveId ? [(tl as any).reportingExecutiveId] : []);
               const execNames = execIds.map((id: string) => executives.find(e => e.id === id)?.name).filter((n): n is string => !!n);
-              const compNames = Array.from(new Set(execIds.map((id: string) => executives.find(e => e.id === id)?.companyId).filter((cid): cid is string => !!cid).map(cid => getCompanyName(cid))));
+              const compNames = Array.from(new Set(execIds.flatMap((id: string) => {
+                const ex: any = executives.find(e => e.id === id);
+                const assigned: string[] = (ex?.assignedCompanyIds || []).filter((cid: string) => cid && cid !== 'global');
+                const own: string[] = ex?.companyId && ex.companyId !== 'global' ? [ex.companyId] : [];
+                return [...assigned, ...own];
+              }).map(cid => getCompanyName(cid))));
               const active = (tl as any).status === 'Active' || (tl as any).status === undefined;
               const MAX_VISIBLE = 3;
               return (
@@ -713,17 +748,16 @@ export const TeamLeadersScreen: React.FC = () => {
               {sectionToggle('Reporting Hierarchy', showAssign, setShowAssign)}
               {showAssign && (
                 <>
-                  <Text style={s.fieldLabel}>Company *</Text>
-                  <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginBottom: 12 }}>
-                    <TouchableOpacity style={[s.chip, !form.companyId && s.chipActive]} onPress={() => setForm({...form, companyId: '', departmentId: '', departmentName: ''})}>
-                      <Text style={[s.chipText, !form.companyId && { color: '#fff' }]}>None</Text>
-                    </TouchableOpacity>
-                    {companies.map(c => (
-                      <TouchableOpacity key={c.id} style={[s.chip, form.companyId === c.id && s.chipActive]} onPress={() => setForm({...form, companyId: c.id, departmentId: '', departmentName: ''})}>
-                        <Text style={[s.chipText, form.companyId === c.id && { color: '#fff' }]}>{c.name}</Text>
-                      </TouchableOpacity>
-                    ))}
-                  </ScrollView>
+                  {/* Company is DERIVED from the linked Executive(s) below —
+                      no manual Company picker (web parity). */}
+                  <Text style={s.fieldLabel}>Company (set from Executive)</Text>
+                  <View style={{ backgroundColor: '#f9fafb', borderWidth: 1, borderColor: '#e5e7eb', borderRadius: 8, paddingHorizontal: 12, paddingVertical: 10, marginBottom: 12 }}>
+                    <Text style={{ fontSize: 14, color: effectiveFormCompanyId ? '#111827' : '#9ca3af' }}>
+                      {effectiveFormCompanyId
+                        ? getCompanyName(effectiveFormCompanyId)
+                        : 'Select a Linked Executive below — the company is set automatically'}
+                    </Text>
+                  </View>
 
                   <Text style={s.fieldLabel}>Assign to Executive(s)</Text>
                   <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginBottom: 12 }}>
@@ -816,7 +850,7 @@ export const TeamLeadersScreen: React.FC = () => {
                     <TouchableOpacity style={[s.chip, !form.departmentId && s.chipActive]} onPress={() => setForm({...form, departmentId: '', departmentName: ''})}>
                       <Text style={[s.chipText, !form.departmentId && { color: '#fff' }]}>None</Text>
                     </TouchableOpacity>
-                    {departments.filter(d => !form.companyId || !d.companyId || d.companyId === form.companyId).map(d => (
+                    {departments.filter(d => !effectiveFormCompanyId || !d.companyId || d.companyId === effectiveFormCompanyId).map(d => (
                       <TouchableOpacity key={d.id} style={[s.chip, form.departmentId === d.id && s.chipActive]} onPress={() => setForm({...form, departmentId: d.id, departmentName: d.name})}>
                         <Text style={[s.chipText, form.departmentId === d.id && { color: '#fff' }]}>{d.name}</Text>
                       </TouchableOpacity>

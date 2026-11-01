@@ -1021,24 +1021,49 @@ export function Companies() {
     totalEmployees: companies.reduce((sum, c) => sum + (employeeCounts[c.id] || 0), 0)
   }
 
-  const getAssignedExecutiveId = (cid: string) => {
-    const c = companies.find(c => c.id === cid)
-    return c ? (c as any).assignedExecutiveId || '' : ''
+  // An executive↔company assignment can be written from EITHER side:
+  //   • the executive's own `assignedCompanyIds` (Executives.tsx assign), or
+  //   • the company doc's `assignedExecutiveId`/`assignedExecutiveIds`
+  //     (Executives.tsx sync + TransferManagement).
+  // Reading only one side made real assignments show as "Unassigned" — read both.
+  const getExecutivesForCompany = (cid: string): User[] => {
+    const out = new Map<string, User>()
+    const add = (u?: User | null) => { if (u && u.id && !out.has(u.id)) out.set(u.id, u) }
+    allUsers.forEach(u => {
+      if (u.role !== 'executive') return
+      const assigned: string[] = (u as any).assignedCompanyIds || []
+      if (assigned.includes(cid) || ((u as any).companyId && (u as any).companyId === cid)) add(u)
+    })
+    const c: any = companies.find(x => x.id === cid) || {}
+    const companySide: string[] = [c.assignedExecutiveId, ...(Array.isArray(c.assignedExecutiveIds) ? c.assignedExecutiveIds : [])].filter(Boolean)
+    companySide.forEach(eid => add(allUsers.find(u => u.id === eid) || executives.find(e => e.id === eid)))
+    return [...out.values()]
   }
 
-  const getExecutiveName = (cid: string) => {
-    const eid = getAssignedExecutiveId(cid)
-    if (!eid) return ''
-    const exec = executives.find(u => u.id === eid)
-    return exec?.name || ''
-  }
+  const getExecutiveName = (cid: string) =>
+    getExecutivesForCompany(cid).map(e => e.name).filter(Boolean).join('; ')
 
-  const getTLsForCompany = (cid: string) => {
-    const eid = getAssignedExecutiveId(cid)
-    if (!eid) return []
-    const exec = allUsers.find(u => u.id === eid)
-    const tlIds: string[] = (exec as any)?.assignedTeamLeaderIds || []
-    return tlIds.map((tid: string) => allUsers.find(u => u.id === tid)?.name || '').filter(Boolean)
+  // A company's reporting team leaders are linked through their executive(s):
+  // read BOTH the executive's `assignedTeamLeaderIds` and the TL's authoritative
+  // `linkedExecutiveIds` (legacy: `reportingExecutiveId`) — either side may be
+  // the only one written, so a real TL link must never render as "—".
+  const getTLsForCompany = (cid: string): string[] => {
+    const execIds = new Set(getExecutivesForCompany(cid).map(e => e.id))
+    if (execIds.size === 0) return []
+    const tlMap = new Map<string, User>()
+    const addTl = (tl?: User | null) => {
+      if (tl && tl.role === 'team-leader' && !tlMap.has(tl.id)) tlMap.set(tl.id, tl)
+    }
+    allUsers.forEach(u => {
+      if (u.role !== 'executive' || !execIds.has(u.id)) return
+      ((u as any).assignedTeamLeaderIds || []).forEach((tid: string) => addTl(allUsers.find(x => x.id === tid)))
+    })
+    allUsers.forEach(u => {
+      if (u.role !== 'team-leader') return
+      const linked: string[] = (u as any).linkedExecutiveIds || ((u as any).reportingExecutiveId ? [(u as any).reportingExecutiveId] : [])
+      if (linked.some(id => execIds.has(id))) addTl(u)
+    })
+    return [...tlMap.values()].map(t => t.name).filter(Boolean)
   }
 
   const filteredCompanies = (() => {
@@ -1572,7 +1597,6 @@ export function Companies() {
                   <th>Reporting TL</th>
                   <th>Employees</th>
                   <th>Created By</th>
-                  <th>Parent Company</th>
                   <th>Status</th>
                   <th>Actions</th>
                 </tr>
@@ -1580,7 +1604,7 @@ export function Companies() {
               <tbody>
                 {paginatedCompanies.length === 0 ? (
                   <tr>
-                    <td colSpan={10} style={{ textAlign: 'center', padding: '48px 16px', color: '#9ca3af' }}>
+                    <td colSpan={9} style={{ textAlign: 'center', padding: '48px 16px', color: '#9ca3af' }}>
                       <Building2 size={40} style={{ margin: '0 auto 12px', opacity: 0.3 }} />
                       <p style={{ fontSize: 15, fontWeight: 500, color: '#6b7280' }}>No companies found matching your search</p>
                       <p style={{ fontSize: 13, marginTop: 4 }}>Try adjusting your search or filter criteria</p>
@@ -1588,7 +1612,7 @@ export function Companies() {
                   </tr>
                 ) : paginatedCompanies.map((company) => {
                   const statusColors = getStatusBadgeColor(company.status)
-                  const assignedExec = executives.find(e => e.id === (company as any).assignedExecutiveId)
+                  const assignedExecs = getExecutivesForCompany(company.id)
                   const tlNames = getTLsForCompany(company.id)
                   return (
                     <tr key={company.id}>
@@ -1606,11 +1630,11 @@ export function Companies() {
                         </div>
                       </td>
                       <td>
-                        {assignedExec ? (
+                        {assignedExecs.length > 0 ? (
                           <div className="exec-cell">
                             <Crown size={14} color="#f97316" />
-                            <span className="exec-name">{assignedExec.name}</span>
-                            <span className="exec-title">{(assignedExec as any).executiveTitle || 'Executive'}</span>
+                            <span className="exec-name">{assignedExecs[0].name}</span>
+                            <span className="exec-title">{(assignedExecs[0] as any).executiveTitle || 'Executive'}{assignedExecs.length > 1 ? ` +${assignedExecs.length - 1}` : ''}</span>
                           </div>
                         ) : (
                           <span className="exec-unassigned">Unassigned</span>
@@ -1628,13 +1652,6 @@ export function Companies() {
                               </span>
                             )}
                           </div>
-                        ) : (
-                          <span style={{ color: '#9ca3af' }}>—</span>
-                        )}
-                      </td>
-                      <td>
-                        {company.parentCompanyName ? (
-                          <span className="company-code">{company.parentCompanyName}</span>
                         ) : (
                           <span style={{ color: '#9ca3af' }}>—</span>
                         )}
