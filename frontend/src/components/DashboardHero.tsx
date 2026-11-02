@@ -70,6 +70,14 @@ const PersonIcon = (
   </svg>
 )
 
+/* Initials for the avatar circle — "SOMNATH" → "SO", "Ajay Kumar" → "AK". */
+const initialsOf = (name?: string) => {
+  const parts = (name || '').trim().split(/\s+/).filter(Boolean)
+  if (parts.length === 0) return 'HR'
+  if (parts.length === 1) return parts[0].slice(0, 2).toUpperCase()
+  return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase()
+}
+
 /* ------------------------------------------------------------------ */
 /* Helpers                                                             */
 /* ------------------------------------------------------------------ */
@@ -318,7 +326,9 @@ function HeroAttendance({ badge }: { badge: string }) {
 
 export function DashboardHero({ stats, badge, showAttendance = true }: DashboardHeroProps) {
   const { user } = useAuth()
+  const { dateLong } = useClock()
   const roleBadge = badge || roleDepartmentLabel(user)
+  const displayName = user?.name || roleBadge
 
   return (
     <section className="hero" aria-label="Welcome summary">
@@ -334,8 +344,12 @@ export function DashboardHero({ stats, badge, showAttendance = true }: Dashboard
         <div className="welcome">
           <div className="hero-head">
             <div className="hero-greet">
-              <small>Welcome back,</small>
-              <h2 className="hero-name">{user?.name || roleBadge}</h2>
+              <span className="hero-avatar" aria-hidden="true">{initialsOf(displayName)}</span>
+              <div className="hero-greet-text">
+                <small>Welcome back,</small>
+                <h2 className="hero-name">{displayName}</h2>
+                <span className="hero-date">{dateLong}</span>
+              </div>
             </div>
             <div className="hero-wordmark" aria-label="HRMAX">
               <span className="wm-hr">HR</span>

@@ -71,6 +71,34 @@ html {
   margin-bottom: 18px;
 }
 
+.hero .hero-greet {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  min-width: 0;
+}
+
+/* Avatar circle — initials on a blue gradient (web + mobile parity) */
+.hero .hero-avatar {
+  width: 58px;
+  height: 58px;
+  border-radius: 50%;
+  flex: none;
+  display: grid;
+  place-items: center;
+  background: linear-gradient(135deg, #2563eb, #1d4ed8);
+  color: #fff;
+  font-size: 21px;
+  font-weight: 800;
+  letter-spacing: 0.5px;
+  box-shadow: 0 6px 16px rgba(37, 99, 235, 0.28);
+  user-select: none;
+}
+
+.hero .hero-greet-text {
+  min-width: 0;
+}
+
 .hero .hero-greet small {
   display: block;
   font-size: 15px;
@@ -86,6 +114,16 @@ html {
   color: #12294a;
   letter-spacing: -0.5px;
   line-height: 1.15;
+}
+
+.hero .hero-date {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 6px;
+  font-size: 13.5px;
+  font-weight: 600;
+  color: #64748b;
 }
 
 .hero .hero-wordmark {

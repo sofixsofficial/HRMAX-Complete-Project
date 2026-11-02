@@ -68,6 +68,14 @@ const fmtPunchTime = (value: Parameters<typeof toDate>[0], tz: string | null) =>
   return d ? formatInZone(d, tz, { hour: '2-digit', minute: '2-digit', hour12: true }) : '--:--';
 };
 
+/** Initials for the avatar circle — "SOMNATH" → "SO", "Ajay Kumar" → "AK". */
+const initialsOf = (name?: string): string => {
+  const parts = (name || '').trim().split(/\s+/).filter(Boolean);
+  if (parts.length === 0) return 'HR';
+  if (parts.length === 1) return parts[0].slice(0, 2).toUpperCase();
+  return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase();
+};
+
 const statIconName = (label: string): string => {
   const l = label.toLowerCase();
   if (l.includes('inactive')) return 'remove-circle-outline';
@@ -548,8 +556,18 @@ export const DashboardHero: React.FC<DashboardHeroProps> = ({
 
         <View style={styles.topRow}>
           <View style={styles.identityCol}>
-            <Text style={styles.welcomeSmall}>Welcome back,</Text>
-            <Text style={styles.userName} numberOfLines={1} ellipsizeMode="tail">{name}</Text>
+            <View style={styles.greetRow}>
+              <View style={styles.avatar} accessibilityElementsHidden>
+                <Text style={styles.avatarText}>{initialsOf(name)}</Text>
+              </View>
+              <View style={styles.greetText}>
+                <Text style={styles.welcomeSmall}>Welcome back,</Text>
+                <Text style={styles.userName} numberOfLines={1} ellipsizeMode="tail">{name}</Text>
+                <Text style={styles.dateText} numberOfLines={1}>
+                  {formatInZone(now, tz, { weekday: 'long', day: 'numeric', month: 'long' })}
+                </Text>
+              </View>
+            </View>
             {subtitle ? <Text style={styles.subtitle} numberOfLines={2}>{subtitle}</Text> : null}
           </View>
           <Text style={styles.wordmark} numberOfLines={1} accessibilityLabel="HRMAX">
@@ -627,15 +645,31 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'flex-start',
     justifyContent: 'space-between',
-    gap: 12,
+    gap: 10,
   },
   identityCol: { flex: 1, minWidth: 0 },
-  welcomeSmall: { fontSize: 14, fontWeight: '600', color: '#6b7a90', letterSpacing: 0.1 },
-  userName: { fontSize: 26, fontWeight: '800', color: '#12294a', marginTop: 2, letterSpacing: -0.5 },
-  wordmark: { fontSize: 19, fontWeight: '800', letterSpacing: -0.6, lineHeight: 24, marginTop: 2 },
+  greetRow: { flexDirection: 'row', alignItems: 'center', gap: 12 },
+  avatar: {
+    width: 48,
+    height: 48,
+    borderRadius: 24,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#2563eb',
+    // Gradient substitute via shadow ring (no extra dep)
+    borderWidth: 2,
+    borderColor: '#dbe9fb',
+    flexShrink: 0,
+  },
+  avatarText: { color: '#fff', fontSize: 17, fontWeight: '800', letterSpacing: 0.5 },
+  greetText: { flex: 1, minWidth: 0 },
+  welcomeSmall: { fontSize: 13, fontWeight: '600', color: '#6b7a90', letterSpacing: 0.1 },
+  userName: { fontSize: 24, fontWeight: '800', color: '#12294a', marginTop: 1, letterSpacing: -0.5 },
+  dateText: { fontSize: 12.5, fontWeight: '600', color: '#64748b', marginTop: 3 },
+  wordmark: { fontSize: 18, fontWeight: '800', letterSpacing: -0.6, lineHeight: 22, marginTop: 3 },
   wmHr: { color: '#12294a' },
   wmMax: { color: '#f97316' },
-  subtitle: { fontSize: 12.5, color: '#64748b', marginTop: 5 },
+  subtitle: { fontSize: 12.5, color: '#64748b', marginTop: 8 },
 
   chipsFlow: {
     position: 'relative',
