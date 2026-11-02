@@ -15,7 +15,7 @@ import { subscribeToCompanies, createCompany, updateCompany, deleteCompany, onbo
 import { scopedCompanyIdsForRole } from '../../utils/companyScope';
 import { validatePasswordPolicy } from '../../utils/passwordPolicy';
 import { REQUESTER_ROLES, TIER_ORDER, DEFAULT_APPROVAL_CHAINS, type ApprovalChainConfig } from '../../utils/approvalChains';
-import { subscribeEmployees, type Employee } from '../../services/employeeService';
+import { subscribeEmployees, subscribeEmployeesScoped, type Employee } from '../../services/employeeService';
 import { Icon } from '../../utils/icons';
 import { ScreenHeader } from '../../components/ScreenHeader';
 import type { User } from '../../types/user';
@@ -193,7 +193,13 @@ export const CompaniesScreen: React.FC = () => {
       },
       () => setLoading(false)
     );
-    const unsubEmp = subscribeEmployees(null, (emps) => setEmployees(emps));
+    // The unfiltered employees LIST is partition-scoped for restricted roles
+    // (returns 0 docs for a Team Leader) — subscribe per-company for scoped
+    // viewers (web parity: Companies.tsx employee counts), full list for
+    // masters.
+    const unsubEmp = (isRestrictedScope && scopeIds.length > 0)
+      ? subscribeEmployeesScoped(scopeIds, setEmployees)
+      : subscribeEmployees(null, setEmployees);
     const qExec = query(collection(db, 'users'), where('role', '==', 'executive'));
     const unsubExec = onSnapshot(qExec, (snap) => {
       setExecutives(snap.docs.map(d => ({ id: d.id, ...d.data() } as User)));
