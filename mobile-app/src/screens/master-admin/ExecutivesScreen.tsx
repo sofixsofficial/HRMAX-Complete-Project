@@ -151,6 +151,9 @@ export const ExecutivesScreen: React.FC = () => {
   const [companies, setCompanies] = useState<any[]>([]);
   const [departments, setDepartments] = useState<any[]>([]);
   const [allTeamLeaders, setAllTeamLeaders] = useState<User[]>([]);
+  // Per-doc resolution for TL names the scoped users query may not include —
+  // single-doc reads are always allowed; never show raw UUIDs (web parity).
+  const [extraUsers, setExtraUsers] = useState<Record<string, User>>({});
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
   const [companyFilter, setCompanyFilter] = useState('');
@@ -263,6 +266,29 @@ export const ExecutivesScreen: React.FC = () => {
     return () => { unsubExec(); unsubTL(); unsubMA(); };
   }, [scopeIds, isRestrictedScope]);
 
+  // TL ids referenced by the table that the scoped query didn't return —
+  // resolve them per-doc so chips always show real names, never raw UUIDs.
+  const missingTlIds = useMemo(() => {
+    const ids = new Set<string>();
+    executives.forEach(u => ((u as any).assignedTeamLeaderIds || []).forEach((id: string) => {
+      if (id && !extraUsers[id] && !allTeamLeaders.some(t => t.id === id)) ids.add(id);
+    }));
+    return [...ids];
+  }, [executives, allTeamLeaders, extraUsers]);
+  useEffect(() => {
+    if (missingTlIds.length === 0) return;
+    let cancelled = false;
+    Promise.all(missingTlIds.map(id => getDoc(doc(db, 'users', id)).catch(() => null))).then(snaps => {
+      if (cancelled) return;
+      const next: Record<string, User> = {};
+      snaps.forEach(s => { if (s && s.exists()) next[s.id] = { id: s.id, ...(s.data() as any) } as User; });
+      if (Object.keys(next).length) setExtraUsers(prev => ({ ...prev, ...next }));
+    });
+    return () => { cancelled = true; };
+  }, [missingTlIds]);
+  const findUserById = (id: string): User | undefined =>
+    allTeamLeaders.find(t => t.id === id) || extraUsers[id];
+
   const filtered = useMemo(() => {
     return executives.filter(e => {
       if (companyFilter && e.companyId !== companyFilter) return false;
@@ -279,7 +305,11 @@ export const ExecutivesScreen: React.FC = () => {
 
   useEffect(() => { setCurrentPage(1); }, [search, companyFilter]);
 
-  const getCompanyName = (id: string) => companies.find(c => c.id === id)?.name || id;
+  // Never a raw backend ID: scoped list → context portfolio → '—' (web parity).
+  const getCompanyName = (id: string) =>
+    companies.find(c => c.id === id)?.name ||
+    availableCompanies.find(c => c.id === id)?.name ||
+    '—';
 
   const openCreate = () => {
     if (!hasPermission('executives.create')) {
@@ -725,7 +755,7 @@ export const ExecutivesScreen: React.FC = () => {
     try {
       const headers = ['Name,Email,Title,Company,Status,Employment Type,TLs Assigned,Companies Assigned'];
       const rows = filtered.map(e => {
-        const tlNames = (e as any).assignedTeamLeaderIds?.map((id: string) => allTeamLeaders.find(tl => tl.id === id)?.name || '—').join('; ') || '';
+        const tlNames = (e as any).assignedTeamLeaderIds?.map((id: string) => findUserById(id)?.name || '—').join('; ') || '';
         const coNames = (e as any).assignedCompanyIds?.map((id: string) => getCompanyName(id)).join('; ') || '';
         return `${e.name},${e.email},${(e as any).executiveTitle || ''},${getCompanyName(e.companyId || '')},${(e as any).status || 'Active'},${(e as any).employmentType || ''},${tlNames},${coNames}`;
       });
@@ -778,8 +808,9 @@ export const ExecutivesScreen: React.FC = () => {
       <View style={s.statsRow}>
         {[
           { label: 'Total Executives', value: executives.length, icon: 'briefcase-outline', color: '#FF6600' },
-          { label: 'Companies Assigned', value: companies.filter(c => (c as any).assignedExecutiveId).length, icon: 'business-outline', color: '#3b82f6' },
-          { label: 'Team Leaders Reporting', value: allTeamLeaders.filter(tl => (tl as any).reportingExecutiveId).length, icon: 'people-outline', color: '#8b5cf6' },
+          // Real link fields on the execs (unique sets) — mirrors web stats.
+          { label: 'Companies Assigned', value: new Set(executives.flatMap(e => ((e as any).assignedCompanyIds || []) as string[])).size, icon: 'business-outline', color: '#3b82f6' },
+          { label: 'Team Leaders Reporting', value: new Set(executives.flatMap(e => ((e as any).assignedTeamLeaderIds || []) as string[])).size, icon: 'people-outline', color: '#8b5cf6' },
         ].map(card => (
           <View key={card.label} style={s.statCard}>
             <View style={[s.statIcon, { backgroundColor: `${card.color}15` }]}>
@@ -826,7 +857,7 @@ export const ExecutivesScreen: React.FC = () => {
               const compIds: string[] = (exec as any).assignedCompanyIds || [];
               const tlIds: string[] = (exec as any).assignedTeamLeaderIds || [];
               const compNames = compIds.map((id: string) => getCompanyName(id)).filter(Boolean);
-              const tlNames = tlIds.map((id: string) => allTeamLeaders.find(tl => tl.id === id)?.name || id).filter(Boolean);
+              const tlNames = tlIds.map((id: string) => findUserById(id)?.name || '—');
               const MAX_VISIBLE = 3;
               const active = (exec as any).status === 'Active' || (exec as any).status === undefined;
               return (
@@ -1198,7 +1229,7 @@ export const ExecutivesScreen: React.FC = () => {
                   </View>
                   <View style={s.detailSection}>
                     <Text style={s.detailSectionTitle}>Assigned Team Leaders</Text>
-                    <Text style={s.detailValue}>{(selected as any).assignedTeamLeaderIds?.length ? (selected as any).assignedTeamLeaderIds.map((id: string) => allTeamLeaders.find(tl => tl.id === id)?.name || '—').join(', ') : 'None'}</Text>
+                    <Text style={s.detailValue}>{(selected as any).assignedTeamLeaderIds?.length ? (selected as any).assignedTeamLeaderIds.map((id: string) => findUserById(id)?.name || '—').join(', ') : 'None'}</Text>
                   </View>
                   <View style={s.detailSection}>
                     <Text style={s.detailSectionTitle}>Bank & Compensation</Text>

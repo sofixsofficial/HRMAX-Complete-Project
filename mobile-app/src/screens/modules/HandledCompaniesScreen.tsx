@@ -33,7 +33,7 @@ export const HandledCompaniesScreen: React.FC<{ navigation: any }> = ({ navigati
 
   const onRefresh = async () => { setRefreshing(true); setTimeout(() => setRefreshing(false), 300); };
 
-  const getCompanyName = (id?: string) => companies.find((c) => c.id === id)?.name || id || '—';
+  const getCompanyName = (id?: string) => companies.find((c) => c.id === id)?.name || '—';
   const getExecNames = (tl: User) => {
     const linked: string[] = (tl as any).linkedExecutiveIds || (tl.reportingExecutiveId ? [tl.reportingExecutiveId] : []);
     return linked.map((id) => executives.find((e) => e.id === id)?.name).filter(Boolean).join(', ') || 'Unassigned';

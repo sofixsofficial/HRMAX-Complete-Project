@@ -32,7 +32,7 @@ export const ExecutiveTeamLeadersScreen: React.FC<{ navigation: any }> = ({ navi
 
   const onRefresh = async () => { setRefreshing(true); setTimeout(() => setRefreshing(false), 300); };
 
-  const getCompanyName = (id: string) => companies.find((c) => c.id === id)?.name || id || '—';
+  const getCompanyName = (id: string) => companies.find((c) => c.id === id)?.name || '—';
 
   const isLinked = (tl: User) => {
     const linked = (tl as any).linkedExecutiveIds || (tl.reportingExecutiveId ? [tl.reportingExecutiveId] : []);

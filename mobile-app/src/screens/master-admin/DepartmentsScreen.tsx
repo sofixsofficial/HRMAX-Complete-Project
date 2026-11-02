@@ -138,7 +138,7 @@ export const DepartmentsScreen: React.FC = () => {
 
   const getCompanyName = (id?: string) => {
     if (!id) return '';
-    return companies.find(c => c.id === id)?.name || id;
+    return companies.find(c => c.id === id)?.name || '—';
   };
 
   const deptEmployees = selected ? employees.filter(e => e.departmentId === selected.id || e.department === selected.name) : [];
