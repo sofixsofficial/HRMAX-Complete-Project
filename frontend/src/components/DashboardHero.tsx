@@ -70,14 +70,6 @@ const PersonIcon = (
   </svg>
 )
 
-/* Initials for the avatar circle — "SOMNATH" → "SO", "Ajay Kumar" → "AK". */
-const initialsOf = (name?: string) => {
-  const parts = (name || '').trim().split(/\s+/).filter(Boolean)
-  if (parts.length === 0) return 'HR'
-  if (parts.length === 1) return parts[0].slice(0, 2).toUpperCase()
-  return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase()
-}
-
 /* ------------------------------------------------------------------ */
 /* Helpers                                                             */
 /* ------------------------------------------------------------------ */
@@ -344,7 +336,6 @@ export function DashboardHero({ stats, badge, showAttendance = true }: Dashboard
         <div className="welcome">
           <div className="hero-head">
             <div className="hero-greet">
-              <span className="hero-avatar" aria-hidden="true">{initialsOf(displayName)}</span>
               <div className="hero-greet-text">
                 <small>Welcome back,</small>
                 <h2 className="hero-name">{displayName}</h2>
