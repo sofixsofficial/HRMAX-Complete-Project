@@ -117,7 +117,10 @@ export const resolveStructure = (employee: Employee, structures: SalaryStructure
       overtimeRate: overtimeRate || s.overtimeRate,
     };
   }
-  const flat = employee.salary || 0;
+  // The Employees form writes `monthlyGrossSalary`; no form writes the legacy
+  // `salary` field any more — reading only `salary` made every structure-less
+  // payslip ₹0 (web parity: same fix in frontend/payrollService.ts).
+  const flat = Number(employee.monthlyGrossSalary) || Number(employee.salary) || 0;
   return {
     basicSalary: flat,
     hra: 0, da: 0, conveyance: 0, medical: 0, specialAllowance: 0,

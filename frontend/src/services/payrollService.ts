@@ -148,8 +148,12 @@ export const resolveStructure = (
       overtimeRate: overtimeRate || s.overtimeRate,
     };
   }
-  // Fallback: use the flat monthly salary as basic; no structured allowances/deductions
-  const flat = employee.salary || 0;
+  // Fallback: use the flat monthly salary as basic; no structured allowances/deductions.
+  // The Employees form writes `monthlyGrossSalary`; no form writes the legacy
+  // `salary` field any more — reading only `salary` made every structure-less
+  // payslip ₹0 (web + mobile run payroll through this fallback; there is no
+  // generateBulkPayroll Cloud Function).
+  const flat = Number(employee.monthlyGrossSalary) || Number(employee.salary) || 0;
   return {
     basicSalary: flat,
     hra: 0,

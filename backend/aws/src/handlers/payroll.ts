@@ -115,7 +115,12 @@ async function calculateRun(
     if (emp.status && !['Active', 'On Leave'].includes(String(emp.status))) continue;
 
     const structure = structures.find((s) => s.userId === userId || s.employeeId === emp.id) ?? {};
-    const grossSalary = Number(structure.grossSalary ?? emp.salary ?? 0);
+    // The Employees form writes `monthlyGrossSalary`; no form writes the legacy
+    // `salary` field any more. Reading `emp.salary` alone made EVERY payslip
+    // ₹0 whenever no salary structure had been configured (structure → {} →
+    // grossSalary 0). Prefer the structure, then the form-managed field, then
+    // the legacy one.
+    const grossSalary = Number(structure.grossSalary) || Number(emp.monthlyGrossSalary) || Number(emp.salary) || 0;
     const basicSalary = Number(structure.basicSalary ?? grossSalary * 0.4);
     const hra = Number(structure.hra ?? grossSalary * 0.2);
     const da = Number(structure.da ?? grossSalary * 0.1);
