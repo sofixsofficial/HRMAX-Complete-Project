@@ -12,7 +12,8 @@ import { usePermissionScope } from '../hooks/usePermissionScope'
 import { useAccessControl } from '../context/AccessControlContext'
 import { ScopeIndicator } from '../components/ScopeIndicator'
 import { useContingencyAccess } from '../hooks/useContingencyAccess'
-import { checkIn, checkOut, approveAttendance, updateAttendance, requestPunchRectification, detectMissedPunches, resolvePunchRectification, reviewMissedPunchTier, reviewMasterAdminMissedPunch, editMissedPunch, MISSED_PUNCH_TIER_LABELS, getNextPendingMissedPunchTier, isAwaitingMissedPunchMasterAdmin, getRecordEffectiveMissedPunchTiers } from '../services/attendanceService'
+import { checkIn, checkOut, approveAttendance, updateAttendance, requestPunchRectification, detectMissedPunches, reviewMissedPunchTier, reviewMasterAdminMissedPunch, editMissedPunch, resolveAttendanceCorrectionWindow, MISSED_PUNCH_TIER_LABELS, getNextPendingMissedPunchTier, isAwaitingMissedPunchMasterAdmin, getRecordEffectiveMissedPunchTiers } from '../services/attendanceService'
+import { correctionDeadline, isWithinAttendanceCorrectionWindow, ATTENDANCE_CORRECTION_WORKING_DAYS } from '../utils/workingDays'
 import { getAttendancePolicy } from '../services/attendanceSettingsService'
 import { logAttendanceEvent } from '../services/attendanceLogService'
 import { getCurrentPosition, isWithinRadius } from '../utils/geoUtils'
@@ -111,6 +112,10 @@ const [rectifyTime, setRectifyTime] = useState('')
 const [submittingRectify, setSubmittingRectify] = useState(false)
   const [rectifyTierAction, setRectifyTierAction] = useState<ApprovalTier | null>(null)
   const [rectifyMasterAdmin, setRectifyMasterAdmin] = useState(false)
+  // Friendly 2-working-day window notice for the rectify modal: the deadline
+  // (and whether it has already closed) resolved from the company's weekend +
+  // holiday calendar instead of failing the submit with an error out of nowhere.
+  const [rectifyWindow, setRectifyWindow] = useState<{ deadline: Date | null; closed: boolean } | null>(null)
   const [missPunchModal, setMissPunchModal] = useState<AttendanceRecord | null>(null)
   const [missPunchRemark, setMissPunchRemark] = useState('')
   const [submittingMissPunch, setSubmittingMissPunch] = useState(false)
@@ -136,6 +141,13 @@ const [submittingRectify, setSubmittingRectify] = useState(false)
   const showOrgColumns = isMasterAdmin || isExecutive || isTeamLeader
   const contingency = useContingencyAccess()
   const canManage = isMasterAdmin || isCompanyAdmin || isExecutive || isReportingManager || isTeamLeader
+  // Attendance MUTATION class: `attendance.manage` (full) OR `attendance.approve`
+  // (Reporting Managers hold approve but NOT manage — see
+  // types.ts REPORTING_MANAGER_PERMISSIONS). Without the approve fallback the
+  // Approve / Miss-Punch buttons were invisible to RMs, so in RM-driven orgs
+  // `status = 'Miss Punch'` was never written and the Rectify entry point of
+  // the whole feature never appeared.
+  const canMutateAttendance = canPerform('manage', 'attendance') || hasPermission('attendance.approve')
   const actingContext = contingency.isContingencyActive && contingency.actingForExecutive
     ? ` (Acting for Executive ${contingency.actingForExecutive.name})`
     : ''
@@ -191,7 +203,7 @@ const [submittingRectify, setSubmittingRectify] = useState(false)
     if (approverId) return null
     if (!scopedCompanyIds(companyId, availableCompanies).includes(r.companyId)) return null
     if ((role === 'reporting-manager' || role === 'hr-manager') && next === 'reportingManager') return next
-    if (role === 'hr' && next === 'hr') return next
+    if ((role === 'hr' || role === 'hr-manager') && next === 'hr') return next
     if (role === 'company-admin' && next === 'companyAdmin') return next
     if (role === 'executive' && next === 'executive') return next
     if (role === 'team-leader' && next === 'teamLeader') return next
@@ -413,14 +425,37 @@ const [submittingRectify, setSubmittingRectify] = useState(false)
     }
   }, [showSelfieCamera])
 
+  // Resolve the rectification window for whichever record the modal shows.
+  useEffect(() => {
+    if (!rectifyModal) { setRectifyWindow(null); return }
+    let active = true
+    const recDate = (rectifyModal.date as any)?.toDate ? (rectifyModal.date as any).toDate() : rectifyModal.date
+    if (!recDate) { setRectifyWindow(null); return }
+    resolveAttendanceCorrectionWindow(rectifyModal.companyId || '')
+      .then(({ weekendDays, holidayKeys }) => {
+        if (!active) return
+        setRectifyWindow({
+          deadline: correctionDeadline(recDate, ATTENDANCE_CORRECTION_WORKING_DAYS, weekendDays, holidayKeys),
+          closed: !isWithinAttendanceCorrectionWindow(recDate, new Date(), weekendDays, holidayKeys),
+        })
+      })
+      .catch(() => { if (active) setRectifyWindow(null) })
+    return () => { active = false }
+  }, [rectifyModal])
+
   // Detect missed punches on mount
   useEffect(() => {
     if (!canManage || !companyId) return
     const run = async () => {
-      const missed = await detectMissedPunches(companyId)
-      if (missed.length > 0) {
-        setMissedPunchRecords(prev => [...prev, ...missed])
-        setActionMsg({ type: 'success', text: `Detected ${missed.length} missed punch(es). Notifications sent.` })
+      try {
+        const missed = await detectMissedPunches(companyId)
+        if (missed.length > 0) {
+          setMissedPunchRecords(prev => [...prev, ...missed])
+          setActionMsg({ type: 'success', text: `Detected ${missed.length} missed punch(es). Notifications sent.` })
+        }
+      } catch {
+        // Detection is a background sweep — a transient 403/network failure
+        // must never surface as an unhandled rejection every 60 s.
       }
     }
     run()
@@ -806,44 +841,6 @@ const [submittingRectify, setSubmittingRectify] = useState(false)
     } finally {
       setSubmittingRectify(false)
      }
-  }
-
-  const handleResolveRectification = async () => {
-    if (!rectifyModal || !rectifyTime || submittingRectify) return
-    if (!rectifyRemark.trim()) {
-      setActionMsg({ type: 'error', text: 'A remark is required to resolve this rectification.' })
-      return
-    }
-    try {
-      await resolvePunchRectification(rectifyModal.id, user?.id || '', user?.name || '', 'approve', rectifyRemark)
-      // Cascade the resolution to the employee + full same-company management
-      // chain (RM, Company Admin, assigned Executive, linked TL, Master Admin).
-      if (rectifyModal.userId) {
-        await notifyAttendanceCascade({
-          companyId: rectifyModal.companyId || effectiveCompanyId || '',
-          employeeUserId: rectifyModal.userId,
-          employeeName: rectifyModal.name || '',
-          kind: 'rectification-resolved',
-          dateLabel: new Date(rectifyModal.date).toLocaleDateString(),
-          note: rectifyRemark,
-          actorName: user?.name || 'Manager',
-        })
-      }
-      setRectifyModal(null)
-      setRectifyTime('')
-      setRectifyRemark('')
-      setSubmittingRectify(false)
-      setActionMsg({ type: 'success', text: 'Rectification resolved.' })
-      logAudit({
-        userId: user?.id || '', userName: user?.name || '', userRole: user?.role || '',
-        action: 'Resolved punch rectification', actionType: 'update', module: 'Attendance',
-        targetEntity: rectifyModal?.name || '', status: 'success',
-      })
-    } catch (err: any) {
-      setActionMsg({ type: 'error', text: errText(err, 'Failed to resolve rectification') })
-    } finally {
-      setSubmittingRectify(false)
-    }
   }
 
   const handleReviewMissedPunchTier = async (action: 'Approved' | 'Rejected', tier: ApprovalTier | null = rectifyTierAction) => {
@@ -1404,7 +1401,33 @@ const [submittingRectify, setSubmittingRectify] = useState(false)
                                     <Edit3 size={14} /> Rectify
                                   </button>
                                 ) : r.missedPunchRectification?.resolved ? (
-                                  <span style={{ fontSize: 12, color: '#16a34a' }}>Rectified</span>
+                                  (r.missedPunchRectification?.status === 'Rejected' || r.missedPunchRectification?.resolution === 'Rejected') ? (
+                                    // A rejection is terminal for the chain but NOT
+                                    // for the employee: status stays "Miss Punch", so
+                                    // they must be able to raise a fresh request.
+                                    <button onClick={() => {
+                                      setRectifyModal(r)
+                                      const co = r.missedPunchRectification?.correctedCheckOut
+                                      if (co) {
+                                        const d = (co as any)?.toDate ? (co as any).toDate() : new Date(co)
+                                        setRectifyTime(`${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`)
+                                      } else {
+                                        setRectifyTime('')
+                                      }
+                                      setRectifyRemark('')
+                                      setRectifyTierAction(null)
+                                      setRectifyMasterAdmin(false)
+                                    }}
+                                      style={{
+                                        display: 'inline-flex', alignItems: 'center', gap: 4, padding: '5px 12px',
+                                        borderRadius: 6, border: 'none', background: '#fee2e2',
+                                        color: '#b91c1c', fontSize: 12, fontWeight: 600, cursor: 'pointer'
+                                      }}>
+                                      <RefreshCw size={13} /> Rejected — Re-request
+                                    </button>
+                                  ) : (
+                                    <span style={{ fontSize: 12, color: '#16a34a' }}>Rectified</span>
+                                  )
                                 ) : null}
                               </div>
                             </td>
@@ -1458,6 +1481,10 @@ const [submittingRectify, setSubmittingRectify] = useState(false)
                                         )
                                       }
                                       if (mpStatus !== 'Pending') return null
+                                      // No tier of my own → the modal would only show
+                                      // a disabled "Awaiting Next Tier". Hide the
+                                      // button entirely (mobile already does this).
+                                      if (!myT) return null
                                       return (
                                         <button onClick={() => {
                                           setRectifyModal(r)
@@ -1478,11 +1505,11 @@ const [submittingRectify, setSubmittingRectify] = useState(false)
                                             color: myT ? '#fff' : '#9333ea', fontSize: 12, fontWeight: 600, cursor: 'pointer'
                                           }}>
                                           <Shield size={14} />
-                                          {myT ? `Review (${MISSED_PUNCH_TIER_LABELS[myT].split(' ')[0]})` : 'Review'}
+                                          Review ({MISSED_PUNCH_TIER_LABELS[myT].split(' ')[0]})
                                         </button>
                                       )
                                     })()}
-                                    {(r.status === 'Present' || r.status === 'Late' || r.status === 'Absent') && canPerform('manage', 'attendance') && (
+                                    {(r.status === 'Present' || r.status === 'Late' || r.status === 'Absent') && canMutateAttendance && (
                                       <button onClick={() => handleApprove(r.id, r.name, r.companyId)}
                                         style={{
                                           display: 'flex', alignItems: 'center', gap: 4, padding: '5px 12px',
@@ -1492,7 +1519,7 @@ const [submittingRectify, setSubmittingRectify] = useState(false)
                                         <ThumbsUp size={14} /> Approve
                                       </button>
                                     )}
-                                    {canPerform('manage', 'attendance') && r.checkIn && !r.checkOut && r.status !== 'Miss Punch' && (
+                                    {canMutateAttendance && r.checkIn && !r.checkOut && r.status !== 'Miss Punch' && (
                                       <button onClick={() => { setMissPunchModal(r); setMissPunchRemark('') }}
                                         style={{
                                           display: 'flex', alignItems: 'center', gap: 4, padding: '5px 12px',
@@ -1605,6 +1632,30 @@ const [submittingRectify, setSubmittingRectify] = useState(false)
                 Checked in at {formatTime(rectifyModal.checkIn)}.
                 {isEmployee ? ' Please enter your actual checkout time.' : ' Please review and verify.'}
               </p>
+
+              {/* Friendly 2-working-day window notice (spec) — surfaced BEFORE
+                  the submit instead of failing with an error afterwards. */}
+              {rectifyWindow?.closed ? (
+                <div style={{
+                  marginBottom: 16, padding: '10px 12px', borderRadius: 8, background: '#fef2f2',
+                  border: '1px solid #fecaca', fontSize: 13, color: '#b91c1c', display: 'flex',
+                  alignItems: 'flex-start', gap: 8
+                }}>
+                  <AlertCircle size={15} style={{ flexShrink: 0, marginTop: 1 }} />
+                  <span>The 2-working-day correction window for this day has closed, so this record can no longer be changed. Please contact your administrator if you still need a correction.</span>
+                </div>
+              ) : rectifyWindow?.deadline && isEmployee ? (
+                <div style={{
+                  marginBottom: 16, padding: '10px 12px', borderRadius: 8, background: '#eff6ff',
+                  border: '1px solid #bfdbfe', fontSize: 13, color: '#1d4ed8', display: 'flex',
+                  alignItems: 'flex-start', gap: 8
+                }}>
+                  <Clock size={15} style={{ flexShrink: 0, marginTop: 1 }} />
+                  <span>
+                    You can submit this correction until <strong>{rectifyWindow.deadline.toLocaleDateString(undefined, { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })}</strong> (2 working days from the record date, excluding weekends and holidays).
+                  </span>
+                </div>
+              ) : null}
 
               {requested && (
                 <div style={{ marginBottom: 16, padding: '12px', background: '#faf5ff', borderRadius: 10, border: '1px solid #e9d5ff' }}>
@@ -1742,12 +1793,12 @@ const [submittingRectify, setSubmittingRectify] = useState(false)
                       Reject
                     </button>
                   </>
-                ) : isEmployee ? (
-                  <button onClick={handleRectifyRequest} disabled={!rectifyTime || !rectifyRemark.trim() || submittingRectify}
+                ) : isEmployee && !requested ? (
+                  <button onClick={handleRectifyRequest} disabled={!rectifyTime || !rectifyRemark.trim() || submittingRectify || !!rectifyWindow?.closed}
                     style={{
                       padding: '8px 16px', borderRadius: 8, border: 'none',
-                      background: (!rectifyTime || !rectifyRemark.trim()) ? '#d1d5db' : '#9333ea',
-                      color: '#fff', cursor: (!rectifyTime || !rectifyRemark.trim()) ? 'not-allowed' : 'pointer',
+                      background: (!rectifyTime || !rectifyRemark.trim() || rectifyWindow?.closed) ? '#d1d5db' : '#9333ea',
+                      color: '#fff', cursor: (!rectifyTime || !rectifyRemark.trim() || rectifyWindow?.closed) ? 'not-allowed' : 'pointer',
                       fontSize: 14, fontWeight: 600,
                       display: 'flex', alignItems: 'center', gap: 6
                     }}>
@@ -1755,8 +1806,7 @@ const [submittingRectify, setSubmittingRectify] = useState(false)
                     Submit for Verification
                   </button>
                 ) : requested ? (
-                  myTier ? (
-                    <>
+                  myTier ? (                    <>
                       <button onClick={() => { setRectifyTierAction(myTier); handleReviewMissedPunchTier('Approved', myTier) }}
                         disabled={!rectifyRemark.trim() || submittingRectify}
                         style={{
@@ -1788,16 +1838,18 @@ const [submittingRectify, setSubmittingRectify] = useState(false)
                     </button>
                   )
                 ) : (
+                  // Not an employee, no chain in flight, no master-admin gate:
+                  // this modal has nothing to act on. `handleResolveRectification`
+                  // marked all 5 tiers Approved in one stroke (bypassing the
+                  // sequential chain), so the old "Save & Resolve" button here
+                  // was dead code — keep the footer to Cancel/Close only.
                   <button
-                    onClick={() => { setRectifyTierAction(null); handleResolveRectification() }}
-                    disabled={!rectifyTime || !rectifyRemark.trim() || submittingRectify}
+                    onClick={() => { setRectifyModal(null); setRectifyTime(''); setRectifyRemark(''); setRectifyTierAction(null); setRectifyMasterAdmin(false) }}
                     style={{
-                      display: 'flex', alignItems: 'center', gap: 4, padding: '8px 16px', borderRadius: 8, border: 'none',
-                      background: (!rectifyTime || !rectifyRemark.trim()) ? '#d1d5db' : '#9333ea',
-                      color: '#fff', cursor: (!rectifyTime || !rectifyRemark.trim()) ? 'not-allowed' : 'pointer', fontSize: 14, fontWeight: 600
+                      padding: '8px 16px', borderRadius: 8, border: '1px solid #e5e7eb', background: '#fff',
+                      color: '#374151', fontSize: 14, fontWeight: 600, cursor: 'pointer'
                     }}>
-                    {submittingRectify ? <Loader2 className="animate-spin" size={16} /> : <Edit3 size={16} />}
-                    Save & Resolve
+                    Close
                   </button>
                 )}
               </div>

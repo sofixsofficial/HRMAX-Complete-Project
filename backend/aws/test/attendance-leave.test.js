@@ -12,6 +12,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 
 import * as attendance from '../dist/handlers/attendance.js';
+import { assertWithinAttendanceCorrectionWindow, ATTENDANCE_CORRECTION_WORKING_DAYS } from '../dist/lib/correctionWindow.js';
 import * as leave from '../dist/handlers/leave.js';
 import { ConditionalWriteFailed } from '../dist/lib/db.js';
 
@@ -196,4 +197,158 @@ test('attendance condition values are JS null, not the {NULL:true} wire form', (
 test('conditions reference the exact attribute paths the write stores', () => {
   assert.match(attendance.CHECK_IN_CONDITION.expression, /#d\.checkIn/);
   assert.match(attendance.CHECK_OUT_CONDITION.expression, /#d\.checkOut/);
+});
+
+// ---------------------------------------------------------------------------
+// PATCH /api/attendance/:id authorization (missed-punch submission bug)
+// ---------------------------------------------------------------------------
+
+test('owner submitting DOTTED rectification field paths is allowed (regression: first submit was 403)', () => {
+  // The web/mobile client writes 'missedPunchRectification.requested' etc.
+  // as dotted field paths; the old gate only matched the literal root key
+  // 'missedPunchRectification', so every first-time submission by the record
+  // owner was rejected with permission-denied.
+  assert.equal(attendance.attendancePatchAuthorized({
+    isOwn: true,
+    canManage: false,
+    stampedApprover: false,
+    patchKeys: [
+      'missedPunchRectification.requested',
+      'missedPunchRectification.requestedAt',
+      'missedPunchRectification.correctedCheckOut',
+      'missedPunchRectification.approvalStatus',
+      'missedPunchRectification.employeeId',
+      'missedPunchRectification.missedPunchType',
+      'missedPunchRectification.currentTierStatus',
+    ],
+    rect: undefined,
+    callerRole: 'employee',
+  }), true);
+});
+
+test('owner patching the rectification root key or punch fields is allowed', () => {
+  for (const key of ['missedPunchRectification', 'checkOut', 'workHours']) {
+    assert.equal(attendance.attendancePatchAuthorized({
+      isOwn: true, canManage: false, stampedApprover: false,
+      patchKeys: [key], rect: undefined, callerRole: 'employee',
+    }), true, key);
+  }
+});
+
+test('owner patching fields outside ownAllowed is denied', () => {
+  for (const keys of [['status'], ['approvedByName', 'status'], []]) {
+    assert.equal(attendance.attendancePatchAuthorized({
+      isOwn: true, canManage: false, stampedApprover: false,
+      patchKeys: keys, rect: undefined, callerRole: 'employee',
+    }), false, JSON.stringify(keys));
+  }
+});
+
+test('manage permission and stamped tier approvers are always allowed', () => {
+  assert.equal(attendance.attendancePatchAuthorized({
+    isOwn: false, canManage: true, stampedApprover: false,
+    patchKeys: ['status'], rect: undefined, callerRole: 'company-admin',
+  }), true);
+  assert.equal(attendance.attendancePatchAuthorized({
+    isOwn: false, canManage: false, stampedApprover: true,
+    patchKeys: ['missedPunchRectification.approvalStatus.hr'], rect: undefined, callerRole: 'hr',
+  }), true);
+});
+
+test('role fallback: only the natural holder of the ACTIVE pending tier may patch (rectification-only)', () => {
+  const rect = { approvalStatus: { reportingManager: 'Skipped', hr: 'Pending', companyAdmin: 'Pending', executive: 'Pending', teamLeader: 'Pending' } };
+  const keys = ['missedPunchRectification.approvalStatus.hr'];
+  assert.equal(attendance.attendancePatchAuthorized({
+    isOwn: false, canManage: false, stampedApprover: false,
+    patchKeys: keys, rect, callerRole: 'hr',
+  }), true);
+  // A different role than the active tier → denied
+  assert.equal(attendance.attendancePatchAuthorized({
+    isOwn: false, canManage: false, stampedApprover: false,
+    patchKeys: keys, rect, callerRole: 'team-leader',
+  }), false);
+  // Active tier patch mixed with unrelated fields → denied
+  assert.equal(attendance.attendancePatchAuthorized({
+    isOwn: false, canManage: false, stampedApprover: false,
+    patchKeys: [...keys, 'status'], rect, callerRole: 'hr',
+  }), false);
+});
+
+test('stranger without permissions is denied', () => {
+  assert.equal(attendance.attendancePatchAuthorized({
+    isOwn: false, canManage: false, stampedApprover: false,
+    patchKeys: ['missedPunchRectification.requested'], rect: undefined, callerRole: 'employee',
+  }), false);
+});
+
+test('attendance.approve may stamp Miss Punch without attendance.manage (RM regression)', () => {
+  // Reporting Managers hold `attendance.approve` but NOT `attendance.manage`.
+  // Their "Miss Punch" button patched status/missPunchRemark* and was denied,
+  // so in RM-driven orgs `status = 'Miss Punch'` was never written and the
+  // whole rectification feature (Rectify button) never became reachable.
+  const markKeys = ['status', 'missPunchRemark', 'missPunchMarkedBy', 'missPunchMarkedByName', 'missPunchMarkedAt'];
+  assert.equal(attendance.attendancePatchAuthorized({
+    isOwn: false, canManage: false, stampedApprover: false,
+    patchKeys: markKeys, rect: undefined, callerRole: 'reporting-manager', canApprove: true,
+  }), true);
+  // Without the approve permission the same patch stays denied.
+  assert.equal(attendance.attendancePatchAuthorized({
+    isOwn: false, canManage: false, stampedApprover: false,
+    patchKeys: markKeys, rect: undefined, callerRole: 'reporting-manager', canApprove: false,
+  }), false);
+  // Employees never get it, even with a stray flag.
+  assert.equal(attendance.attendancePatchAuthorized({
+    isOwn: true, canManage: false, stampedApprover: false,
+    patchKeys: ['status'], rect: undefined, callerRole: 'employee', canApprove: true,
+  }), false, 'approve-class keys must never leak into owner patches');
+  // Mixing a mark key with an unrelated write stays denied.
+  assert.equal(attendance.attendancePatchAuthorized({
+    isOwn: false, canManage: false, stampedApprover: false,
+    patchKeys: ['status', 'approvedByName'], rect: undefined, callerRole: 'reporting-manager', canApprove: true,
+  }), false);
+});
+
+// ---------------------------------------------------------------------------
+// 2-working-day attendance correction window (server-side enforcement)
+// ---------------------------------------------------------------------------
+
+test('correction window: opens for the record day and the next working days', () => {
+  const noHolidays = [];
+  // Wednesday record, Sat+Sun weekends → deadline = end of Friday (2 working days).
+  const wed = new Date(2026, 10, 4, 12, 0, 0); // 2026-11-04 is a Wednesday
+  assert.doesNotThrow(() => assertWithinAttendanceCorrectionWindow(wed, [0, 6], noHolidays, new Date(2026, 10, 4, 18, 0)));
+  assert.doesNotThrow(() => assertWithinAttendanceCorrectionWindow(wed, [0, 6], noHolidays, new Date(2026, 10, 5, 9, 0)));
+  assert.doesNotThrow(() => assertWithinAttendanceCorrectionWindow(wed, [0, 6], noHolidays, new Date(2026, 10, 6, 23, 59)));
+  // Friday is the 2nd working day after Wednesday → still open until end of day.
+  assert.doesNotThrow(() => assertWithinAttendanceCorrectionWindow(wed, [0, 6], noHolidays, new Date(2026, 10, 6, 23, 59, 59)));
+});
+
+test('correction window: closes after the deadline (regression: client-only check)', () => {
+  const wed = new Date(2026, 10, 4, 12, 0, 0);
+  // Saturday 00:00:01 is past Friday's end-of-day deadline.
+  assert.throws(
+    () => assertWithinAttendanceCorrectionWindow(wed, [0, 6], [], new Date(2026, 10, 7, 0, 0, 1)),
+    /2-working-day correction window/,
+  );
+  // A month-old record is always out of window.
+  assert.throws(
+    () => assertWithinAttendanceCorrectionWindow(new Date(2026, 9, 1), [0, 6], [], new Date(2026, 10, 4)),
+    /2-working-day correction window/,
+  );
+});
+
+test('correction window: holidays and weekends are not counted', () => {
+  const wed = new Date(2026, 10, 4, 12, 0, 0); // Wednesday
+  // Thursday 2026-11-05 is a holiday → the 2 working days become Fri + Mon.
+  const holidays = ['2026-11-05'];
+  assert.doesNotThrow(() => assertWithinAttendanceCorrectionWindow(wed, [0, 6], holidays, new Date(2026, 10, 6, 12, 0))); // Friday open
+  assert.doesNotThrow(() => assertWithinAttendanceCorrectionWindow(wed, [0, 6], holidays, new Date(2026, 10, 9, 23, 59))); // Monday = deadline
+  assert.throws(
+    () => assertWithinAttendanceCorrectionWindow(wed, [0, 6], holidays, new Date(2026, 10, 10, 0, 0, 1)), // Tuesday closed
+    /2-working-day correction window/,
+  );
+});
+
+test('correction window: the product window is 2 working days', () => {
+  assert.equal(ATTENDANCE_CORRECTION_WORKING_DAYS, 2);
 });

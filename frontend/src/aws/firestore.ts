@@ -439,15 +439,21 @@ async function fetchCollection(q: Query): Promise<DocumentData[]> {
   const key = Object.keys(body).find((k) => Array.isArray(body[k])) ?? Object.keys(body)[0];
   let docs = (body[key] ?? []) as DocumentData[];
 
-  // Post-filter the operators the API can't express (in, !=, comparisons)
+  // Post-filter the operators the API can't express (in, !=, comparisons).
+  // Field paths may be NESTED ('missedPunchRectification.masterAdminRequired')
+  // — the REST API nests dot-paths in the returned rows, so flat key access
+  // matched nothing and the Master Admin final-verification queue always came
+  // back empty (the leave query worked only because it uses a top-level key).
+  const fieldOf = (d: DocumentData, path: string): unknown =>
+    path.split('.').reduce<unknown>((acc, k) => (acc && typeof acc === 'object' ? (acc as Record<string, unknown>)[k] : undefined), d);
   for (const w of wheres) {
     if (w.op === '==' && typeof w.value !== 'string') {
-      docs = docs.filter((d) => d[w.field!] === w.value);
+      docs = docs.filter((d) => fieldOf(d, w.field!) === w.value);
     } else if (w.op === 'in' && Array.isArray(w.value)) {
       const allowed = w.value as unknown[];
-      docs = docs.filter((d) => allowed.includes(d[w.field!]) || allowed.includes(String(d[w.field!])));
+      docs = docs.filter((d) => allowed.includes(fieldOf(d, w.field!)) || allowed.includes(String(fieldOf(d, w.field!))));
     } else if (w.op === '!=') {
-      docs = docs.filter((d) => d[w.field!] !== w.value);
+      docs = docs.filter((d) => fieldOf(d, w.field!) !== w.value);
     } else if (['<', '<=', '>', '>='].includes(w.op!)) {
       const rhs = w.value as any;
       // Date range queries (e.g. where('date','>=',today)). The REST layer
@@ -470,7 +476,7 @@ async function fetchCollection(q: Query): Promise<DocumentData[]> {
         return NaN;
       };
       docs = docs.filter((d) => {
-        const v = d[w.field!];
+        const v = fieldOf(d, w.field!);
         if (rhsIsDate) {
           const vt = toMs(v);
           if (Number.isNaN(vt)) return false;
@@ -492,7 +498,10 @@ async function fetchCollection(q: Query): Promise<DocumentData[]> {
         }
       });
     } else if (w.op === 'array-contains') {
-      docs = docs.filter((d) => Array.isArray(d[w.field!]) && (d[w.field!] as unknown[]).includes(w.value));
+      docs = docs.filter((d) => {
+        const v = fieldOf(d, w.field!);
+        return Array.isArray(v) && (v as unknown[]).includes(w.value);
+      });
     }
   }
 

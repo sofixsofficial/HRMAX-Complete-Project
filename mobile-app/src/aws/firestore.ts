@@ -396,18 +396,23 @@ async function fetchCollection(q: Query): Promise<DocumentData[]> {
   const key = Object.keys(body).find((k) => Array.isArray(body[k])) ?? Object.keys(body)[0];
   let docs = (body[key] ?? []) as DocumentData[];
 
+  // Nested field paths ('missedPunchRectification.masterAdminRequired'): the
+  // REST API nests dot-paths, so flat key access matched nothing and the
+  // Master Admin final-verification queue always came back empty.
+  const fieldOf = (d: DocumentData, path: string): unknown =>
+    path.split('.').reduce<unknown>((acc, k) => (acc && typeof acc === 'object' ? (acc as Record<string, unknown>)[k] : undefined), d);
   for (const w of wheres) {
     if (w.op === '==' && typeof w.value !== 'string') {
-      docs = docs.filter((d) => d[w.field!] === w.value);
+      docs = docs.filter((d) => fieldOf(d, w.field!) === w.value);
     } else if (w.op === 'in' && Array.isArray(w.value)) {
       const allowed = w.value as unknown[];
-      docs = docs.filter((d) => allowed.includes(d[w.field!]) || allowed.includes(String(d[w.field!])));
+      docs = docs.filter((d) => allowed.includes(fieldOf(d, w.field!)) || allowed.includes(String(fieldOf(d, w.field!))));
     } else if (w.op === '!=') {
-      docs = docs.filter((d) => d[w.field!] !== w.value);
+      docs = docs.filter((d) => fieldOf(d, w.field!) !== w.value);
     } else if (['<', '<=', '>', '>='].includes(w.op!)) {
       const rhs = w.value as any;
       docs = docs.filter((d) => {
-        const v = d[w.field!];
+        const v = fieldOf(d, w.field!) as any;
         switch (w.op) {
           case '<': return v < rhs;
           case '<=': return v <= rhs;
@@ -417,7 +422,10 @@ async function fetchCollection(q: Query): Promise<DocumentData[]> {
         }
       });
     } else if (w.op === 'array-contains') {
-      docs = docs.filter((d) => Array.isArray(d[w.field!]) && (d[w.field!] as unknown[]).includes(w.value));
+      docs = docs.filter((d) => {
+        const v = fieldOf(d, w.field!);
+        return Array.isArray(v) && (v as unknown[]).includes(w.value);
+      });
     }
   }
 

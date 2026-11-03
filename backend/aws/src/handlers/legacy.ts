@@ -34,8 +34,10 @@ import { createNotification, fanOutNotifications, notifyApprovalDecision } from 
 import { resolveStakeholders } from '../lib/stakeholders.js';
 import { sendEmailCentral, templates } from '../lib/email.js';
 import { cognitoCreateUser, writeUserDoc } from './auth.js';
-import { assertCompanyScope, isSuperAdmin } from '../lib/auth.js';
-import { ApiError, isoNow, newId, TIER_ORDER, type Caller, type LeaveTier, type UserRole } from '../lib/types.js';
+import { getPolicy, hhmmToMinutes, OVERTIME_THRESHOLD_MINUTES } from './attendance.js';
+import { assertCompanyScope, isSuperAdmin, readPartitions } from '../lib/auth.js';
+import { assertWithinAttendanceCorrectionWindow, resolveAttendanceCorrectionWindow } from '../lib/correctionWindow.js';
+import { ApiError, isoNow, newId, TIER_ORDER, resolveApprovalChain, type Caller, type LeaveTier, type UserRole } from '../lib/types.js';
 
 const cognito = new CognitoIdentityProviderClient({});
 const POOL_ID = () => process.env.COGNITO_USER_POOL_ID ?? '';
@@ -321,8 +323,20 @@ async function resolveMissedPunchApprovers(companyId: string, applicantUid: stri
   const applicantRole = String((await getUserDoc(applicantUid))?.role ?? 'employee');
   const ma = (await masterAdminUids())[0] ?? null;
 
+  // The employee form stores the manager as `userId || id`, so the stamp is
+  // often an employee-DOCUMENT id. A non-empty-but-wrong stamp makes the tier
+  // look "assigned to someone else" and the natural role holder never gets the
+  // Approve/Reject controls → the chain stalls at tier 1 forever.
+  const normalizeToUid = async (candidate: string | null): Promise<string | null> => {
+    if (!candidate) return null;
+    if (await getUserDoc(candidate)) return candidate;
+    const empRow = await getEntity<Body>('employee', companyId, candidate);
+    const uid = String(empRow?.userId ?? '') || null;
+    return uid ?? candidate;
+  };
+
   const resolved: Record<LeaveTier, string | null> = {
-    reportingManager: pick('reporting-manager') ?? (emp ? String(emp.reportingManagerId ?? '') || null : null),
+    reportingManager: pick('reporting-manager') ?? await normalizeToUid(emp ? String(emp.reportingManagerId ?? '') || null : null),
     hr: pick('hr'),
     companyAdmin: pick('company-admin'),
     executive: pick('executive'),
@@ -333,30 +347,20 @@ async function resolveMissedPunchApprovers(companyId: string, applicantUid: stri
     const o = override?.[t];
     if (o !== undefined) resolved[t] = o ? String(o) : null;
   }
-  // Role-based chain truncation (parity with leave.ts):
-  //   employee / reporting manager -> ... -> HR -> company admin
-  //   HR -> company admin
-  //   executive -> team leader (-> master-admin gate)
-  //   company-admin / master-admin -> no personal records at all
-  if (applicantRole === 'employee' || applicantRole === 'reporting-manager') {
-    resolved.reportingManager = null;
-    resolved.executive = null;
-    resolved.teamLeader = null;
-  } else if (applicantRole === 'hr') {
-    resolved.reportingManager = null;
-    resolved.hr = null;
-    resolved.executive = null;
-    resolved.teamLeader = null;
-  } else if (applicantRole === 'executive') {
-    resolved.reportingManager = null;
-    resolved.hr = null;
-    resolved.companyAdmin = null;
-  } else if (applicantRole === 'master-admin' || applicantRole === 'company-admin') {
-    resolved.reportingManager = null;
-    resolved.hr = null;
-    resolved.companyAdmin = null;
-    resolved.executive = null;
-    resolved.teamLeader = null;
+  // Spec chain per applicant role — the shipped defaults in types.ts
+  // (employee 5 → RM/HR/CA/Exec/TL, reporting-manager 4, hr 3, executive 2,
+  // team-leader 1 = master-admin gate only). The old hand-rolled truncation
+  // nulled reportingManager + executive + teamLeader for EVERY applicant,
+  // collapsing an employee's mobile submission to a 2-tier chain (web/spec
+  // require 5). Roles outside REQUESTER_ROLES resolve to [] — intended for the
+  // master-admin-gated roles (team-leader / company-admin / master-admin);
+  // any other unknown role keeps the full chain (web parity).
+  const chainRole = (applicantRole === 'hr-manager' ? 'hr' : applicantRole) as UserRole;
+  const liveChain = resolveApprovalChain(chainRole, null);
+  const maGated = ['master-admin', 'company-admin', 'team-leader'].includes(applicantRole);
+  const chain: LeaveTier[] = liveChain.length > 0 || maGated ? liveChain : [...TIER_ORDER];
+  for (const t of TIER_ORDER) {
+    if (!chain.includes(t)) resolved[t] = null;
   }
   // Never ask someone to approve their own request.
   for (const t of TIER_ORDER) {
@@ -374,27 +378,71 @@ async function mobileRequestPunchRectification(caller: Caller, body: Body): Prom
   if (String(rec.userId) !== caller.uid && !MANAGEMENT_ROLES.includes(caller.role)) {
     throw new ApiError('permission-denied', 'Cannot request rectification for this record');
   }
+  const applicantRole = String((await getUserDoc(String(rec.userId)))?.role ?? 'employee');
+  // Spec: the Company Admin is a verification node only — no personal requests.
+  if (applicantRole === 'company-admin') {
+    throw new ApiError('failed-precondition', 'Company Admin cannot submit a personal missed-punch rectification');
+  }
+  // Re-submission guard (web parity): this callable rebuilds approvalStatus +
+  // approvalLog from scratch, so re-running it on an in-flight request would
+  // silently reset every already-approved tier back to Pending and wipe the
+  // audit log. Terminal docs (resolved) may be re-requested.
+  const existing = (rec.missedPunchRectification ?? null) as Body | null;
+  if (existing && existing.requested === true && existing.resolved !== true) {
+    throw new ApiError('failed-precondition', 'This rectification is already under review. A decision is pending.');
+  }
+
+  // 2-working-day correction window — enforced SERVER-side. The web and mobile
+  // clients both checked it locally, so a direct callable call skipped the
+  // policy entirely.
+  if (rec.date) {
+    const { weekendDays, holidayKeys } = await resolveAttendanceCorrectionWindow(companyId);
+    assertWithinAttendanceCorrectionWindow(String(rec.date), weekendDays, holidayKeys);
+  }
 
   const approverIds = await resolveMissedPunchApprovers(companyId, String(rec.userId), body.approverIds as Body | undefined);
   const status: Record<string, string> = {};
   for (const t of TIER_ORDER) status[t] = approverIds[t] ? 'Pending' : 'Skipped';
   const approvalCount = Object.values(status).filter((v) => v === 'Approved' || v === 'Rejected').length;
-  const applicantRole = String((await getUserDoc(String(rec.userId)))?.role ?? 'employee');
-  const masterAdminRequired = ['master-admin', 'company-admin', 'executive', 'team-leader'].includes(applicantRole);
+  const masterAdminRequired = ['master-admin', 'executive', 'team-leader'].includes(applicantRole);
+  const masterAdminApproverId = masterAdminRequired
+    ? String(body.masterAdminApproverId ?? '') || (await masterAdminUids())[0] || ''
+    : '';
+  // Overall status is a STRING (web parity): readers do `mp.status === 'Pending'`
+  // — writing the tier map here made every mobile submission invisible to the
+  // review UIs. All tiers settled without a master-admin gate = Approved.
+  const allSettled = TIER_ORDER.every((t) => status[t] === 'Approved' || status[t] === 'Skipped');
+  const overall = allSettled && !masterAdminRequired ? 'Approved' : 'Pending';
+  const correctedOut = body.correctedCheckOut ? String(body.correctedCheckOut) : '';
+  const employeeRemark = String(body.employeeRemark ?? body.reason ?? '');
 
   const rect: Body = {
-    reason: String(body.reason ?? ''),
+    // Visibility flags the review UIs gate on (Attendance.tsx,
+    // attendanceStatus.ts, mobile AttendanceScreen) — without `requested: true`
+    // a mobile submission never appeared in ANY review queue.
+    requested: true,
+    applicantRole,
+    reason: employeeRemark,
+    employeeRemark,
     correctedCheckIn: body.correctedCheckIn ?? null,
     correctedCheckOut: body.correctedCheckOut ?? null,
     requestedById: caller.uid,
     requestedAt: isoNow(),
-    status,
+    status: overall,
     approvalStatus: status,
+    approvalLog: [],
     approverIds,
     approvalCount,
     masterAdminRequired,
+    masterAdminApproverId,
     masterAdminApproveStatus: masterAdminRequired ? 'Pending' : undefined,
     resolved: false,
+    // Spec payload fields — identical keys to the web submission.
+    employeeId: String(rec.userId ?? ''),
+    date: String(rec.date ?? ''),
+    missedPunchType: !rec.checkIn && !rec.checkOut ? 'Both' : !rec.checkIn ? 'In' : 'Out',
+    requestedTime: correctedOut,
+    currentTierStatus: 1,
   };
   const updated = await patchEntity<Body>('attendance', companyId, attendanceId, { missedPunchRectification: rect }, {
     entity: 'attendance',
@@ -418,15 +466,27 @@ async function mobileRequestPunchRectification(caller: Caller, body: Body): Prom
 
 async function reviewMissedPunchTier(caller: Caller, body: Body): Promise<unknown> {
   const tier = String(body.tier ?? '') as LeaveTier;
-  const decision = String(body.decision ?? '') as 'Approved' | 'Rejected';
-  const note = body.note ? String(body.note) : undefined;
+  // Mobile sends {action, reviewNote}; other callers send {decision, note} —
+  // accept BOTH, otherwise every approve/reject from the shipped app died with
+  // 400 "decision must be Approved or Rejected" and the chain stalled at tier 1.
+  const decision = String(body.decision ?? body.action ?? '') as 'Approved' | 'Rejected';
+  const noteRaw = body.note ?? body.reviewNote;
+  const note = noteRaw ? String(noteRaw) : undefined;
   if (!TIER_ORDER.includes(tier)) throw new ApiError('bad-request', 'Invalid tier');
   if (!['Approved', 'Rejected'].includes(decision)) throw new ApiError('bad-request', 'decision must be Approved or Rejected');
   if (decision === 'Rejected' && !note?.trim()) throw new ApiError('bad-request', 'A review note is required for rejection');
 
-  const companyId = String(body.companyId ?? caller.companyId);
   const attendanceId = String(body.attendanceId ?? body.id ?? '');
-  const rec = await getEntity<Body>('attendance', companyId, attendanceId);
+  // Company scope: the record's own companyId when the client sends it, else
+  // the caller's — and when that resolves to the 'global' platform partition
+  // (master-admin's own companyId) locate the row across readable partitions
+  // instead of reporting "No rectification on this record".
+  let companyId = String(body.companyId ?? '') || (caller.companyId === 'global' ? '' : String(caller.companyId ?? ''));
+  let rec: Body | null = companyId ? await getEntity<Body>('attendance', companyId, attendanceId) : null;
+  if (!rec) {
+    const found = await locateEntityAcross<Body>('attendance', attendanceId, await readPartitions(caller));
+    if (found) { rec = found.doc; companyId = found.companyId; }
+  }
   const rect = rec?.missedPunchRectification as Body | undefined;
   if (!rec || !rect) throw new ApiError('not-found', 'No rectification on this record');
   if (!isSuperAdmin(caller)) assertCompanyScope(caller, companyId);
@@ -461,15 +521,54 @@ async function reviewMissedPunchTier(caller: Caller, body: Body): Promise<unknow
   const decided = vals.filter((v) => v === 'Approved' || v === 'Rejected').length;
   const allApproved = vals.every((v) => v === 'Approved' || v === 'Skipped');
 
-  if (decision === 'Rejected' || allApproved) {
-    await patchEntity<Body>('attendance', companyId, attendanceId, {
+  const maDone = !r.masterAdminRequired || r.masterAdminApproveStatus === 'Approved';
+  if (decision === 'Rejected' || (allApproved && maDone)) {
+    const applyPatch: Body = {
       'missedPunchRectification.resolved': true,
       'missedPunchRectification.resolution': decision === 'Rejected' ? 'Rejected' : 'Approved',
       'missedPunchRectification.resolvedAt': isoNow(),
       'missedPunchRectification.resolvedByName': caller.name,
       'missedPunchRectification.approvalCount': decided,
       ...(decision === 'Rejected' && note ? { 'missedPunchRectification.resolutionNote': note } : {}),
+    };
+    if (decision !== 'Rejected' && r.correctedCheckOut) {
+      // Apply the correction on FINAL approval. This path previously marked
+      // resolved:true WITHOUT writing checkOut/workHours/status — the record
+      // dropped out of every queue while still 'Miss Punch' with no check-out,
+      // silently losing the correction (dead end for the employee).
+      const outIso = String(r.correctedCheckOut);
+      const checkInTime = rec.checkIn ? new Date(String(rec.checkIn)).getTime() : null;
+      const correctedMs = new Date(outIso).getTime();
+      const workHours = checkInTime ? Math.round(((correctedMs - checkInTime) / 3600000) * 100) / 100 : 0;
+      const policy = await getPolicy(companyId);
+      const out = new Date(outIso);
+      const correctedMin = out.getHours() * 60 + out.getMinutes();
+      const otMin = Math.max(0, correctedMin - hhmmToMinutes(policy.defaultShiftEnd) - OVERTIME_THRESHOLD_MINUTES);
+      applyPatch.checkOut = outIso;
+      applyPatch.workHours = workHours;
+      applyPatch.overtimeHours = Math.round((otMin / 60) * 100) / 100;
+      applyPatch.status = 'Approved';
+      applyPatch.approved = true;
+      applyPatch.isAutoApproved = true;
+      applyPatch.approvedByName = 'All verification levels';
+    }
+    await patchEntity<Body>('attendance', companyId, attendanceId, applyPatch, {
+      entity: 'attendance', userIdField: 'userId', tsField: 'date',
+    });
+  } else if (allApproved) {
+    // Tiers settled but the master-admin gate is still pending: keep the
+    // record OPEN (resolved must stay false or the MA review would throw
+    // "Already resolved") and ping the master admins for the final call.
+    await patchEntity<Body>('attendance', companyId, attendanceId, {
+      'missedPunchRectification.approvalCount': decided,
     }, { entity: 'attendance', userIdField: 'userId', tsField: 'date' });
+    await fanOutNotifications(await masterAdminUids(), {
+      type: 'missed-punch-marked',
+      title: 'Missed-punch rectification needs your final approval',
+      message: `All verification tiers approved for ${String(rec.date ?? '')}. Master Admin decision pending.`,
+      link: `/attendance/${attendanceId}`,
+      companyId,
+    }, caller.uid);
   } else {
     await patchEntity<Body>('attendance', companyId, attendanceId, {
       'missedPunchRectification.approvalCount': decided,
@@ -508,13 +607,21 @@ async function reviewMissedPunchTier(caller: Caller, body: Body): Promise<unknow
 
 async function reviewMasterAdminMissedPunch(caller: Caller, body: Body): Promise<unknown> {
   requireRole(caller, ['master-admin']);
-  const decision = String(body.decision ?? '') as 'Approved' | 'Rejected';
-  const note = body.note ? String(body.note) : undefined;
+  // Mobile sends {action, reviewNote}; accept both spellings (see above).
+  const decision = String(body.decision ?? body.action ?? '') as 'Approved' | 'Rejected';
+  const noteRaw = body.note ?? body.reviewNote;
+  const note = noteRaw ? String(noteRaw) : undefined;
   if (!['Approved', 'Rejected'].includes(decision)) throw new ApiError('bad-request', 'decision must be Approved or Rejected');
 
-  const companyId = String(body.companyId ?? caller.companyId);
   const attendanceId = String(body.attendanceId ?? body.id ?? '');
-  const rec = await getEntity<Body>('attendance', companyId, attendanceId);
+  // A master-admin's own companyId is 'global' — never find the attendance row
+  // there; prefer the client-sent companyId, else locate across partitions.
+  let companyId = String(body.companyId ?? '') || (caller.companyId === 'global' ? '' : String(caller.companyId ?? ''));
+  let rec: Body | null = companyId ? await getEntity<Body>('attendance', companyId, attendanceId) : null;
+  if (!rec) {
+    const found = await locateEntityAcross<Body>('attendance', attendanceId, await readPartitions(caller));
+    if (found) { rec = found.doc; companyId = found.companyId; }
+  }
   const rect = rec?.missedPunchRectification as Body | undefined;
   if (!rec || !rect) throw new ApiError('not-found', 'No rectification on this record');
   if (!rect.masterAdminRequired) throw new ApiError('failed-precondition', 'This record does not require master-admin review');
@@ -534,7 +641,26 @@ async function reviewMasterAdminMissedPunch(caller: Caller, body: Body): Promise
     'missedPunchRectification.resolvedAt': isoNow(),
     'missedPunchRectification.resolvedByName': caller.name,
   };
-  if (decision === 'Approved' && rect.correctedCheckOut) patch.checkOut = rect.correctedCheckOut;
+  if (decision === 'Approved' && rect.correctedCheckOut) {
+    // Apply the FULL correction — previously only checkOut was written, so the
+    // record kept status:'Miss Punch' with a check-out (dashboard "Miss Punch"
+    // queue and payroll counters stayed inflated forever).
+    const outIso = String(rect.correctedCheckOut);
+    const checkInTime = rec.checkIn ? new Date(String(rec.checkIn)).getTime() : null;
+    const correctedMs = new Date(outIso).getTime();
+    const workHours = checkInTime ? Math.round(((correctedMs - checkInTime) / 3600000) * 100) / 100 : 0;
+    const policy = await getPolicy(companyId);
+    const out = new Date(outIso);
+    const correctedMin = out.getHours() * 60 + out.getMinutes();
+    const otMin = Math.max(0, correctedMin - hhmmToMinutes(policy.defaultShiftEnd) - OVERTIME_THRESHOLD_MINUTES);
+    patch.checkOut = outIso;
+    patch.workHours = workHours;
+    patch.overtimeHours = Math.round((otMin / 60) * 100) / 100;
+    patch.status = 'Approved';
+    patch.approved = true;
+    patch.isAutoApproved = true;
+    patch.approvedByName = 'All verification levels';
+  }
   if (decision === 'Rejected' && note) patch['missedPunchRectification.resolutionNote'] = note;
 
   await patchEntity<Body>('attendance', companyId, attendanceId, patch, {

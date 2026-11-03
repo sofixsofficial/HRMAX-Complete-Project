@@ -55,13 +55,15 @@ export function SelfAttendanceCard({ role }: SelfAttendanceCardProps) {
   const [actionMsg, setActionMsg] = useState<{ type: 'success' | 'error'; text: string } | null>(null)
 
   const handleRectifyRequest = async () => {
-    if (!rectifyModal || !rectifyTime || !user) return
+    // Parity with Attendance.tsx: the reason is mandatory — an empty remark
+    // reached the server and produced a rectification nobody could justify.
+    if (!rectifyModal || !rectifyTime || !rectifyRemark.trim() || !user) return
     setSubmittingRectify(true)
     try {
       const [h, m] = rectifyTime.split(':').map(Number)
       const corrected = new Date(rectifyModal.date)
       corrected.setHours(h, m, 0, 0)
-      await requestPunchRectification(rectifyModal.id, corrected, rectifyRemark || undefined)
+      await requestPunchRectification(rectifyModal.id, corrected, rectifyRemark.trim())
       await notifyAttendanceCascade({
         companyId: rectifyModal.companyId,
         employeeUserId: user.id,
@@ -224,11 +226,11 @@ export function SelfAttendanceCard({ role }: SelfAttendanceCardProps) {
                 style={{ padding: '8px 16px', borderRadius: 8, border: '1px solid #e5e7eb', background: '#fff', cursor: 'pointer', fontSize: 14 }}>
                 Cancel
               </button>
-              <button onClick={handleRectifyRequest} disabled={!rectifyTime || submittingRectify}
+              <button onClick={handleRectifyRequest} disabled={!rectifyTime || !rectifyRemark.trim() || submittingRectify}
                 style={{
                   padding: '8px 16px', borderRadius: 8, border: 'none',
-                  background: !rectifyTime ? '#d1d5db' : '#9333ea',
-                  color: '#fff', cursor: !rectifyTime ? 'not-allowed' : 'pointer',
+                  background: (!rectifyTime || !rectifyRemark.trim()) ? '#d1d5db' : '#9333ea',
+                  color: '#fff', cursor: (!rectifyTime || !rectifyRemark.trim()) ? 'not-allowed' : 'pointer',
                   fontSize: 14, fontWeight: 600,
                   display: 'flex', alignItems: 'center', gap: 6
                 }}>

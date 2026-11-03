@@ -137,6 +137,10 @@ export const requestPunchRectification = async (
 
   // Master Admin final gate for Team Leader / Executive self-applications.
   const applicantRole = await resolveApplicantRole(userId);
+  // Spec: the Company Admin is a verification node only — no self-application.
+  if (applicantRole === 'company-admin') {
+    throw new Error('Company Admin cannot submit a personal missed-punch rectification — please contact your Master Admin.');
+  }
   const masterAdminRequired = MANAGEMENT_SELF_SERVICE_ROLES.has(applicantRole);
   const masterAdminApproverId = masterAdminRequired ? await resolveMasterAdminApproverId() : '';
 
@@ -285,12 +289,28 @@ const resolveApproverIds = async (companyId: string, userId: string): Promise<Re
       }
     } catch {}
   } catch {}
+  // Executive — company assignment first (Companies → Assigned Executive;
+  // some flows write ONLY the company doc), then the executive whose
+  // assignedCompanyIds contains this company. Same order as the web service
+  // and the backend's resolveStakeholders.
   try {
-    const execSnap = await getDocs(query(collection(db, 'users'), where('role', '==', 'executive')));
-    for (const d of execSnap.docs) {
-      if (d.data().assignedCompanyIds?.includes(companyId)) { ids.executive = d.id; break; }
+    const co = await getDoc(doc(db, 'companies', companyId)).catch(() => null);
+    if (co?.exists()) {
+      const c = co.data() || {};
+      if (!ids.executive && c.assignedExecutiveId) ids.executive = String(c.assignedExecutiveId);
+      if (!ids.executive && Array.isArray(c.assignedExecutiveIds) && c.assignedExecutiveIds.length > 0) {
+        ids.executive = String(c.assignedExecutiveIds[0]);
+      }
     }
   } catch {}
+  if (!ids.executive) {
+    try {
+      const execSnap = await getDocs(query(collection(db, 'users'), where('role', '==', 'executive')));
+      for (const d of execSnap.docs) {
+        if (d.data().assignedCompanyIds?.includes(companyId)) { ids.executive = d.id; break; }
+      }
+    } catch {}
+  }
   return ids;
 };
 
@@ -455,8 +475,7 @@ export const getActionableMissedPunchTier = (
   if (approverId === uid) return next;
   if (approverId) return null;
   if ((role === 'reporting-manager' || role === 'hr-manager') && next === 'reportingManager') return next;
-  if (role === 'hr' && next === 'hr') return next;
-  if (role === 'hr-manager' && next === 'hr') return next;
+  if ((role === 'hr' || role === 'hr-manager') && next === 'hr') return next;
   if (role === 'company-admin' && next === 'companyAdmin') return next;
   if (role === 'executive' && next === 'executive') return next;
   if (role === 'team-leader' && next === 'teamLeader') return next;
@@ -508,6 +527,9 @@ export const reviewMissedPunchTier = async (
   const callableFn = httpsCallable(functions, 'mobileReviewMissedPunchTier');
   await callableFn({
     attendanceId,
+    // The record's own company — a master-admin caller's companyId is
+    // 'global' and would never locate the row server-side.
+    companyId: String(snap.data().companyId || ''),
     tier,
     action,
     reviewedBy,
@@ -558,9 +580,42 @@ export const reviewMasterAdminMissedPunch = async (
   const callableFn = httpsCallable(functions, 'mobileReviewMasterAdminMissedPunch');
   await callableFn({
     attendanceId,
+    companyId: String(snap.data().companyId || ''),
     action,
     reviewedBy,
     reviewedByName,
     reviewNote,
+  });
+};
+
+/**
+ * A reviewer may correct the proposed check-out time WHILE the chain is still
+ * pending (web parity — `attendanceService.editMissedPunch`).
+ *
+ * Writes ONLY the rectification's corrected time + remark: the top-level
+ * `checkOut`/`workHours` are applied later by `applyMissedPunchResolution`
+ * once every tier (and the Master Admin gate) has approved. Stamping them here
+ * would leave an UNAPPROVED check-out behind if a later tier rejected.
+ */
+export const editMissedPunch = async (
+  attendanceId: string,
+  correctedCheckOut: Date,
+  remark: string,
+  editedBy: string,
+  editedByName: string,
+): Promise<void> => {
+  const docRef = doc(db, 'attendance', attendanceId);
+  const snap = await getDoc(docRef);
+  if (!snap.exists()) throw new Error('Attendance record not found');
+  const mp = (snap.data().missedPunchRectification || {}) as Record<string, any>;
+  if (mp.resolved === true) {
+    throw new Error('This rectification has already been resolved and can no longer be edited.');
+  }
+  await updateDoc(docRef, {
+    'missedPunchRectification.correctedCheckOut': correctedCheckOut,
+    'missedPunchRectification.remark': remark || '',
+    'missedPunchRectification.editedBy': editedBy,
+    'missedPunchRectification.editedByName': editedByName,
+    'missedPunchRectification.editedAt': new Date().toISOString(),
   });
 };

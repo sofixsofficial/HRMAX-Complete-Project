@@ -4,7 +4,7 @@ import { useAuth } from '../../context/AuthContext';
 import { useTheme, ThemeColors } from '../../context/ThemeContext';
 import { useCompany } from '../../context/CompanyContext';
 import { useAttendanceGate } from '../../hooks/useAttendanceGate';
-import { markCheckIn, markCheckOut, approveAttendance, markMissPunch, requestPunchRectification, reviewMissedPunchTier, reviewMasterAdminMissedPunch, getNextPendingMissedPunchTier, getActionableMissedPunchTier, getRecordEffectiveMissedPunchTiers, getEffectiveMissedPunchTiers, computeMissedPunchProgress, computeMissedPunchTotalTiers, MISSED_PUNCH_TIER_LABELS, MISSED_PUNCH_MASTER_ADMIN_LABEL, missedPunchTierLabel } from '../../services/attendanceApi';
+import { markCheckIn, markCheckOut, approveAttendance, markMissPunch, requestPunchRectification, reviewMissedPunchTier, reviewMasterAdminMissedPunch, editMissedPunch, getNextPendingMissedPunchTier, getActionableMissedPunchTier, getRecordEffectiveMissedPunchTiers, getEffectiveMissedPunchTiers, computeMissedPunchProgress, computeMissedPunchTotalTiers, MISSED_PUNCH_TIER_LABELS, MISSED_PUNCH_MASTER_ADMIN_LABEL, missedPunchTierLabel } from '../../services/attendanceApi';
 import { SelfieCaptureModal } from '../../components/SelfieCaptureModal';
 import { BranchQrModal } from '../../components/BranchQrModal';
 import { ScreenHeader } from '../../components/ScreenHeader';
@@ -17,7 +17,7 @@ import { Paths, File } from 'expo-file-system';
 import * as Sharing from 'expo-sharing';
 import { PremiumCard, ShimmerLoader, SegmentControl, EmptyStateView, StatusBadge, PremiumBottomSheet, PremiumModal } from '../../components/PremiumComponents';
 import { isActiveMissedPunchRecord } from '../../utils/attendanceStatus';
-import { isWithinAttendanceCorrectionWindow, parseWeekendDays, toDateKey } from '../../utils/workingDays';
+import { isWithinAttendanceCorrectionWindow, correctionDeadline, ATTENDANCE_CORRECTION_WORKING_DAYS, parseWeekendDays, toDateKey } from '../../utils/workingDays';
 import { notifyAttendanceCascade, notifyTLAction } from '../../services/notificationService';
 import { logAudit } from '../../services/auditLogService';
 import NetInfo from '@react-native-community/netinfo';
@@ -52,7 +52,11 @@ const getRoleRoutingNote = (role?: string): string | null => {
 };
 
 export const AttendanceScreen: React.FC<{ navigation: any }> = ({ navigation }) => {
-  const { user } = useAuth();
+  const { user, hasPermission } = useAuth();
+  // Web parity: `attendance.manage` OR `attendance.approve` — Reporting Managers
+  // hold only approve, so gating on manage alone hid the "Miss Punch" action
+  // from them (the entry point of the whole rectification feature).
+  const canMutateAttendance = hasPermission('attendance.manage') || hasPermission('attendance.approve');
   const { colors } = useTheme();
   const { effectiveCompanyId } = useCompany();
   const s = useMemo(() => createStyles(colors), [colors]);
@@ -168,6 +172,8 @@ export const AttendanceScreen: React.FC<{ navigation: any }> = ({ navigation }) 
   const [adminRectifyRecord, setAdminRectifyRecord] = useState<any>(null);
   const [adminRectifyAction, setAdminRectifyAction] = useState<'approve' | 'reject'>('approve');
   const [adminRectifyRemark, setAdminRectifyRemark] = useState('');
+  // Optional corrected check-out a reviewer may adjust before deciding (web parity).
+  const [adminRectifyTime, setAdminRectifyTime] = useState('');
   const [markRecord, setMarkRecord] = useState<any>(null);
   const [markRemark, setMarkRemark] = useState('');
   const [submittingMark, setSubmittingMark] = useState(false);
@@ -204,6 +210,19 @@ export const AttendanceScreen: React.FC<{ navigation: any }> = ({ navigation }) 
     const recDate = rec?.date?.toDate ? rec.date.toDate() : rec?.date ? new Date(rec.date) : null;
     if (!recDate) return false;
     return isWithinAttendanceCorrectionWindow(recDate, new Date(), rectifyWindow.weekendDays, rectifyWindow.holidayKeys);
+  };
+
+  /** Friendly deadline text for the rectify sheet (spec: warn BEFORE submitting). */
+  const rectificationDeadlineText = (rec: any): string | null => {
+    const recDate = rec?.date?.toDate ? rec.date.toDate() : rec?.date ? new Date(rec.date) : null;
+    if (!recDate) return null;
+    if (!rectificationWindowOpen(rec)) return null;
+    try {
+      const deadline = correctionDeadline(recDate, ATTENDANCE_CORRECTION_WORKING_DAYS, rectifyWindow.weekendDays, rectifyWindow.holidayKeys);
+      return deadline.toLocaleDateString(undefined, { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' });
+    } catch {
+      return null;
+    }
   };
 
   // Device context states (matching web's GPS/network chips)
@@ -457,7 +476,17 @@ export const AttendanceScreen: React.FC<{ navigation: any }> = ({ navigation }) 
   const openRectify = (rec: any) => {
     if (!rec) return;
     setRectifyRecord(rec);
-    setRectifyTime(formatTimeShort(rec.checkIn));
+    // Default to an EXISTING correction, otherwise leave the field EMPTY.
+    // Prefilling with `rec.checkIn` meant a single tap on Submit requested a
+    // check-out equal to the check-in — 0 hours worked — which the approvers
+    // then had to reject.
+    const existing = rec.missedPunchRectification?.correctedCheckOut;
+    if (existing) {
+      const d = existing?.toDate ? existing.toDate() : new Date(existing);
+      setRectifyTime(isNaN(d.getTime()) ? '' : formatTimeShort(d));
+    } else {
+      setRectifyTime('');
+    }
     setRectifyNote('');
     setRectifySheet(true);
   };
@@ -467,6 +496,11 @@ export const AttendanceScreen: React.FC<{ navigation: any }> = ({ navigation }) 
     if (!rec) return;
     if (!rectifyTime.trim()) {
       Alert.alert('Required', 'Please enter the correct checkout time');
+      return;
+    }
+    // Parity with web: the reason is mandatory.
+    if (!rectifyNote.trim()) {
+      Alert.alert('Required', 'Please explain why you missed checkout');
       return;
     }
     // 2-working-day correction window guard (matches web's assertWithinAttendanceCorrectionWindow)
@@ -516,6 +550,7 @@ export const AttendanceScreen: React.FC<{ navigation: any }> = ({ navigation }) 
     setAdminRectifyRecord(record);
     setAdminRectifyAction(action);
     setAdminRectifyRemark('');
+    setAdminRectifyTime(formatExistingCorrectedTime(record));
     setAdminRectifySheet(true);
   };
 
@@ -538,6 +573,29 @@ export const AttendanceScreen: React.FC<{ navigation: any }> = ({ navigation }) 
       && user?.role === 'master-admin'
       && getRecordEffectiveMissedPunchTiers(mp).every((t) => mp.approvalStatus?.[t] === 'Approved');
     try {
+      // If the reviewer edited the Correct Check-Out Time, persist the edit so
+      // the final applied punch matches what the chain verified (web parity —
+      // writes ONLY the rectification fields; the real check-out is applied by
+      // applyMissedPunchResolution once every tier has approved).
+      const timeStr = adminRectifyTime.trim();
+      if (timeStr && /^([01]?\d|2[0-3]):[0-5]\d$/.test(timeStr)) {
+        const [h, m] = timeStr.split(':').map(Number);
+        const base = adminRectifyRecord.date?.toDate ? adminRectifyRecord.date.toDate() : new Date(adminRectifyRecord.date);
+        const edited = isNaN(base.getTime()) ? new Date() : base;
+        edited.setHours(h, m, 0, 0);
+        const current = mp.correctedCheckOut
+          ? (mp.correctedCheckOut?.toDate ? mp.correctedCheckOut.toDate() : new Date(mp.correctedCheckOut))
+          : null;
+        if (!current || isNaN(current.getTime()) || current.getTime() !== edited.getTime()) {
+          await editMissedPunch(
+            adminRectifyRecord.id,
+            edited,
+            adminRectifyRemark.trim(),
+            user?.id || '',
+            user?.name || ''
+          );
+        }
+      }
       if (awaitingMA) {
         await reviewMasterAdminMissedPunch(
           adminRectifyRecord.id,
@@ -556,7 +614,7 @@ export const AttendanceScreen: React.FC<{ navigation: any }> = ({ navigation }) 
           rejectorName: action === 'reject' ? user?.name : undefined,
           note: action === 'reject' ? adminRectifyRemark.trim() : undefined,
         }, action === 'approve' ? 'rectification-resolved' : 'rectification-rejected').catch(() => {});
-        setAdminRectifySheet(false); setAdminRectifyRemark(''); setAdminRectifyRecord(null);
+        setAdminRectifySheet(false); setAdminRectifyRemark(''); setAdminRectifyTime(''); setAdminRectifyRecord(null);
         await fetchTeamData();
         Alert.alert(action === 'approve' ? 'Approved' : 'Rejected', 'Missed punch finalized as Master Admin.');
         setSubmittingRectify(false);
@@ -591,7 +649,7 @@ export const AttendanceScreen: React.FC<{ navigation: any }> = ({ navigation }) 
         actionType: action === 'approve' ? 'approve' : 'reject',
         module: 'Attendance', targetEntity: adminRectifyRecord.name || '', status: 'success',
       }).catch(() => {});
-      setAdminRectifySheet(false); setAdminRectifyRemark(''); setAdminRectifyRecord(null);
+      setAdminRectifySheet(false); setAdminRectifyRemark(''); setAdminRectifyTime(''); setAdminRectifyRecord(null);
       await fetchTeamData();
       Alert.alert(action === 'approve' ? 'Approved' : 'Rejected', `Missed punch verification updated as ${myTier}.`);
     } catch (err: any) { Alert.alert('Error', err?.message || 'Failed'); }
@@ -612,6 +670,15 @@ export const AttendanceScreen: React.FC<{ navigation: any }> = ({ navigation }) 
     if (!date) return '--:--';
     const d = date.toDate ? date.toDate() : new Date(date);
     return d.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' });
+  };
+
+  /** `HH:MM` of an existing correctedCheckOut, or '' when absent/invalid. */
+  const formatExistingCorrectedTime = (rec: any): string => {
+    const raw = rec?.missedPunchRectification?.correctedCheckOut;
+    if (!raw) return '';
+    const d = raw?.toDate ? raw.toDate() : new Date(raw);
+    if (isNaN(d.getTime())) return '';
+    return `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
   };
 
   const formatDateShort = (date: any) => {
@@ -1212,7 +1279,7 @@ export const AttendanceScreen: React.FC<{ navigation: any }> = ({ navigation }) 
                           {maPending && (
                             <TouchableOpacity
                               style={{ flex: 1, backgroundColor: '#c2410c', paddingVertical: 6, borderRadius: 8, alignItems: 'center', flexDirection: 'row', justifyContent: 'center', gap: 4 }}
-                              onPress={() => { setAdminRectifyRecord(record); setAdminRectifyAction('approve'); setAdminRectifyRemark(''); setAdminRectifySheet(true); }}>
+                              onPress={() => { setAdminRectifyRecord(record); setAdminRectifyAction('approve'); setAdminRectifyRemark(''); setAdminRectifyTime(formatExistingCorrectedTime(record)); setAdminRectifySheet(true); }}>
                               <Icon name="star-outline" size={12} color="#fff" />
                               <Text style={{ color: '#fff', fontSize: 12, fontWeight: '600' }}>Master Admin Review</Text>
                             </TouchableOpacity>
@@ -1230,7 +1297,7 @@ export const AttendanceScreen: React.FC<{ navigation: any }> = ({ navigation }) 
                               <Text style={{ color: '#6b7280', fontSize: 12, fontWeight: '600' }}>Awaiting Next Tier</Text>
                             </View>
                           )}
-                          {!pendingRect && ['Present', 'Late', 'Absent'].includes(record.status) && (
+                          {!pendingRect && canMutateAttendance && ['Present', 'Late', 'Absent'].includes(record.status) && (
                             <TouchableOpacity
                               style={{ flex: 1, backgroundColor: '#dcfce7', paddingVertical: 6, borderRadius: 8, alignItems: 'center', flexDirection: 'row', justifyContent: 'center', gap: 4 }}
                               onPress={() => handleApproveAttendance(record)}>
@@ -1238,7 +1305,7 @@ export const AttendanceScreen: React.FC<{ navigation: any }> = ({ navigation }) 
                               <Text style={{ color: '#16a34a', fontSize: 12, fontWeight: '600' }}>Approve</Text>
                             </TouchableOpacity>
                           )}
-                          {record.checkIn && !record.checkOut && record.status !== 'Miss Punch' && (
+                          {canMutateAttendance && record.checkIn && !record.checkOut && record.status !== 'Miss Punch' && (
                             <TouchableOpacity
                               style={{ flex: 1, backgroundColor: '#f3e8ff', paddingVertical: 6, borderRadius: 8, alignItems: 'center', flexDirection: 'row', justifyContent: 'center', gap: 4 }}
                               onPress={() => { setMarkRecord(record); setMarkRemark(''); }}>
@@ -1447,6 +1514,23 @@ export const AttendanceScreen: React.FC<{ navigation: any }> = ({ navigation }) 
           </View>
         )}
 
+        {/* Friendly 2-working-day window notice (spec) — shown BEFORE submit */}
+        {!rectificationWindowOpen(rectifyRecord) ? (
+          <View style={[s.routingNoticeWarn, { backgroundColor: '#fef2f2', borderColor: '#fecaca' }]}>
+            <Icon name="alert-circle-outline" size={13} color="#b91c1c" />
+            <Text style={[s.routingNoticeWarnText, { color: '#b91c1c' }]}>
+              The 2-working-day correction window for this day has closed, so this record can no longer be changed. Please contact your administrator if you still need a correction.
+            </Text>
+          </View>
+        ) : rectificationDeadlineText(rectifyRecord) ? (
+          <View style={[s.routingNoticeWarn, { backgroundColor: '#eff6ff', borderColor: '#bfdbfe' }]}>
+            <Icon name="information-circle-outline" size={13} color="#1d4ed8" />
+            <Text style={[s.routingNoticeWarnText, { color: '#1d4ed8' }]}>
+              You can submit this correction until {rectificationDeadlineText(rectifyRecord)} (2 working days from the record date, excluding weekends and holidays).
+            </Text>
+          </View>
+        ) : null}
+
         {/* Correct Check-Out Time (matching web's time input) */}
         <View style={{ marginBottom: 12 }}>
           <Text style={{ fontSize: 13, fontWeight: '500', color: colors.text, marginBottom: 6 }}>Correct Check-Out Time</Text>
@@ -1471,8 +1555,8 @@ export const AttendanceScreen: React.FC<{ navigation: any }> = ({ navigation }) 
         </View>
 
         <TouchableOpacity
-          style={[s.submitBtn, { backgroundColor: (!rectifyTime.trim() || submittingRectify) ? '#d1d5db' : '#8b5cf6' }]}
-          disabled={!rectifyTime.trim() || submittingRectify}
+          style={[s.submitBtn, { backgroundColor: (!rectifyTime.trim() || !rectifyNote.trim() || submittingRectify || !rectificationWindowOpen(rectifyRecord)) ? '#d1d5db' : '#8b5cf6' }]}
+          disabled={!rectifyTime.trim() || !rectifyNote.trim() || submittingRectify || !rectificationWindowOpen(rectifyRecord)}
           onPress={handleRectify}>
           {submittingRectify ? (
             <ActivityIndicator size={16} color="#fff" />
@@ -1486,7 +1570,7 @@ export const AttendanceScreen: React.FC<{ navigation: any }> = ({ navigation }) 
       {/* ── ADMIN RECTIFY SHEET (tier review, matching web's missed punch review modal) ── */}
       <PremiumBottomSheet
         visible={adminRectifySheet}
-        onClose={() => { setAdminRectifySheet(false); setAdminRectifyRemark(''); }}
+        onClose={() => { setAdminRectifySheet(false); setAdminRectifyRemark(''); setAdminRectifyTime(''); }}
         title={adminRectifyRecord ? rectifyTitleFor(adminRectifyRecord) : 'Missed Punch — Verification'}>
         <Text style={{ fontSize: 13, color: colors.textSecondary, marginBottom: 4 }}>
           {adminRectifyRecord?.name} missed checkout on {adminRectifyRecord ? formatDateShort(adminRectifyRecord.date) : ''}.
@@ -1530,6 +1614,14 @@ export const AttendanceScreen: React.FC<{ navigation: any }> = ({ navigation }) 
             </View>
           );
         })()}
+
+        {/* Optional corrected check-out (web parity — a reviewer may adjust
+            the proposed time before deciding; persisted via editMissedPunch). */}
+        <View style={{ marginBottom: 12 }}>
+          <Text style={{ fontSize: 13, fontWeight: '600', color: colors.text, marginBottom: 6 }}>Correct Check-Out Time (HH:MM)</Text>
+          <TextInput style={{ backgroundColor: colors.background, borderWidth: 1, borderColor: colors.border, borderRadius: 12, padding: 14, color: colors.text, fontSize: 14 }}
+            placeholder="HH:MM" placeholderTextColor={colors.textTertiary} value={adminRectifyTime} onChangeText={setAdminRectifyTime} autoCapitalize="none" />
+        </View>
 
         <View style={{ fontSize: 14 } as any}>
           <Text style={{ fontSize: 13, fontWeight: '600', color: colors.text, marginBottom: 6 }}>Remark / Reason *</Text>

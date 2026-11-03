@@ -190,17 +190,23 @@ export async function readPartitions(caller: Caller): Promise<string[]> {
 /**
  * Partitions a `GET /api/users` listing may read for this caller.
  *
- * `?role=master-admin` is the platform-master lookup every authenticated role
- * performs (executive/TL self-submissions resolving the MA approval gate,
- * CA-registration fan-out, manager-inbox notifications). Master Admin docs
- * live in the 'global' platform partition, which company-scoped callers
- * (executive → assigned companies, employee/CA/HR → own company) never
- * enumerate — without appending it the lookup came back empty and clients
- * raised "Master Admin is not assigned" on every submission.
+ * The SYSTEM-LEVEL roles (Master Admin created — see types.ts) all live in the
+ * 'global' platform partition, which company-scoped callers (executive →
+ * assigned companies, employee/CA/HR/RM → own company) never enumerate.
+ * Without appending it their lookup came back empty and clients raised a
+ * configuration error on every submission:
+ *   - `?role=master-admin` → "Master Admin is not assigned"
+ *   - `?role=executive`    → "Executive, Team Leader are not assigned"
+ *     (the missed-punch guard: the Team Leader tier resolves THROUGH the
+ *     executive — company doc → executive → assignedTeamLeaderIds/linked TLs —
+ *     so an invisible executive also emptied the TL slot).
+ * The `userDocVisible` filter still fences every other company's rows; only
+ * the platform partition is added to the enumeration.
  */
 export function userListingPartitions(caller: Caller, partitions: string[], roleFilter?: string): string[] {
   if (isSuperAdmin(caller)) return partitions;
-  if (String(roleFilter ?? '') !== 'master-admin') return partitions;
+  const PLATFORM_ROLES = new Set(['master-admin', 'executive', 'team-leader']);
+  if (!PLATFORM_ROLES.has(String(roleFilter ?? ''))) return partitions;
   return partitions.includes('global') ? partitions : [...partitions, 'global'];
 }
 

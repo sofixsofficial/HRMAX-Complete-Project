@@ -13,7 +13,7 @@ import { createNotification, fanOutNotifications, notifyApprovalDecision } from 
 import { ApiError, newId, isoNow, TIER_ORDER, resolveApprovalChain, type ApprovalChainConfig, type AttendanceDoc, type AttendanceStatus, type LeaveTier, type UserRole } from '../lib/types.js';
 
 const GRACE_PERIOD_MINUTES = 15;
-const OVERTIME_THRESHOLD_MINUTES = 30;
+export const OVERTIME_THRESHOLD_MINUTES = 30;
 const EARTH_RADIUS_M = 6371000;
 
 /** Product default zone — matches the nightly sweep and the web client default. */
@@ -69,12 +69,12 @@ export function haversine(lat1: number, lon1: number, lat2: number, lon2: number
   return EARTH_RADIUS_M * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
 }
 
-function hhmmToMinutes(hhmm: string): number {
+export function hhmmToMinutes(hhmm: string): number {
   const [h, m] = hhmm.split(':').map(Number);
   return h * 60 + m;
 }
 
-interface AttendancePolicy {
+export interface AttendancePolicy {
   defaultShiftStart: string;
   defaultShiftEnd: string;
   gracePeriodMinutes: number;
@@ -103,7 +103,7 @@ export function normalizePolicyFlags(raw: (Partial<AttendancePolicy> & { enableG
   };
 }
 
-async function getPolicy(companyId: string): Promise<AttendancePolicy> {
+export async function getPolicy(companyId: string): Promise<AttendancePolicy> {
   const docs = await queryEntities<(Partial<AttendancePolicy> & {
     id: string;
     enableGeofence?: boolean;
@@ -199,6 +199,46 @@ async function writeLog(entry: Record<string, unknown>): Promise<void> {
     { id: newId(), companyId: String(entry.companyId ?? 'global'), createdAt: isoNow(), timestamp: isoNow(), ...entry },
     { entity: 'attendanceLog', userIdField: 'userId', tsField: 'timestamp' },
   );
+}
+
+/**
+ * Pure authorization decision for `PATCH /api/attendance/:id` (exported for
+ * tests). Allows: manage permission, a stamped missed-punch tier approver,
+ * the record owner touching only punch/rectification fields (matched on the
+ * ROOT segment so dotted field paths like `missedPunchRectification.requested`
+ * pass — the owner's first rectification submission was previously rejected
+ * with 403), or the natural role holder of the ACTIVE pending tier (legacy
+ * unstamped records — same tier→role mapping as the review route).
+ */
+export function attendancePatchAuthorized(args: {
+  isOwn: boolean;
+  canManage: boolean;
+  stampedApprover: boolean;
+  patchKeys: string[];
+  rect?: { approvalStatus?: Partial<Record<LeaveTier, string>> };
+  callerRole: UserRole;
+  /** Holds `attendance.approve` — may stamp the Miss-Punch flag on a report. */
+  canApprove?: boolean;
+}): boolean {
+  const { isOwn, canManage, stampedApprover, patchKeys, rect, callerRole, canApprove } = args;
+  if (canManage || stampedApprover) return true;
+  if (patchKeys.length === 0) return false;
+  const rootOf = (k: string) => k.split('.')[0];
+  // Miss-Punch marking is an APPROVE-class action: the record has no
+  // rectification yet (so no stamp, and `status` is not an owner field).
+  // Reporting Managers hold `attendance.approve` but NOT `attendance.manage`,
+  // so without this branch their "Miss Punch" button 403'd and — for RM-driven
+  // orgs — `status = 'Miss Punch'` was never written, which meant the whole
+  // rectification feature never became reachable (no Rectify button at all).
+  const MISS_PUNCH_MARK_KEYS = ['status', 'missPunchRemark', 'missPunchMarkedBy', 'missPunchMarkedByName', 'missPunchMarkedAt'];
+  if (canApprove && !isOwn && patchKeys.every((k) => MISS_PUNCH_MARK_KEYS.includes(k))) return true;
+  const ownAllowed = ['checkOut', 'workHours', 'overtimeHours', 'isAutoApproved', 'approved', 'approvedOn', 'approvedByName', 'missedPunchRectification'];
+  if (isOwn && patchKeys.every((k) => ownAllowed.includes(rootOf(k)))) return true;
+  const roleForTier: Record<string, UserRole[]> = { reportingManager: ['reporting-manager'], hr: ['hr'], companyAdmin: ['company-admin'], executive: ['executive'], teamLeader: ['team-leader'] };
+  const nextTier = TIER_ORDER.find((t) => rect?.approvalStatus?.[t] === 'Pending');
+  const rectOnly = patchKeys.every((k) => rootOf(k) === 'missedPunchRectification');
+  if (rectOnly && nextTier && roleForTier[nextTier]?.includes(callerRole)) return true;
+  return false;
 }
 
 export const attendanceRoutes: Route[] = [
@@ -719,17 +759,19 @@ export const attendanceRoutes: Route[] = [
       delete patch.companyId;
 
       if (!isSuperAdmin(caller)) {
-        // Firestore attendance update rule: manage permission, a stamped
-        // missed-punch tier approver, or the owner touching only punch fields.
-        const isOwn = rec.userId === caller.uid;
-        const stampedApprover = Object.values(rec.missedPunchRectification?.approverIds ?? {}).includes(caller.uid);
-        const canManage = hasPermission(caller, 'attendance.manage');
-        const ownAllowed = ['checkOut', 'workHours', 'overtimeHours', 'isAutoApproved', 'approved', 'approvedOn', 'approvedByName', 'missedPunchRectification'];
-        const ownPatch = isOwn && Object.keys(patch).every((k) => ownAllowed.includes(k));
-        if (!canManage && !stampedApprover && !ownPatch) {
+        const allowed = attendancePatchAuthorized({
+          isOwn: rec.userId === caller.uid,
+          canManage: hasPermission(caller, 'attendance.manage'),
+          stampedApprover: Object.values(rec.missedPunchRectification?.approverIds ?? {}).includes(caller.uid),
+          patchKeys: Object.keys(patch),
+          rect: rec.missedPunchRectification,
+          callerRole: caller.role,
+          canApprove: hasPermission(caller, 'attendance.approve'),
+        });
+        if (!allowed) {
           throw new ApiError('permission-denied', 'Cannot update this attendance record');
         }
-        if (!isOwn) assertCompanyScope(caller, String(rec.companyId ?? ''));
+        if (rec.userId !== caller.uid) assertCompanyScope(caller, String(rec.companyId ?? ''));
       }
 
       const updated = await patchEntity<AttendanceDoc>('attendance', found.companyId, rec.id, patch, {

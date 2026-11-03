@@ -506,8 +506,7 @@ export const getActionableMissedPunchTier = (
   if (approverId === uid) return next;
   if (approverId) return null;
   if ((role === 'reporting-manager' || role === 'hr-manager') && next === 'reportingManager') return next;
-  if (role === 'hr' && next === 'hr') return next;
-  if (role === 'hr' && next === 'hr') return next;
+  if ((role === 'hr' || role === 'hr-manager') && next === 'hr') return next;
   if (role === 'company-admin' && next === 'companyAdmin') return next;
   if (role === 'executive' && next === 'executive') return next;
   if (role === 'team-leader' && next === 'teamLeader') return next;
@@ -690,17 +689,52 @@ export const computeMissedPunchRouting = (
   return { currentTier: null, assignee: '' }
 }
 
+/**
+ * Resolve an approver reference to an auth uid. The employee form stores the
+ * manager as `e.userId || e.id`, so the stamp is often an employee-DOCUMENT
+ * id — a value that matches no user doc. Such a stamp makes the tier look
+ * "assigned to someone else", so the natural role holder never sees the
+ * Approve/Reject controls and the chain stalls at tier 1 forever.
+ *
+ * Returns the input unchanged when it already resolves to a user, and the
+ * employee document's `userId` when it resolves to an employee row instead.
+ */
+const normalizeApproverToUid = async (candidate: string, companyId: string): Promise<string> => {
+  if (!candidate) return '';
+  try {
+    const asUser = await getDoc(doc(db, 'users', candidate));
+    if (asUser.exists()) return candidate;
+  } catch {}
+  try {
+    const empRow = await getDoc(doc(db, 'employees', candidate));
+    if (empRow.exists()) {
+      const uid = String(empRow.data().userId ?? '');
+      if (uid) return uid;
+    }
+  } catch {}
+  // Unknown reference — keep it so the guard still reports the truth rather
+  // than silently re-routing the approval to somebody unassigned.
+  return candidate;
+};
+
 // Resolve the missed-punch approver ids (shared with the leave chain logic
 // mirrored here so a single employee always has a consistent same-company chain).
-const resolveMissedPunchApproverIds = async (companyId: string, employeeUserId: string): Promise<Record<ApprovalTier, string>> => {
-  const ids: Record<ApprovalTier, string> = { reportingManager: '', hr: '', companyAdmin: '', executive: '', teamLeader: '' };
+const resolveMissedPunchApproverIds = async (companyId: string, employeeUserId: string): Promise<Record<ApprovalTier, string>> => {  const ids: Record<ApprovalTier, string> = { reportingManager: '', hr: '', companyAdmin: '', executive: '', teamLeader: '' };
 
   // 1. Reporting Manager (live 1st tier for employees; auto-skipped when unassigned).
   const empQuery = query(collection(db, 'employees'), where('userId', '==', employeeUserId));
   const empSnap = await getDocs(empQuery);
   if (!empSnap.empty) {
     const empData = empSnap.docs[0].data();
-    if (empData.reportingManagerId) ids.reportingManager = empData.reportingManagerId;
+    if (empData.reportingManagerId) {
+      // Employees.tsx offers `e.userId || e.id` as the manager picker value, so
+      // the stamp is OFTEN an employee-DOCUMENT id rather than the auth uid.
+      // A non-empty-but-wrong stamp made the tier look "assigned to someone
+      // else" → the natural role holder got no Approve/Reject button → the
+      // chain stalled at tier 1 forever. Normalise to the uid at request time.
+      const rawRm = String(empData.reportingManagerId);
+      ids.reportingManager = await normalizeApproverToUid(rawRm, companyId);
+    }
   }
 
   // 1b. HR — the tier between the reporting manager and the company admin.
@@ -722,18 +756,30 @@ const resolveMissedPunchApproverIds = async (companyId: string, employeeUserId: 
   //    TL approver, so the record routes onward instead of stalling.
   ids.teamLeader = await resolveTLForCompany(companyId);
 
-  // 4. Executive
+  // 4. Executive — company assignment first (Companies → Assigned Executive;
+  //    some flows write ONLY the company doc), then the executive whose
+  //    assignedCompanyIds contains this company. Same discovery order as
+  //    resolveTLForCompany and the backend's resolveStakeholders.
   try {
-    const execQuery = query(collection(db, 'users'), where('role', '==', 'executive'));
-    const execSnap = await getDocs(execQuery);
-    for (const d of execSnap.docs) {
-      const data = d.data();
-      if (data.assignedCompanyIds?.includes(companyId)) {
-        ids.executive = d.id;
-        break;
-      }
+    const comp: any = await getCompanyById(companyId).catch(() => null);
+    if (comp?.assignedExecutiveId) ids.executive = String(comp.assignedExecutiveId);
+    if (!ids.executive && Array.isArray(comp?.assignedExecutiveIds) && comp.assignedExecutiveIds.length > 0) {
+      ids.executive = String(comp.assignedExecutiveIds[0]);
     }
   } catch {}
+  if (!ids.executive) {
+    try {
+      const execQuery = query(collection(db, 'users'), where('role', '==', 'executive'));
+      const execSnap = await getDocs(execQuery);
+      for (const d of execSnap.docs) {
+        const data = d.data();
+        if (data.assignedCompanyIds?.includes(companyId)) {
+          ids.executive = d.id;
+          break;
+        }
+      }
+    } catch {}
+  }
 
   return ids;
 };
@@ -750,6 +796,19 @@ export const requestPunchRectification = async (
   const data = snapshot.data();
   const companyId = data.companyId || '';
 
+  // A rectification that is already requested and still in-flight must NOT be
+  // re-submitted: this function rewrites approvalLog/approvalStatus from
+  // scratch, so one stray re-click silently reset every already-Granted tier
+  // back to Pending and wiped the audit log.
+  const existingMp = data.missedPunchRectification;
+  if (existingMp?.requested && !existingMp?.resolved) {
+    throw new Error(
+      existingMp.status === 'Rejected'
+        ? 'This rectification was rejected. A new request has already been raised — wait for its decision.'
+        : 'This rectification is already under review. You cannot submit it again until a decision is made.'
+    );
+  }
+
   // Missed-punch corrections only within the 2-working-day window.
   const recDate = data.date?.toDate ? data.date.toDate() : data.date || null
   if (recDate) {
@@ -763,6 +822,10 @@ export const requestPunchRectification = async (
   // submissions (they are also registered employees): their corrections route
   // DIRECTLY to the Master Admin as a single-step decision.
   const applicantRole = await resolveApplicantRole(data.userId || '');
+  // Spec: the Company Admin is a verification node only — no self-application.
+  if (applicantRole === 'company-admin') {
+    throw new Error('Company Admin cannot submit a personal missed-punch rectification — please contact your Master Admin.');
+  }
   const masterAdminRequired = MANAGEMENT_SELF_SERVICE_ROLES.has(applicantRole);
   const masterAdminApproverId = masterAdminRequired ? await resolveMasterAdminApproverId() : '';
 
@@ -834,6 +897,13 @@ export const requestPunchRectification = async (
     'missedPunchRectification.masterAdminRequired': masterAdminRequired,
     'missedPunchRectification.masterAdminApproverId': masterAdminApproverId,
     ...(masterAdminRequired ? { 'missedPunchRectification.masterAdminApproveStatus': 'Pending' } : {}),
+    // Spec payload: the mandatory submission fields, packaged on every request.
+    'missedPunchRectification.employeeId': data.userId || '',
+    'missedPunchRectification.date': recDate ? new Date(recDate).toISOString() : '',
+    'missedPunchRectification.missedPunchType': !data.checkIn && !data.checkOut ? 'Both' : !data.checkIn ? 'In' : 'Out',
+    'missedPunchRectification.requestedTime': correctedCheckOut.toISOString(),
+    'missedPunchRectification.reason': employeeRemark || '',
+    'missedPunchRectification.currentTierStatus': 1,
     ...Object.fromEntries(Object.entries(computeMissedPunchFlags(approvalStatus)).map(([k, v]) => [`missedPunchRectification.${k}`, v])),
   });
 
@@ -1110,10 +1180,14 @@ export const reviewMasterAdminMissedPunch = async (
     'missedPunchRectification.masterAdminNote': reviewNote || '',
     'missedPunchRectification.approvalLog': newApprovalLog,
     'missedPunchRectification.status': overallStatus,
-    'missedPunchRectification.resolved': overallStatus === 'Approved',
-    'missedPunchRectification.resolvedAt': overallStatus === 'Approved' ? serverTimestamp() : null,
-    'missedPunchRectification.resolvedBy': overallStatus === 'Approved' ? reviewedBy : null,
-    'missedPunchRectification.resolvedByName': overallStatus === 'Approved' ? reviewedByName : null,
+    // Both outcomes are TERMINAL: a rejection must also flip `resolved`,
+    // otherwise the record keeps counting as an active missed punch forever
+    // (dashboard card never drops) and the employee can never re-request.
+    // Only the Approved path applies the correction (below).
+    'missedPunchRectification.resolved': true,
+    'missedPunchRectification.resolvedAt': serverTimestamp(),
+    'missedPunchRectification.resolvedBy': reviewedBy,
+    'missedPunchRectification.resolvedByName': reviewedByName,
     'missedPunchRectification.remark': reviewNote || '',
   });
 
@@ -1211,7 +1285,17 @@ export const resolvePunchRectification = async (
   }
 };
 
-/** Authorized managers can edit a rectification's corrected checkout + remark. */
+/**
+ * Authorized managers can edit a rectification's corrected checkout + remark
+ * WHILE the chain is still pending.
+ *
+ * This must NOT touch the top-level `checkOut`/`workHours` or stamp any
+ * `resolved*` field — the correction is only applied once every tier (and the
+ * master-admin gate) has approved, by `applyMissedPunchResolution`. Writing the
+ * check-out here meant a later tier's rejection left an UNAPPROVED check-out on
+ * a record still marked "Miss Punch", and `resolvedAt` with `resolved:false`
+ * broke the meaning of "resolved".
+ */
 export const editMissedPunch = async (
   attendanceId: string,
   correctedCheckOut: Date,
@@ -1222,18 +1306,13 @@ export const editMissedPunch = async (
   const docRef = doc(db, COLLECTION_NAME, attendanceId);
   const snapshot = await getDoc(docRef);
   if (!snapshot.exists()) return;
-  const data = snapshot.data();
-  const checkInTime = data.checkIn?.toDate ? data.checkIn.toDate() : data.checkIn || new Date();
-  const workHours = (correctedCheckOut.getTime() - checkInTime.getTime()) / (1000 * 60 * 60);
 
   await updateDoc(docRef, {
-    checkOut: correctedCheckOut,
-    workHours: Math.round(workHours * 100) / 100,
     'missedPunchRectification.correctedCheckOut': correctedCheckOut,
     'missedPunchRectification.remark': remark || '',
-    'missedPunchRectification.resolvedBy': editedBy,
-    'missedPunchRectification.resolvedByName': editedByName,
-    'missedPunchRectification.resolvedAt': serverTimestamp(),
+    'missedPunchRectification.editedBy': editedBy,
+    'missedPunchRectification.editedByName': editedByName,
+    'missedPunchRectification.editedAt': serverTimestamp(),
   });
 };
 

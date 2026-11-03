@@ -157,14 +157,19 @@ test('scopedCompanyIds: master-admin unscoped, employee single-company', () => {
   assert.deepEqual(auth.scopedCompanyIds(caller({ role: 'executive', companyId: 'x', assignedCompanyIds: ['a', 'b'] })), ['a', 'b']);
 });
 
-test('userListingPartitions: role=master-admin appends the global platform partition', () => {
-  // Executive scope = assigned companies only; the MA doc lives in 'global',
-  // so the lookup must widen there (regression: "Master Admin is not assigned").
+test('userListingPartitions: system-level role filters widen to the global platform partition', () => {
+  // Executive scope = assigned companies only; system-level docs live in
+  // 'global', so the lookup must widen there (regressions: "Master Admin is
+  // not assigned", "Executive, Team Leader are not assigned").
   const exec = caller({ role: 'executive', companyId: 'global', assignedCompanyIds: ['a', 'b'] });
   assert.deepEqual(auth.userListingPartitions(exec, ['a', 'b'], 'master-admin'), ['a', 'b', 'global']);
-  // No role filter (or a different role) keeps the caller's partitions as-is.
+  // The missed-punch guard resolves the executive (global partition) and the
+  // team leader THROUGH it — both role filters must see the platform rows.
+  assert.deepEqual(auth.userListingPartitions(exec, ['a', 'b'], 'executive'), ['a', 'b', 'global']);
+  assert.deepEqual(auth.userListingPartitions(exec, ['a', 'b'], 'team-leader'), ['a', 'b', 'global']);
+  // No role filter (or a company-scoped role) keeps the caller's partitions as-is.
   assert.deepEqual(auth.userListingPartitions(exec, ['a', 'b'], undefined), ['a', 'b']);
-  assert.deepEqual(auth.userListingPartitions(exec, ['a', 'b'], 'team-leader'), ['a', 'b']);
+  assert.deepEqual(auth.userListingPartitions(exec, ['a', 'b'], 'hr'), ['a', 'b']);
   // Already including global (team-leader reads every partition) -> no dup.
   assert.deepEqual(auth.userListingPartitions(exec, ['global'], 'master-admin'), ['global']);
   // Super-admin partitions are never adjusted here.
