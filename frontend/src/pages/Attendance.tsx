@@ -137,10 +137,15 @@ const [submittingRectify, setSubmittingRectify] = useState(false)
   const isTeamLeader = role === 'team-leader'
   const isExecutive = role === 'executive'
   const isReportingManager = role === 'reporting-manager' || role === 'hr-manager'
+  // HR is a full verification tier in the missed-punch chain (RM → HR → CA →
+  // Exec → TL). It was missing from `canManage`, so the HR page rendered NO
+  // Actions column at all: HR received the "needs your review" notification
+  // but had nowhere to press Approve/Reject — the chain stalled at tier 2.
+  const isHR = role === 'hr'
   const canCheckInOut = isEmployee || isReportingManager || isExecutive || isTeamLeader || isMasterAdmin
   const showOrgColumns = isMasterAdmin || isExecutive || isTeamLeader
   const contingency = useContingencyAccess()
-  const canManage = isMasterAdmin || isCompanyAdmin || isExecutive || isReportingManager || isTeamLeader
+  const canManage = isMasterAdmin || isCompanyAdmin || isExecutive || isReportingManager || isTeamLeader || isHR
   // Attendance MUTATION class: `attendance.manage` (full) OR `attendance.approve`
   // (Reporting Managers hold approve but NOT manage — see
   // types.ts REPORTING_MANAGER_PERMISSIONS). Without the approve fallback the
