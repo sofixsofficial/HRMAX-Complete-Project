@@ -160,6 +160,8 @@ export const MasterAdminDashboard: React.FC<{ navigation: any }> = ({ navigation
   // desktop mouse wheel only produces vertical deltas — bridge them to
   // horizontal scrolling on web so the row actually scrolls in the browser.
   const quickRowRef = React.useRef<ScrollView>(null);
+  // "View Details →" in the hero scrolls the dashboard content below it.
+  const heroScrollRef = React.useRef<ScrollView>(null);
   useEffect(() => {
     if (Platform.OS !== 'web') return;
     const node: any = (quickRowRef.current as any)?.getScrollableNode?.();
@@ -266,12 +268,13 @@ export const MasterAdminDashboard: React.FC<{ navigation: any }> = ({ navigation
   if (loading && !refreshing) return <DashboardSkeleton />;
 
   return (
-    <ScrollView style={s.container} refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor="#FF6600" />}>
+    <ScrollView ref={heroScrollRef} style={s.container} refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor="#FF6600" />}>
       <DashboardHero
         name={user?.name || 'Master Admin'}
         roleLabel="Master Admin"
         subtitle="Here's what's happening across your organisation today."
         showAttendance={false}
+        onViewDetails={() => heroScrollRef.current?.scrollTo({ y: 330, animated: true })}
         stats={[
           { label: 'Present', value: stats.presentToday, color: '#10b981' },
           { label: 'Absent', value: stats.absentToday, color: '#ef4444' },

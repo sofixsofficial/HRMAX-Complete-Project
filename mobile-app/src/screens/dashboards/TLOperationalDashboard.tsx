@@ -372,16 +372,22 @@ export const TLOperationalDashboard: React.FC<{ navigation: any }> = ({ navigati
     if (!loading) setRefreshing(false);
   }, [loading]);
 
+  // "View Details →" scrolls the dashboard content below the hero (both
+  // return branches share this ref — only one ever mounts).
+  const heroScrollRef = React.useRef<ScrollView>(null);
+  const scrollToDetails = () => heroScrollRef.current?.scrollTo({ y: 330, animated: true });
+
   if (loading && !refreshing) return <DashboardSkeleton />;
 
   if (availableCompanies.length === 0) {
     return (
-      <ScrollView style={s.container} refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor="#FF6600" />}>
+      <ScrollView ref={heroScrollRef} style={s.container} refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor="#FF6600" />}>
         <DashboardHero
           name={user?.name || 'Team Leader'}
           roleLabel="Team Leader"
           subtitle="You don't have any companies assigned to your account."
           stats={[]}
+          onViewDetails={scrollToDetails}
         />
         <View style={s.zeroState}>
           <Icon name="business-outline" size={40} color={colors.textTertiary} />
@@ -412,11 +418,12 @@ export const TLOperationalDashboard: React.FC<{ navigation: any }> = ({ navigati
   }
 
   return (
-    <ScrollView style={s.container} refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor="#FF6600" />}>
+    <ScrollView ref={heroScrollRef} style={s.container} refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor="#FF6600" />}>
       <DashboardHero
         name={user?.name || 'Team Leader'}
         roleLabel="Team Leader"
         subtitle="Here's your team's activity for today."
+        onViewDetails={scrollToDetails}
         stats={[
           { label: 'Present', value: stats.presentToday, color: '#10b981' },
           { label: 'Absent', value: stats.absentToday, color: '#ef4444' },

@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import {
   AlertCircle,
+  ArrowRight,
   BarChart3,
   Calendar,
   CheckCircle2,
@@ -9,6 +10,7 @@ import {
   Loader2,
   LogIn,
   LogOut,
+  MapPin,
   Percent,
   Umbrella,
   User,
@@ -318,9 +320,17 @@ function HeroAttendance({ badge }: { badge: string }) {
 
 export function DashboardHero({ stats, badge, showAttendance = true }: DashboardHeroProps) {
   const { user } = useAuth()
-  const { dateLong } = useClock()
+  const { now, tz, time, location } = useClock()
   const roleBadge = badge || roleDepartmentLabel(user)
   const displayName = user?.name || roleBadge
+
+  // "View Details" — smooth-jump to the dashboard detail cards right below
+  // the hero (never a dead link).
+  const scrollToDetails = () => {
+    const hero = document.querySelector('.hero')
+    const target = hero?.nextElementSibling ?? document.querySelector('.stats-grid')
+    if (target instanceof HTMLElement) target.scrollIntoView({ behavior: 'smooth', block: 'start' })
+  }
 
   return (
     <section className="hero" aria-label="Welcome summary">
@@ -334,18 +344,34 @@ export function DashboardHero({ stats, badge, showAttendance = true }: Dashboard
         </svg>
 
         <div className="welcome">
-          <div className="hero-head">
-            <div className="hero-greet">
-              <div className="hero-greet-text">
-                <small>Welcome back,</small>
-                <h2 className="hero-name">{displayName}</h2>
-                <span className="hero-date">{dateLong}</span>
-              </div>
-            </div>
-            <div className="hero-wordmark" aria-label="HRMAX">
-              <span className="wm-hr">HR</span>
-              <span className="wm-max">MAX</span>
-            </div>
+          <div className="hero-greet">
+            <small>👋 Welcome back,</small>
+          </div>
+          <h2 className="hero-name">{displayName}</h2>
+          <p className="hero-sub">Here's what's happening with your organization today.</p>
+
+          {/* Live date / time / real device location pills */}
+          <div className="hero-meta" aria-label="Current date and time">
+            <span className="meta-pill">
+              <Calendar size={14} aria-hidden="true" />
+              {formatInZone(now, tz, { weekday: 'short', month: 'short', day: 'numeric', year: 'numeric' })}
+            </span>
+            <span className="meta-pill">
+              <Clock3 size={14} aria-hidden="true" />
+              {time}
+            </span>
+            {location && (
+              <span className="meta-pill">
+                <MapPin size={14} aria-hidden="true" />
+                {location}
+              </span>
+            )}
+          </div>
+
+          <div className="hero-cta-row">
+            <button type="button" className="hero-cta" onClick={scrollToDetails}>
+              View Details <ArrowRight size={16} aria-hidden="true" />
+            </button>
           </div>
 
           {showAttendance ? (
@@ -359,6 +385,70 @@ export function DashboardHero({ stats, badge, showAttendance = true }: Dashboard
               </span>
             </div>
           )}
+        </div>
+
+        {/* Right side: tagline + flat illustration (decorative) */}
+        <div className="hero-art" aria-hidden="true">
+          <div className="art-tagline">
+            <span className="art-line1">Work Smart,</span>
+            <span className="art-line2">Grow Together!</span>
+            <svg className="art-swoosh" viewBox="0 0 130 12" fill="none" aria-hidden="true" focusable="false">
+              <path d="M4 8 C 38 2 92 2 126 7" stroke="#f97316" strokeWidth="4" strokeLinecap="round" />
+            </svg>
+          </div>
+          <svg className="art-scene" viewBox="0 0 320 260" aria-hidden="true" focusable="false">
+            {/* soft blob */}
+            <circle cx="170" cy="148" r="104" fill="#dbe9fb" opacity="0.6" />
+            {/* sparkles */}
+            <circle cx="106" cy="44" r="4" fill="#f97316" opacity="0.85" />
+            <circle cx="122" cy="62" r="3" fill="#2563eb" opacity="0.7" />
+            <circle cx="200" cy="52" r="3.5" fill="#93c5fd" />
+            <circle cx="40" cy="140" r="3.5" fill="#f97316" opacity="0.6" />
+            {/* calendar card */}
+            <rect x="30" y="28" width="62" height="62" rx="14" fill="#ffffff" stroke="#dbe7f8" strokeWidth="2" />
+            <rect x="44" y="20" width="7" height="16" rx="3.5" fill="#1d4ed8" />
+            <rect x="70" y="20" width="7" height="16" rx="3.5" fill="#1d4ed8" />
+            <rect x="44" y="48" width="34" height="28" rx="6" fill="#eff6ff" />
+            <path d="M52 62 l8 8 l14 -16" stroke="#16a34a" strokeWidth="4" fill="none" strokeLinecap="round" strokeLinejoin="round" />
+            {/* people card */}
+            <rect x="234" y="30" width="74" height="58" rx="14" fill="#ffffff" stroke="#dbe7f8" strokeWidth="2" />
+            <circle cx="256" cy="52" r="9" fill="#2563eb" />
+            <path d="M243 74 c0-8 6-13 13-13 s13 5 13 13 z" fill="#2563eb" />
+            <circle cx="286" cy="54" r="8" fill="#93c5fd" />
+            <path d="M275 74 c0-7 5-11 11-11 s11 4 11 11 z" fill="#93c5fd" />
+            {/* growth chart card */}
+            <rect x="238" y="118" width="74" height="66" rx="14" fill="#ffffff" stroke="#dbe7f8" strokeWidth="2" />
+            <rect x="250" y="152" width="11" height="20" rx="3" fill="#fdba74" />
+            <rect x="267" y="142" width="11" height="30" rx="3" fill="#fb923c" />
+            <rect x="284" y="132" width="11" height="40" rx="3" fill="#f97316" />
+            <path d="M250 146 L267 136 L280 128 L300 122" stroke="#12294a" strokeWidth="3" fill="none" strokeLinecap="round" strokeLinejoin="round" />
+            <circle cx="300" cy="122" r="4" fill="#12233f" />
+            {/* desk */}
+            <rect x="56" y="239" width="200" height="9" rx="4.5" fill="#b9d2f7" />
+            {/* plant */}
+            <path d="M64 219 h30 l-4 20 h-22 z" fill="#cbd5e1" />
+            <rect x="60" y="212" width="38" height="9" rx="4" fill="#94a3b8" />
+            <path d="M79 212 c0-16 -8-26 -20-30 c4 16 10 24 20 30 z" fill="#22c55e" />
+            <path d="M79 212 c0-14 8-24 20-27 c-4 14-10 22-20 27 z" fill="#16a34a" />
+            {/* person */}
+            <rect x="152" y="124" width="16" height="16" rx="4" fill="#e8a87c" />
+            <path d="M124 196 c0-32 16-54 36-54 s36 22 36 54 z" fill="#1d3f8f" />
+            <path d="M148 146 l12 18 l12 -18 z" fill="#ffffff" />
+            <path d="M160 164 l5 6 l-3 16 l-4 -16 z" fill="#f97316" />
+            <circle cx="160" cy="104" r="27" fill="#f5c9a4" />
+            <path d="M133 104 c0-18 12-30 27-30 s27 12 27 30 c-4-11-13-17-27-17 s-23 6-27 17 z" fill="#12233f" />
+            <circle cx="151" cy="106" r="2.6" fill="#12233f" />
+            <circle cx="169" cy="106" r="2.6" fill="#12233f" />
+            <path d="M152 117 q8 7 16 0" stroke="#12233f" strokeWidth="2.5" fill="none" strokeLinecap="round" />
+            {/* thumbs-up arm */}
+            <path d="M195 172 c14-4 23-16 25-30" stroke="#1d3f8f" strokeWidth="15" fill="none" strokeLinecap="round" />
+            <circle cx="222" cy="134" r="11" fill="#f5c9a4" />
+            <rect x="218" y="118" width="8" height="15" rx="4" fill="#f5c9a4" />
+            {/* laptop */}
+            <rect x="108" y="176" width="104" height="56" rx="7" fill="#12294a" />
+            <text x="160" y="210" fontSize="15" fontWeight="800" fill="#ffffff" textAnchor="middle">HRMAX</text>
+            <rect x="100" y="232" width="120" height="7" rx="3.5" fill="#1e3a8a" />
+          </svg>
         </div>
       </div>
 

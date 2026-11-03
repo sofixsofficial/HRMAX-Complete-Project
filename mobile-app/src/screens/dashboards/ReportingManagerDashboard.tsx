@@ -130,12 +130,16 @@ export const ReportingManagerDashboard: React.FC<{ navigation: any }> = ({ navig
 
   const canAddLeave = !!(leaveTarget && leaveType && leaveStart && leaveEnd && leaveReason);
 
+  // "View Details →" scrolls the dashboard content below the hero.
+  const heroScrollRef = React.useRef<ScrollView>(null);
+
   return (
-    <ScrollView style={s.container} refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor="#FF6600" />}>
+    <ScrollView ref={heroScrollRef} style={s.container} refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor="#FF6600" />}>
       <DashboardHero
         name={user?.name || 'Manager'}
         roleLabel={(user as any)?.department || 'Reporting Manager'}
         subtitle={`Managing ${team.directReports} direct report${team.directReports === 1 ? '' : 's'}`}
+        onViewDetails={() => heroScrollRef.current?.scrollTo({ y: 330, animated: true })}
         stats={[
           { label: 'Present', value: team.presentToday, color: '#10b981' },
           { label: 'Leaves', value: team.pendingLeaves, color: '#f59e0b' },

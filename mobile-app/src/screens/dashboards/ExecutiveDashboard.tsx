@@ -91,14 +91,18 @@ export const ExecutiveDashboard: React.FC<{ navigation: any }> = ({ navigation }
 
   const noCompanies = availableCompanies.length === 0;
 
+  // "View Details →" scrolls the dashboard content below the hero.
+  const heroScrollRef = React.useRef<ScrollView>(null);
+
   return (
-    <ScrollView style={s.container} refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor="#FF6600" />}>
+    <ScrollView ref={heroScrollRef} style={s.container} refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor="#FF6600" />}>
       <DashboardHero
         name={user?.name || 'Executive'}
         roleLabel="Executive"
         subtitle={noCompanies
           ? "You don't have any companies assigned to your account."
           : "Here's an overview of your assigned companies today."}
+        onViewDetails={() => heroScrollRef.current?.scrollTo({ y: 330, animated: true })}
         stats={[
           { label: 'Present', value: stats.presentToday, color: '#10b981' },
           { label: 'Absent', value: stats.absentToday, color: '#ef4444' },

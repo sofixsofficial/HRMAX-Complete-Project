@@ -44,6 +44,9 @@ export const CompanyDashboard: React.FC<{ navigation: any }> = ({ navigation }) 
 
   const onRefresh = () => { setRefreshing(true); setRefreshKey((k) => k + 1); };
 
+  // "View Details →" scrolls the dashboard content below the hero.
+  const heroScrollRef = React.useRef<ScrollView>(null);
+
   useEffect(() => {
     if (!loading) setRefreshing(false);
   }, [loading]);
@@ -51,12 +54,13 @@ export const CompanyDashboard: React.FC<{ navigation: any }> = ({ navigation }) 
   if (loading && !refreshing) return <DashboardSkeleton />;
 
   return (
-    <ScrollView style={s.container} refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor="#FF6600" />}>
+    <ScrollView ref={heroScrollRef} style={s.container} refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor="#FF6600" />}>
       <DashboardHero
         name={user?.name || 'Admin'}
         roleLabel={selectedCompanyName || 'Company Admin'}
         subtitle={selectedCompanyName ? 'Internal Head · Managing your company operations' : "Here's your company's overview today."}
         showAttendance={false}
+        onViewDetails={() => heroScrollRef.current?.scrollTo({ y: 330, animated: true })}
         stats={[
           { label: 'Present', value: stats.presentToday, color: '#10b981' },
           { label: 'Absent', value: stats.absentToday, color: '#ef4444' },

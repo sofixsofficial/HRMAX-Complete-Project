@@ -1,10 +1,9 @@
 /* ------------------------------------------------------------------ */
-/* Dashboard hero — SIMPLE + CLEAN design                              */
+/* Dashboard hero — screenshot design                                  */
+/*  • LEFT: 👋 Welcome back, + NAME + subtitle + date/time/location     */
+/*    pills + orange "View Details →" button + attendance chips        */
+/*  • RIGHT: "Work Smart, Grow Together!" tagline + flat illustration   */
 /*  • light gradient card (white → pale blue) with soft blue waves     */
-/*    on the right                                                     */
-/*  • "Welcome back," + user NAME + compact HRMAX wordmark (top-right) */
-/*  • live chips row (role / status / checked-in time / elapsed pill)  */
-/*    + punch actions                                                  */
 /*  • light rounded stat tiles BELOW the card (tinted icon, real       */
 /*    values)                                                          */
 /* All attendance facts come from the backend — never invented.        */
@@ -56,26 +55,7 @@ html {
 .hero .welcome {
   position: relative;
   z-index: 1;
-  /* Full card width so the head row's space-between pins the compact
-     wordmark to the card's right edge on big screens (no mid-air hang). */
   flex: 1;
-  min-width: 0;
-}
-
-/* Head row: greeting + name (left) · compact wordmark (right) */
-.hero .hero-head {
-  display: flex;
-  align-items: flex-start;
-  justify-content: space-between;
-  gap: 16px;
-  margin-bottom: 18px;
-}
-
-.hero .hero-greet {
-  min-width: 0;
-}
-
-.hero .hero-greet-text {
   min-width: 0;
 }
 
@@ -87,8 +67,8 @@ html {
   letter-spacing: 0.2px;
 }
 
-.hero .hero-greet h2.hero-name {
-  margin: 2px 0 0;
+.hero h2.hero-name {
+  margin: 4px 0 0;
   font-size: clamp(26px, 3vw, 34px);
   font-weight: 800;
   color: #12294a;
@@ -96,32 +76,129 @@ html {
   line-height: 1.15;
 }
 
-.hero .hero-date {
+.hero .hero-sub {
+  margin: 8px 0 0;
+  font-size: 14.5px;
+  font-weight: 500;
+  color: #64748b;
+  line-height: 1.5;
+  max-width: 46ch;
+}
+
+/* ── Date / time / location pills ─────────────────────────────────── */
+.hero .hero-meta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  margin-top: 14px;
+}
+
+.hero .meta-pill {
   display: inline-flex;
   align-items: center;
-  gap: 6px;
-  margin-top: 6px;
-  font-size: 13.5px;
-  font-weight: 600;
-  color: #64748b;
+  gap: 7px;
+  padding: 7px 13px;
+  border-radius: 999px;
+  border: 1.5px solid #dbe4f0;
+  background: #fff;
+  font-size: 13px;
+  font-weight: 700;
+  color: #334155;
+  line-height: 1;
+  white-space: nowrap;
 }
 
-.hero .hero-wordmark {
+.hero .meta-pill svg {
+  color: #2563eb;
   flex: none;
-  font-size: 22px;
-  font-weight: 800;
+}
+
+/* ── Orange "View Details →" CTA ──────────────────────────────────── */
+.hero .hero-cta-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-top: 16px;
+}
+
+.hero .hero-cta {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 11px 22px;
+  border: 0;
+  border-radius: 999px;
+  background: #f97316;
+  color: #fff;
+  font-size: 14.5px;
+  font-weight: 700;
+  font-family: inherit;
+  cursor: pointer;
+  box-shadow: 0 4px 12px rgba(249, 115, 22, 0.3);
+  transition: background 0.15s ease, transform 0.15s ease;
+}
+
+.hero .hero-cta:hover {
+  background: #ea580c;
+  transform: translateY(-1px);
+}
+
+.hero .hero-cta:active {
+  background: #c2410c;
+  transform: translateY(0);
+}
+
+.hero .hero-cta:focus-visible {
+  outline: 2px solid #f97316;
+  outline-offset: 2px;
+}
+
+/* ── Right: tagline + flat illustration ───────────────────────────── */
+.hero .hero-art {
+  position: relative;
+  z-index: 1;
+  flex: none;
+  width: min(340px, 38%);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+}
+
+.hero .art-tagline {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
   line-height: 1.1;
-  letter-spacing: -0.8px;
-  margin-top: 2px;
-  user-select: none;
 }
 
-.hero .hero-wordmark .wm-hr {
+.hero .art-line1 {
+  font-size: clamp(20px, 2.2vw, 26px);
+  font-weight: 800;
   color: #12294a;
+  letter-spacing: -0.4px;
 }
 
-.hero .hero-wordmark .wm-max {
+.hero .art-line2 {
+  font-size: clamp(20px, 2.2vw, 26px);
+  font-weight: 800;
+  font-style: italic;
   color: #f97316;
+  letter-spacing: -0.4px;
+}
+
+.hero .art-swoosh {
+  width: 110px;
+  height: 10px;
+  margin-top: 2px;
+}
+
+.hero .art-scene {
+  width: 100%;
+  max-width: 320px;
+  height: auto;
+  margin-top: 4px;
 }
 
 /* ── Chips row (role / status / live attendance facts) ────────────── */
@@ -368,8 +445,10 @@ html {
     gap: 18px;
   }
 
-  .hero .hero-head {
-    margin-bottom: 14px;
+  .hero .hero-art {
+    width: 100%;
+    max-width: 340px;
+    align-self: center;
   }
 }
 
