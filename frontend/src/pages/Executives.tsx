@@ -567,23 +567,8 @@ export function Executives() {
     })
     return map
   }, [allUsers, companies])
-  const tlOwnerMap = useMemo(() => {
-    const map = new Map<string, { id: string; name: string }>()
-    const execs = allUsers.filter(u => u.role === 'executive')
-    execs.forEach(e => {
-      ;((e as any).assignedTeamLeaderIds || []).forEach((tlId: string) => {
-        if (tlId && !map.has(tlId)) map.set(tlId, { id: e.id, name: e.name || 'another executive' })
-      })
-    })
-    allTLUsers.forEach(tl => {
-      const exId = (tl as any).reportingExecutiveId
-      if (exId && !map.has(tl.id)) {
-        const ex = execs.find(e => e.id === exId)
-        map.set(tl.id, { id: exId, name: (tl as any).reportingExecutiveName || ex?.name || 'another executive' })
-      }
-    })
-    return map
-  }, [allUsers, allTLUsers])
+  // NOTE: a team leader MAY be linked to multiple executives (user rule) —
+  // there is deliberately NO TL owner/exclusivity map on this screen anymore.
   const [isViewModalOpen, setIsViewModalOpen] = useState(false)
   const [isAddModalOpen, setIsAddModalOpen] = useState(false)
   const [isEditModalOpen, setIsEditModalOpen] = useState(false)
@@ -781,22 +766,15 @@ export function Executives() {
         setIsSubmitting(false)
         return
       }
-      // Mutual exclusivity: reject any company/TL already owned by another
+      // Mutual exclusivity: reject any company already owned by another
       // executive (guards against stale pickers or a concurrent assignment).
+      // Team leaders are NOT exclusive — one TL may serve many executives.
       {
         const takenCompany = (values.assignedCompanyIds || [])
           .map(cid => companyOwnerMap.get(cid))
           .find(owner => owner && owner.id !== editingExecId)
         if (takenCompany) {
           setToast({ message: `This company is already assigned to ${takenCompany.name} — unselect it before saving`, type: 'error' })
-          setIsSubmitting(false)
-          return
-        }
-        const takenTL = (values.assignedTeamLeaderIds || [])
-          .map(tid => tlOwnerMap.get(tid))
-          .find(owner => owner && owner.id !== editingExecId)
-        if (takenTL) {
-          setToast({ message: `This team leader is already assigned to ${takenTL.name} — unselect it before saving`, type: 'error' })
           setIsSubmitting(false)
           return
         }
@@ -1032,21 +1010,14 @@ export function Executives() {
     try {
       // Mutual exclusivity (edit): the edited executive's own assignments are
       // allowed (owner.id === selectedUser.id); anything owned by a DIFFERENT
-      // executive is rejected.
+      // executive is rejected. Team leaders are NOT exclusive — one TL may
+      // serve many executives.
       {
         const takenCompany = (values.assignedCompanyIds || [])
           .map(cid => companyOwnerMap.get(cid))
           .find(owner => owner && owner.id !== selectedUser.id)
         if (takenCompany) {
           setToast({ message: `This company is already assigned to ${takenCompany.name} — unselect it before saving`, type: 'error' })
-          setIsSubmitting(false)
-          return
-        }
-        const takenTL = (values.assignedTeamLeaderIds || [])
-          .map(tid => tlOwnerMap.get(tid))
-          .find(owner => owner && owner.id !== selectedUser.id)
-        if (takenTL) {
-          setToast({ message: `This team leader is already assigned to ${takenTL.name} — unselect it before saving`, type: 'error' })
           setIsSubmitting(false)
           return
         }
@@ -1347,13 +1318,12 @@ export function Executives() {
     }
   })
   const teamLeaderOptions = allTeamLeaders.filter(tl => tl.isActive).map(tl => {
-    const owner = tlOwnerMap.get(tl.id)
-    const taken = !!owner && owner.id !== editingExecId
+    // A team leader may be linked to multiple executives — never disabled.
     return {
       id: tl.id,
       label: tl.name,
-      sublabel: taken ? `Assigned to ${owner.name}` : tl.email,
-      disabled: taken,
+      sublabel: tl.email,
+      disabled: false,
     }
   })
 

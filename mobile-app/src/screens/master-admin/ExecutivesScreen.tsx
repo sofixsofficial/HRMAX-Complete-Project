@@ -208,22 +208,8 @@ export const ExecutivesScreen: React.FC = () => {
     });
     return map;
   }, [allExecs, companies]);
-  const tlOwnerMap = useMemo(() => {
-    const map = new Map<string, { id: string; name: string }>();
-    allExecs.forEach(e => {
-      ((e as any).assignedTeamLeaderIds || []).forEach((tlId: string) => {
-        if (tlId && !map.has(tlId)) map.set(tlId, { id: e.id, name: e.name || 'another executive' });
-      });
-    });
-    allTeamLeaders.forEach(tl => {
-      const exId = (tl as any).reportingExecutiveId;
-      if (exId && !map.has(tl.id)) {
-        const ex = allExecs.find(e => e.id === exId);
-        map.set(tl.id, { id: exId, name: (tl as any).reportingExecutiveName || ex?.name || 'another executive' });
-      }
-    });
-    return map;
-  }, [allExecs, allTeamLeaders]);
+  // NOTE: a team leader MAY be linked to multiple executives (user rule) —
+  // there is deliberately NO TL owner/exclusivity map on this screen anymore.
 
   useEffect(() => {
     const q = query(collection(db, 'users'), where('role', '==', 'executive'));
@@ -423,12 +409,7 @@ export const ExecutivesScreen: React.FC = () => {
   };
 
   const toggleTL = (id: string) => {
-    // Mutual exclusivity: a TL already linked to ANOTHER executive is blocked.
-    const owner = tlOwnerMap.get(id);
-    if (owner && owner.id !== editingExecId && !form.assignedTeamLeaderIds.includes(id)) {
-      Alert.alert('Already assigned', `This team leader is already assigned to ${owner.name} and cannot be reassigned.`);
-      return;
-    }
+    // A team leader may be linked to multiple executives — no exclusivity.
     setForm(prev => ({
       ...prev,
       assignedTeamLeaderIds: prev.assignedTeamLeaderIds.includes(id)
@@ -513,20 +494,14 @@ export const ExecutivesScreen: React.FC = () => {
 
   const handleSave = async () => {
     if (!form.name.trim() || !form.email.trim()) { Alert.alert('Validation', 'Name and email are required'); return; }
-    // Mutual exclusivity (save-time guard, web parity): reject any company/TL
+    // Mutual exclusivity (save-time guard, web parity): reject any company
     // owned by a different executive (stale picker / concurrent assignment).
+    // Team leaders are NOT exclusive — one TL may serve many executives.
     const takenCompany = form.assignedCompanyIds
       .map(cid => companyOwnerMap.get(cid))
       .find(o => o && o.id !== editingExecId);
     if (takenCompany) {
       Alert.alert('Already assigned', `This company is already assigned to ${takenCompany.name} — unselect it before saving.`);
-      return;
-    }
-    const takenTL = form.assignedTeamLeaderIds
-      .map(tid => tlOwnerMap.get(tid))
-      .find(o => o && o.id !== editingExecId);
-    if (takenTL) {
-      Alert.alert('Already assigned', `This team leader is already assigned to ${takenTL.name} — unselect it before saving.`);
       return;
     }
     setSaving(true);
@@ -1096,16 +1071,15 @@ export const ExecutivesScreen: React.FC = () => {
                   <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginBottom: 16 }}>
                     {allTeamLeaders.filter(tl => tl.isActive !== false).map(tl => {
                       const selected = form.assignedTeamLeaderIds.includes(tl.id);
-                      const owner = tlOwnerMap.get(tl.id);
-                      const taken = !!owner && owner.id !== editingExecId && !selected;
+                      // A team leader may be linked to multiple executives —
+                      // never disabled, no "Assigned to" labels.
                       return (
                         <TouchableOpacity
                           key={tl.id}
-                          disabled={taken}
-                          style={[s.chip, selected && s.chipActive, taken && { opacity: 0.45 }]}
+                          style={[s.chip, selected && s.chipActive]}
                           onPress={() => toggleTL(tl.id)}
                         >
-                          <Text style={[s.chipText, selected && { color: '#fff' }]}>{tl.name}{taken ? ` · Assigned to ${owner!.name}` : ''}</Text>
+                          <Text style={[s.chipText, selected && { color: '#fff' }]}>{tl.name}</Text>
                         </TouchableOpacity>
                       );
                     })}
