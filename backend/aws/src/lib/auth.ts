@@ -94,6 +94,13 @@ export async function resolveCaller(
   if (status === 'Suspended' || status === 'Rejected') {
     throw new ApiError('permission-denied', `Account ${status.toLowerCase()}`);
   }
+  // Deactivated accounts (Executives/Team-Leaders status toggle or the
+  // Deactivate action) must actually lose API access — the confirm dialog
+  // promises "no longer able to log in". `On Leave` still signs in (it is a
+  // leave state, not a revocation).
+  if (status === 'Inactive' || doc_.isActive === false) {
+    throw new ApiError('permission-denied', 'Account inactive');
+  }
 
   return {
     uid,

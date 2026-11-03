@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef, useMemo } from 'react'
 import { errText } from '../aws/errors';
 import { validatePasswordPolicy } from '../utils/passwordPolicy';
-import { Crown, Search, Plus, Eye, Pencil, Trash2, Loader2, ChevronLeft, ChevronRight, Mail, Phone, Briefcase, X, User as UserIcon, Shield, Building2, Lock, Users, Check, CheckSquare, ChevronDown, Upload, DollarSign, CalendarDays, MapPin, Phone as PhoneIcon, FileText, CreditCard, BadgeAlert, KeyRound, Crosshair, Wifi, Camera, Smartphone } from 'lucide-react'
+import { Crown, Search, Plus, Eye, Pencil, Trash2, Loader2, ChevronLeft, ChevronRight, Mail, Phone, Briefcase, X, User as UserIcon, Shield, Building2, Lock, Users, Check, CheckSquare, ChevronDown, Upload, DollarSign, CalendarDays, MapPin, Phone as PhoneIcon, FileText, CreditCard, BadgeAlert, KeyRound, Crosshair, Wifi, Camera, Smartphone, Ban, CheckCircle } from 'lucide-react'
 import { useForm } from 'react-hook-form'
 import type { Resolver } from 'react-hook-form'
 import { useNavigate } from 'react-router-dom'
@@ -30,6 +30,24 @@ import './Employees.css'
 
 const EMPLOYMENT_TYPE_OPTIONS = ['Full-time', 'Part-time', 'Contract', 'Intern'] as const
 const STATUS_OPTIONS = ['Active', 'Inactive', 'On Leave'] as const
+
+/**
+ * Executive/Team-Leader rows carry TWO representations of the same fact:
+ *   - `status`   (string: 'Active' | 'Inactive' | 'On Leave') — written by the
+ *     edit/create form, read by dashboards, payroll and email centre.
+ *   - `isActive` (boolean) — written by the deactivate action, read by the
+ *     list pill and every `filter(u => u.isActive)` picker.
+ * Historically only ONE of them was written per action, so deactivating from
+ * one screen looked like a no-op on the other. These helpers treat the row as
+ * inactive when EITHER field says so, so both old and new rows render true.
+ */
+const isRowActive = (u: { isActive?: boolean; status?: string }): boolean =>
+  u.isActive !== false && u.status !== 'Inactive'
+
+const rowStatusLabel = (u: { isActive?: boolean; status?: string }): string => {
+  if (u.isActive === false || u.status === 'Inactive') return 'Inactive'
+  return u.status && u.status !== 'Active' ? u.status : 'Active'
+}
 
 const cleanText = (value?: string | null): string => {
   if (!value) return ''
@@ -838,7 +856,7 @@ export function Executives() {
         departmentId: values.departmentId || null,
         avatar: `https://ui-avatars.com/api/?name=${encodeURIComponent(values.name)}&background=f97316&color=fff`,
         permissions: addPermissions, permissionsConfigured: true,
-        isActive: true,
+        isActive: values.status !== 'Inactive',
         createdAt: new Date(),
         updatedAt: new Date(),
         phone: values.phone || '',
@@ -932,7 +950,7 @@ export function Executives() {
     form.setValue('assignedCompanyIds', (u as any).assignedCompanyIds || [])
     form.setValue('assignedTeamLeaderIds', (u as any).assignedTeamLeaderIds || [])
     form.setValue('employmentType', (u as any).employmentType || 'Full-time')
-    form.setValue('status', (u as any).status || 'Active')
+    form.setValue('status', rowStatusLabel(u))
     form.setValue('joinDate', (u as any).joinDate || '')
     form.setValue('aadharNumber', (u as any).aadharNumber || '')
     form.setValue('panNumber', (u as any).panNumber || '')
@@ -1104,6 +1122,13 @@ export function Executives() {
         assignedTeamLeaderIds: values.assignedTeamLeaderIds,
         employmentType: values.employmentType,
         status: values.status,
+        // `status` and `isActive` are TWO views of the same thing, but half the
+        // UI reads one and half reads the other (the list pill + every
+        // `filter(u => u.isActive)` picker read `isActive`; dashboards, payroll
+        // and this form read `status`). Writing only `status` left `isActive`
+        // stale, so the Status column never changed — "Active/Inactive does
+        // nothing". Always write BOTH.
+        isActive: values.status !== 'Inactive',
         joinDate: values.joinDate,
         aadharNumber: values.aadharNumber,
         panNumber: values.panNumber,
@@ -1221,6 +1246,8 @@ export function Executives() {
         assignedTeamLeaderIds: values.assignedTeamLeaderIds,
         employmentType: values.employmentType as any,
         status: values.status as any,
+        // Keep the optimistic row in sync with the pill's source field.
+        isActive: values.status !== 'Inactive',
         joinDate: values.joinDate,
         aadharNumber: values.aadharNumber,
         panNumber: values.panNumber,
@@ -1246,6 +1273,47 @@ export function Executives() {
       setToast({ message: 'Failed to update executive', type: 'error' })
     } finally {
       setIsSubmitting(false)
+    }
+  }
+
+  /**
+   * One-click Active ⇄ Inactive toggle for the list row. Writes BOTH fields
+   * (`isActive` boolean + `status` string) so the pill, the edit form,
+   * dashboards, payroll and every `filter(u => u.isActive)` picker agree.
+   * Full deactivation semantics (clearing company/TL assignments, login
+   * block) stay with `handleDelete` — this is the lightweight status flip.
+   */
+  const handleToggleStatus = async (u: User) => {
+    if (authUser?.role !== 'master-admin' && !hasPermission('executives.edit')) {
+      setToast({ message: 'You do not have permission to change executive status', type: 'error' })
+      return
+    }
+    const wasActive = isRowActive(u)
+    const nextStatus = wasActive ? 'Inactive' : 'Active'
+    const nextActive = !wasActive
+    if (!confirm(`${wasActive ? 'Deactivate' : 'Reactivate'} ${u.name}? ${wasActive ? 'They will no longer be able to log in.' : 'They will be able to log in again.'}`)) return
+    try {
+      await updateDoc(doc(db, 'users', u.id), {
+        isActive: nextActive,
+        status: nextStatus,
+        updatedAt: serverTimestamp(),
+      })
+      setUsers(prev => prev.map(x => x.id === u.id ? { ...x, isActive: nextActive, status: nextStatus as any } : x))
+      logAudit({
+        userId: authUser?.id || '',
+        userName: authUser?.name || 'System',
+        userRole: authUser?.role || 'master-admin',
+        action: `Executive ${u.name} ${wasActive ? 'deactivated' : 'reactivated'} by ${authUser?.name || 'System'}`,
+        actionType: 'update',
+        module: 'Executive Profile',
+        targetEntity: u.name,
+        targetId: u.id,
+        status: 'success',
+        details: `Status set to ${nextStatus} (isActive=${nextActive})`,
+      })
+      setToast({ message: `${u.name} is now ${nextStatus}`, type: 'success' })
+    } catch (err) {
+      setToast({ message: errText(err, 'Failed to update status'), type: 'error' })
     }
   }
 
@@ -1284,8 +1352,11 @@ export function Executives() {
       } catch (clearErr) {
         console.warn('Assignment cleanup skipped during executive deactivation:', clearErr)
       }
-      await updateDoc(doc(db, 'users', u.id), { isActive: false, updatedAt: serverTimestamp() })
-      setUsers(prev => prev.map(x => x.id === u.id ? { ...x, isActive: false } : x))
+      // Both representations of "deactivated" must be written: `isActive` is
+      // what the list pill + every `filter(u => u.isActive)` picker read,
+      // `status` is what dashboards/payroll/the edit form read.
+      await updateDoc(doc(db, 'users', u.id), { isActive: false, status: 'Inactive', updatedAt: serverTimestamp() })
+      setUsers(prev => prev.map(x => x.id === u.id ? { ...x, isActive: false, status: 'Inactive' as any } : x))
       createAdminAlert('executive', 'Executive Deactivated', `${u.name} has been deactivated by ${authUser?.name || 'Admin'}. ${assignedCompanies.length} company(ies) and ${assignedTLs.length} TL(s) were unassigned.`, '/executives', 'high', {
         actionBy: authUser?.id, actionByName: authUser?.name,
       })
@@ -1317,7 +1388,7 @@ export function Executives() {
       disabled: taken,
     }
   })
-  const teamLeaderOptions = allTeamLeaders.filter(tl => tl.isActive).map(tl => {
+  const teamLeaderOptions = allTeamLeaders.filter(tl => isRowActive(tl)).map(tl => {
     // A team leader may be linked to multiple executives — never disabled.
     return {
       id: tl.id,
@@ -1433,12 +1504,23 @@ export function Executives() {
                     )}
                   </td>
                   <td><span className="exec-dept">{resolveDepartment(u, departments) || '—'}</span></td>
-                  <td><span className={`exec-status-pill ${u.isActive ? 'active' : 'inactive'}`}>{u.isActive ? 'Active' : 'Inactive'}</span></td>
+                  <td><span className={`exec-status-pill ${isRowActive(u) ? 'active' : 'inactive'}`}>{rowStatusLabel(u)}</span></td>
                   <td>
                     <div className="emp-actions">
                       <button className="emp-action-icon view" onClick={() => openView(u)} title="View"><Eye size={15} /></button>
                       {(authUser?.role === 'master-admin' || hasPermission('executives.edit')) && (
                         <button className="emp-action-icon edit" onClick={() => openEdit(u)} title="Edit"><Pencil size={15} /></button>
+                      )}
+                      {(authUser?.role === 'master-admin' || hasPermission('executives.edit')) && (
+                        <button
+                          className="emp-action-icon"
+                          style={isRowActive(u)
+                            ? { background: '#fee2e2', color: '#dc2626' }
+                            : { background: '#dcfce7', color: '#16a34a' }}
+                          onClick={() => handleToggleStatus(u)}
+                          title={isRowActive(u) ? 'Deactivate' : 'Reactivate'}>
+                          {isRowActive(u) ? <Ban size={15} /> : <CheckCircle size={15} />}
+                        </button>
                       )}
           {authUser?.role === 'master-admin' && (
                         <button className="emp-action-icon" style={{ background: '#fef3c7', color: '#d97706' }} onClick={() => handleResetPassword(u)} title="Reset Password"><KeyRound size={15} /></button>
@@ -1496,7 +1578,7 @@ export function Executives() {
                   <h2>{selectedUser.name}</h2>
                   <p>{title}{assignedCompanies.length > 0 ? ` Â· ${assignedCompanies.join(', ')}` : ''}</p>
                   <div className="modal-profile-badges">
-                    <span className={`tl-status-pill ${selectedUser.isActive ? 'active' : 'inactive'}`}>{selectedUser.isActive ? 'Active' : 'Inactive'}</span>
+                    <span className={`tl-status-pill ${isRowActive(selectedUser) ? 'active' : 'inactive'}`}>{rowStatusLabel(selectedUser)}</span>
                     <span className="emp-dept-badge" style={{ background: '#fef3c7', color: '#d97706' }}>{title}</span>
                   </div>
                 </div>
@@ -1527,7 +1609,7 @@ export function Executives() {
                   <div className="modal-field"><label>Employment Type</label><div className="field-value">{(selectedUser as any).employmentType || '-'}</div></div>
                   <div className="modal-field"><label>Join Date</label><div className="field-value">{(selectedUser as any).joinDate && isDate((selectedUser as any).joinDate) ? (selectedUser as any).joinDate.toLocaleDateString() : (selectedUser as any).joinDate || '-'}</div></div>
                   <div className="modal-field"><label>Monthly Salary</label><div className="field-value">{(selectedUser as any).monthlyGrossSalary ? `$${(selectedUser as any).monthlyGrossSalary.toFixed(2)}` : '-'}</div></div>
-                  <div className="modal-field"><label>Status</label><div className="field-value" style={{ color: selectedUser.isActive ? '#16a34a' : '#ef4444' }}>{selectedUser.isActive ? 'Active' : 'Inactive'}</div></div>
+                  <div className="modal-field"><label>Status</label><div className="field-value" style={{ color: isRowActive(selectedUser) ? '#16a34a' : '#ef4444' }}>{rowStatusLabel(selectedUser)}</div></div>
                 </div>
               </div>
 
@@ -1535,7 +1617,7 @@ export function Executives() {
                 <div className="modal-section-header"><Shield size={18} /><h4>Account &amp; Access</h4></div>
                 <div className="modal-section-content">
                   <div className="modal-field"><label>Role</label><div className="field-value">Executive</div></div>
-                  <div className="modal-field"><label>Status</label><div className="field-value">{selectedUser.isActive ? 'Active' : 'Inactive'}</div></div>
+                  <div className="modal-field"><label>Status</label><div className="field-value">{rowStatusLabel(selectedUser)}</div></div>
                 </div>
               </div>
             </div>

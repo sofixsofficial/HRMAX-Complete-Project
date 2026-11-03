@@ -736,7 +736,8 @@ export const authRoutes: Route[] = [
       // Form-chosen status beats the default, but only known values pass.
       const requestedStatus = String((body.status as string) ?? '');
       const status: UserDoc['status'] =
-        requestedStatus === 'Pending' || requestedStatus === 'Rejected' || requestedStatus === 'Suspended'
+        requestedStatus === 'Pending' || requestedStatus === 'Rejected' || requestedStatus === 'Suspended' ||
+        requestedStatus === 'Inactive' || requestedStatus === 'On Leave'
           ? requestedStatus
           : 'Active';
       // The MA's selected permission matrix wins over the role default when
@@ -775,7 +776,10 @@ export const authRoutes: Route[] = [
         ...(perms.length || body.permissionsConfigured === true ? { permissionsConfigured: true } : {}),
         requirePasswordChange: true,
         status,
-        isActive: true,
+        // `isActive` is the boolean view of the same fact — keep it in step
+        // with `status` so the list pill + every `filter(u => u.isActive)`
+        // picker agree with what the form asked for.
+        isActive: status !== 'Inactive',
         ...extras,
       });
 

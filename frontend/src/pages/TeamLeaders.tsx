@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from 'react'
 import { errText } from '../aws/errors';
 import { validatePasswordPolicy } from '../utils/passwordPolicy';
-import { UserPlus, Search, Plus, Eye, Pencil, Trash2, Loader2, ChevronLeft, ChevronRight, Mail, Shield, User as UserIcon, Briefcase, Lock, Crown, Building2, Users, ChevronDown, Check, Activity, Bell, Upload, DollarSign, CalendarDays, MapPin, CreditCard, BadgeAlert, Filter, CheckSquare, Crosshair, Wifi, Camera, Smartphone, KeyRound } from 'lucide-react'
+import { UserPlus, Search, Plus, Eye, Pencil, Trash2, Loader2, ChevronLeft, ChevronRight, Mail, Shield, User as UserIcon, Briefcase, Lock, Crown, Building2, Users, ChevronDown, Check, Activity, Bell, Upload, DollarSign, CalendarDays, MapPin, CreditCard, BadgeAlert, Filter, CheckSquare, Crosshair, Wifi, Camera, Smartphone, KeyRound, Ban, CheckCircle } from 'lucide-react'
 import { useNavigate } from 'react-router-dom'
 import { Header } from '../components/Header'
 import { Modal } from '../components/Modal'
@@ -27,6 +27,24 @@ import './Employees.css'
 
 const EMPLOYMENT_TYPE_OPTIONS = ['Full-time', 'Part-time', 'Contract', 'Intern'] as const
 const STATUS_OPTIONS = ['Active', 'Inactive', 'On Leave'] as const
+
+/**
+ * Executive/Team-Leader rows carry TWO representations of the same fact:
+ *   - `status`   (string: 'Active' | 'Inactive' | 'On Leave') — written by the
+ *     edit/create form, read by dashboards, payroll and email centre.
+ *   - `isActive` (boolean) — written by the deactivate action, read by the
+ *     list pill and every `filter(u => u.isActive)` picker.
+ * Historically only ONE of them was written per action, so deactivating from
+ * one screen looked like a no-op on the other. These helpers treat the row as
+ * inactive when EITHER field says so, so both old and new rows render true.
+ */
+const isRowActive = (u: { isActive?: boolean; status?: string }): boolean =>
+  u.isActive !== false && u.status !== 'Inactive'
+
+const rowStatusLabel = (u: { isActive?: boolean; status?: string }): string => {
+  if (u.isActive === false || u.status === 'Inactive') return 'Inactive'
+  return u.status && u.status !== 'Active' ? u.status : 'Active'
+}
 
 // A Team Leader's company is DERIVED from the linked Executive(s) — the TL
 // manages that executive's company, so there is NO manual Company picker
@@ -429,7 +447,7 @@ export function TeamLeaders() {
     const unsub = onSnapshot(collection(db, 'users'), snap => {
       const all = snap.docs.map(d => ({ id: d.id, ...d.data() })) as User[]
       setUsers(all.filter(u => u.role === 'team-leader'))
-      setExecutives(all.filter(u => u.role === 'executive' && u.isActive))
+      setExecutives(all.filter(u => u.role === 'executive' && isRowActive(u)))
       setLoading(false)
     }, err => {
       console.error(err)
@@ -539,7 +557,7 @@ export function TeamLeaders() {
         departmentId: values.departmentId || null,
         avatar: `https://ui-avatars.com/api/?name=${encodeURIComponent(values.name)}&background=f97316&color=fff`,
         permissions: addPermissions, permissionsConfigured: true,
-        isActive: true,
+        isActive: values.status !== 'Inactive',
         createdAt: new Date(),
         updatedAt: new Date(),
         phone: values.phone || '',
@@ -693,7 +711,7 @@ export function TeamLeaders() {
       departmentId: (u as any).departmentId || '',
       departmentName: (u as any).departmentName || '',
       employmentType: (u as any).employmentType || 'Full-time',
-      status: (u as any).status || 'Active',
+      status: rowStatusLabel(u),
       joinDate: (u as any).joinDate || '',
       aadharNumber: (u as any).aadharNumber || '',
       panNumber: (u as any).panNumber || '',
@@ -826,6 +844,11 @@ export function TeamLeaders() {
         department: values.departmentName || '',
         employmentType: values.employmentType,
         status: values.status,
+        // `status` and `isActive` are two views of the same fact — the list
+        // pill + every `filter(u => u.isActive)` picker read `isActive` while
+        // the form/dashboards read `status`. Write BOTH or the Status column
+        // never changes ("Active/Inactive does nothing").
+        isActive: values.status !== 'Inactive',
         joinDate: values.joinDate,
         aadharNumber: values.aadharNumber,
         panNumber: values.panNumber,
@@ -939,6 +962,8 @@ export function TeamLeaders() {
         department: values.departmentName || '',
         employmentType: values.employmentType as any,
         status: values.status as any,
+        // Keep the optimistic row in sync with the pill's source field.
+        isActive: values.status !== 'Inactive',
         joinDate: values.joinDate,
         aadharNumber: values.aadharNumber,
         panNumber: values.panNumber,
@@ -981,6 +1006,47 @@ export function TeamLeaders() {
     }
   }
 
+  /**
+   * One-click Active ⇄ Inactive toggle for the list row. Writes BOTH fields
+   * (`isActive` boolean + `status` string) so the pill, the edit form,
+   * dashboards and every `filter(u => u.isActive)` picker agree. Full
+   * deassignment semantics stay with `handleDelete`.
+   */
+  const handleToggleStatus = async (u: User) => {
+    if (authUser?.role !== 'master-admin') {
+      setToast({ message: 'You do not have permission to change team leader status', type: 'error' })
+      return
+    }
+    const wasActive = isRowActive(u)
+    const nextStatus = wasActive ? 'Inactive' : 'Active'
+    const nextActive = !wasActive
+    if (!confirm(`${wasActive ? 'Deactivate' : 'Reactivate'} ${u.name}? ${wasActive ? 'They will no longer be able to log in.' : 'They will be able to log in again.'}`)) return
+    try {
+      await updateDoc(doc(db, 'users', u.id), {
+        isActive: nextActive,
+        status: nextStatus,
+        updatedAt: serverTimestamp(),
+      })
+      setUsers(prev => prev.map(x => x.id === u.id ? { ...x, isActive: nextActive, status: nextStatus as any } : x))
+      logAudit({
+        userId: authUser?.id || '',
+        userName: authUser?.name || 'System',
+        userRole: authUser?.role || 'master-admin',
+        action: `Team Leader ${u.name} ${wasActive ? 'deactivated' : 'reactivated'} by ${authUser?.name || 'System'}`,
+        actionType: 'update',
+        module: 'Team Leaders',
+        targetEntity: u.name,
+        targetId: u.id,
+        companyId: u.companyId || undefined,
+        details: `Status set to ${nextStatus} (isActive=${nextActive})`,
+        status: 'success',
+      })
+      setToast({ message: `${u.name} is now ${nextStatus}`, type: 'success' })
+    } catch {
+      setToast({ message: 'Failed to update status', type: 'error' })
+    }
+  }
+
   const handleDelete = async (u: User) => {
     if (!confirm(`Deactivate ${u.name}? They will no longer be able to log in.`)) return
     try {
@@ -993,8 +1059,11 @@ export function TeamLeaders() {
           await updateDoc(doc(db, 'users', execId), { assignedTeamLeaderIds: updatedTLs })
         }
       }
-      await updateDoc(doc(db, 'users', u.id), { isActive: false, updatedAt: serverTimestamp() })
-      setUsers(prev => prev.map(x => x.id === u.id ? { ...x, isActive: false } : x))
+      // Both representations of "deactivated" must be written: `isActive` is
+      // what the list pill + every `filter(u => u.isActive)` picker read,
+      // `status` is what dashboards/payroll/the edit form read.
+      await updateDoc(doc(db, 'users', u.id), { isActive: false, status: 'Inactive', updatedAt: serverTimestamp() })
+      setUsers(prev => prev.map(x => x.id === u.id ? { ...x, isActive: false, status: 'Inactive' as any } : x))
       setToast({ message: `${u.name} deactivated`, type: 'success' })
     } catch {
       setToast({ message: 'Failed to deactivate team leader', type: 'error' })
@@ -1040,7 +1109,7 @@ export function TeamLeaders() {
       if (eid && !execOwnerMap.has(eid)) execOwnerMap.set(eid, { id: tl.id, name: tl.name || 'another team leader' })
     })
   })
-  const executiveOptions = executives.filter(e => e.isActive).map(e => {
+  const executiveOptions = executives.filter(e => isRowActive(e)).map(e => {
     const owner = execOwnerMap.get(e.id)
     const taken = !!owner && owner.id !== editingTlId
     return {
@@ -1172,8 +1241,8 @@ export function TeamLeaders() {
                     </span>
                   </td>
                   <td>
-                    <span className={`tl-status-pill ${u.isActive ? 'active' : 'inactive'}`}>
-                      {u.isActive ? 'Active' : 'Inactive'}
+                    <span className={`tl-status-pill ${isRowActive(u) ? 'active' : 'inactive'}`}>
+                      {rowStatusLabel(u)}
                     </span>
                   </td>
                   <td>
@@ -1185,6 +1254,15 @@ export function TeamLeaders() {
                       {authUser?.role === 'master-admin' && (
                         <>
                           <button className="emp-action-icon edit" title="Edit" onClick={() => openEdit(u)}><Pencil size={15} /></button>
+                          <button
+                            className="emp-action-icon"
+                            style={isRowActive(u)
+                              ? { background: '#fee2e2', color: '#dc2626' }
+                              : { background: '#dcfce7', color: '#16a34a' }}
+                            title={isRowActive(u) ? 'Deactivate' : 'Reactivate'}
+                            onClick={() => handleToggleStatus(u)}>
+                            {isRowActive(u) ? <Ban size={15} /> : <CheckCircle size={15} />}
+                          </button>
                           <button className="emp-action-icon delete" title="Deactivate" onClick={() => handleDelete(u)}><Trash2 size={15} /></button>
                         </>
                       )}
@@ -1237,7 +1315,7 @@ export function TeamLeaders() {
                   <h2>{selectedUser.name}</h2>
                   <p>Team Leader{linkedExecs.length > 0 ? ` Â· ${linkedExecs.map(e => e.name).join(', ')}` : ''}</p>
                   <div className="modal-profile-badges">
-                    <span className={`tl-status-pill ${selectedUser.isActive ? 'active' : 'inactive'}`}>{selectedUser.isActive ? 'Active' : 'Inactive'}</span>
+                    <span className={`tl-status-pill ${isRowActive(selectedUser) ? 'active' : 'inactive'}`}>{rowStatusLabel(selectedUser)}</span>
                     <span className={`tl-cont-pill ${hasContingency ? 'active' : 'contingency'}`}>{hasContingency ? 'Contingency Active' : 'Contingency'}</span>
                   </div>
                 </div>
@@ -1266,7 +1344,7 @@ export function TeamLeaders() {
                 <div className="modal-section-content">
                   <div className="modal-field"><label>Role</label><div className="field-value">Team Leader</div></div>
                   <div className="modal-field"><label>Contingency Access</label><div className="field-value">{hasContingency ? 'Enabled' : 'Disabled'}</div></div>
-                  <div className="modal-field"><label>Status</label><div className="field-value" style={{ color: selectedUser.isActive ? '#16a34a' : '#ef4444' }}>{selectedUser.isActive ? 'Active' : 'Inactive'}</div></div>
+                  <div className="modal-field"><label>Status</label><div className="field-value" style={{ color: isRowActive(selectedUser) ? '#16a34a' : '#ef4444' }}>{rowStatusLabel(selectedUser)}</div></div>
                 </div>
               </div>
             </div>

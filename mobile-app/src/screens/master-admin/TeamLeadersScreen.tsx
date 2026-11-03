@@ -157,7 +157,7 @@ export const TeamLeadersScreen: React.FC = () => {
 
   useEffect(() => { setCurrentPage(1); }, [search, execFilter]);
 
-  const execOptions = useMemo(() => executives.filter(e => e.isActive), [executives]);
+  const execOptions = useMemo(() => executives.filter(e => e.isActive !== false && (e as any).status !== 'Inactive'), [executives]);
   const getCompanyName = (id: string) => companies.find(c => c.id === id)?.name || '—';
   const getExecName = (id: string) => executives.find(e => e.id === id)?.name || '—';
 
@@ -237,7 +237,9 @@ export const TeamLeadersScreen: React.FC = () => {
       departmentId: (tl as any).departmentId || '',
       departmentName: (tl as any).department || '',
       employmentType: (tl as any).employmentType || 'Full-time',
-      status: (tl as any).status || 'Active',
+      // Legacy rows may only carry `isActive:false` (no `status`) — open the
+      // picker on the truth so saving doesn't silently reactivate them.
+      status: (tl as any).status || ((tl as any).isActive === false ? 'Inactive' : 'Active'),
       joinDate: (tl as any).joinDate || '',
       aadharNumber: (tl as any).aadharNumber || '',
       aadharDoc: (tl as any).aadharDoc || '',
@@ -421,6 +423,10 @@ export const TeamLeadersScreen: React.FC = () => {
         designation: form.designation, department: form.departmentName,
         departmentId: form.departmentId,
         employmentType: form.employmentType, status: form.status,
+        // `status` (form/dashboards) and `isActive` (list badge + pickers)
+        // are two views of the same fact — write BOTH or the badge never
+        // changes ("Active/Inactive does nothing").
+        isActive: form.status !== 'Inactive',
         joinDate: form.joinDate,
         aadharNumber: form.aadharNumber, panNumber: form.panNumber,
         bankName: form.bankName, accountHolderName: form.accountHolderName,
@@ -676,7 +682,10 @@ export const TeamLeadersScreen: React.FC = () => {
                 const own: string[] = ex?.companyId && ex.companyId !== 'global' ? [ex.companyId] : [];
                 return [...assigned, ...own];
               }).map(cid => getCompanyName(cid))));
-              const active = (tl as any).status === 'Active' || (tl as any).status === undefined;
+              // Inactive when EITHER representation says so (legacy rows may
+              // only carry one of them) — mirrors web isRowActive().
+              const active = (tl as any).isActive !== false && (tl as any).status !== 'Inactive';
+              const statusLabel = (tl as any).status || (active ? 'Active' : 'Inactive');
               const MAX_VISIBLE = 3;
               return (
                 <View key={tl.id} style={s.card}>
@@ -686,7 +695,7 @@ export const TeamLeadersScreen: React.FC = () => {
                       <Text style={s.roleText}>{(tl as any).designation || 'Team Leader'} • {tl.email}</Text>
                     </View>
                     <View style={[s.badge, { backgroundColor: active ? '#10b98120' : '#ef444420' }]}>
-                      <Text style={[s.badgeText, { color: active ? '#10b981' : '#ef4444' }]}>{(tl as any).status || 'Active'}</Text>
+                      <Text style={[s.badgeText, { color: active ? '#10b981' : '#ef4444' }]}>{statusLabel}</Text>
                     </View>
                   </View>
 
@@ -1000,7 +1009,7 @@ export const TeamLeadersScreen: React.FC = () => {
                     <View style={s.detailRow}><Text style={s.detailLabel}>Email</Text><Text style={s.detailValue}>{selected.email}</Text></View>
                     <View style={s.detailRow}><Text style={s.detailLabel}>Designation</Text><Text style={s.detailValue}>{(selected as any).designation || 'Team Leader'}</Text></View>
                     <View style={s.detailRow}><Text style={s.detailLabel}>Phone</Text><Text style={s.detailValue}>{(selected as any).phone || 'N/A'}</Text></View>
-                    <View style={s.detailRow}><Text style={s.detailLabel}>Status</Text><Text style={[s.detailValue, { color: (selected as any).status === 'Active' || !(selected as any).status ? '#10b981' : '#ef4444' }]}>{(selected as any).status || 'Active'}</Text></View>
+                    <View style={s.detailRow}><Text style={s.detailLabel}>Status</Text><Text style={[s.detailValue, { color: (selected as any).isActive !== false && (selected as any).status !== 'Inactive' ? '#10b981' : '#ef4444' }]}>{(selected as any).status || ((selected as any).isActive !== false ? 'Active' : 'Inactive')}</Text></View>
                     <View style={s.detailRow}><Text style={s.detailLabel}>Contingency</Text><Text style={s.detailValue}>{(selected as any).contingencyAccess ? 'Yes' : 'No'}</Text></View>
                   </View>
                   <View style={s.detailSection}>

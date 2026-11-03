@@ -73,7 +73,10 @@ export interface UserDoc extends BaseEntity {
   reportingManagerId?: string | null;
   isReportingManager?: boolean;
   isActive?: boolean;
-  status?: 'Active' | 'Pending' | 'Rejected' | 'Suspended';
+  // 'Inactive' / 'On Leave' are written by the Executives/Team-Leaders status
+  // picker (web + mobile). The backend previously coerced anything unknown to
+  // 'Active', so creating an account as Inactive silently came out Active.
+  status?: 'Active' | 'Pending' | 'Rejected' | 'Suspended' | 'Inactive' | 'On Leave';
   pushToken?: string | null;
   requirePasswordChange?: boolean;
   lastLoginAt?: string;
