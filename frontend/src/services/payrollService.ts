@@ -412,7 +412,8 @@ export const previewBulkPayroll = async (params: {
 }): Promise<{ success: boolean; items?: PayrollItem[]; employeeCount?: number; workingDays?: number; totalNet?: number; error?: string }> => {
   try {
     const previewFn = httpsCallable(functions, 'previewBulkPayroll');
-    const result = await previewFn(params);
+    // `preview: true` tells the backend to calculate WITHOUT persisting a run.
+    const result = await previewFn({ ...params, preview: true });
     const data = result.data as any;
     return {
       success: true,

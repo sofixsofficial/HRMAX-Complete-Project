@@ -330,7 +330,7 @@ export const RunPayrollScreen: React.FC = () => {
                 <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start' }}>
                   <View style={{ flex: 1 }}>
                     <Text style={s.previewEmpName}>{item.employeeName}</Text>
-                    <Text style={s.previewEmpDept}>{item.department} · {item.employeeId}</Text>
+                    <Text style={s.previewEmpDept}>{item.department || '—'} · {item.employeeId || '—'}</Text>
                   </View>
                   <Text style={s.previewNet}>{fmt(item.netSalary)}</Text>
                 </View>

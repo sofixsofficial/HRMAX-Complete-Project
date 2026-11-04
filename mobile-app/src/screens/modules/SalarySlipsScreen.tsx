@@ -292,7 +292,7 @@ export const SalarySlipsScreen: React.FC = () => {
                   <View style={{ flex: 1 }}>
                     <Text style={{ fontSize: 16, fontWeight: '700', color: colors.text }}>{slip.employeeName}</Text>
                     <Text style={{ fontSize: 12, color: colors.textSecondary, marginTop: 2 }}>
-                      {slip.employeeId} · {slip.department}
+                      {slip.employeeId || '—'} · {slip.department || '—'}
                     </Text>
                     <Text style={{ fontSize: 13, color: colors.textSecondary, marginTop: 2 }}>{slip.month} {slip.year}</Text>
                     {emailState && (

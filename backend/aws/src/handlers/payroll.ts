@@ -19,23 +19,38 @@ const DEFAULT_DIVISOR = 26;
 
 interface PayrollItem {
   userId: string;
+  /** Human-readable code (COMP-0002-2026-0002) — NEVER the Firestore doc-ID. */
   employeeId: string;
   employeeName: string;
   employeeEmail: string;
   designation?: string;
+  /** Department display name (CSV export column). */
+  department?: string;
   departmentId?: string | null;
   workingDays: number;
   presentDays: number;
   paidLeaveDays: number;
   unpaidLeaveDays: number;
+  halfDays?: number;
   holidayDays: number;
+  absentDays?: number;
   overtimeHours: number;
   totalPayableDays: number;
+  // Structure snapshot (CSV export columns) — split mirrors calculateRun below.
+  basicSalary?: number;
+  hra?: number;
+  da?: number;
+  conveyance?: number;
+  medical?: number;
+  specialAllowance?: number;
   grossSalary: number;
   earnedGross: number;
   overtimePay: number;
+  leaveEncashment?: number;
   pf: number;
   professionalTax: number;
+  /** unpaidDeduction + absentDeduction — the CSV "Other Deductions" column. */
+  otherDeductions?: number;
   unpaidDeduction: number;
   absentDeduction: number;
   totalEarnings: number;
@@ -165,23 +180,37 @@ async function calculateRun(
 
     items.push({
       userId,
-      employeeId: String(emp.id),
+      // The Firestore doc-ID (emp.id) was leaking into CSV exports, PDFs and
+      // payslip records here — always store the human-readable employee code.
+      employeeId: String(emp.employeeId ?? '').trim(),
       employeeName: String(emp.name ?? ''),
       employeeEmail: String(emp.email ?? ''),
       designation: emp.designation as string | undefined,
+      department: String(emp.department ?? '').trim(),
       departmentId: (emp.departmentId as string) ?? null,
       workingDays,
       presentDays,
       paidLeaveDays,
       unpaidLeaveDays,
+      halfDays: 0,
       holidayDays,
+      absentDays,
       overtimeHours,
       totalPayableDays,
+      // Structure snapshot for the CSV/PDF breakdown columns.
+      basicSalary,
+      hra,
+      da,
+      conveyance,
+      medical,
+      specialAllowance,
       grossSalary,
       earnedGross: grossSalary,
       overtimePay,
+      leaveEncashment: 0,
       pf,
       professionalTax,
+      otherDeductions: round2(unpaidDeduction + absentDeduction),
       unpaidDeduction,
       absentDeduction,
       totalEarnings,
@@ -201,11 +230,23 @@ export const payrollRoutes: Route[] = [
     handler: async (req) => {
       const caller = must(req);
       assertPermission(caller, 'payroll.calculate');
-      const { companyId, monthIndex, year, departmentId } = req.body as { companyId: string; monthIndex: number; year: number; departmentId?: string };
+      const { companyId, monthIndex, year, departmentId, selectedEmployeeIds, preview } = req.body as {
+        companyId: string; monthIndex: number; year: number; departmentId?: string;
+        selectedEmployeeIds?: string[]; preview?: boolean;
+      };
       assertCompanyScope(caller, companyId);
 
-      const { items, workingDays } = await calculateRun(companyId, monthIndex, year, departmentId);
+      const { items, workingDays } = await calculateRun(companyId, monthIndex, year, departmentId, selectedEmployeeIds);
       const totalNet = round2(items.reduce((s, i) => s + i.netSalary, 0));
+
+      // Preview = the mandatory review step: calculate and return the rows,
+      // write NOTHING (no run, no audit entry). Previously every preview
+      // silently persisted a duplicate payrollRun — that is how the two
+      // duplicate Nov-2026 runs were created.
+      if (preview) {
+        return { preview: true, items, employeeCount: items.length, workingDays, totalNet };
+      }
+
       const companyDocs = await queryEntities<Record<string, unknown>>({ entity: 'company', companyId, filters: { id: companyId }, limit: 1 }).catch(() => []);
       const companyCode = String(companyDocs[0]?.code ?? 'CO');
 
@@ -229,7 +270,8 @@ export const payrollRoutes: Route[] = [
         { id: newId(), companyId, runId: id, action: 'calculate', performedBy: caller.uid, performerName: caller.name, month: MONTHS[monthIndex], year, employeeCount: items.length, totalNet, timestamp: isoNow() },
         { entity: 'payrollAudit', tsField: 'timestamp' },
       );
-      return { run };
+      // Clients (web + mobile) read runId/items/employeeCount from the body.
+      return { runId: id, run, items, employeeCount: items.length, workingDays, totalNet };
     },
   },
 

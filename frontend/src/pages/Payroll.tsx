@@ -408,7 +408,7 @@ function PayrollContent() {
                 const pfpt = (it.pf || 0) + (it.professionalTax || 0)
                 return (
                   <tr key={it.userId || it.employeeId}>
-                    <td><strong>{it.employeeName}</strong><div style={{ fontSize: 11, color: '#9ca3af' }}>{it.employeeId}</div></td>
+                    <td><strong>{it.employeeName}</strong><div style={{ fontSize: 11, color: '#9ca3af' }}>{it.employeeId || '—'}</div></td>
                     <td>{it.department}</td>
                     <td>{it.workingDays}</td>
                     <td>{it.presentDays}</td>

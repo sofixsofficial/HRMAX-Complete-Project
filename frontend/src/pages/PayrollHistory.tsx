@@ -28,6 +28,19 @@ const statusColor = (status: string) => {
 
 const displayStatus = (status: string) => (status === 'Calculated' ? 'Generated' : status)
 
+/**
+ * Employee code for display/export. Backend doc-IDs (20-30 chars of bare
+ * alphanumerics like `IXKz2JIvs1NsF53oUGcj`) must NEVER be shown to a human —
+ * real codes always contain hyphens (`COMP-0002-2026-0002`). Blank or
+ * doc-ID-shaped values render as '—'.
+ */
+const safeEmployeeId = (v: unknown) => {
+  const s = String(v ?? '').trim()
+  if (!s) return '—'
+  if (/^[A-Za-z0-9]{17,30}$/.test(s)) return '—'
+  return s
+}
+
 const exportRunCsv = (run: PayrollRun) => {
   const items = (run.items || []) as PayrollItem[]
   if (items.length === 0) {
@@ -36,11 +49,12 @@ const exportRunCsv = (run: PayrollRun) => {
   }
   const headers = ['Employee ID', 'Employee Name', 'Department', 'Working Days', 'Present', 'Paid Lv', 'Unpaid Lv', 'Half', 'Holidays', 'Absent', 'OT (hrs)', 'Basic', 'HRA', 'DA', 'Conveyance', 'Medical', 'Special', 'Gross', 'OT Pay', 'Encashment', 'PF', 'PT', 'Other Deductions', 'Earnings', 'Deductions', 'Net']
   const rows = items.map(it => [
-    it.employeeId, it.employeeName, it.department, it.workingDays, it.presentDays,
-    it.paidLeaveDays, it.unpaidLeaveDays, it.halfDays ?? 0, it.holidayDays, it.absentDays ?? 0, it.overtimeHours,
-    it.basicSalary, it.hra, it.da, it.conveyance, it.medical, it.specialAllowance, it.grossSalary,
-    it.overtimePay, it.leaveEncashment ?? 0, it.pf, it.professionalTax, it.otherDeductions,
-    it.totalEarnings, it.totalDeductions, it.netSalary,
+    safeEmployeeId(it.employeeId), it.employeeName || '—', it.department || '—',
+    it.workingDays ?? 0, it.presentDays ?? 0,
+    it.paidLeaveDays ?? 0, it.unpaidLeaveDays ?? 0, it.halfDays ?? 0, it.holidayDays ?? 0, it.absentDays ?? 0, it.overtimeHours ?? 0,
+    it.basicSalary ?? 0, it.hra ?? 0, it.da ?? 0, it.conveyance ?? 0, it.medical ?? 0, it.specialAllowance ?? 0, it.grossSalary ?? 0,
+    it.overtimePay ?? 0, it.leaveEncashment ?? 0, it.pf ?? 0, it.professionalTax ?? 0, it.otherDeductions ?? 0,
+    it.totalEarnings ?? 0, it.totalDeductions ?? 0, it.netSalary ?? 0,
   ].map(cell => (typeof cell === 'string' && /[",\n]/.test(cell) ? `"${cell.replace(/"/g, '""')}"` : cell)).join(','))
   const summary = `"Period","Status","Month","Year","Employees","Total Net","Total Gross"\r\n"${run.month} ${run.year}",${run.status},${run.month},${run.year},${run.totalEmployees},${run.totalNet},${items.reduce((s, i) => s + i.totalEarnings, 0)}\r\n\r\n`
   const content = '\ufeff' + summary + headers.join(',') + '\r\n' + rows.join('\r\n') + '\r\n'

@@ -369,7 +369,7 @@ export function SalarySlips() {
                           <span className="employee-email">{slip.employeeEmail}</span>
                         </div>
                       </td>
-                      <td><span className="employee-id">{slip.employeeId}</span></td>
+                      <td><span className="employee-id">{slip.employeeId || '—'}</span></td>
                       <td><span className="dept-badge" style={{ background: slip.departmentColor + '20', color: slip.departmentColor }}>{slip.department}</span></td>
                       <td>
                         <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
