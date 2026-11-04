@@ -114,17 +114,17 @@ export const generatePayslipPdf = async (slip: SalarySlip, options: PayslipOptio
         <tr>
           <td class="desc">${earn[0]}</td>
           <td class="amt currency">${fmtMoney(earn[1])}</td>
-          <td class="amt currency">${fmtMoney(earn[1])}</td>
+          <td class="amt currency ytd">${fmtMoney(earn[1])}</td>
           <td class="desc">${ded[0]}</td>
           <td class="amt currency">${fmtMoney(ded[1])}</td>
-          <td class="amt currency">${fmtMoney(ded[1])}</td>
+          <td class="amt currency ytd">${fmtMoney(ded[1])}</td>
         </tr>`;
     } else {
       tableRowsHtml += `
         <tr>
           <td class="desc">${earn[0]}</td>
           <td class="amt currency">${fmtMoney(earn[1])}</td>
-          <td class="amt currency">${fmtMoney(earn[1])}</td>
+          <td class="amt currency ytd">${fmtMoney(earn[1])}</td>
         </tr>`;
     }
   }
@@ -133,17 +133,20 @@ export const generatePayslipPdf = async (slip: SalarySlip, options: PayslipOptio
   const logoHtml = c.logo ? `<img src="${c.logo}" class="company-logo" alt="logo" />` : '';
 
   const combinedTableHeader = hasDeductions
-    ? `<tr><th>Earnings</th><th class="amt">Amount</th><th class="amt">YTD</th><th>Deductions</th><th class="amt">Amount</th><th class="amt">YTD</th></tr>`
-    : `<tr><th>Earnings</th><th class="amt">Amount</th><th class="amt">YTD</th></tr>`;
+    ? `<tr><th>Earnings</th><th class="amt">Amount</th><th class="amt ytd">YTD</th><th>Deductions</th><th class="amt">Amount</th><th class="amt ytd">YTD</th></tr>`
+    : `<tr><th>Earnings</th><th class="amt">Amount</th><th class="amt ytd">YTD</th></tr>`;
 
   const combinedTableFooter = hasDeductions
-    ? `<tr class="total-row"><td class="desc">Gross Earnings</td><td class="amt currency">${fmtMoney(gross)}</td><td class="amt currency">${fmtMoney(gross)}</td><td class="desc">Total Deductions</td><td class="amt currency">${fmtMoney(deductions)}</td><td class="amt currency">${fmtMoney(deductions)}</td></tr>`
-    : `<tr class="total-row"><td class="desc">Gross Earnings</td><td class="amt currency">${fmtMoney(gross)}</td><td class="amt currency">${fmtMoney(gross)}</td></tr>`;
+    ? `<tr class="total-row"><td class="desc">Gross Earnings</td><td class="amt currency">${fmtMoney(gross)}</td><td class="amt currency ytd">${fmtMoney(gross)}</td><td class="desc">Total Deductions</td><td class="amt currency">${fmtMoney(deductions)}</td><td class="amt currency ytd">${fmtMoney(deductions)}</td></tr>`
+    : `<tr class="total-row"><td class="desc">Gross Earnings</td><td class="amt currency">${fmtMoney(gross)}</td><td class="amt currency ytd">${fmtMoney(gross)}</td></tr>`;
 
   const combinedTableClass = hasDeductions ? 'combined-table' : 'earnings-only-table';
+  // Label 18 / Amount 16 / YTD 16 per side — at 13% the money cells were
+  // narrower than a nowrap "₹ 60,000.00" and the text collided with the next
+  // column (the overlap seen in the sample payslip).
   const tableColgroup = hasDeductions
-    ? `<colgroup><col style="width:24%"><col style="width:13%"><col style="width:13%"><col style="width:24%"><col style="width:13%"><col style="width:13%"></colgroup>`
-    : `<colgroup><col style="width:40%"><col style="width:30%"><col style="width:30%"></colgroup>`;
+    ? `<colgroup><col class="label-col" style="width:18%"><col class="amt-col" style="width:16%"><col class="ytd-col" style="width:16%"><col class="label-col" style="width:18%"><col class="amt-col" style="width:16%"><col class="ytd-col" style="width:16%"></colgroup>`
+    : `<colgroup><col class="label-col" style="width:40%"><col class="amt-col" style="width:30%"><col class="ytd-col" style="width:30%"></colgroup>`;
 
   const html = `<!DOCTYPE html>
 <html>
@@ -238,23 +241,35 @@ export const generatePayslipPdf = async (slip: SalarySlip, options: PayslipOptio
       padding: 10px 12px; border-bottom: 1.5px solid var(--border-strong); height: 42px;
     }
     th.amt, td.amt { text-align: right; }
-    td.desc { color: var(--text-secondary); }
-    td.currency { white-space: nowrap; }
+    td.desc { color: var(--text-secondary); overflow-wrap: anywhere; }
+    td.currency { white-space: nowrap; font-size: 12px; padding-left: 8px; padding-right: 8px; }
     tbody tr { height: 40px; }
     tbody tr:nth-child(even) { background: var(--row-alt); }
     tr.total-row td {
       background: var(--primary-light); color: var(--text); font-weight: 700;
       font-size: 14px; border-top: 2px solid var(--primary);
     }
-    .combined-table th:nth-child(1), .combined-table td:nth-child(1) { width: 24%; }
-    .combined-table th:nth-child(2), .combined-table td:nth-child(2) { width: 13%; }
-    .combined-table th:nth-child(3), .combined-table td:nth-child(3) { width: 13%; }
-    .combined-table th:nth-child(4), .combined-table td:nth-child(4) { width: 24%; }
-    .combined-table th:nth-child(5), .combined-table td:nth-child(5) { width: 13%; }
-    .combined-table th:nth-child(6), .combined-table td:nth-child(6) { width: 13%; }
+    .combined-table th:nth-child(1), .combined-table td:nth-child(1) { width: 18%; }
+    .combined-table th:nth-child(2), .combined-table td:nth-child(2) { width: 16%; }
+    .combined-table th:nth-child(3), .combined-table td:nth-child(3) { width: 16%; }
+    .combined-table th:nth-child(4), .combined-table td:nth-child(4) { width: 18%; }
+    .combined-table th:nth-child(5), .combined-table td:nth-child(5) { width: 16%; }
+    .combined-table th:nth-child(6), .combined-table td:nth-child(6) { width: 16%; }
     .earnings-only-table th:nth-child(1), .earnings-only-table td:nth-child(1) { width: 40%; }
     .earnings-only-table th:nth-child(2), .earnings-only-table td:nth-child(2) { width: 30%; }
     .earnings-only-table th:nth-child(3), .earnings-only-table td:nth-child(3) { width: 30%; }
+    /* On-screen previews (narrow WebViews): YTD renders only in the printed
+       PDF sheet — four wider columns never collide at any width. */
+    @media screen {
+      .combined-table col.ytd-col,
+      .earnings-only-table col.ytd-col { width: 0 !important; }
+      .combined-table col.label-col { width: 28% !important; }
+      .combined-table col.amt-col { width: 22% !important; }
+      .combined-table th.ytd, .combined-table td.ytd { display: none; }
+      .earnings-only-table col.label-col { width: 55% !important; }
+      .earnings-only-table col.amt-col { width: 45% !important; }
+      .earnings-only-table th.ytd, .earnings-only-table td.ytd { display: none; }
+    }
     .net-table { border: 1.5px solid var(--border-strong); margin-bottom: 18px; }
     .net-table td { border: 1px solid var(--border); padding: 12px 14px; }
     .net-table td:last-child { text-align: right; font-weight: 600; white-space: nowrap; }

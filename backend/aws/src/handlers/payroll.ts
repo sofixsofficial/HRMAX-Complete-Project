@@ -400,6 +400,37 @@ export const payrollRoutes: Route[] = [
           },
           { entity: 'salarySlip', userIdField: 'userId' },
         );
+
+        // Email Center record — the Sent tab reads the `email` collection, so
+        // a delivered payslip must leave a row there (transport logs alone
+        // live in a different entity and never show up in the UI).
+        if (res.success) {
+          const nowIso = isoNow();
+          await putEntity(
+            {
+              id: newId(),
+              companyId,
+              from: process.env.EMAIL_FROM_NAME || 'HR MAX',
+              fromEmail: process.env.EMAIL_FROM || 'info@hrmax.in',
+              to: item.employeeName,
+              toEmail: ownEmail,
+              subject: t.subject,
+              body: t.html,
+              date: nowIso.slice(0, 10),
+              type: 'Employee',
+              status: 'Sent',
+              read: false,
+              starred: false,
+              recipientGroup: 'Individual Employee',
+              payrollMonth: run.monthIndex,
+              payrollYear: run.year,
+              sentAt: nowIso,
+              createdAt: nowIso,
+              updatedAt: nowIso,
+            },
+            { entity: 'email', tsField: 'createdAt' },
+          );
+        }
       }
 
       const updated = await patchEntity<PayrollRunDoc>('payrollRun', companyId, run.id, {

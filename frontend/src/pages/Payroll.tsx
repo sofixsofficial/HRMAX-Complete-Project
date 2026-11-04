@@ -12,7 +12,7 @@ import { useAuth } from '../context/AuthContext'
 import { usePermissionScope } from '../hooks/usePermissionScope'
 import { useAccessControl } from '../context/AccessControlContext'
 import { ScopeIndicator } from '../components/ScopeIndicator'
-import { getPayrollRunsByCompany, generateBulkPayroll, previewBulkPayroll } from '../services/payrollService'
+import { getPayrollRunsByCompany, getAllPayrollRuns, generateBulkPayroll, previewBulkPayroll } from '../services/payrollService'
 import { getSalarySlipsByCompany, deleteSalarySlip } from '../services/salaryService'
 import { getEmployeesByCompany } from '../services/employeeService'
 import { logAudit } from '../services/auditLogService'
@@ -106,7 +106,12 @@ function PayrollContent() {
   const fetchRuns = async () => {
     try {
       setLoading(true)
-      if (companyId) {
+      // Same "All Companies" scope rule as Payroll History — the MA always
+      // carries a fallback user.companyId, so the union query must key off
+      // effectiveCompanyId instead of ID absence.
+      if (user?.role === 'master-admin' && canAccessAllCompanies && !effectiveCompanyId) {
+        setRuns(await getAllPayrollRuns())
+      } else if (companyId) {
         setRuns(await getPayrollRunsByCompany(companyId))
       } else {
         setRuns([])

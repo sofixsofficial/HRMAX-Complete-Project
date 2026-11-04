@@ -265,7 +265,10 @@ export const downloadPayslipPdf = async (slip: SalarySlip, options: PayslipOptio
     ['Pay Date', payDateStr],
   ]
   const leftContentH = leftFields.length * 5.8 + 4
-  const rightContentH = 30
+  // The right column carries label + big amount + TWO day lines: 30mm pushed
+  // the LOP baseline past the rounded box border (the overlap in the sample
+  // PDF), so the box is sized for the taller side.
+  const rightContentH = 40
   const summaryH = Math.max(leftContentH, rightContentH)
   const summaryY = y
 
@@ -315,8 +318,8 @@ export const downloadPayslipPdf = async (slip: SalarySlip, options: PayslipOptio
 
   setFont(9, 'normal', C.bodyText)
   doc.setTextColor(...C.bodyText)
-  doc.text(`Paid Days : ${paidDays}`, rightX, summaryY + 29)
-  doc.text(`LOP Days : ${lopDays}`, rightX, summaryY + 34)
+  doc.text(`Paid Days : ${paidDays}`, rightX, summaryY + 31)
+  doc.text(`LOP Days : ${lopDays}`, rightX, summaryY + 36.5)
 
   y = summaryY + summaryH + SECTION_GAP
 

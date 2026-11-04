@@ -89,7 +89,13 @@ function PayrollHistoryContent() {
       setLoading(true)
       setError(null)
       let data: PayrollRun[]
-      if (user?.role === 'master-admin' && !companyId) {
+      // "All Companies" is a SCOPE decision (effectiveCompanyId), not an ID
+      // absence check — MA always carries a fallback user.companyId ('global'),
+      // so `!companyId` was never true and the union query never ran; the
+      // filter then queried the empty global partition → "No payroll records".
+      const wantsAllCompanies =
+        user?.role === 'master-admin' && canAccessAllCompanies && !effectiveCompanyId
+      if (wantsAllCompanies) {
         data = await getAllPayrollRuns()
       } else if (companyId) {
         data = await getPayrollRunsByCompany(companyId)

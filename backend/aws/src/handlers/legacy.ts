@@ -721,11 +721,39 @@ async function sendPayslipEmail(companyId: string, slip: Body): Promise<boolean>
       emailStatus: 'sent',
       lastEmailedAt: isoNow(),
     }, { entity: 'salarySlip', userIdField: 'userId' });
+    // Email Center record: the Sent tab reads the `email` collection (entity
+    // `email`), so every successful dispatch must leave a row there too —
+    // the SES transport log alone (entity emailLog) is not what the UI lists.
+    const nowIso = isoNow();
+    await putEntity<Body>(
+      {
+        id: newId(),
+        companyId,
+        from: process.env.EMAIL_FROM_NAME || 'HR MAX',
+        fromEmail: process.env.EMAIL_FROM || INFO_EMAIL(),
+        to: name,
+        toEmail: email,
+        subject: t.subject,
+        body: t.html,
+        date: nowIso.slice(0, 10),
+        type: 'Employee',
+        status: 'Sent',
+        read: false,
+        starred: false,
+        recipientGroup: 'Individual Employee',
+        payrollMonth: Number(slip.month) >= 1 && Number(slip.month) <= 12 ? Number(slip.month) - 1 : MONTH_NAMES.indexOf(String(slip.month)),
+        payrollYear: year,
+        sentAt: nowIso,
+        createdAt: nowIso,
+        updatedAt: nowIso,
+      },
+      { entity: 'email', tsField: 'createdAt' },
+    );
   } else {
-    await patchEntity<Body>('salarySlip', companyId, String(slip.id), { emailStatus: 'failed' }, {
-      entity: 'salarySlip',
-      userIdField: 'userId',
-    });
+    await patchEntity<Body>('salarySlip', companyId, String(slip.id), {
+      emailStatus: 'failed',
+      lastEmailedAt: isoNow(),
+    }, { entity: 'salarySlip', userIdField: 'userId' });
   }
   return res.success;
 }
@@ -930,12 +958,21 @@ export const legacyRoutes: Route[] = [
     const b = bodyOf(req);
     const companyId = String(b.companyId ?? caller.companyId);
     if (!isSuperAdmin(caller)) assertCompanyScope(caller, companyId);
-    const month = Number(b.month);
+    // Clients send EITHER `month` (1-based, legacy) or `monthIndex` (0-based,
+    // Email Center / Payroll History) — and slips store the month as either a
+    // number or the full name ('October'). Accept every shape; the old code
+    // read only `b.month` and then filtered numerically, so a monthIndex call
+    // against string-month slips silently picked ZERO employees ("Sent 0").
+    const monthNum = Number(b.month ?? (b.monthIndex !== undefined ? Number(b.monthIndex) + 1 : NaN));
     const year = Number(b.year);
+    const monthName = MONTH_NAMES[monthNum - 1] ?? String(b.month ?? b.monthIndex ?? '');
     const employeeIds = Array.isArray(b.employeeIds) ? (b.employeeIds as string[]).map(String) : null;
-    const slips = await queryEntities<Body>({ entity: 'salarySlip', companyId, filters: { month, year } });
-    const picked = employeeIds ? slips.filter((s) => employeeIds.includes(String(s.userId))) : slips;
-    const monthName = MONTH_NAMES[month - 1] ?? String(month);
+    const yearSlips = await queryEntities<Body>({ entity: 'salarySlip', companyId, filters: { year } });
+    const inMonth = yearSlips.filter((s) => {
+      const sm = String(s.month ?? '');
+      return sm === monthName || Number(s.month) === monthNum;
+    });
+    const picked = employeeIds ? inMonth.filter((s) => employeeIds.includes(String(s.userId))) : inMonth;
     let sent = 0;
     let failed = 0;
     for (const slip of picked) {
@@ -976,7 +1013,7 @@ export const legacyRoutes: Route[] = [
       to: summaryTo,
       subject: `Payroll summary — ${monthName} ${year}`,
       html: `<p><b>${picked.length}</b> payslips dispatched for <b>${monthName} ${year}</b>.</p><p>Total net: ₹ ${totalNet.toLocaleString('en-IN')}</p>`,
-      dedupKey: `payroll-summary-${companyId}-${month}-${year}`,
+      dedupKey: `payroll-summary-${companyId}-${monthNum}-${year}`,
       type: 'payroll',
     });
     const summarySent = summaryRes.success ? summaryTo.length : 0;
@@ -1026,10 +1063,23 @@ export const legacyRoutes: Route[] = [
     const companyId = String(b.companyId ?? caller.companyId);
     if (!isSuperAdmin(caller)) assertCompanyScope(caller, companyId);
     const q: Parameters<typeof queryEntities>[0] = { entity: 'salarySlip', companyId };
-    if (b.month) q.filters = { month: Number(b.month) };
-    if (b.year) q.filters = { ...q.filters, year: Number(b.year) };
+    if (b.year) q.filters = { year: Number(b.year) };
     const all = await queryEntities<Body>(q);
-    const failed = all.filter(
+    // Tolerant scoping: slips store month as a number OR the full name, and
+    // the Email Center passes the exact slipIds it listed (the old numeric
+    // equality match silently retried nothing against string-month slips).
+    const slipIds = Array.isArray(b.slipIds) ? (b.slipIds as unknown[]).map(String) : null;
+    const monthNum = b.month !== undefined && b.month !== null && b.month !== '' ? Number(b.month) : NaN;
+    const monthName = MONTH_NAMES[monthNum - 1];
+    const scoped = all.filter((s) => {
+      if (slipIds && !slipIds.includes(String(s.id))) return false;
+      if (!Number.isNaN(monthNum)) {
+        const sm = String(s.month ?? '');
+        if (!(sm === monthName || Number(s.month) === monthNum)) return false;
+      }
+      return true;
+    });
+    const failed = scoped.filter(
       (s) => ['failed', 'retrying'].includes(String(s.emailStatus ?? '')) && ['Paid', 'Emailed', 'Disbursed'].includes(String(s.status ?? '')),
     );
     let retried = 0;

@@ -110,10 +110,10 @@ export const generatePayslip = (slip: SalarySlip, options: PayslipOptions = {}) 
         <tr>
           <td class="desc">${earn[0]}</td>
           <td class="amt currency">${fmtMoney(earn[1], c.currency, c.country)}</td>
-          <td class="amt currency">${fmtMoney(earn[1], c.currency, c.country)}</td>
+          <td class="amt currency ytd">${fmtMoney(earn[1], c.currency, c.country)}</td>
           <td class="desc">${ded[0]}</td>
           <td class="amt currency">${fmtMoney(ded[1], c.currency, c.country)}</td>
-          <td class="amt currency">${fmtMoney(ded[1], c.currency, c.country)}</td>
+          <td class="amt currency ytd">${fmtMoney(ded[1], c.currency, c.country)}</td>
         </tr>
       `
     } else {
@@ -121,7 +121,7 @@ export const generatePayslip = (slip: SalarySlip, options: PayslipOptions = {}) 
         <tr>
           <td class="desc">${earn[0]}</td>
           <td class="amt currency">${fmtMoney(earn[1], c.currency, c.country)}</td>
-          <td class="amt currency">${fmtMoney(earn[1], c.currency, c.country)}</td>
+          <td class="amt currency ytd">${fmtMoney(earn[1], c.currency, c.country)}</td>
         </tr>
       `
     }
@@ -134,16 +134,16 @@ export const generatePayslip = (slip: SalarySlip, options: PayslipOptions = {}) 
     <tr>
       <th>Earnings</th>
       <th class="amt">Amount</th>
-      <th class="amt">YTD</th>
+      <th class="amt ytd">YTD</th>
       <th>Deductions</th>
       <th class="amt">Amount</th>
-      <th class="amt">YTD</th>
+      <th class="amt ytd">YTD</th>
     </tr>
   ` : `
     <tr>
       <th>Earnings</th>
       <th class="amt">Amount</th>
-      <th class="amt">YTD</th>
+      <th class="amt ytd">YTD</th>
     </tr>
   `
 
@@ -151,28 +151,30 @@ export const generatePayslip = (slip: SalarySlip, options: PayslipOptions = {}) 
     <tr class="total-row">
       <td class="desc">Gross Earnings</td>
       <td class="amt currency">${fmtMoney(gross, c.currency, c.country)}</td>
-      <td class="amt currency">${fmtMoney(gross, c.currency, c.country)}</td>
+      <td class="amt currency ytd">${fmtMoney(gross, c.currency, c.country)}</td>
       <td class="desc">Total Deductions</td>
       <td class="amt currency">${fmtMoney(deductions, c.currency, c.country)}</td>
-      <td class="amt currency">${fmtMoney(deductions, c.currency, c.country)}</td>
+      <td class="amt currency ytd">${fmtMoney(deductions, c.currency, c.country)}</td>
     </tr>
   ` : `
     <tr class="total-row">
       <td class="desc">Gross Earnings</td>
       <td class="amt currency">${fmtMoney(gross, c.currency, c.country)}</td>
-      <td class="amt currency">${fmtMoney(gross, c.currency, c.country)}</td>
+      <td class="amt currency ytd">${fmtMoney(gross, c.currency, c.country)}</td>
     </tr>
   `
 
   const combinedTableClass = hasDeductions ? 'combined-table' : 'earnings-only-table'
+  // Label 18 / Amount 16 / YTD 16 per side: at 13% the money cells were
+  // narrower than a nowrap "₹ 60,000.00" and collided with the next column.
   const tableColgroup = hasDeductions ? `
     <colgroup>
-      <col style="width:24%"><col style="width:13%"><col style="width:13%">
-      <col style="width:24%"><col style="width:13%"><col style="width:13%">
+      <col class="label-col" style="width:18%"><col class="amt-col" style="width:16%"><col class="ytd-col" style="width:16%">
+      <col class="label-col" style="width:18%"><col class="amt-col" style="width:16%"><col class="ytd-col" style="width:16%">
     </colgroup>
   ` : `
     <colgroup>
-      <col style="width:40%"><col style="width:30%"><col style="width:30%">
+      <col class="label-col" style="width:40%"><col class="amt-col" style="width:30%"><col class="ytd-col" style="width:30%">
     </colgroup>
   `
 
@@ -346,13 +348,13 @@ export const generatePayslip = (slip: SalarySlip, options: PayslipOptions = {}) 
       font-weight: 600;
     }
     .summary-right .net-pay {
-      font-size: clamp(32px, 4vw, 48px);
+      /* Money is NEVER ellipsised (a cut "₹ 56,9..." misstates the slip) —
+         the size steps down to fit the column instead of clipping. */
+      font-size: clamp(20px, 3vw, 34px);
       font-weight: 800;
       color: var(--primary-dark);
       line-height: 1;
       white-space: nowrap;
-      overflow: hidden;
-      text-overflow: ellipsis;
       margin-bottom: 10px;
     }
     .summary-right .days {
@@ -386,8 +388,8 @@ export const generatePayslip = (slip: SalarySlip, options: PayslipOptions = {}) 
       height: 42px;
     }
     th.amt, td.amt { text-align: right; }
-    td.desc { color: var(--text-secondary); }
-    td.currency { white-space: nowrap; }
+    td.desc { color: var(--text-secondary); overflow-wrap: anywhere; }
+    td.currency { white-space: nowrap; font-size: 12px; padding-left: 8px; padding-right: 8px; }
     tbody tr { height: 40px; }
     tbody tr:nth-child(even) { background: var(--row-alt); }
     tr.total-row td {
@@ -398,15 +400,31 @@ export const generatePayslip = (slip: SalarySlip, options: PayslipOptions = {}) 
       border-top: 2px solid var(--primary);
       letter-spacing: 0;
     }
-    .combined-table th:nth-child(1), .combined-table td:nth-child(1) { width: 24%; }
-    .combined-table th:nth-child(2), .combined-table td:nth-child(2) { width: 13%; }
-    .combined-table th:nth-child(3), .combined-table td:nth-child(3) { width: 13%; }
-    .combined-table th:nth-child(4), .combined-table td:nth-child(4) { width: 24%; }
-    .combined-table th:nth-child(5), .combined-table td:nth-child(5) { width: 13%; }
-    .combined-table th:nth-child(6), .combined-table td:nth-child(6) { width: 13%; }
+    .combined-table th:nth-child(1), .combined-table td:nth-child(1) { width: 18%; }
+    .combined-table th:nth-child(2), .combined-table td:nth-child(2) { width: 16%; }
+    .combined-table th:nth-child(3), .combined-table td:nth-child(3) { width: 16%; }
+    .combined-table th:nth-child(4), .combined-table td:nth-child(4) { width: 18%; }
+    .combined-table th:nth-child(5), .combined-table td:nth-child(5) { width: 16%; }
+    .combined-table th:nth-child(6), .combined-table td:nth-child(6) { width: 16%; }
     .earnings-only-table th:nth-child(1), .earnings-only-table td:nth-child(1) { width: 40%; }
     .earnings-only-table th:nth-child(2), .earnings-only-table td:nth-child(2) { width: 30%; }
     .earnings-only-table th:nth-child(3), .earnings-only-table td:nth-child(3) { width: 30%; }
+
+    /* On SCREEN the six-column sheet can't hold two labels + four money
+       columns without the amounts colliding (fixed table layout + nowrap
+       money overflows straight into the neighbouring cell). YTD columns
+       therefore render only in print/PDF (the full A4 sheet) and the screen
+       keeps four wider columns — no overlap at any window width. */
+    @media screen {
+      .combined-table col.ytd-col,
+      .earnings-only-table col.ytd-col { width: 0 !important; }
+      .combined-table col.label-col { width: 28% !important; }
+      .combined-table col.amt-col { width: 22% !important; }
+      .combined-table th.ytd, .combined-table td.ytd { display: none; }
+      .earnings-only-table col.label-col { width: 55% !important; }
+      .earnings-only-table col.amt-col { width: 45% !important; }
+      .earnings-only-table th.ytd, .earnings-only-table td.ytd { display: none; }
+    }
     .net-table {
       border: 1.5px solid var(--border-strong);
       margin-bottom: 18px;
