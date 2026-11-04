@@ -552,19 +552,19 @@ export const DashboardHero: React.FC<DashboardHeroProps> = ({
 
   return (
     <Animated.View style={[styles.root, { opacity: fadeAnim, transform: [{ translateY: slideAnim }] }]}>
-      {/* ── Orange banner card (gradient + faint skyline + team glyph) ── */}
+      {/* ── Orange banner card — warm, low-glare palette + art ── */}
       <View style={styles.cardWrap}>
       <LinearGradient
-        colors={['#ff9d45', '#f97b1f', '#ef6a12']}
+        colors={['#f9a96b', '#f2904e', '#e97f3b']}
         start={{ x: 0, y: 0 }}
         end={{ x: 1, y: 0.85 }}
         style={styles.card}
       >
-        {/* Soft light sheen from the top-left (depth, purely decorative) */}
+        {/* Soft light sheen from the top-left (gentle depth, no glare) */}
         <LinearGradient
           pointerEvents="none"
           style={StyleSheet.absoluteFill}
-          colors={['rgba(255,255,255,0.30)', 'rgba(255,255,255,0.02)']}
+          colors={['rgba(255,255,255,0.16)', 'rgba(255,255,255,0.01)']}
           start={{ x: 0, y: 0 }}
           end={{ x: 0.55, y: 1 }}
         />
@@ -683,14 +683,14 @@ export const DashboardHero: React.FC<DashboardHeroProps> = ({
 const styles = StyleSheet.create({
   root: { marginBottom: 6 },
   // Outer shadow layer (iOS clips shadows when overflow is hidden, so the
-  // gradient card sits inside this wrapper).
+  // gradient card sits inside this wrapper) — muted warm shadow, no glow.
   cardWrap: {
     borderRadius: 18,
-    shadowColor: '#8a3a05',
-    shadowOpacity: 0.3,
-    shadowRadius: 14,
+    shadowColor: '#5b3a1a',
+    shadowOpacity: 0.2,
+    shadowRadius: 12,
     shadowOffset: { width: 0, height: 6 },
-    elevation: 5,
+    elevation: 4,
   },
   card: {
     borderRadius: 18,

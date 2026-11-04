@@ -26,29 +26,29 @@ html {
   color: #12294a;
 }
 
-/* ── Orange banner card ───────────────────────────────────────────── */
+/* ── Orange banner card — warm, LOW-GLARE palette (easy on the eyes) */
 .hero .hero-card {
   position: relative;
   overflow: hidden;
   isolation: isolate;
   border-radius: 18px;
-  background: linear-gradient(120deg, #ff9d45 0%, #f97b1f 52%, #ef6a12 100%);
+  background: linear-gradient(115deg, #f9a96b 0%, #f2904e 55%, #e97f3b 100%);
   padding: 26px 30px;
   min-height: 0;
   display: block;
-  box-shadow: 0 10px 26px rgba(238, 106, 20, 0.28);
+  box-shadow: 0 8px 22px rgba(120, 70, 30, 0.18);
 }
 
-/* Soft light sheen from the top-left corner — depth without any content
-   competing for space (purely decorative, always behind everything). */
+/* Soft light sheen from the top-left corner — gentle depth, no hotspot
+   glare (purely decorative, always behind everything). */
 .hero .hero-card::before {
   content: '';
   position: absolute;
   inset: 0;
   background: radial-gradient(
     130% 170% at 6% -10%,
-    rgba(255, 255, 255, 0.30) 0%,
-    rgba(255, 255, 255, 0.10) 38%,
+    rgba(255, 255, 255, 0.16) 0%,
+    rgba(255, 255, 255, 0.06) 38%,
     transparent 60%
   );
   z-index: 0;
