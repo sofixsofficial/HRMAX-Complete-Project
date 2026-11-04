@@ -313,9 +313,8 @@ function HeroAttendance({ badge }: { badge: string }) {
 }
 
 /* ------------------------------------------------------------------ */
-/* Hero — simple + clean design (light gradient card with soft blue    */
-/* waves, welcome + NAME + compact wordmark, live chips row) + light   */
-/* rounded stat tiles                                                  */
+/* Hero — minimal design (plain white card, welcome + NAME, live chips */
+/* row, no decorative art) + light rounded stat tiles                  */
 /* ------------------------------------------------------------------ */
 
 export function DashboardHero({ stats, badge, showAttendance = true }: DashboardHeroProps) {
@@ -335,14 +334,6 @@ export function DashboardHero({ stats, badge, showAttendance = true }: Dashboard
   return (
     <section className="hero" aria-label="Welcome summary">
       <div className="hero-card">
-        {/* Soft blue wave shapes on the right (decorative only) */}
-        <svg className="hero-waves" viewBox="0 0 1200 400" preserveAspectRatio="none" aria-hidden="true" focusable="false">
-          <path fill="#dbe9fb" d="M860 0 C1010 90 1130 210 940 330 C875 372 905 400 905 400 L1200 400 L1200 0 Z" />
-          <path fill="#eef4fd" d="M1200 120 C1075 185 1155 320 995 400 L1200 400 Z" />
-          <path fill="#c7dbf8" opacity="0.85" d="M1200 250 C1115 295 1165 362 1085 400 L1200 400 Z" />
-          <path fill="#eaf1fd" d="M1200 0 L960 0 C1075 65 1135 115 1200 145 Z" />
-        </svg>
-
         <div className="welcome">
           <div className="hero-greet">
             <small>👋 Welcome back,</small>
@@ -385,45 +376,6 @@ export function DashboardHero({ stats, badge, showAttendance = true }: Dashboard
               </span>
             </div>
           )}
-        </div>
-
-        {/* Right side: tagline + clean business cards (decorative, no
-            cartoon character — simple professional look) */}
-        <div className="hero-art" aria-hidden="true">
-          <div className="art-tagline">
-            <span className="art-line1">Work Smart,</span>
-            <span className="art-line2">Grow Together!</span>
-            <svg className="art-swoosh" viewBox="0 0 130 12" fill="none" aria-hidden="true" focusable="false">
-              <path d="M4 8 C 38 2 92 2 126 7" stroke="#f97316" strokeWidth="4" strokeLinecap="round" />
-            </svg>
-          </div>
-          <svg className="art-scene" viewBox="0 0 320 260" aria-hidden="true" focusable="false">
-            {/* soft blob */}
-            <circle cx="160" cy="140" r="95" fill="#dbe9fb" opacity="0.5" />
-            {/* calendar card — attendance */}
-            <rect x="24" y="26" width="62" height="62" rx="14" fill="#ffffff" stroke="#dbe7f8" strokeWidth="2" />
-            <rect x="38" y="18" width="7" height="16" rx="3.5" fill="#1d4ed8" />
-            <rect x="64" y="18" width="7" height="16" rx="3.5" fill="#1d4ed8" />
-            <rect x="38" y="46" width="34" height="26" rx="6" fill="#eff6ff" />
-            <path d="M46 59 l7 7 l13 -15" stroke="#16a34a" strokeWidth="4" fill="none" strokeLinecap="round" strokeLinejoin="round" />
-            {/* people card — team */}
-            <rect x="236" y="34" width="64" height="52" rx="14" fill="#ffffff" stroke="#dbe7f8" strokeWidth="2" />
-            <circle cx="256" cy="52" r="8" fill="#2563eb" />
-            <path d="M244 72 c0-7 5-11 12-11 s12 4 12 11 z" fill="#2563eb" />
-            <circle cx="282" cy="54" r="7" fill="#93c5fd" />
-            <path d="M272 72 c0-6 4-9 10-9 s10 3 10 9 z" fill="#93c5fd" />
-            {/* analytics card — growth */}
-            <rect x="86" y="76" width="148" height="114" rx="18" fill="#ffffff" stroke="#dbe7f8" strokeWidth="2" />
-            <rect x="104" y="94" width="48" height="9" rx="4.5" fill="#12294a" opacity="0.85" />
-            <rect x="104" y="108" width="30" height="7" rx="3.5" fill="#cbd5e1" />
-            <rect x="104" y="164" width="112" height="2" rx="1" fill="#e2e8f0" />
-            <rect x="116" y="140" width="16" height="24" rx="5" fill="#fed7aa" />
-            <rect x="140" y="128" width="16" height="36" rx="5" fill="#fdba74" />
-            <rect x="164" y="114" width="16" height="50" rx="5" fill="#fb923c" />
-            <rect x="188" y="100" width="16" height="64" rx="5" fill="#f97316" />
-            <path d="M124 134 L148 122 L172 108 L196 94" stroke="#12294a" strokeWidth="3" fill="none" strokeLinecap="round" strokeLinejoin="round" />
-            <circle cx="196" cy="94" r="5" fill="#f97316" stroke="#ffffff" strokeWidth="2" />
-          </svg>
         </div>
       </div>
 

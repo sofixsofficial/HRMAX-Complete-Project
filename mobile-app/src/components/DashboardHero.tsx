@@ -1,7 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { View, Text, StyleSheet, Animated, AccessibilityInfo, Pressable, ActivityIndicator } from 'react-native';
-import { LinearGradient } from 'expo-linear-gradient';
-import Svg, { Circle, Path, Rect } from 'react-native-svg';
 import { collection, getDocs, query, where } from '../aws/firestore-compat';
 import { db } from '../aws/clients';
 import { useAuth } from '../context/AuthContext';
@@ -25,15 +23,15 @@ import { parseWeekendDays, toDateKey } from '../utils/workingDays';
 import { Icon } from '../utils/icons';
 
 /**
- * Dashboard hero — screenshot design (web parity):
- *  • light gradient card (white → pale blue) with soft blue waves
+ * Dashboard hero — minimal design (web parity):
+ *  • plain white card (thin border — no gradient, waves or illustration)
  *  • "👋 Welcome back," + NAME + subtitle + live date/time pills
  *  • orange "View Details →" button (real handler — scrolls the dashboard
  *    content below the hero; never a dead button)
  *  • role pill + live attendance chips (status / checked-in time / elapsed
  *    pill) + gate-validated punch actions
- *  • right/bottom: "Work Smart, Grow Together!" tagline + clean business
- *    cards (calendar / people / growth chart — no cartoon character)
+ *  • right/bottom: plain white card — NO gradient / waves / illustration
+ *    (minimal, mirrors the web hero)
  *  • light rounded stat tiles BELOW the card (tinted icon, real values)
  *
  * Working Mode derives ONLY from the user's verified today attendance record
@@ -542,20 +540,8 @@ export const DashboardHero: React.FC<DashboardHeroProps> = ({
 
   return (
     <Animated.View style={[styles.root, { opacity: fadeAnim, transform: [{ translateY: slideAnim }] }]}>
-      {/* ── Light card ── */}
-      <LinearGradient
-        colors={['#ffffff', '#f2f7ff', '#dceafd']}
-        start={{ x: 0, y: 0 }}
-        end={{ x: 1, y: 1 }}
-        style={styles.card}
-      >
-        {/* Soft blue wave shapes on the right (decorative only) */}
-        <Svg pointerEvents="none" style={StyleSheet.absoluteFill} viewBox="0 0 1200 400" preserveAspectRatio="none">
-          <Path d="M860 0 C1010 90 1130 210 940 330 C875 372 905 400 905 400 L1200 400 L1200 0 Z" fill="#dbe9fb" />
-          <Path d="M1200 120 C1075 185 1155 320 995 400 L1200 400 Z" fill="#eef4fd" />
-          <Path d="M1200 250 C1115 295 1165 362 1085 400 L1200 400 Z" fill="#c7dbf8" opacity={0.85} />
-        </Svg>
-
+      {/* ── Plain white card (no gradient / waves / art) ── */}
+      <View style={styles.card}>
         <View style={styles.topRow}>
           <View style={styles.identityCol}>
             <Text style={styles.welcomeSmall}>👋 Welcome back,</Text>
@@ -613,45 +599,7 @@ export const DashboardHero: React.FC<DashboardHeroProps> = ({
           ) : null}
         </View>
 
-        {/* Tagline + flat illustration (decorative, mirrors the web hero) */}
-        <View style={styles.artWrap} pointerEvents="none">
-          <View style={styles.artTagline}>
-            <Text style={styles.artLine1}>Work Smart,</Text>
-            <Text style={styles.artLine2}>Grow Together!</Text>
-            <Svg width={110} height={10} viewBox="0 0 130 12">
-              <Path d="M4 8 C 38 2 92 2 126 7" stroke="#f97316" strokeWidth={4} strokeLinecap="round" fill="none" />
-            </Svg>
-          </View>
-          <Svg width={248} height={202} viewBox="0 0 320 260">
-            {/* soft blob */}
-            <Circle cx={160} cy={140} r={95} fill="#dbe9fb" opacity={0.5} />
-            {/* calendar card — attendance */}
-            <Rect x={24} y={26} width={62} height={62} rx={14} fill="#ffffff" stroke="#dbe7f8" strokeWidth={2} />
-            <Rect x={38} y={18} width={7} height={16} rx={3.5} fill="#1d4ed8" />
-            <Rect x={64} y={18} width={7} height={16} rx={3.5} fill="#1d4ed8" />
-            <Rect x={38} y={46} width={34} height={26} rx={6} fill="#eff6ff" />
-            <Path d="M46 59 l7 7 l13 -15" stroke="#16a34a" strokeWidth={4} fill="none" strokeLinecap="round" strokeLinejoin="round" />
-            {/* people card — team */}
-            <Rect x={236} y={34} width={64} height={52} rx={14} fill="#ffffff" stroke="#dbe7f8" strokeWidth={2} />
-            <Circle cx={256} cy={52} r={8} fill="#2563eb" />
-            <Path d="M244 72 c0-7 5-11 12-11 s12 4 12 11 z" fill="#2563eb" />
-            <Circle cx={282} cy={54} r={7} fill="#93c5fd" />
-            <Path d="M272 72 c0-6 4-9 10-9 s10 3 10 9 z" fill="#93c5fd" />
-            {/* analytics card — growth */}
-            <Rect x={86} y={76} width={148} height={114} rx={18} fill="#ffffff" stroke="#dbe7f8" strokeWidth={2} />
-            <Rect x={104} y={94} width={48} height={9} rx={4.5} fill="#12294a" opacity={0.85} />
-            <Rect x={104} y={108} width={30} height={7} rx={3.5} fill="#cbd5e1" />
-            <Rect x={104} y={164} width={112} height={2} rx={1} fill="#e2e8f0" />
-            <Rect x={116} y={140} width={16} height={24} rx={5} fill="#fed7aa" />
-            <Rect x={140} y={128} width={16} height={36} rx={5} fill="#fdba74" />
-            <Rect x={164} y={114} width={16} height={50} rx={5} fill="#fb923c" />
-            <Rect x={188} y={100} width={16} height={64} rx={5} fill="#f97316" />
-            <Path d="M124 134 L148 122 L172 108 L196 94" stroke="#12294a" strokeWidth={3} fill="none" strokeLinecap="round" strokeLinejoin="round" />
-            <Circle cx={196} cy={94} r={5} fill="#f97316" stroke="#ffffff" strokeWidth={2} />
-          </Svg>
-        </View>
-
-      </LinearGradient>
+      </View>
 
       {/* ── Light stat tiles (real values from the dashboard) ── */}
       {stats && stats.length > 0 && (
@@ -690,7 +638,9 @@ const styles = StyleSheet.create({
   root: { marginBottom: 6 },
   card: {
     borderRadius: 18,
-    overflow: 'hidden',
+    backgroundColor: '#ffffff',
+    borderWidth: 1,
+    borderColor: '#e8eefb',
     paddingHorizontal: 18,
     paddingTop: 22,
     paddingBottom: 20,
@@ -744,12 +694,6 @@ const styles = StyleSheet.create({
   },
   ctaBtnPressed: { backgroundColor: '#ea580c' },
   ctaText: { color: '#ffffff', fontSize: 14, fontWeight: '700' },
-
-  /* Tagline + flat illustration */
-  artWrap: { alignItems: 'center', marginTop: 16, gap: 2 },
-  artTagline: { alignItems: 'center' },
-  artLine1: { fontSize: 21, fontWeight: '800', color: '#12294a', letterSpacing: -0.4 },
-  artLine2: { fontSize: 21, fontWeight: '800', fontStyle: 'italic', color: '#f97316', letterSpacing: -0.4, marginTop: -2 },
 
   chipsFlow: {
     position: 'relative',
