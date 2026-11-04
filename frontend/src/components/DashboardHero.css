@@ -39,13 +39,29 @@ html {
   box-shadow: 0 10px 26px rgba(238, 106, 20, 0.28);
 }
 
+/* Soft light sheen from the top-left corner — depth without any content
+   competing for space (purely decorative, always behind everything). */
+.hero .hero-card::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: radial-gradient(
+    130% 170% at 6% -10%,
+    rgba(255, 255, 255, 0.30) 0%,
+    rgba(255, 255, 255, 0.10) 38%,
+    transparent 60%
+  );
+  z-index: 0;
+  pointer-events: none;
+}
+
 /* Decorative skyline (bottom-right) + white team glyph (right) —
    ornamental only, always behind the welcome block (z-index: 0). */
 .hero .hero-skyline {
   position: absolute;
   right: 0;
   bottom: 0;
-  width: min(62%, 560px);
+  width: min(66%, 600px);
   height: auto;
   z-index: 0;
   pointer-events: none;
@@ -53,9 +69,10 @@ html {
 
 .hero .hero-team {
   position: absolute;
-  right: 34px;
-  top: 24px;
-  width: 118px;
+  right: 36px;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 124px;
   z-index: 0;
   pointer-events: none;
 }
@@ -65,6 +82,10 @@ html {
   position: relative;
   z-index: 1;
   min-width: 0;
+  /* Reserve the team-glyph zone so a long name / wide pills can never
+     slide under the decoration (overlap guard — reset when the glyph
+     hides below 980px). */
+  padding-right: 158px;
 }
 
 .hero .hero-greet small {
@@ -355,9 +376,14 @@ html {
     min-height: 0;
   }
 
-  /* The team glyph needs horizontal room — drop it first. */
+  /* The team glyph needs horizontal room — drop it first, and give the
+     welcome block the full width back (no reserved dead zone). */
   .hero .hero-team {
     display: none;
+  }
+
+  .hero .welcome {
+    padding-right: 0;
   }
 }
 

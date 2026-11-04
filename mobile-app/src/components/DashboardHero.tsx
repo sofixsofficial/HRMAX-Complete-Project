@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { View, Text, StyleSheet, Animated, AccessibilityInfo, Pressable, ActivityIndicator } from 'react-native';
+import { View, Text, StyleSheet, Animated, AccessibilityInfo, Pressable, ActivityIndicator, useWindowDimensions } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import Svg, { Circle, Path, Rect } from 'react-native-svg';
 import { collection, getDocs, query, where } from '../aws/firestore-compat';
@@ -478,6 +478,12 @@ export const DashboardHero: React.FC<DashboardHeroProps> = ({
   const { user } = useAuth();
   const { effectiveCompanyId } = useCompany();
 
+  // The team glyph needs horizontal room: it renders only on wide layouts,
+  // and the text column reserves its zone otherwise (overlap guard — RN has
+  // no media queries, so the window width decides).
+  const { width: windowWidth } = useWindowDimensions();
+  const showTeamGlyph = windowWidth >= 480;
+
   const [companyTz, setCompanyTz] = useState<string | null>(null);
   const [now, setNow] = useState<Date>(() => new Date());
 
@@ -554,6 +560,14 @@ export const DashboardHero: React.FC<DashboardHeroProps> = ({
         end={{ x: 1, y: 0.85 }}
         style={styles.card}
       >
+        {/* Soft light sheen from the top-left (depth, purely decorative) */}
+        <LinearGradient
+          pointerEvents="none"
+          style={StyleSheet.absoluteFill}
+          colors={['rgba(255,255,255,0.30)', 'rgba(255,255,255,0.02)']}
+          start={{ x: 0, y: 0 }}
+          end={{ x: 0.55, y: 1 }}
+        />
         {/* Decorative: city skyline (bottom-right) — ornamental only */}
         <Svg pointerEvents="none" style={styles.skylineArt} width={300} height={107} viewBox="0 0 560 200">
           <Rect x="0" y="120" width="46" height="80" fill="rgba(255,255,255,0.14)" />
@@ -573,19 +587,21 @@ export const DashboardHero: React.FC<DashboardHeroProps> = ({
           <Rect x="484" y="80" width="48" height="120" fill="rgba(255,255,255,0.14)" />
           <Rect x="498" y="64" width="20" height="16" fill="rgba(255,255,255,0.14)" />
         </Svg>
-        {/* Decorative: white team-people glyph (right) */}
-        <Svg pointerEvents="none" style={styles.teamArt} width={92} height={64} viewBox="0 0 160 112">
-          <Path d="M24 80 c0-12 9-21 20-21 s20 9 20 21 z" fill="#ffffff" />
-          <Circle cx="44" cy="42" r="14" fill="#ffffff" />
-          <Path d="M96 80 c0-12 9-21 20-21 s20 9 20 21 z" fill="#ffffff" />
-          <Circle cx="116" cy="42" r="14" fill="#ffffff" />
-          <Path d="M54 88 c0-15 12-27 26-27 s26 12 26 27 z" fill="#ffffff" />
-          <Circle cx="80" cy="30" r="19" fill="#ffffff" />
-          <Path d="M8 100 C 44 84, 116 84, 152 100" stroke="#ffffff" strokeWidth="7" fill="none" strokeLinecap="round" />
-        </Svg>
+        {/* Decorative: white team-people glyph (right, wide layouts only) */}
+        {showTeamGlyph ? (
+          <Svg pointerEvents="none" style={styles.teamArt} width={92} height={64} viewBox="0 0 160 112">
+            <Path d="M24 80 c0-12 9-21 20-21 s20 9 20 21 z" fill="#ffffff" />
+            <Circle cx="44" cy="42" r="14" fill="#ffffff" />
+            <Path d="M96 80 c0-12 9-21 20-21 s20 9 20 21 z" fill="#ffffff" />
+            <Circle cx="116" cy="42" r="14" fill="#ffffff" />
+            <Path d="M54 88 c0-15 12-27 26-27 s26 12 26 27 z" fill="#ffffff" />
+            <Circle cx="80" cy="30" r="19" fill="#ffffff" />
+            <Path d="M8 100 C 44 84, 116 84, 152 100" stroke="#ffffff" strokeWidth="7" fill="none" strokeLinecap="round" />
+          </Svg>
+        ) : null}
 
         <View style={styles.topRow}>
-          <View style={styles.identityCol}>
+          <View style={[styles.identityCol, showTeamGlyph && styles.identityColReserved]}>
             <Text style={styles.welcomeSmall}>Welcome back,</Text>
             <Text style={styles.userName} numberOfLines={1} ellipsizeMode="tail">{name}</Text>
             <Text style={styles.heroSub} numberOfLines={2}>
@@ -684,7 +700,7 @@ const styles = StyleSheet.create({
     paddingBottom: 20,
   },
   skylineArt: { position: 'absolute', right: -4, bottom: 0 },
-  teamArt: { position: 'absolute', right: 14, top: 16 },
+  teamArt: { position: 'absolute', right: 16, top: '50%', marginTop: -32 },
 
   topRow: {
     position: 'relative',
@@ -695,6 +711,8 @@ const styles = StyleSheet.create({
     gap: 10,
   },
   identityCol: { flex: 1, minWidth: 0 },
+  // Wide layouts: keep the text clear of the team glyph zone.
+  identityColReserved: { paddingRight: 108 },
   welcomeSmall: { fontSize: 13, fontWeight: '600', color: 'rgba(255,255,255,0.92)', letterSpacing: 0.1 },
   userName: { fontSize: 24, fontWeight: '800', color: '#ffffff', marginTop: 1, letterSpacing: -0.5 },
   heroSub: { fontSize: 12.5, color: 'rgba(255,255,255,0.9)', marginTop: 6, lineHeight: 18 },
