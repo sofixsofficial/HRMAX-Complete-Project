@@ -24,6 +24,10 @@ const API = () => AWS_CONFIG.apiUrl.replace(/\/$/, '');
 const ROUTE_MAP: Record<string, { path: string; method?: 'GET' | 'POST' | 'PUT' | 'PATCH' | 'DELETE' }> = {
   // auth
   createStaffUser: { path: '/api/users/create-staff' },
+  // Invitations — server-side: the backend mints the token, stores the record
+  // and emails the link; acceptance runs on the backend too.
+  createInvite: { path: '/api/auth/invite' },
+  acceptInvite: { path: '/api/auth/accept-invite' },
   // Admin-triggered reset for any managed role (employee / company admin /
   // executive / team leader) — issues a TEMPORARY password the admin hands
   // over; the target must replace it at next sign-in or from Settings.

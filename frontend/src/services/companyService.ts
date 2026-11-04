@@ -15,7 +15,6 @@ import {
 import { httpsCallable } from '../aws/functions-compat';
 import { db, functions } from '../aws/clients';
 import type { Company, CompanyAttendanceSettings, CompanyPayrollSettings } from '../types/user';
-import { generateUniqueCode } from './codeGenerator';
 
 const COLLECTION_NAME = 'companies';
 const companiesRef = collection(db, COLLECTION_NAME);
@@ -80,19 +79,21 @@ const stripUndefined = (obj: Record<string, any>) => {
   return Object.fromEntries(Object.entries(obj).filter(([_, v]) => v !== undefined));
 };
 
-// Create company
+// Create company — the AWS backend mints the company ID
+// (COMP-[SHORT]-[YEAR]-[SERIAL]) atomically on POST; read the saved document
+// back so callers see the issued code instead of a client-generated one.
 export const createCompany = async (company: Omit<Company, 'id' | 'createdOn' | 'code'> & { code?: string; createdBy?: string }): Promise<Company> => {
-  const code = company.code || await generateUniqueCode('companies', 'COMP');
   const docRef = await addDoc(companiesRef, {
-    ...stripUndefined({ ...company, code } as any),
+    ...stripUndefined({ ...company } as any),
     createdOn: serverTimestamp()
   });
 
+  const saved = await getCompanyById(docRef.id);
   return {
     ...company,
-    code,
+    ...(saved ?? {}),
     id: docRef.id,
-    createdOn: new Date()
+    createdOn: saved?.createdOn ?? new Date()
   } as Company;
 };
 
@@ -145,17 +146,17 @@ export const onboardCompany = async (data: {
   /** Configurable per-role approval chains (defaults apply when omitted). */
   approvalChains?: Record<string, string[]>
 }): Promise<Company> => {
-  const code = await generateUniqueCode('companies', 'COMP')
   const companyId = doc(collection(db, 'companies')).id
 
   const batch = writeBatch(db)
 
-  // 1. Company document with embedded configs
+  // 1. Company document with embedded configs. No `code` field: the AWS
+  //    backend mints COMP-[SHORT]-[YEAR]-[SERIAL] when the PUT upserts the
+  //    brand-new document (client-side ID generation is gone).
   const companyRef = doc(db, 'companies', companyId)
   batch.set(companyRef, {
     name: data.name,
     domain: data.domain,
-    code,
     adminName: data.adminName,
     adminEmail: data.adminEmail,
     employees: 0,
@@ -243,11 +244,15 @@ export const onboardCompany = async (data: {
 
   await batch.commit()
 
+  // Read back the document the backend saved — it now carries the server-
+  // minted company ID (COMP-[SHORT]-[YEAR]-[SERIAL]).
+  const saved = await getCompanyById(companyId)
+
   return {
     id: companyId,
     name: data.name,
     domain: data.domain,
-    code,
+    code: saved?.code ?? '',
     adminName: data.adminName,
     adminEmail: data.adminEmail,
     employees: 0,

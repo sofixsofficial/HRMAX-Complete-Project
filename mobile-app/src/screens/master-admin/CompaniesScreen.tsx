@@ -783,7 +783,7 @@ export const CompaniesScreen: React.FC = () => {
 
               <Text style={s.sectionTitle}>Company Information</Text>
               <TextInput style={s.input} placeholder="Company Name *" placeholderTextColor={colors.textTertiary} value={form.name} onChangeText={(t) => setForm({...form, name: t})} />
-              <TextInput style={s.input} placeholder="Company Code (auto if empty)" placeholderTextColor={colors.textTertiary} value={form.code} onChangeText={(t) => setForm({...form, code: t})} editable={!editing} />
+              <TextInput style={s.input} placeholder="Company Code (auto-generated)" placeholderTextColor={colors.textTertiary} value={form.code} editable={false} />
               <TextInput style={s.input} placeholder="Company Email / Domain *" placeholderTextColor={colors.textTertiary} value={form.domain} onChangeText={(t) => setForm({...form, domain: t})} keyboardType="email-address" autoCapitalize="none" />
               <TextInput style={s.input} placeholder="Company Phone" placeholderTextColor={colors.textTertiary} value={form.phone} onChangeText={(t) => setForm({...form, phone: t})} keyboardType="phone-pad" />
               <TextInput style={s.input} placeholder="Website" placeholderTextColor={colors.textTertiary} value={form.website} onChangeText={(t) => setForm({...form, website: t})} />

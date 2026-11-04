@@ -1,11 +1,10 @@
 /**
- * Legacy Firebase callable dispatcher — `POST /fn/:name`.
+ * Legacy callable dispatcher — `POST /fn/:name`.
  *
- * The Firebase apps invoked ~100 `httpsCallable` names. Names that map to
- * first-class REST routes are handled there (see the shims' ROUTE_MAPs);
- * every other name lands here and is dispatched by name with the original
- * callable's contract (docs/migration/inventory-backend-functions.md):
- * the web's admin/ops callables plus mobile's 58 Admin-SDK callables.
+ * The apps invoke ~100 `httpsCallable` names. Names that map to first-class
+ * REST routes are handled there (see the shims' ROUTE_MAPs); every other name
+ * lands here and is dispatched by name with its original contract: the web's
+ * admin/ops callables plus mobile's batch of callables.
  *
  * Data lives in the same single-table layout as the REST handlers
  * (see lib/db.ts); user docs are written through writeUserDoc so the
@@ -37,6 +36,7 @@ import { cognitoCreateUser, writeUserDoc } from './auth.js';
 import { getPolicy, hhmmToMinutes, OVERTIME_THRESHOLD_MINUTES } from './attendance.js';
 import { assertCompanyScope, isSuperAdmin, readPartitions } from '../lib/auth.js';
 import { assertWithinAttendanceCorrectionWindow, resolveAttendanceCorrectionWindow } from '../lib/correctionWindow.js';
+import { generateEmployeeId, generateCompanyId, generateDepartmentId, deriveShortCode } from '../lib/ids.js';
 import { ApiError, isoNow, newId, TIER_ORDER, resolveApprovalChain, type Caller, type LeaveTier, type UserRole } from '../lib/types.js';
 
 const cognito = new CognitoIdentityProviderClient({});
@@ -1306,8 +1306,11 @@ export const legacyRoutes: Route[] = [
   fn('mobileCreateEmployee', async (req) => {
     const caller = must(req);
     requireRole(caller, ['master-admin', 'company-admin']);
-    const b = bodyOf(req);
-    const companyId = companyIdOf(req);
+    const raw = bodyOf(req);
+    // Mobile wraps the form in `employeeData`; web-style callers send it flat.
+    // Accept both so the nested shape reads the same fields as the flat one.
+    const b: Body = { ...raw, ...((raw.employeeData as Body) ?? {}) };
+    const companyId = String(b.companyId ?? '').trim() || companyIdOf(req);
     if (!isSuperAdmin(caller)) assertCompanyScope(caller, companyId);
     const email = String(b.email ?? '');
     if (!email) throw new ApiError('bad-request', 'email is required');
@@ -1330,9 +1333,13 @@ export const legacyRoutes: Route[] = [
       status: 'Active',
     } as Parameters<typeof writeUserDoc>[1]);
     const empId = newId();
+    // Backend-owned employee ID — a client-sent employeeId is overwritten
+    // (rule 8 of the ID system: IDs are generated on the backend only).
+    const employeeId = await generateEmployeeId(companyId, b.joinDate);
     await putEntity<Body>({
       ...b,
       id: empId,
+      employeeId,
       userId: uid,
       companyId,
       email,
@@ -1349,15 +1356,18 @@ export const legacyRoutes: Route[] = [
       type: 'welcome',
       dedupKey: `welcome-${uid}`,
     });
-    return { success: true, uid, id: empId, userId: uid, employeeId: empId, tempPassword: password };
+    return { success: true, uid, id: empId, userId: uid, employeeId, tempPassword: password };
   }),
   fn('mobileUpdateEmployee', async (req) => {
     const caller = must(req);
     requireRole(caller, MANAGEMENT_ROLES);
-    const b = bodyOf(req);
+    const id = String(bodyOf(req).id ?? '');
+    const b = updatesOf(req);
+    // Employee IDs are immutable after issue (rule 5): name/company/
+    // department edits never change the ID, for any role.
+    delete b.employeeId;
     const companyId = companyIdOf(req);
-    const id = String(b.id ?? '');
-    const updated = await patchEntity<Body>('employee', companyId, id, updatesOf(req), { entity: 'employee', userIdField: 'userId' });
+    const updated = await patchEntity<Body>('employee', companyId, id, b, { entity: 'employee', userIdField: 'userId' });
     if (!updated) throw new ApiError('not-found', 'Employee not found');
     return { success: true, employee: updated };
   }),
@@ -1464,16 +1474,35 @@ export const legacyRoutes: Route[] = [
     requireRole(caller, ['master-admin']);
     const b = bodyOf(req);
     const id = String(b.id ?? newId());
-    const doc_ = { ...b, id, companyId: id, status: String(b.status ?? 'Approved'), createdAt: isoNow(), updatedAt: isoNow(), createdById: caller.uid };
+    // Backend-owned company ID: COMP-[SHORT]-[YEAR]-[SERIAL] + reserved short
+    // code (client-sent code/shortCode are overwritten on create).
+    const minted = await generateCompanyId(String(b.name ?? ''));
+    const doc_ = {
+      ...b,
+      id,
+      code: minted.code,
+      shortCode: minted.shortCode,
+      companyId: id,
+      status: String(b.status ?? 'Approved'),
+      createdAt: isoNow(),
+      updatedAt: isoNow(),
+      createdById: caller.uid,
+    };
     await putEntity<Body>(doc_, { entity: 'company', globalList: true });
     return { success: true, id, company: doc_ };
   }),
   fn('mobileUpdateCompany', async (req) => {
     const caller = must(req);
-    const b = bodyOf(req);
-    const id = String(b.id ?? '');
+    const b = updatesOf(req);
+    const id = String(bodyOf(req).id ?? '');
     if (!isSuperAdmin(caller) && caller.companyId !== id) throw new ApiError('permission-denied', 'Own company only');
-    const updated = await patchEntity<Body>('company', id, id, updatesOf(req), { entity: 'company', globalList: true });
+    // IDs are immutable once issued — only the master-admin ID migration may
+    // rewrite them (crud PATCH mirrors this rule).
+    if (!isSuperAdmin(caller)) {
+      delete b.code;
+      delete b.shortCode;
+    }
+    const updated = await patchEntity<Body>('company', id, id, b, { entity: 'company', globalList: true });
     if (!updated) throw new ApiError('not-found', 'Company not found');
     return { success: true, company: updated };
   }),
@@ -1490,7 +1519,20 @@ export const legacyRoutes: Route[] = [
     const b = bodyOf(req);
     const company = (b.company as Body | undefined) ?? b;
     const id = String(company.id ?? newId());
-    await putEntity<Body>({ ...company, id, companyId: id, status: 'Approved', createdAt: isoNow(), updatedAt: isoNow(), createdById: caller.uid }, { entity: 'company', globalList: true });
+    // Existing company keeps its issued IDs (rule 5); a new one gets them
+    // minted server-side. Departments seed their own 3-letter codes here.
+    const existing = await getEntity<Body>('company', id, id);
+    let code = String(existing?.code ?? '');
+    let shortCode = String(existing?.shortCode ?? '');
+    if (!code) {
+      const minted = await generateCompanyId(String(company.name ?? ''));
+      code = minted.code;
+      shortCode = minted.shortCode;
+    } else if (!shortCode) {
+      const parsed = /^COMP-([A-Z]+)-\d{4}-\d+$/.exec(code);
+      shortCode = parsed ? parsed[1] : deriveShortCode(String(existing?.name ?? company.name ?? ''));
+    }
+    await putEntity<Body>({ ...company, id, code, shortCode, companyId: id, status: 'Approved', createdAt: existing?.createdAt ?? isoNow(), updatedAt: isoNow(), createdById: caller.uid }, { entity: 'company', globalList: true });
     const departments = (Array.isArray(b.departments) ? b.departments : []) as Body[];
     for (const d of departments) {
       await putEntity<Body>({ ...d, id: String(d.id ?? newId()), companyId: id, createdAt: isoNow() }, { entity: 'department' });
@@ -1504,7 +1546,8 @@ export const legacyRoutes: Route[] = [
     const b = bodyOf(req);
     const companyId = companyIdOf(req);
     const id = newId();
-    await putEntity<Body>({ ...b, id, companyId, createdAt: isoNow() }, { entity: 'department' });
+    const minted = await generateDepartmentId(companyId, b.code);
+    await putEntity<Body>({ ...b, id, ...(minted ? { code: minted } : {}), companyId, createdAt: isoNow() }, { entity: 'department' });
     return { success: true, id };
   }),
   fn('mobileUpdateDepartment', async (req) => {

@@ -1,8 +1,7 @@
 /**
  * Cognito PreTokenGeneration trigger — injects custom:role / custom:companyId
- * claims from the users table into every issued JWT (parity with Firebase
- * setCustomUserClaims). Runs on refresh too so role changes propagate within
- * one token lifetime.
+ * claims from the users table into every issued JWT. Runs on refresh too so
+ * role changes propagate within one token lifetime.
  */
 
 import { DynamoDBClient } from '@aws-sdk/client-dynamodb';

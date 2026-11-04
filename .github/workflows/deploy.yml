@@ -1,6 +1,6 @@
 name: Deploy to AWS
 
-# Replaces the old Firebase Hosting/Functions deploy.
+# Deploys the backend (SAM) + web hosting (S3 + CloudFront).
 # Requires one-time setup (see docs/deployment.md section 4):
 #   1. GitHub repo secrets AWS_ACCESS_KEY_ID / AWS_SECRET_ACCESS_KEY for the
 #      scoped deploy user (PowerUserAccess + this account's stack roles only)

@@ -31,8 +31,8 @@ When a user is **created/invited**, their role is set in the user document:
 ### 3. How Permissions Work
 
 **Step 1: User Logs In**
-- Firebase Auth verifies email/password
-- User document is fetched from Firestore
+- Amazon Cognito verifies email/password
+- User document is fetched from the DynamoDB users table
 - Role and permissions are loaded into AuthContext
 
 **Step 2: Sidebar Checks Permissions**

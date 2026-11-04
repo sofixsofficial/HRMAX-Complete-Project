@@ -1,6 +1,7 @@
 /**
  * Lambda entry point — API Gateway HTTP API → route table.
- * (Replaces the 104 Firebase Cloud Functions with a single routed API.)
+ * Single routed API for the whole product (one Lambda replaced the original
+ * per-feature serverless function set.)
  */
 
 import { makeRouter } from './lib/http.js';
@@ -31,6 +32,6 @@ export const handler = makeRouter([
   ...broadcastRoutes,
   ...storageRoutes,
 
-  // Legacy Firebase callable dispatcher — POST /fn/:name
+  // Legacy callable dispatcher — POST /fn/:name
   ...legacyRoutes,
 ]);

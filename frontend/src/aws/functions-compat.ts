@@ -1,5 +1,5 @@
 /**
- * `firebase/functions` compatibility module → REST API callables.
+ * Callable-function compatibility module → REST API callables.
  */
 
 export { httpsCallable } from './functions';

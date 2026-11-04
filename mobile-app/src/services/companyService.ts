@@ -86,7 +86,12 @@ export const createCompany = async (data: Partial<Company>): Promise<Company> =>
     employees: data.employees || 0,
     status: data.status || 'Active',
   });
-  return { ...data, id: result.data as string } as Company;
+  // The backend replies with the saved document — including the server-minted
+  // company ID (COMP-[SHORT]-[YEAR]-[SERIAL]); no client-side generation.
+  const res = result.data as { company?: Company; id?: string } | string;
+  const saved = (typeof res === 'object' ? res?.company : undefined) ?? null;
+  const id = saved?.id || String((typeof res === 'object' ? res?.id : res) || '');
+  return { ...data, ...(saved ?? {}), id, code: saved?.code || data.code || '' } as Company;
 };
 
 export const updateCompany = async (id: string, data: Partial<Company>): Promise<void> => {
@@ -163,12 +168,16 @@ export const onboardCompany = async (data: {
 }): Promise<Company> => {
   const callableFn = httpsCallable(functions, 'mobileOnboardCompany');
   const result = await callableFn({ ...data });
-  const companyId = result.data as string;
+  const res = result.data as { id?: string } | string;
+  const companyId = String((typeof res === 'object' ? res?.id : res) || '');
+  // Read the saved document back — it carries the server-minted company ID.
+  const saved = companyId ? await getCompanyById(companyId) : null;
   return {
+    ...(saved ?? {}),
     id: companyId,
     name: data.name,
-    code: data.code || '',
     domain: data.domain,
+    code: saved?.code || '',
     adminName: data.adminName,
     adminEmail: data.adminEmail,
     employees: 0,

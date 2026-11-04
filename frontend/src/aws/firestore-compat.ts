@@ -1,5 +1,5 @@
 /**
- * `firebase/firestore` compatibility module → REST API + polling.
+ * Data compatibility module (collection/doc API surface) → REST + polling.
  * Exact export surface used by the HR MAX frontend.
  */
 

@@ -1,6 +1,7 @@
 import {
   collection,
   getDocs,
+  getDoc,
   doc,
   addDoc,
   updateDoc,
@@ -11,7 +12,6 @@ import {
 } from '../aws/firestore-compat';
 import { db } from '../aws/clients';
 import type { Department } from '../types/user';
-import { generateUniqueCode } from './codeGenerator';
 
 const COLLECTION_NAME = 'departments';
 const departmentsRef = collection(db, COLLECTION_NAME);
@@ -53,12 +53,13 @@ export const getDepartmentsByCompany = async (companyId: string): Promise<Depart
 };
 
 // Create department
-// code is generated when omitted; color may be omitted (readers fall back to
-// their own palette) — both defaulted/stripped inside before writing the doc.
+// A form-supplied code is kept; otherwise the AWS backend mints DEPT-[SERIAL]
+// atomically on POST (the frontend never generates IDs). Color may be omitted
+// (readers fall back to their own palette) — both defaulted/stripped before
+// writing the doc.
 export const createDepartment = async (department: Omit<Department, 'id' | 'createdAt' | 'code' | 'color'> & { code?: string; color?: string }): Promise<Department> => {
-  const code = department.code || await generateUniqueCode('departments', 'DEPT', 'code', department.companyId);
   const docRef = await addDoc(departmentsRef, {
-    ...stripUndefined({ ...department, code } as any),
+    ...stripUndefined({ ...department } as any),
     employeeCount: department.employeeCount || 0,
     createdBy: department.createdBy || '',
     createdByName: department.createdByName || '',
@@ -67,6 +68,13 @@ export const createDepartment = async (department: Omit<Department, 'id' | 'crea
     executiveName: department.executiveName || '',
     createdAt: serverTimestamp()
   });
+  // Read the issued code back so the returned object matches what the list
+  // will render (one GET; failures fall through to the list refresh).
+  let code = department.code || '';
+  try {
+    const saved = await getDoc(doc(db, COLLECTION_NAME, docRef.id));
+    if (saved.exists()) code = String(saved.data().code || code);
+  } catch { /* the departments subscription shows the real code */ }
   return { ...department, code, id: docRef.id } as Department;
 };
 

@@ -11,6 +11,7 @@ import { must, equalityFilters, parseOrderBy } from '../lib/http.js';
 import { writeUserDoc } from './auth.js';
 import { assertCompanyScope, assertPermission, assertRole, hasPermission, isSuperAdmin, readPartitions, userDocVisible, userListingPartitions } from '../lib/auth.js';
 import { putEntity, getEntity, patchEntity, deleteEntity, queryEntities, queryEntitiesAcross, locateEntityAcross, allPartitions, getUserDoc } from '../lib/db.js';
+import { generateEmployeeId, generateDepartmentId, generateCompanyId, deriveShortCode } from '../lib/ids.js';
 import { ApiError, newId, isoNow, type UserRole } from '../lib/types.js';
 
 interface CollectionConfig {
@@ -266,6 +267,16 @@ export function crudRoutes(cfg: CollectionConfig): Route[] {
         await assertBranchesInCompany(data, companyId);
 
         const id = String(data.id ?? newId());
+        // ── Backend-owned IDs (frontend never generates) ──────────────────
+        // Whatever the client sent is overwritten on create — employee IDs
+        // (`SOF-EMP-2026-0001`) come from the atomic per-company+year
+        // counter; department codes are minted when the form didn't set one.
+        if (cfg.entity === 'employee') {
+          data.employeeId = await generateEmployeeId(companyId, data.joinDate);
+        } else if (cfg.entity === 'department') {
+          const minted = await generateDepartmentId(companyId, data.code);
+          if (minted) data.code = minted;
+        }
         const doc_ = {
           ...data,
           id,
@@ -317,6 +328,14 @@ export function crudRoutes(cfg: CollectionConfig): Route[] {
         const companyId = requestedCompanyId || String(req.body.companyId || caller.companyId);
         if (!isSuperAdmin(caller)) assertCompanyScope(caller, companyId);
         await assertBranchesInCompany(patch, companyId);
+        // Fresh employee document via setDoc — mint the ID server-side too
+        // (same rule as POST: clients never generate IDs).
+        if (cfg.entity === 'employee') {
+          patch.employeeId = await generateEmployeeId(companyId, patch.joinDate);
+        } else if (cfg.entity === 'department') {
+          const minted = await generateDepartmentId(companyId, patch.code);
+          if (minted) patch.code = minted;
+        }
         const created = {
           ...patch,
           id: req.params.id,
@@ -667,7 +686,18 @@ export const companyRoutes: Route[] = [
       const { putEntity: put } = await import('../lib/db.js');
       const data = req.body as Record<string, unknown>;
       const id = String(data.id ?? newId());
-      const doc_ = { ...data, id, companyId: id, status: data.status ?? 'Approved', createdOn: isoNow(), createdAt: isoNow(), updatedAt: isoNow(), createdById: caller.uid };
+      // Company IDs are backend-owned: COMP-[SHORT]-[YEAR]-[SERIAL], short
+      // code derived from the name and reserved atomically (never duplicated).
+      const minted = await generateCompanyId(String(data.name ?? ''));
+      const doc_ = {
+        ...data,
+        id,
+        code: minted.code,
+        shortCode: minted.shortCode,
+        companyId: id,
+        status: data.status ?? 'Approved',
+        createdOn: isoNow(), createdAt: isoNow(), updatedAt: isoNow(), createdById: caller.uid,
+      };
       await put(doc_ as never, { entity: 'company', globalList: true });
       if (data.attendanceSettings && typeof data.attendanceSettings === 'object') {
         await syncAttendanceSettings(id, data.attendanceSettings as Record<string, unknown>, caller.uid)
@@ -692,9 +722,24 @@ export const companyRoutes: Route[] = [
       delete data.id;
       delete data.companyId;
       const existing = await get<Record<string, unknown>>('company', id, id);
+      // IDs are immutable once issued (rule 5): an existing company keeps its
+      // code/shortCode no matter what the client body carries. A brand-new
+      // company (setDoc upsert) gets them minted server-side.
+      let code = String(existing?.code ?? '');
+      let shortCode = String(existing?.shortCode ?? '');
+      if (!code) {
+        const minted = await generateCompanyId(String(data.name ?? existing?.name ?? ''));
+        code = minted.code;
+        shortCode = minted.shortCode;
+      } else if (!shortCode) {
+        const parsed = /^COMP-([A-Z]+)-\d{4}-\d+$/.exec(code);
+        shortCode = parsed ? parsed[1] : deriveShortCode(String(existing?.name ?? data.name ?? ''));
+      }
       const doc_ = {
         ...data,
         id,
+        code,
+        shortCode,
         companyId: id,
         status: data.status ?? 'Approved',
         createdOn: existing?.createdOn ?? isoNow(),
@@ -718,10 +763,18 @@ export const companyRoutes: Route[] = [
     handler: async (req) => {
       const caller = must(req);
       if (!isSuperAdmin(caller) && !hasPermission(caller, 'companies.edit')) throw new ApiError('permission-denied', 'Cannot edit companies');
-      const { patchEntity: patch } = await import('../lib/db.js');
-      const updated = await patch('company', req.params.id, req.params.id, req.body as Record<string, unknown>, { entity: 'company', globalList: true });
+      const patch = { ...(req.body as Record<string, unknown>) };
+      // Company IDs are immutable after issue (rule 5). Only a master admin
+      // may touch them — the one-time ID migration runs as MA; every other
+      // role editing a company profile can never rewrite its identity.
+      if (!isSuperAdmin(caller)) {
+        delete patch.code;
+        delete patch.shortCode;
+      }
+      const { patchEntity: patchFn } = await import('../lib/db.js');
+      const updated = await patchFn('company', req.params.id, req.params.id, patch, { entity: 'company', globalList: true });
       if (!updated) throw new ApiError('not-found', 'Company not found');
-      const att = (req.body as { attendanceSettings?: unknown }).attendanceSettings;
+      const att = (patch as { attendanceSettings?: unknown }).attendanceSettings;
       if (att && typeof att === 'object') {
         await syncAttendanceSettings(req.params.id, att as Record<string, unknown>, caller.uid)
           .catch((e) => console.warn('[companies] attendance policy sync failed:', e instanceof Error ? e.message : String(e)));

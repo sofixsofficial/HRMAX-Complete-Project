@@ -1117,7 +1117,6 @@ export function Employees() {
       const joinDate = values.joinDate ? new Date(values.joinDate) : new Date()
       const birthDate = values.birthDate ? new Date(values.birthDate) : undefined
       const selectedCompany = companies.find(c => c.id === values.companyId)
-      const companyCode = selectedCompany?.code || ''
 
       // Role: employee requires managerId; reporting-manager sets isReportingManager
       const isReportingManagerRole = values.role === 'reporting-manager'
@@ -1152,8 +1151,7 @@ export function Employees() {
       }
       const result = await createEmployee(
         employeePayload as any,
-        user ? { id: user.id, name: user.name || 'Admin', role: user.role } : undefined,
-        companyCode
+        user ? { id: user.id, name: user.name || 'Admin', role: user.role } : undefined
       )
       if (result.id) {
         // Secondary, best-effort write: a transient rules denial here must never

@@ -1,5 +1,5 @@
 /**
- * `firebase/firestore` compatibility (mobile) â†’ REST API + polling.
+ * Data compatibility (mobile, collection/doc API) → REST + polling.
  */
 
 export {

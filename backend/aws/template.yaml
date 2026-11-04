@@ -81,10 +81,10 @@ Resources:
       UsernameAttributes: [email]
       LambdaConfig:
         # Injects custom:role / custom:companyId claims on every token issue
-        # (sign-in and refresh — parity with Firebase setCustomUserClaims).
+        # (sign-in and refresh), read from the users table.
         PreTokenGeneration: !GetAtt PreTokenFn.Arn
         # Auto-confirms self sign-ups so signUpCompany can sign the new admin
-        # in immediately (Firebase createUserWithEmailAndPassword parity).
+        # in immediately.
         PreSignUp: !GetAtt PreSignUpFn.Arn
       Policies:
         PasswordPolicy:
@@ -124,7 +124,7 @@ Resources:
       PreventUserExistenceErrors: ENABLED
 
   # PreTokenGeneration trigger — injects custom:role / custom:companyId claims
-  # from the users table into the JWT (parity with Firebase custom claims).
+  # from the users table into the JWT on every issue/refresh.
   PreTokenFn:
     Type: AWS::Serverless::Function
     Properties:
@@ -157,9 +157,9 @@ Resources:
       Principal: cognito-idp.amazonaws.com
       SourceArn: !GetAtt UserPool.Arn
 
-  # PreSignUp trigger — auto-confirms self sign-ups (Firebase parity: the
-  # original flow signed users in immediately; email verification was a
-  # notification, not a login gate). Environment overridden like PreTokenFn
+  # PreSignUp trigger — auto-confirms self sign-ups (the app signs users in
+  # immediately; email verification is a notification, not a login gate).
+  # Environment overridden like PreTokenFn
   # to avoid a circular dependency with the pool.
   PreSignUpFn:
     Type: AWS::Serverless::Function
@@ -279,8 +279,8 @@ Resources:
     Properties:
       # Auth is enforced in the Lambda handlers: lib/auth.ts validates the
       # Cognito JWT per route, and public routes (health, invite probe,
-      # reset, forgot-password) pass through anonymously — mirroring the
-      # original Firebase per-callable auth checks.
+      # reset, forgot-password) pass through anonymously — authorization
+      # lives with each handler, not at the gateway.
       CorsConfiguration:
         AllowOrigins: ['*']
         AllowHeaders: [authorization, content-type]

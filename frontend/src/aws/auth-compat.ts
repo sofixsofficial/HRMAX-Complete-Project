@@ -1,5 +1,5 @@
 /**
- * `firebase/auth` compatibility module → Amazon Cognito.
+ * Auth compatibility module → Amazon Cognito.
  * Re-exports the aws/auth surface under the exact names the app imports,
  * plus no-op emulator/config helpers.
  */
@@ -25,9 +25,6 @@ export {
 
 import { getAuthInstance } from './auth';
 import type { AwsUser, Auth } from './auth';
-
-/** Firebase-typed alias (app code types uid/email off User). */
-export type FirebaseUser = AwsUser;
 
 /** No-op: AWS build has no emulator. */
 export function connectAuthEmulator(): void {}

@@ -2,7 +2,7 @@
  * Shared client instances handed through app code — `doc(db, …)`,
  * `auth.currentUser`, `httpsCallable(functions, …)`, `ref(storage, …)`.
  * These are inert sentinels: the compat modules do all real work over
- * Amazon Cognito + API Gateway REST + S3. (No Firebase involved.)
+ * Amazon Cognito + API Gateway REST + S3.
  */
 import { getAuth } from './auth-compat';
 import { getFirestore } from './firestore-compat';

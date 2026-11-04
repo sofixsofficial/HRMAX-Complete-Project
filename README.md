@@ -70,10 +70,11 @@ sam build && sam deploy --guided     # stack name: hrmax-api
 npm run deploy:hosting
 ```
 
-The web and mobile apps keep their Firebase-style imports (`firebase/auth`,
-`firebase/firestore`, …) — these are aliased to local AWS shims
-(`frontend/src/aws/`, `mobile-app/src/aws/`) via Vite/Metro config, so no app
-code changes were needed.
+The web and mobile apps access AWS through local compatibility shims
+(`frontend/src/aws/`, `mobile-app/src/aws/`) wired up via Vite/Metro config —
+app code calls a small, stable API surface while the shims translate it into
+REST calls against API Gateway, Amazon Cognito, S3 and SES. No external
+backend-as-a-service dependency exists anywhere in the apps.
 
 ## Repository layout
 
@@ -82,19 +83,14 @@ frontend/        Web application (React + Vite) — AWS shims in src/aws/
 mobile-app/      Expo / React Native application — AWS shims in src/aws/
 backend/aws/     AWS SAM backend (Lambda + API Gateway + template.yaml)
 scripts/         deploy-hosting.mjs (S3 sync + CloudFront invalidation)
-tools/migrate/   Firebase→AWS data migration tooling (export/import/verify)
-docs/            AWS migration guide + Firebase inventories
+docs/            deployment + operations documentation
 ```
 
 ## Documentation
 
-- `docs/AWS_MIGRATION.md` — full AWS deploy guide (this repo's backend).
-- `docs/migration/MIGRATION_VERIFICATION.md` — data migration verification report.
-- `docs/migration/` — Firebase inventories produced during the migration.
+- `docs/deployment.md` — deploy + operations guide (this repo's backend).
+- `docs/MOBILE-APP-AUDIT.md` — mobile app architecture audit.
 - `ROLE_SYSTEM_EXPLAINED.md` — how roles and permissions work in practice.
-- `HRMS_AUTH_README.md` — authentication & authorization architecture.
-- `BUILD_OPTIMIZATION.md` — web bundle performance notes.
-- `SANITY_TESTING.md` — end-to-end sanity checks.
 
 ## Status
 

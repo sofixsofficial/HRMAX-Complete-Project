@@ -40,8 +40,8 @@
   AsyncStorage installed but unused.
 - Deps present and used: `expo-location`, `expo-camera` (selfie), `expo-notifications`, `expo-print`/`sharing`
   (payslip PDF), `@react-native-community/netinfo`, `react-native-reanimated`.
-- **Transport:** no Firebase — `src/aws/*` compat shims over REST (`functions.ts:41-71` → `POST ${EXPO_PUBLIC_API_URL}`
-  with Bearer token; `firestore.ts` = Firestore-shaped REST + 20 s polling).
+- **Transport:** `src/aws/*` compat shims over REST (`functions.ts:41-71` → `POST ${EXPO_PUBLIC_API_URL}`
+  with Bearer token; `firestore.ts` = collection/doc-shaped REST + 20 s polling).
 - **No mock/TODO/stub anywhere** (grep `TODO|FIXME|mock|dummy|sample|coming soon` → 0 real hits).
 
 **C · Web (reference behaviour)** — `frontend/src/aws/firestore.ts` = same REST shim

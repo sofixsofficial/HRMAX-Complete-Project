@@ -1,5 +1,5 @@
 /**
- * `firebase/storage` compatibility module → S3 presigned URLs.
+ * Storage compatibility module → S3 presigned URLs.
  */
 
 export { ref, uploadBytes, getDownloadURL, deleteObject, type StorageReference } from './storage';

@@ -1,5 +1,5 @@
 /**
- * `firebase/auth` compatibility (mobile) → Amazon Cognito.
+ * Auth compatibility (mobile) → Amazon Cognito.
  */
 
 export {
@@ -23,8 +23,6 @@ export {
 
 import { getAuthInstance } from './auth';
 import type { Auth } from './auth';
-
-export type FirebaseUser = import('./auth').AwsUser;
 
 /** Live Auth instance — the app reads `auth.currentUser` off the result. */
 export function getAuth(_app?: unknown): Auth {

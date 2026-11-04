@@ -361,11 +361,12 @@ const CompanyForm = ({ onSubmit, submitLabel, onCancel, isSubmitting, defaultVal
         {errors.name && <span className="field-error">{errors.name.message}</span>}
       </div>
       <div className="form-group">
-        <label>Company Code *</label>
+        <label>Company Code</label>
         <input 
           type="text" 
           {...register('code')}
-          placeholder="Auto-generated if empty"
+          readOnly
+          placeholder="Auto-generated (e.g. COMP-SOF-2026-0001)"
         />
       </div>
     </div>

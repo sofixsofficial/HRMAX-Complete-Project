@@ -1,6 +1,6 @@
 /**
  * HR MAX — AWS backend shared types
- * Mirrors the domain model of the original Firebase implementation.
+ * Mirrors the domain model of HR MAX (users, attendance, leave, payroll…).
  */
 
 export type UserRole =
@@ -269,7 +269,7 @@ export type ApiErrorCode =
   | 'resource-exhausted'
   | 'internal';
 
-/** Application-level error carrying an HTTP status + stable code, mirroring Firebase HttpsError. */
+/** Application-level error carrying an HTTP status + stable code (callable-style HttpsError). */
 export class ApiError extends Error {
   constructor(
     public code: ApiErrorCode,

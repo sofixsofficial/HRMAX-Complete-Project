@@ -32,6 +32,7 @@ import {
 } from '../aws/firestore-compat';
 import { getFunctions, httpsCallable } from '../aws/functions-compat';
 import { auth, db, functions } from '../aws/clients';
+import { AWS_CONFIG } from '../aws/config';
 import { ERROR_MESSAGES } from '../aws/errors';
 import type { User, UserRole } from '../types/user';
 
@@ -724,7 +725,11 @@ export const getAllUsers = async (): Promise<User[]> => {
 // ============================================
 
 /**
- * Accept invitation and create account (client-side implementation)
+ * Accept invitation — fully server-side. The AWS backend validates the token,
+ * creates the Cognito account + user profile, marks the invitation accepted
+ * and links (or creates) the employee record with a BACKEND-minted ID. The
+ * old client-side implementation wrote documents through paths the REST layer
+ * never exposed (and minted `EMP-…` IDs in the browser — now forbidden).
  */
 export const acceptInvitation = async (
   token: string,
@@ -733,123 +738,31 @@ export const acceptInvitation = async (
   name: string
 ): Promise<AuthResult> => {
   try {
-    // Get invitation by token
-    const q = query(
-      collection(db, 'invitations'),
-      where('token', '==', token),
-      where('status', '==', 'pending')
-    );
-    const snapshot = await getDocs(q);
-    
-    if (snapshot.empty) {
-      throw new Error('Invalid or expired invitation');
-    }
-    
-    const inviteDocRef = snapshot.docs[0].ref;
-    const inviteData = snapshot.docs[0].data();
-    
-    // Check expiration
-    if (inviteData.expiresAt?.toDate) {
-      const expiresAt = inviteData.expiresAt.toDate();
-      if (new Date() > expiresAt) {
-        throw new Error('Invitation has expired');
-      }
-    }
-    
-    // Verify email matches
-    if (inviteData.email !== email) {
-      throw new Error('Email does not match the invitation');
-    }
-    
-    // Create auth user
-    const userCredential = await createUserWithEmailAndPassword(auth, email, password);
-    const remoteUser = userCredential.user;
-    
-    // Update profile
-    await updateProfile(remoteUser, { displayName: name });
-    
-    // Get permissions for role
-    const permissions = getPermissionArray(inviteData.role as UserRole);
-    
-    // Create user document
+    const acceptFn = httpsCallable(functions, 'acceptInvite');
+    const { data } = await acceptFn({ token, email, password, name }) as { data: { user?: User } };
+    const remote = data?.user;
+
+    // Sign in to receive the claims (PreTokenGeneration injects role/companyId).
+    const userCredential = await signInWithEmailAndPassword(auth, email, password);
+    const tokenResult = await getIdTokenResult(userCredential.user, true);
+    const claims = tokenResult.claims as unknown as CustomClaims;
+
     const userData: User = {
-      id: remoteUser.uid,
+      id: String(remote?.id || userCredential.user.uid),
       email,
       name,
-      role: inviteData.role as UserRole,
-      companyId: inviteData.companyId || null,
-      departmentId: inviteData.departmentId || null,
-      avatar: `https://ui-avatars.com/api/?name=${encodeURIComponent(name)}&background=random`,
-      permissions,
+      role: (remote?.role as UserRole) || claims.role,
+      companyId: (remote?.companyId as string | null) ?? claims.companyId ?? null,
+      departmentId: (remote?.departmentId as string | null) ?? null,
+      avatar: remote?.avatar || `https://ui-avatars.com/api/?name=${encodeURIComponent(name)}&background=random`,
+      permissions: Array.isArray(remote?.permissions) && remote.permissions.length
+        ? remote.permissions
+        : (claims.permissions ?? getPermissionArray(claims.role)),
       isActive: true,
       createdAt: new Date(),
       updatedAt: new Date(),
     };
-    
-    await setDoc(doc(db, 'users', remoteUser.uid), {
-      ...userData,
-      createdAt: serverTimestamp(),
-      updatedAt: serverTimestamp(),
-    });
-    
-    // Link or create employee record
-    if (inviteData.employeeId) {
-      // Update existing employee with new userId and role details
-      const existingEmpRef = doc(db, 'employees', inviteData.employeeId as string);
-      const existingEmpDoc = await getDoc(existingEmpRef);
-      if (existingEmpDoc.exists()) {
-        await updateDoc(existingEmpRef, {
-          userId: remoteUser.uid,
-          email,
-          avatar: userData.avatar,
-          designation: inviteData.role === 'team-leader' ? 'Team Leader' : 'Executive',
-          updatedAt: serverTimestamp(),
-        });
-      }
-    } else if (inviteData.role === 'team-leader' || inviteData.role === 'executive') {
-      // Create new employee record
-      let departmentName = 'General';
-      let departmentColor = '#3b82f6';
-      if (inviteData.departmentId) {
-        const deptDoc = await getDoc(doc(db, 'departments', inviteData.departmentId));
-        if (deptDoc.exists()) {
-          const dept = deptDoc.data();
-          departmentName = dept.name || 'General';
-          departmentColor = dept.color || '#3b82f6';
-        }
-      }
-      
-      const employeeData = {
-        userId: remoteUser.uid,
-        name,
-        email,
-        avatar: userData.avatar,
-        employeeId: `EMP-${remoteUser.uid.slice(-4).toUpperCase()}`,
-        department: departmentName,
-        departmentId: inviteData.departmentId || '',
-        departmentColor,
-        designation: inviteData.role === 'team-leader' ? 'Team Leader' : 'Executive',
-        phone: '',
-        status: 'Active' as const,
-        joinDate: new Date(),
-        companyId: inviteData.companyId || '',
-        employmentType: 'Full-time' as const,
-      };
-      
-      await addDoc(collection(db, 'employees'), employeeData);
-    }
-    
-    // Update invitation status
-    await updateDoc(inviteDocRef, {
-      status: 'accepted',
-      acceptedBy: remoteUser.uid,
-      acceptedAt: serverTimestamp(),
-    });
-    
-    // Get token with claims
-    const tokenResult = await getIdTokenResult(remoteUser, true);
-    const claims = tokenResult.claims as unknown as CustomClaims;
-    
+
     return { user: userData, claims };
   } catch (error) {
     console.error('Accept invitation error:', error);
@@ -859,7 +772,10 @@ export const acceptInvitation = async (
 };
 
 /**
- * Invite a new user (client-side implementation - no Cloud Functions required)
+ * Invite a new user — server-side. The AWS backend mints the token, stores
+ * the invitation and sends the invite email through the central mailer. (The
+ * old client-side `setDoc` targeted `PUT /api/auth/invitations/{id}`, a path
+ * that does not exist on the REST API — every web invitation 404'd.)
  */
 export const inviteUser = async (
   email: string,
@@ -868,56 +784,30 @@ export const inviteUser = async (
   departmentId?: string,
   employeeId?: string
 ): Promise<{ inviteId: string; inviteLink: string }> => {
+  const currentUser = auth.currentUser;
+  if (!currentUser) throw new Error('You must be signed in to invite users');
+
+  // Get current user data to verify permissions
+  const currentUserDoc = await getDoc(doc(db, 'users', currentUser.uid));
+  if (!currentUserDoc.exists()) throw new Error('Current user not found');
+
+  const currentUserData = currentUserDoc.data() as User;
+  const canInvite = ['master-admin', 'company-admin', 'team-leader', 'executive'].includes(currentUserData.role);
+  if (!canInvite) throw new Error('You do not have permission to invite users');
+
+  const companyId = currentUserData.companyId || 'master-admin';
+
   try {
-    const currentUser = auth.currentUser;
-    if (!currentUser) throw new Error('You must be signed in to invite users');
-    
-    // Get current user data to verify permissions
-    const currentUserDoc = await getDoc(doc(db, 'users', currentUser.uid));
-    if (!currentUserDoc.exists()) throw new Error('Current user not found');
-    
-    const currentUserData = currentUserDoc.data() as User;
-    const canInvite = ['master-admin', 'company-admin', 'team-leader', 'executive'].includes(currentUserData.role);
-    if (!canInvite) throw new Error('You do not have permission to invite users');
-    
-    const companyId = currentUserData.companyId || 'master-admin';
-    
-    // Generate secure random token
-    const tokenArray = new Uint8Array(32);
-    if (typeof crypto !== 'undefined' && crypto.getRandomValues) {
-      crypto.getRandomValues(tokenArray);
-    } else {
-      for (let i = 0; i < tokenArray.length; i++) {
-        tokenArray[i] = Math.floor(Math.random() * 256);
-      }
-    }
-    const token = Array.from(tokenArray, byte => byte.toString(16).padStart(2, '0')).join('');
-    
-    // Create invitation document
-    const inviteRef = doc(collection(db, 'invitations'));
-    const baseUrl = typeof window !== 'undefined' ? window.location.origin : 'https://sofixs-hrm.web.app';
-    const inviteLink = `${baseUrl}/accept-invite?token=${token}`;
-    
-    const expiresAt = new Date();
-    expiresAt.setDate(expiresAt.getDate() + 7);
-    
-    await setDoc(inviteRef, {
-      id: inviteRef.id,
+    const inviteFn = httpsCallable(functions, 'createInvite');
+    const { data } = await inviteFn({
       email,
-      name: name || '',
       role,
-      companyId,
+      name: name || '',
       departmentId: departmentId || null,
       employeeId: employeeId || null,
-      token,
-      status: 'pending',
-      invitedBy: currentUser.uid,
-      invitedByName: currentUserData.name,
-      createdAt: serverTimestamp(),
-      expiresAt,
-    });
-    
-    return { inviteId: inviteRef.id, inviteLink };
+      companyId,
+    }) as { data: { inviteId: string; inviteLink: string } };
+    return { inviteId: data.inviteId, inviteLink: data.inviteLink };
   } catch (error: any) {
     console.error('Invite user error:', error);
     throw new Error(error.message || 'Failed to send invitation');
@@ -999,34 +889,30 @@ export const checkMasterAdminExists = async (): Promise<boolean> => {
 };
 
 /**
- * Get invitation by token
+ * Get invitation by token — PUBLIC probe on the AWS backend (the invitee has
+ * no session yet; the old collection query required a signed-in caller and
+ * always failed with 401 for a logged-out visitor).
  */
 export const getInvitationByToken = async (token: string) => {
-  const q = query(
-    collection(db, 'invitations'),
-    where('token', '==', token),
-    where('status', '==', 'pending')
-  );
-  
-  const snapshot = await getDocs(q);
-  
-  if (snapshot.empty) {
+  const base = AWS_CONFIG.apiUrl.replace(/\/$/, '');
+  let res: Response;
+  try {
+    res = await fetch(`${base}/api/auth/invitation/${encodeURIComponent(token)}`);
+  } catch {
     throw new Error('Invalid or expired invitation');
   }
-  
-  const data = snapshot.docs[0].data();
-  
-  // Check expiration
-  if (data.expiresAt?.toDate) {
-    const expiresAt = data.expiresAt.toDate();
-    if (new Date() > expiresAt) {
-      throw new Error('Invitation has expired');
-    }
+  const body = await res.json().catch(() => null);
+  if (!res.ok) {
+    throw new Error(body?.error?.message || 'Invalid or expired invitation');
   }
-  
-  return {
-    id: snapshot.docs[0].id,
-    ...data,
+  return (body ?? {}) as {
+    email?: string;
+    name?: string;
+    role?: UserRole;
+    companyId?: string | null;
+    departmentId?: string | null;
+    invitedByName?: string;
+    company?: string | null;
   };
 };
 

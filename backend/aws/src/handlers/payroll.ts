@@ -248,7 +248,9 @@ export const payrollRoutes: Route[] = [
       }
 
       const companyDocs = await queryEntities<Record<string, unknown>>({ entity: 'company', companyId, filters: { id: companyId }, limit: 1 }).catch(() => []);
-      const companyCode = String(companyDocs[0]?.code ?? 'CO');
+      // Payroll ref reads best from the short code (SOF-NOV-2026), falling
+      // back to the full company ID / legacy code.
+      const companyCode = String(companyDocs[0]?.shortCode ?? companyDocs[0]?.code ?? 'CO');
 
       const id = newId();
       const run: PayrollRunDoc = {

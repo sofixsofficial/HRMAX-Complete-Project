@@ -357,7 +357,9 @@ export const EmployeesScreen: React.FC<{ route?: any }> = ({ route }) => {
     if (companyBranches.length > 0 && !form.primaryBranchId) { Alert.alert('Validation', 'Primary branch is required for this company.'); return; }
     setSaving(true);
     try {
-      const employeeIdFinal = !editing && !form.employeeId.trim() ? await generateEmployeeId(form.companyId) : form.employeeId;
+      // Employee IDs are minted by the AWS backend on create — the form only
+      // carries the issued value (read-only field below), never generates one.
+      const employeeIdFinal = form.employeeId.trim();
       const leaveEnt: Record<string, number> = {};
       for (const [k, v] of Object.entries(form.leaveEnt || {})) {
         const n = Number(v);
@@ -439,7 +441,7 @@ export const EmployeesScreen: React.FC<{ route?: any }> = ({ route }) => {
 
       setModal(false);
       if (!editing) {
-        Alert.alert('Success', `Employee created!\nUsername: ${payload.username || form.employeeId}\nPassword: ${form.password}`);
+        Alert.alert('Success', `Employee created!\nUsername: ${payload.username || '—'}\nPassword: ${form.password}`);
       }
     } catch (err: any) {
       Alert.alert('Error', err.message || 'Failed to save');
@@ -465,26 +467,6 @@ export const EmployeesScreen: React.FC<{ route?: any }> = ({ route }) => {
       setDocFiles(prev => ({ ...prev, [field]: { uri: asset.uri, name, size: asset.size, mimeType: asset.mimeType } }));
     } catch (err: any) {
       Alert.alert('Error', err.message || 'Failed to pick document');
-    }
-  };
-
-  const generateEmployeeId = async (companyId: string): Promise<string> => {
-    const company = companies.find(c => c.id === companyId);
-    const code = (company as any)?.code || '';
-    const prefix = code ? `${code}-${new Date().getFullYear()}` : 'EMP';
-    try {
-      const emps = await getEmployeesByCompany(companyId);
-      let maxNum = 0;
-      emps.forEach(e => {
-        const val = (e as any).employeeId as string | undefined;
-        if (val) {
-          const match = val.match(/(\d+)$/);
-          if (match) maxNum = Math.max(maxNum, parseInt(match[1], 10));
-        }
-      });
-      return `${prefix}-${String(maxNum + 1).padStart(4, '0')}`;
-    } catch {
-      return `${prefix}-${String(Math.floor(Math.random() * 9000) + 1000)}`;
     }
   };
 
@@ -757,7 +739,7 @@ export const EmployeesScreen: React.FC<{ route?: any }> = ({ route }) => {
               {sectionToggle('Organization', showOrg, setShowOrg)}
               {showOrg && (
                 <>
-                  <TextInput style={s.input} placeholder="Employee ID (auto if empty)" placeholderTextColor={colors.textTertiary} value={form.employeeId} onChangeText={(t) => setForm({...form, employeeId: t})} />
+                  <TextInput style={s.input} editable={false} placeholder="Employee ID (auto-generated)" placeholderTextColor={colors.textTertiary} value={form.employeeId} />
                   <TextInput style={s.input} placeholder="Designation" placeholderTextColor={colors.textTertiary} value={form.designation} onChangeText={(t) => setForm({...form, designation: t})} />
 
                   <Text style={s.fieldLabel}>Company *</Text>

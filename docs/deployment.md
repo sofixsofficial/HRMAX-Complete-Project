@@ -59,8 +59,8 @@ git checkout main
 
 Data: DynamoDB table `HRMAX` has **no** destructive deploy path (stack updates
 never replace the table — the changeset above replaces nothing). Point-in-time
-recovery/backups are the data-side safety net; keep the Firebase source data
-until you sign off (it has not been deleted).
+recovery/backups are the data-side safety net; keep the pre-migration source
+data untouched until you sign off (it has not been deleted).
 
 ## 4. CI/CD (GitHub Actions) — one-time setup
 

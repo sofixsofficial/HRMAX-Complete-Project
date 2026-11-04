@@ -28,12 +28,6 @@ dist-ssr
 *.sln
 *.sw?
 
-# Firebase
-.firebase/
-firebase-debug.log
-firestore-debug.log
-ui-debug.log
-
 # AWS SAM
 .aws-sam/
 backend/aws/dist/
@@ -48,7 +42,7 @@ apk-download/
 tools/migrate/export/
 artifacts/
 
-# Secrets — never commit (AWS & Firebase)
+# Secrets — never commit (AWS)
 service-account.json
 *-service-account.json
 hrm-sofisx-*.json
@@ -63,3 +57,4 @@ GoogleService-Info.plist
 backend/aws/scripts/
 # SAM publishing artifact (deploy pipeline uses backend/aws/template.yaml)
 backend/aws/sar-template-oai.yaml
+*.tsbuildinfo

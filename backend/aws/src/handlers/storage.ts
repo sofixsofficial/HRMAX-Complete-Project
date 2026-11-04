@@ -1,5 +1,5 @@
 /**
- * S3 presigned URL endpoints — replaces Firebase Storage for the clients.
+ * S3 presigned URL endpoints for client uploads/downloads.
  * Authz mirrors the original storage.rules per prefix.
  */
 

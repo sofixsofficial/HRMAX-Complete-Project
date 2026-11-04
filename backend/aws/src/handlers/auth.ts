@@ -560,10 +560,26 @@ export const authRoutes: Route[] = [
         status: 'Active',
       });
 
-      // Link/create employee record
-      const employeeId = (invite.employeeId as string) ?? null;
-      if (employeeId) {
-        await patchEntity('employee', companyId, employeeId, { userId: uid, name }, { entity: 'employee', userIdField: 'userId' });
+      // Link/create employee record. Legacy invitations carried the employee
+      // DOC id; newer flows may carry the backend-issued code
+      // (SOF-EMP-2026-0001); an email match covers invitations that carry
+      // neither. The row is patched via its own doc id in every case.
+      const linkKey = String((invite.employeeId as string) ?? '').trim();
+      let employeeDocId = '';
+      if (linkKey && companyId) {
+        const byId = await getEntity<Record<string, unknown>>('employee', companyId, linkKey);
+        if (byId) employeeDocId = linkKey;
+        else {
+          const byCode = await queryEntities<Record<string, unknown>>({ entity: 'employee', companyId, filters: { employeeId: linkKey }, limit: 1 });
+          if (byCode[0]) employeeDocId = String(byCode[0].id ?? '');
+        }
+      }
+      if (!employeeDocId && companyId && email) {
+        const byEmail = await queryEntities<Record<string, unknown>>({ entity: 'employee', companyId, filters: { email }, limit: 1 });
+        if (byEmail[0]) employeeDocId = String(byEmail[0].id ?? '');
+      }
+      if (employeeDocId) {
+        await patchEntity('employee', companyId, employeeDocId, { userId: uid, name }, { entity: 'employee', userIdField: 'userId' });
       } else if (role === 'team-leader' || role === 'executive') {
         await putEntity(
           { id: newId(), companyId, userId: uid, name, email, role, status: 'Active', createdAt: isoNow() },
@@ -652,7 +668,15 @@ export const authRoutes: Route[] = [
       const invite = invites[0];
       if (!invite) throw new ApiError('not-found', 'Invitation not found or already used');
       if (new Date(String(invite.expiresAt)).getTime() < Date.now()) throw new ApiError('bad-request', 'Invitation expired');
-      return { email: invite.email, name: invite.name, role: invite.role, company: invite.companyName ?? null };
+      return {
+        email: invite.email,
+        name: invite.name,
+        role: invite.role,
+        companyId: invite.companyId ?? null,
+        departmentId: invite.departmentId ?? null,
+        invitedByName: invite.invitedByName ?? '',
+        company: invite.companyName ?? null,
+      };
     },
   },
 
