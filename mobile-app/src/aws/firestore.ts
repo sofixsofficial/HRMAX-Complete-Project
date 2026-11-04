@@ -481,6 +481,31 @@ export async function getDoc(ref: DocumentReference): Promise<DocumentSnapshot> 
 
 const DEFAULT_POLL_MS = 20_000;
 
+/**
+ * Content-stable fingerprint for the change guard below: object KEY order and
+ * DOCUMENT ORDER are normalised away. The raw JSON compare used to trip on a
+ * union/sort order that shuffled between polls, re-emitting IDENTICAL data —
+ * which the UI rendered as a visible list blink every poll cycle.
+ */
+const sortDeep = (v: unknown): unknown => {
+  if (v instanceof Date) return v.toISOString();
+  if (Array.isArray(v)) return v.map(sortDeep);
+  if (v && typeof v === 'object') {
+    const src = v as Record<string, unknown>;
+    const out: Record<string, unknown> = {};
+    for (const k of Object.keys(src).sort()) out[k] = sortDeep(src[k]);
+    return out;
+  }
+  return v;
+};
+const fingerprintDoc = (data: unknown): string => JSON.stringify(sortDeep(data ?? null));
+const fingerprintDocs = (docs: Array<{ id: string; data: () => unknown }>): string =>
+  JSON.stringify(
+    docs
+      .map((d) => [d.id, sortDeep(d.data())] as const)
+      .sort((a, b) => (a[0] < b[0] ? -1 : a[0] > b[0] ? 1 : 0)),
+  );
+
 // Active polling listeners; write paths force an immediate refetch so bell
 // badges and lists update within ~150 ms of a write instead of waiting out
 // the 20 s poll (mirrors the web shim's invalidateSnapshots).
@@ -587,11 +612,11 @@ export function onSnapshot(
     try {
       if (target instanceof DocumentReference) {
         const snap = await getDoc(target);
-        const json = JSON.stringify(snap.data() ?? null);
+        const json = fingerprintDoc(snap.data());
         if (json !== lastJson) { lastJson = json; emitSnap(snap as never); }
       } else {
         const snap = await getDocs(target);
-        const json = JSON.stringify(snap.docs.map((d) => d.data()));
+        const json = fingerprintDocs(snap.docs.map((d) => ({ id: d.id, data: () => d.data() })));
         if (json !== lastJson) { lastJson = json; emitSnap(snap as never); }
       }
     } catch (err) {

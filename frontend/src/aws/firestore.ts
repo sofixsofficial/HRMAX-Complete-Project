@@ -556,6 +556,30 @@ export async function getDoc(ref: DocumentReference): Promise<DocumentSnapshot> 
 
 const DEFAULT_POLL_MS = 20_000;
 
+/**
+ * Content-stable fingerprint for the change guard below: object KEY order and
+ * DOCUMENT ORDER are normalised away — a shuffled union/sort order must not
+ * re-emit identical data (it rendered as a visible list blink each poll).
+ */
+const sortDeep = (v: unknown): unknown => {
+  if (v instanceof Date) return v.toISOString();
+  if (Array.isArray(v)) return v.map(sortDeep);
+  if (v && typeof v === 'object') {
+    const src = v as Record<string, unknown>;
+    const out: Record<string, unknown> = {};
+    for (const k of Object.keys(src).sort()) out[k] = sortDeep(src[k]);
+    return out;
+  }
+  return v;
+};
+const fingerprintDoc = (data: unknown): string => JSON.stringify(sortDeep(data ?? null));
+const fingerprintDocs = (docs: Array<{ id: string; data: () => unknown }>): string =>
+  JSON.stringify(
+    docs
+      .map((d) => [d.id, sortDeep(d.data())] as const)
+      .sort((a, b) => (a[0] < b[0] ? -1 : a[0] > b[0] ? 1 : 0)),
+  );
+
 export type Unsubscribe = () => void;
 
 // Active polling listeners, exposed so write paths (check-in / check-out) can
@@ -681,14 +705,14 @@ export function onSnapshot(
     try {
       if (target instanceof DocumentReference) {
         const snap = await getDoc(target);
-        const json = JSON.stringify(snap.data() ?? null);
+        const json = fingerprintDoc(snap.data());
         if (json !== lastJson) {
           lastJson = json;
           emit(snap as never);
         }
       } else {
         const snap = await getDocs(target);
-        const json = JSON.stringify(snap.docs.map((d) => d.data()));
+        const json = fingerprintDocs(snap.docs.map((d) => ({ id: d.id, data: () => d.data() })));
         if (json !== lastJson) {
           lastJson = json;
           emit(snap as never);

@@ -313,9 +313,8 @@ function HeroAttendance({ badge }: { badge: string }) {
 
 /* ------------------------------------------------------------------ */
 /* Hero — light banner (client reference): white→pale-blue card with   */
-/* soft blue waves on the right, HRMAX wordmark + big navy name,       */
-/* blue-bar subtitle, white chips, right-side tagline, and a dark      */
-/* stats strip below (tinted icon → solid icon, real values)           */
+/* soft blue waves on the right, big navy name, blue-bar subtitle,     */
+/* white chips, right-side tagline, and simple white stat tiles below  */
 /* ------------------------------------------------------------------ */
 
 export function DashboardHero({ stats, badge, showAttendance = true }: DashboardHeroProps) {
@@ -344,9 +343,6 @@ export function DashboardHero({ stats, badge, showAttendance = true }: Dashboard
         <div className="welcome">
           <div className="hero-greet">
             <small>Welcome to,</small>
-          </div>
-          <div className="hero-wordmark" aria-label="HR MAX">
-            <span className="wm-hr">HR</span><span className="wm-max">MAX</span>
           </div>
           <h2 className="hero-name">{displayName}</h2>
           <p className="hero-sub">Here's what's happening with your organization today.</p>
@@ -389,7 +385,7 @@ export function DashboardHero({ stats, badge, showAttendance = true }: Dashboard
           <div key={s.label} className="hero-stat" role="listitem">
             <span
               className="hero-stat-icon"
-              style={{ backgroundColor: s.color, color: '#ffffff' }}
+              style={{ backgroundColor: '#f3f4f6', color: '#000000' }}
               aria-hidden="true"
             >
               {statIcon(s.label, 18)}

@@ -3,10 +3,10 @@
 /*  • white → pale-blue card, thin border, gentle shadow              */
 /*  • decorative: soft blue waves (right) + "Smart HR Management"      */
 /*    tagline with blue underline                                     */
-/*  • LEFT: Welcome to, + HRMAX wordmark (navy/orange) + NAME (navy)   */
-/*    + blue-bar subtitle + date/time/location pills + white chips     */
-/*  • dark navy stats strip BELOW the card (solid icon circles,        */
-/*    white numbers, real values)                                      */
+/*  • LEFT: Welcome to, + NAME (navy) + blue-bar subtitle +            */
+/*    date/time/location pills + white chips (state-coloured)          */
+/*  • white stat tiles BELOW the card (neutral icon chips, black text, */
+/*    real values)                                                     */
 /* All attendance facts come from the backend — never invented.        */
 /* ------------------------------------------------------------------ */
 
@@ -99,23 +99,6 @@ html {
   letter-spacing: 0.2px;
 }
 
-/* HRMAX wordmark — navy HR + orange MAX (brand accent, decorative) */
-.hero .hero-wordmark {
-  font-size: clamp(38px, 4.6vw, 56px);
-  font-weight: 900;
-  line-height: 1;
-  letter-spacing: -1.6px;
-  margin-top: 4px;
-}
-
-.hero .hero-wordmark .wm-hr {
-  color: #16233f;
-}
-
-.hero .hero-wordmark .wm-max {
-  color: #f97316;
-}
-
 .hero h2.hero-name {
   margin: 8px 0 0;
   font-size: clamp(26px, 3vw, 36px);
@@ -174,6 +157,9 @@ html {
   flex-wrap: wrap;
   align-items: center;
   gap: 10px;
+  /* Clear the meta pills above — flush contact made the rows read as an
+     overlap (the rows never had a gap of their own). */
+  margin-top: 12px;
 }
 
 .hero .chips .chip {
@@ -350,40 +336,29 @@ html {
   }
 }
 
-/* ── Dark stats strip (reference: one navy bar, solid icon circles,    */
-/*    white numbers, uppercase labels, thin dividers)                   */
+/* ── Stat tiles — simple light cards (tinted icon, real values)        */
 .hero .hero-stats {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(190px, 1fr));
-  gap: 0;
-  background: #0f172a;
-  border-radius: 16px;
-  overflow: hidden;
-  box-shadow: 0 6px 18px rgba(15, 23, 42, 0.18);
+  gap: 12px;
 }
 
 .hero .hero-stats .hero-stat {
   display: flex;
   align-items: center;
-  justify-content: center;
-  gap: 14px;
+  gap: 12px;
   min-width: 0;
-  background: transparent;
-  border: 0;
-  border-right: 1px solid rgba(255, 255, 255, 0.12);
-  border-radius: 0;
-  padding: 16px 20px;
-  box-shadow: none;
-}
-
-.hero .hero-stats .hero-stat:last-child {
-  border-right: 0;
+  background: #fff;
+  border: 1px solid #e8eefb;
+  border-radius: 14px;
+  padding: 13px 16px;
+  box-shadow: 0 3px 10px rgba(15, 33, 66, 0.05);
 }
 
 .hero .hero-stat-icon {
-  width: 42px;
-  height: 42px;
-  border-radius: 50%;
+  width: 40px;
+  height: 40px;
+  border-radius: 12px;
   display: grid;
   place-items: center;
   flex: none;
@@ -396,10 +371,10 @@ html {
 }
 
 .hero .hero-stats .hero-stat-n {
-  font-size: 26px;
+  font-size: 22px;
   font-weight: 800;
   line-height: 1.1;
-  color: #ffffff;
+  color: #000000;
   font-variant-numeric: tabular-nums;
 }
 
@@ -409,7 +384,7 @@ html {
   font-weight: 700;
   letter-spacing: 0.06em;
   text-transform: uppercase;
-  color: #94a3b8;
+  color: #000000;
 }
 
 /* ── Responsive ───────────────────────────────────────────────────── */

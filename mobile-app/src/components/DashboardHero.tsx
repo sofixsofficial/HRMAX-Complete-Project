@@ -27,11 +27,11 @@ import { Icon } from '../utils/icons';
 /**
  * Dashboard hero — light banner (web parity, client reference):
  *  • white → pale-blue card with soft blue waves (bottom-right)
- *  • Welcome to, + HRMAX wordmark (navy/orange) + NAME + blue-bar subtitle
- *    + light date/time pills
+ *  • Welcome to, + NAME + blue-bar subtitle + light date/time pills
  *  • role pill + live attendance chips (state-coloured pale pills)
  *    + gate-validated punch actions
- *  • dark navy stat tiles BELOW the card (solid icon circles, real values)
+ *  • white stat tiles BELOW the card (neutral icon chips, black text,
+ *    real values)
  *
  * Working Mode derives ONLY from the user's verified today attendance record
  * (`useTodayAttendance`, restored on app resume) — it is never inferred from
@@ -561,10 +561,6 @@ export const DashboardHero: React.FC<DashboardHeroProps> = ({
         <View style={styles.topRow}>
           <View style={styles.identityCol}>
             <Text style={styles.welcomeSmall}>Welcome to,</Text>
-            <Text style={styles.wordmark}>
-              <Text style={styles.wmHr}>HR</Text>
-              <Text style={styles.wmMax}>MAX</Text>
-            </Text>
             <Text style={styles.userName} numberOfLines={1} ellipsizeMode="tail">{name}</Text>
             <Text style={styles.heroSub} numberOfLines={2}>
               {subtitle || "Here's what's happening with your organization today."}
@@ -614,7 +610,6 @@ export const DashboardHero: React.FC<DashboardHeroProps> = ({
         <View style={styles.statsRow}>
           {stats.map((st, i) => {
             const v = statAnims[i];
-            const tint = st.color || '#2563eb';
             return (
               <Animated.View
                 key={`${st.label}-${i}`}
@@ -626,8 +621,8 @@ export const DashboardHero: React.FC<DashboardHeroProps> = ({
                   },
                 ]}
               >
-                <View style={[styles.statCircle, { backgroundColor: tint }]}>
-                  <Icon name={statIconName(st.label)} size={17} color="#ffffff" />
+                <View style={[styles.statCircle, { backgroundColor: '#f3f4f6' }]}>
+                  <Icon name={statIconName(st.label)} size={17} color="#000000" />
                 </View>
                 <View style={styles.statMeta}>
                   <Text style={styles.statValue} selectable={false}>{st.value}</Text>
@@ -675,10 +670,7 @@ const styles = StyleSheet.create({
   },
   identityCol: { flex: 1, minWidth: 0 },
   welcomeSmall: { fontSize: 15, fontWeight: '600', color: '#64748b', letterSpacing: 0.1 },
-  wordmark: { fontSize: 34, fontWeight: '900', letterSpacing: -1.2, marginTop: 2, lineHeight: 38 },
-  wmHr: { color: '#16233f' },
-  wmMax: { color: '#f97316' },
-  userName: { fontSize: 25, fontWeight: '800', color: '#16233f', marginTop: 6, letterSpacing: -0.5 },
+  userName: { fontSize: 25, fontWeight: '800', color: '#16233f', marginTop: 3, letterSpacing: -0.5 },
   heroSub: {
     fontSize: 13,
     color: '#33415a',
@@ -793,32 +785,33 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 10,
-    backgroundColor: '#0f172a',
+    backgroundColor: '#ffffff',
     borderRadius: 14,
-    borderWidth: 0,
+    borderWidth: 1,
+    borderColor: '#e8eefb',
     paddingHorizontal: 12,
     paddingVertical: 12,
     // Soft elevation (iOS + Android)
-    shadowColor: '#0f172a',
-    shadowOpacity: 0.25,
+    shadowColor: '#0f2142',
+    shadowOpacity: 0.06,
     shadowRadius: 8,
     shadowOffset: { width: 0, height: 3 },
-    elevation: 3,
+    elevation: 2,
   },
   statCircle: {
     width: 36,
     height: 36,
-    borderRadius: 18,
+    borderRadius: 12,
     alignItems: 'center',
     justifyContent: 'center',
     flexShrink: 0,
   },
   statMeta: { flexShrink: 1 },
-  statValue: { fontSize: 18, fontWeight: '800', color: '#ffffff', fontVariant: ['tabular-nums'], lineHeight: 21 },
+  statValue: { fontSize: 18, fontWeight: '800', color: '#000000', fontVariant: ['tabular-nums'], lineHeight: 21 },
   statLabel: {
     fontSize: 10.5,
     fontWeight: '700',
-    color: '#94a3b8',
+    color: '#000000',
     textTransform: 'uppercase',
     letterSpacing: 0.4,
     marginTop: 1,
