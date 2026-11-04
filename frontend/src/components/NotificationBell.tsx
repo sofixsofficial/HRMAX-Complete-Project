@@ -53,7 +53,7 @@ export function NotificationBell() {
     <div className="notification-wrapper" ref={ref} style={{ position: 'relative' }}>
       <button className="notification-btn" onClick={() => setOpen(!open)} title="Notifications">
         <Bell size={18} />
-        {unreadCount > 0 && <span className="notification-badge">{unreadCount > 99 ? '99+' : unreadCount}</span>}
+        {unreadCount > 0 && <span className="notification-badge">{unreadCount}</span>}
       </button>
       {open && (
         <div style={{

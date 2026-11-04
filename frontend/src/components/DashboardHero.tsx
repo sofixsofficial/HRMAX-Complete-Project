@@ -322,6 +322,11 @@ export function DashboardHero({ stats, badge, showAttendance = true }: Dashboard
   const { now, tz, time, location } = useClock()
   const roleBadge = badge || roleDepartmentLabel(user)
   const displayName = user?.name || roleBadge
+  // Time-of-day greeting (user-requested): morning <12, afternoon <17,
+  // evening <21, night otherwise — based on the reader's local clock.
+  const hour = new Date(now).getHours()
+  const greeting =
+    hour < 12 ? 'Good morning,' : hour < 17 ? 'Good afternoon,' : hour < 21 ? 'Good evening,' : 'Good night,'
 
   return (
     <section className="hero" aria-label="Welcome summary">
@@ -342,7 +347,7 @@ export function DashboardHero({ stats, badge, showAttendance = true }: Dashboard
 
         <div className="welcome">
           <div className="hero-greet">
-            <small>Welcome to,</small>
+            <small>{greeting}</small>
           </div>
           <h2 className="hero-name">{displayName}</h2>
           <p className="hero-sub">Here's what's happening with your organization today.</p>

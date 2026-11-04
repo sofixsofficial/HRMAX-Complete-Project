@@ -536,6 +536,11 @@ export const DashboardHero: React.FC<DashboardHeroProps> = ({
   }, [statCount, reduceMotion, statAnims]);
 
   const tz = effectiveTimezone(companyTz);
+  // Time-of-day greeting (web parity): morning <12, afternoon <17,
+  // evening <21, night otherwise — reader's local clock.
+  const hour = now.getHours();
+  const greeting =
+    hour < 12 ? 'Good morning,' : hour < 17 ? 'Good afternoon,' : hour < 21 ? 'Good evening,' : 'Good night,';
   // Synchronous fill so the map below always has a value (the effect above
   // is what actually drives them).
   while (statAnims.length < statCount) statAnims.push(new Animated.Value(0));
@@ -550,8 +555,8 @@ export const DashboardHero: React.FC<DashboardHeroProps> = ({
         end={{ x: 1, y: 0.85 }}
         style={styles.card}
       >
-        {/* Decorative: soft blue waves (bottom-right) — behind content */}
-        <Svg pointerEvents="none" style={styles.wavesArt} width={320} height={107} viewBox="0 0 1200 400" preserveAspectRatio="none">
+        {/* Decorative: soft blue waves — full-height sweep on the right */}
+        <Svg pointerEvents="none" style={styles.wavesArt} width={140} height="100%" viewBox="0 0 1200 400" preserveAspectRatio="none">
           <Path d="M860 0 C1010 90 1130 210 940 330 C875 372 905 400 905 400 L1200 400 L1200 0 Z" fill="#dbe9fb" />
           <Path d="M1200 120 C1075 185 1155 320 995 400 L1200 400 Z" fill="#eef4fd" />
           <Path d="M1200 250 C1115 295 1165 362 1085 400 L1200 400 Z" fill="#c7dbf8" opacity={0.85} />
@@ -560,7 +565,7 @@ export const DashboardHero: React.FC<DashboardHeroProps> = ({
 
         <View style={styles.topRow}>
           <View style={styles.identityCol}>
-            <Text style={styles.welcomeSmall}>Welcome to,</Text>
+            <Text style={styles.welcomeSmall}>{greeting}</Text>
             <Text style={styles.userName} numberOfLines={1} ellipsizeMode="tail">{name}</Text>
             <Text style={styles.heroSub} numberOfLines={2}>
               {subtitle || "Here's what's happening with your organization today."}
@@ -658,7 +663,7 @@ const styles = StyleSheet.create({
     paddingTop: 22,
     paddingBottom: 20,
   },
-  wavesArt: { position: 'absolute', right: 0, bottom: 0 },
+  wavesArt: { position: 'absolute', right: 0, top: 0 },
 
   topRow: {
     position: 'relative',

@@ -304,9 +304,20 @@ export const MasterAdminDashboard: React.FC<{ navigation: any }> = ({ navigation
             {adminAlerts.map((a) => (
               <TouchableOpacity
                 key={a.id}
-                style={[s.alertItem, a.read && s.alertItemRead, a.priority === 'high' && s.alertItemHigh]}
+                style={[
+                  s.alertItem,
+                  a.read ? s.alertItemRead : s.alertItemUnread,
+                  a.priority === 'high' && !a.read && s.alertItemHigh,
+                ]}
                 onPress={() => handleAlertClick(a)}
               >
+                <View style={[s.alertIcon, a.read && s.alertIconRead]}>
+                  <Icon
+                    name={a.priority === 'high' ? 'alert-circle-outline' : 'notifications-outline'}
+                    size={16}
+                    color={a.read ? '#94a3b8' : '#f97316'}
+                  />
+                </View>
                 <View style={s.alertInfo}>
                   <Text style={[s.alertTitle, !a.read && s.alertTitleUnread]} numberOfLines={1}>{a.title}</Text>
                   <Text style={s.alertBody} numberOfLines={1}>{a.body}</Text>
@@ -506,15 +517,27 @@ const createStyles = (c: ThemeColors) => StyleSheet.create({
   alertsHeader: { flexDirection: 'row' as const, alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 4, paddingBottom: 10 },
   markAllBtn: { flexDirection: 'row' as const, alignItems: 'center', gap: 4 },
   markAllText: { fontSize: 12, color: '#f97316', fontWeight: '600' as const },
-  unreadBadge: { backgroundColor: '#ef4444', borderRadius: 9, paddingHorizontal: 6, paddingVertical: 1 },
+  unreadBadge: { backgroundColor: '#f97316', borderRadius: 10, paddingHorizontal: 7, paddingVertical: 2 },
   unreadBadgeText: { color: '#fff', fontSize: 11, fontWeight: '700' as const },
-  alertsList: { gap: 8 },
+  alertsList: { gap: 10 },
   alertItem: {
     flexDirection: 'row' as const, alignItems: 'center', justifyContent: 'space-between', gap: 10,
-    padding: 12, borderRadius: 12, backgroundColor: '#fff7ed', borderWidth: 1, borderColor: 'transparent',
+    padding: 12, paddingVertical: 13, borderRadius: 14,
+    backgroundColor: c.card, borderWidth: 1, borderColor: c.borderLight,
+    // Soft lift so the rows read as clean cards (matches the stat tiles).
+    shadowColor: '#0f2142', shadowOpacity: 0.05, shadowRadius: 8,
+    shadowOffset: { width: 0, height: 3 }, elevation: 1,
   },
-  alertItemRead: { backgroundColor: c.card, borderColor: c.borderLight },
-  alertItemHigh: { borderColor: '#fee2e2' },
+  // Unread = white card with an orange left accent (was a full cream fill);
+  // read rows dim instead of changing shape, keeping one uniform rhythm.
+  alertItemUnread: { borderLeftWidth: 3, borderLeftColor: '#f97316' },
+  alertItemRead: { opacity: 0.7 },
+  alertItemHigh: { borderLeftWidth: 3, borderLeftColor: '#ef4444' },
+  alertIcon: {
+    width: 32, height: 32, borderRadius: 16, backgroundColor: '#fff1e5',
+    alignItems: 'center' as const, justifyContent: 'center' as const,
+  },
+  alertIconRead: { backgroundColor: '#f3f4f6' },
   alertInfo: { flex: 1, minWidth: 0 },
   alertTitle: { fontSize: 13, fontWeight: '400' as const, color: c.text },
   alertTitleUnread: { fontWeight: '700' as const },

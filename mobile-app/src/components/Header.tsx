@@ -64,7 +64,7 @@ export const Header: React.FC<HeaderProps> = ({ title, subtitle, onMenuPress, on
             <Icon name="notifications-outline" size={22} color={colors.textSecondary} />
             {unreadCount > 0 && (
               <View style={[styles.notifBadge, { backgroundColor: colors.danger }]}>
-                <Text style={styles.notifBadgeText}>{unreadCount > 9 ? '9+' : unreadCount}</Text>
+                <Text style={styles.notifBadgeText}>{unreadCount}</Text>
               </View>
             )}
           </TouchableOpacity>
