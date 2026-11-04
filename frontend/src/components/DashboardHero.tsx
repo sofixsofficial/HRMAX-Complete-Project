@@ -387,7 +387,8 @@ export function DashboardHero({ stats, badge, showAttendance = true }: Dashboard
           )}
         </div>
 
-        {/* Right side: tagline + flat illustration (decorative) */}
+        {/* Right side: tagline + clean business cards (decorative, no
+            cartoon character — simple professional look) */}
         <div className="hero-art" aria-hidden="true">
           <div className="art-tagline">
             <span className="art-line1">Work Smart,</span>
@@ -398,56 +399,30 @@ export function DashboardHero({ stats, badge, showAttendance = true }: Dashboard
           </div>
           <svg className="art-scene" viewBox="0 0 320 260" aria-hidden="true" focusable="false">
             {/* soft blob */}
-            <circle cx="170" cy="148" r="104" fill="#dbe9fb" opacity="0.6" />
-            {/* sparkles */}
-            <circle cx="106" cy="44" r="4" fill="#f97316" opacity="0.85" />
-            <circle cx="122" cy="62" r="3" fill="#2563eb" opacity="0.7" />
-            <circle cx="200" cy="52" r="3.5" fill="#93c5fd" />
-            <circle cx="40" cy="140" r="3.5" fill="#f97316" opacity="0.6" />
-            {/* calendar card */}
-            <rect x="30" y="28" width="62" height="62" rx="14" fill="#ffffff" stroke="#dbe7f8" strokeWidth="2" />
-            <rect x="44" y="20" width="7" height="16" rx="3.5" fill="#1d4ed8" />
-            <rect x="70" y="20" width="7" height="16" rx="3.5" fill="#1d4ed8" />
-            <rect x="44" y="48" width="34" height="28" rx="6" fill="#eff6ff" />
-            <path d="M52 62 l8 8 l14 -16" stroke="#16a34a" strokeWidth="4" fill="none" strokeLinecap="round" strokeLinejoin="round" />
-            {/* people card */}
-            <rect x="234" y="30" width="74" height="58" rx="14" fill="#ffffff" stroke="#dbe7f8" strokeWidth="2" />
-            <circle cx="256" cy="52" r="9" fill="#2563eb" />
-            <path d="M243 74 c0-8 6-13 13-13 s13 5 13 13 z" fill="#2563eb" />
-            <circle cx="286" cy="54" r="8" fill="#93c5fd" />
-            <path d="M275 74 c0-7 5-11 11-11 s11 4 11 11 z" fill="#93c5fd" />
-            {/* growth chart card */}
-            <rect x="238" y="118" width="74" height="66" rx="14" fill="#ffffff" stroke="#dbe7f8" strokeWidth="2" />
-            <rect x="250" y="152" width="11" height="20" rx="3" fill="#fdba74" />
-            <rect x="267" y="142" width="11" height="30" rx="3" fill="#fb923c" />
-            <rect x="284" y="132" width="11" height="40" rx="3" fill="#f97316" />
-            <path d="M250 146 L267 136 L280 128 L300 122" stroke="#12294a" strokeWidth="3" fill="none" strokeLinecap="round" strokeLinejoin="round" />
-            <circle cx="300" cy="122" r="4" fill="#12233f" />
-            {/* desk */}
-            <rect x="56" y="239" width="200" height="9" rx="4.5" fill="#b9d2f7" />
-            {/* plant */}
-            <path d="M64 219 h30 l-4 20 h-22 z" fill="#cbd5e1" />
-            <rect x="60" y="212" width="38" height="9" rx="4" fill="#94a3b8" />
-            <path d="M79 212 c0-16 -8-26 -20-30 c4 16 10 24 20 30 z" fill="#22c55e" />
-            <path d="M79 212 c0-14 8-24 20-27 c-4 14-10 22-20 27 z" fill="#16a34a" />
-            {/* person */}
-            <rect x="152" y="124" width="16" height="16" rx="4" fill="#e8a87c" />
-            <path d="M124 196 c0-32 16-54 36-54 s36 22 36 54 z" fill="#1d3f8f" />
-            <path d="M148 146 l12 18 l12 -18 z" fill="#ffffff" />
-            <path d="M160 164 l5 6 l-3 16 l-4 -16 z" fill="#f97316" />
-            <circle cx="160" cy="104" r="27" fill="#f5c9a4" />
-            <path d="M133 104 c0-18 12-30 27-30 s27 12 27 30 c-4-11-13-17-27-17 s-23 6-27 17 z" fill="#12233f" />
-            <circle cx="151" cy="106" r="2.6" fill="#12233f" />
-            <circle cx="169" cy="106" r="2.6" fill="#12233f" />
-            <path d="M152 117 q8 7 16 0" stroke="#12233f" strokeWidth="2.5" fill="none" strokeLinecap="round" />
-            {/* thumbs-up arm */}
-            <path d="M195 172 c14-4 23-16 25-30" stroke="#1d3f8f" strokeWidth="15" fill="none" strokeLinecap="round" />
-            <circle cx="222" cy="134" r="11" fill="#f5c9a4" />
-            <rect x="218" y="118" width="8" height="15" rx="4" fill="#f5c9a4" />
-            {/* laptop */}
-            <rect x="108" y="176" width="104" height="56" rx="7" fill="#12294a" />
-            <text x="160" y="210" fontSize="15" fontWeight="800" fill="#ffffff" textAnchor="middle">HRMAX</text>
-            <rect x="100" y="232" width="120" height="7" rx="3.5" fill="#1e3a8a" />
+            <circle cx="160" cy="140" r="95" fill="#dbe9fb" opacity="0.5" />
+            {/* calendar card — attendance */}
+            <rect x="24" y="26" width="62" height="62" rx="14" fill="#ffffff" stroke="#dbe7f8" strokeWidth="2" />
+            <rect x="38" y="18" width="7" height="16" rx="3.5" fill="#1d4ed8" />
+            <rect x="64" y="18" width="7" height="16" rx="3.5" fill="#1d4ed8" />
+            <rect x="38" y="46" width="34" height="26" rx="6" fill="#eff6ff" />
+            <path d="M46 59 l7 7 l13 -15" stroke="#16a34a" strokeWidth="4" fill="none" strokeLinecap="round" strokeLinejoin="round" />
+            {/* people card — team */}
+            <rect x="236" y="34" width="64" height="52" rx="14" fill="#ffffff" stroke="#dbe7f8" strokeWidth="2" />
+            <circle cx="256" cy="52" r="8" fill="#2563eb" />
+            <path d="M244 72 c0-7 5-11 12-11 s12 4 12 11 z" fill="#2563eb" />
+            <circle cx="282" cy="54" r="7" fill="#93c5fd" />
+            <path d="M272 72 c0-6 4-9 10-9 s10 3 10 9 z" fill="#93c5fd" />
+            {/* analytics card — growth */}
+            <rect x="86" y="76" width="148" height="114" rx="18" fill="#ffffff" stroke="#dbe7f8" strokeWidth="2" />
+            <rect x="104" y="94" width="48" height="9" rx="4.5" fill="#12294a" opacity="0.85" />
+            <rect x="104" y="108" width="30" height="7" rx="3.5" fill="#cbd5e1" />
+            <rect x="104" y="164" width="112" height="2" rx="1" fill="#e2e8f0" />
+            <rect x="116" y="140" width="16" height="24" rx="5" fill="#fed7aa" />
+            <rect x="140" y="128" width="16" height="36" rx="5" fill="#fdba74" />
+            <rect x="164" y="114" width="16" height="50" rx="5" fill="#fb923c" />
+            <rect x="188" y="100" width="16" height="64" rx="5" fill="#f97316" />
+            <path d="M124 134 L148 122 L172 108 L196 94" stroke="#12294a" strokeWidth="3" fill="none" strokeLinecap="round" strokeLinejoin="round" />
+            <circle cx="196" cy="94" r="5" fill="#f97316" stroke="#ffffff" strokeWidth="2" />
           </svg>
         </div>
       </div>
