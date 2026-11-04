@@ -2,8 +2,8 @@
  * Backend-owned ID generation — Company / Employee / Department codes.
  *
  * The FRONTEND never generates IDs anymore (the old client-side collection
- * scans in `codeGenerator.ts` were racy and non-atomic). Every code is minted
- * here, on the AWS backend, from DynamoDB atomic counters:
+ * scans were racy and non-atomic). Every code is minted here, on the AWS
+ * backend, from DynamoDB atomic counters:
  *
  *   Company ID   COMP-[SHORT]-[YEAR]-[SERIAL]   e.g. COMP-SOF-2026-0001
  *   Employee ID  [SHORT]-EMP-[YEAR]-[SERIAL]    e.g. SOF-EMP-2026-0001

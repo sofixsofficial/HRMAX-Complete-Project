@@ -53,7 +53,7 @@ npm run mobile
 
 ### AWS setup
 
-Full deploy guide: **[`docs/AWS_MIGRATION.md`](docs/AWS_MIGRATION.md)**.
+Full deploy guide: **[`docs/deployment.md`](docs/deployment.md)**.
 
 Quick version:
 
