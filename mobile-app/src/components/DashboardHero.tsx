@@ -1,7 +1,7 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { View, Text, StyleSheet, Animated, AccessibilityInfo, Pressable, ActivityIndicator, useWindowDimensions } from 'react-native';
+import { View, Text, StyleSheet, Animated, AccessibilityInfo, Pressable, ActivityIndicator } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
-import Svg, { Circle, Path, Rect } from 'react-native-svg';
+import Svg, { Path } from 'react-native-svg';
 import { collection, getDocs, query, where } from '../aws/firestore-compat';
 import { db } from '../aws/clients';
 import { useAuth } from '../context/AuthContext';
@@ -25,12 +25,13 @@ import { parseWeekendDays, toDateKey } from '../utils/workingDays';
 import { Icon } from '../utils/icons';
 
 /**
- * Dashboard hero — orange banner (web parity, client reference):
- *  • gradient orange card with faint white city skyline + white team glyph
- *  • Welcome back, + NAME (white) + subtitle + translucent date/time pills
- *  • role pill + live attendance chips (state-coloured text on white pills)
+ * Dashboard hero — light banner (web parity, client reference):
+ *  • white → pale-blue card with soft blue waves (bottom-right)
+ *  • Welcome to, + HRMAX wordmark (navy/orange) + NAME + blue-bar subtitle
+ *    + light date/time pills
+ *  • role pill + live attendance chips (state-coloured pale pills)
  *    + gate-validated punch actions
- *  • light rounded stat tiles BELOW the card (tinted icon, real values)
+ *  • dark navy stat tiles BELOW the card (solid icon circles, real values)
  *
  * Working Mode derives ONLY from the user's verified today attendance record
  * (`useTodayAttendance`, restored on app resume) — it is never inferred from
@@ -95,15 +96,15 @@ interface StatusStyle {
   backgroundColor: string;
 }
 
-/** White pill palette — state-coloured text on white (orange banner look). */
+/** Light pill palette — pale backgrounds with state-coloured text (reference). */
 const STATUS_STYLES: Record<string, StatusStyle> = {
-  working: { color: '#047857', borderColor: 'rgba(255,255,255,0.55)', backgroundColor: 'rgba(255,255,255,0.94)' },
-  done: { color: '#1d4ed8', borderColor: 'rgba(255,255,255,0.55)', backgroundColor: 'rgba(255,255,255,0.94)' },
-  leave: { color: '#6d28d9', borderColor: 'rgba(255,255,255,0.55)', backgroundColor: 'rgba(255,255,255,0.94)' },
-  holiday: { color: '#b45309', borderColor: 'rgba(255,255,255,0.55)', backgroundColor: 'rgba(255,255,255,0.94)' },
-  idle: { color: '#475569', borderColor: 'rgba(255,255,255,0.55)', backgroundColor: 'rgba(255,255,255,0.94)' },
-  pending: { color: '#c2410c', borderColor: 'rgba(255,255,255,0.55)', backgroundColor: 'rgba(255,255,255,0.94)' },
-  loading: { color: '#64748b', borderColor: 'rgba(255,255,255,0.55)', backgroundColor: 'rgba(255,255,255,0.94)' },
+  working: { color: '#047857', borderColor: '#a7f3d0', backgroundColor: '#ecfdf5' },
+  done: { color: '#1d4ed8', borderColor: '#bfdbfe', backgroundColor: '#eff6ff' },
+  leave: { color: '#6d28d9', borderColor: '#ddd6fe', backgroundColor: '#f5f3ff' },
+  holiday: { color: '#b45309', borderColor: '#fde68a', backgroundColor: '#fffbeb' },
+  idle: { color: '#475569', borderColor: '#e2e8f0', backgroundColor: '#f8fafc' },
+  pending: { color: '#c2410c', borderColor: '#fed7aa', backgroundColor: '#fff7ed' },
+  loading: { color: '#64748b', borderColor: '#e2e8f0', backgroundColor: '#f1f5f9' },
 };
 
 /* ── Day context — approved leave + holiday + weekly-off (backend data) ── */
@@ -382,7 +383,7 @@ const HeroAttendance: React.FC<{
         {working && (
           <>
             <View style={styles.detailInline}>
-              <Icon name="time-outline" size={13} color="#ffffff" />
+              <Icon name="time-outline" size={13} color="#2563eb" />
               <Text style={styles.detailText}>Checked in at {fmtPunchTime(todayRecord?.checkIn, tz)}</Text>
             </View>
             <Text style={styles.detailElapsed}>· {formatElapsed(elapsedMs)} elapsed</Text>
@@ -415,9 +416,9 @@ const HeroAttendance: React.FC<{
               accessibilityLabel="Check in"
             >
               {busy === 'in' ? (
-                <ActivityIndicator size="small" color="#e85f0a" />
+                <ActivityIndicator size="small" color="#fff" />
               ) : (
-                <Icon name="log-in-outline" size={15} color="#e85f0a" />
+                <Icon name="log-in-outline" size={15} color="#ffffff" />
               )}
               <Text style={styles.punchBtnText}>{busy === 'in' ? 'Checking in…' : 'Check In'}</Text>
             </Pressable>
@@ -431,21 +432,16 @@ const HeroAttendance: React.FC<{
               accessibilityLabel="Check out"
             >
               {busy === 'out' ? (
-                <ActivityIndicator size="small" color="#e85f0a" />
+                <ActivityIndicator size="small" color="#fff" />
               ) : (
-                <Icon name="log-out-outline" size={15} color="#e85f0a" />
+                <Icon name="log-out-outline" size={15} color="#ffffff" />
               )}
               <Text style={styles.punchBtnText}>{busy === 'out' ? 'Checking out…' : 'Check Out'}</Text>
             </Pressable>
           )}
           {punchMsg ? (
             <Text
-              style={[
-                styles.punchMsg,
-                punchMsg.type === 'error'
-                  ? { color: '#ffffff', backgroundColor: 'rgba(127,29,29,0.42)', borderRadius: 100, paddingHorizontal: 10, paddingVertical: 5 }
-                  : { color: '#ffffff' },
-              ]}
+              style={[styles.punchMsg, { color: punchMsg.type === 'success' ? '#047857' : '#b91c1c' }]}
               numberOfLines={3}
             >
               {punchMsg.text}
@@ -477,12 +473,6 @@ export const DashboardHero: React.FC<DashboardHeroProps> = ({
 }) => {
   const { user } = useAuth();
   const { effectiveCompanyId } = useCompany();
-
-  // The team glyph needs horizontal room: it renders only on wide layouts,
-  // and the text column reserves its zone otherwise (overlap guard — RN has
-  // no media queries, so the window width decides).
-  const { width: windowWidth } = useWindowDimensions();
-  const showTeamGlyph = windowWidth >= 480;
 
   const [companyTz, setCompanyTz] = useState<string | null>(null);
   const [now, setNow] = useState<Date>(() => new Date());
@@ -552,57 +542,29 @@ export const DashboardHero: React.FC<DashboardHeroProps> = ({
 
   return (
     <Animated.View style={[styles.root, { opacity: fadeAnim, transform: [{ translateY: slideAnim }] }]}>
-      {/* ── Orange banner card — warm, low-glare palette + art ── */}
+      {/* ── Light banner card (client reference) ── */}
       <View style={styles.cardWrap}>
       <LinearGradient
-        colors={['#f9a96b', '#f2904e', '#e97f3b']}
+        colors={['#ffffff', '#f6f9ff', '#eef4ff']}
         start={{ x: 0, y: 0 }}
         end={{ x: 1, y: 0.85 }}
         style={styles.card}
       >
-        {/* Soft light sheen from the top-left (gentle depth, no glare) */}
-        <LinearGradient
-          pointerEvents="none"
-          style={StyleSheet.absoluteFill}
-          colors={['rgba(255,255,255,0.16)', 'rgba(255,255,255,0.01)']}
-          start={{ x: 0, y: 0 }}
-          end={{ x: 0.55, y: 1 }}
-        />
-        {/* Decorative: city skyline (bottom-right) — ornamental only */}
-        <Svg pointerEvents="none" style={styles.skylineArt} width={300} height={107} viewBox="0 0 560 200">
-          <Rect x="0" y="120" width="46" height="80" fill="rgba(255,255,255,0.14)" />
-          <Rect x="52" y="86" width="34" height="114" fill="rgba(255,255,255,0.14)" />
-          <Rect x="64" y="70" width="4" height="16" fill="rgba(255,255,255,0.14)" />
-          <Rect x="92" y="140" width="40" height="60" fill="rgba(255,255,255,0.14)" />
-          <Rect x="138" y="60" width="52" height="140" fill="rgba(255,255,255,0.14)" />
-          <Rect x="152" y="44" width="24" height="16" fill="rgba(255,255,255,0.14)" />
-          <Rect x="196" y="110" width="36" height="90" fill="rgba(255,255,255,0.14)" />
-          <Rect x="238" y="76" width="44" height="124" fill="rgba(255,255,255,0.14)" />
-          <Rect x="288" y="130" width="38" height="70" fill="rgba(255,255,255,0.14)" />
-          <Rect x="332" y="94" width="50" height="106" fill="rgba(255,255,255,0.14)" />
-          <Rect x="346" y="78" width="22" height="16" fill="rgba(255,255,255,0.14)" />
-          <Rect x="388" y="40" width="40" height="160" fill="rgba(255,255,255,0.14)" />
-          <Rect x="406" y="14" width="4" height="26" fill="rgba(255,255,255,0.14)" />
-          <Rect x="434" y="118" width="44" height="82" fill="rgba(255,255,255,0.14)" />
-          <Rect x="484" y="80" width="48" height="120" fill="rgba(255,255,255,0.14)" />
-          <Rect x="498" y="64" width="20" height="16" fill="rgba(255,255,255,0.14)" />
+        {/* Decorative: soft blue waves (bottom-right) — behind content */}
+        <Svg pointerEvents="none" style={styles.wavesArt} width={320} height={107} viewBox="0 0 1200 400" preserveAspectRatio="none">
+          <Path d="M860 0 C1010 90 1130 210 940 330 C875 372 905 400 905 400 L1200 400 L1200 0 Z" fill="#dbe9fb" />
+          <Path d="M1200 120 C1075 185 1155 320 995 400 L1200 400 Z" fill="#eef4fd" />
+          <Path d="M1200 250 C1115 295 1165 362 1085 400 L1200 400 Z" fill="#c7dbf8" opacity={0.85} />
+          <Path d="M1200 0 L960 0 C1075 65 1135 115 1200 145 Z" fill="#eaf1fd" />
         </Svg>
-        {/* Decorative: white team-people glyph (right, wide layouts only) */}
-        {showTeamGlyph ? (
-          <Svg pointerEvents="none" style={styles.teamArt} width={92} height={64} viewBox="0 0 160 112">
-            <Path d="M24 80 c0-12 9-21 20-21 s20 9 20 21 z" fill="#ffffff" />
-            <Circle cx="44" cy="42" r="14" fill="#ffffff" />
-            <Path d="M96 80 c0-12 9-21 20-21 s20 9 20 21 z" fill="#ffffff" />
-            <Circle cx="116" cy="42" r="14" fill="#ffffff" />
-            <Path d="M54 88 c0-15 12-27 26-27 s26 12 26 27 z" fill="#ffffff" />
-            <Circle cx="80" cy="30" r="19" fill="#ffffff" />
-            <Path d="M8 100 C 44 84, 116 84, 152 100" stroke="#ffffff" strokeWidth="7" fill="none" strokeLinecap="round" />
-          </Svg>
-        ) : null}
 
         <View style={styles.topRow}>
-          <View style={[styles.identityCol, showTeamGlyph && styles.identityColReserved]}>
-            <Text style={styles.welcomeSmall}>Welcome back,</Text>
+          <View style={styles.identityCol}>
+            <Text style={styles.welcomeSmall}>Welcome to,</Text>
+            <Text style={styles.wordmark}>
+              <Text style={styles.wmHr}>HR</Text>
+              <Text style={styles.wmMax}>MAX</Text>
+            </Text>
             <Text style={styles.userName} numberOfLines={1} ellipsizeMode="tail">{name}</Text>
             <Text style={styles.heroSub} numberOfLines={2}>
               {subtitle || "Here's what's happening with your organization today."}
@@ -611,13 +573,13 @@ export const DashboardHero: React.FC<DashboardHeroProps> = ({
             {/* Live date + time pills (real clock — device zone/company tz) */}
             <View style={styles.metaRow}>
               <View style={styles.metaPill}>
-                <Icon name="calendar-outline" size={13} color="#ffffff" />
+                <Icon name="calendar-outline" size={13} color="#2563eb" />
                 <Text style={styles.metaPillText} numberOfLines={1}>
                   {formatInZone(now, tz, { weekday: 'short', month: 'short', day: 'numeric', year: 'numeric' })}
                 </Text>
               </View>
               <View style={styles.metaPill}>
-                <Icon name="time-outline" size={13} color="#ffffff" />
+                <Icon name="time-outline" size={13} color="#2563eb" />
                 <Text style={styles.metaPillText}>
                   {formatInZone(now, tz, { hour: '2-digit', minute: '2-digit', hour12: true })}
                 </Text>
@@ -664,8 +626,8 @@ export const DashboardHero: React.FC<DashboardHeroProps> = ({
                   },
                 ]}
               >
-                <View style={[styles.statCircle, { backgroundColor: `${tint}1A` }]}>
-                  <Icon name={statIconName(st.label)} size={17} color={tint} />
+                <View style={[styles.statCircle, { backgroundColor: tint }]}>
+                  <Icon name={statIconName(st.label)} size={17} color="#ffffff" />
                 </View>
                 <View style={styles.statMeta}>
                   <Text style={styles.statValue} selectable={false}>{st.value}</Text>
@@ -683,24 +645,25 @@ export const DashboardHero: React.FC<DashboardHeroProps> = ({
 const styles = StyleSheet.create({
   root: { marginBottom: 6 },
   // Outer shadow layer (iOS clips shadows when overflow is hidden, so the
-  // gradient card sits inside this wrapper) — muted warm shadow, no glow.
+  // gradient card sits inside this wrapper) — gentle blue shadow.
   cardWrap: {
     borderRadius: 18,
-    shadowColor: '#5b3a1a',
-    shadowOpacity: 0.2,
+    shadowColor: '#1e3a8a',
+    shadowOpacity: 0.12,
     shadowRadius: 12,
-    shadowOffset: { width: 0, height: 6 },
-    elevation: 4,
+    shadowOffset: { width: 0, height: 5 },
+    elevation: 3,
   },
   card: {
     borderRadius: 18,
     overflow: 'hidden',
+    borderWidth: 1,
+    borderColor: '#e3ebfb',
     paddingHorizontal: 18,
     paddingTop: 22,
     paddingBottom: 20,
   },
-  skylineArt: { position: 'absolute', right: -4, bottom: 0 },
-  teamArt: { position: 'absolute', right: 16, top: '50%', marginTop: -32 },
+  wavesArt: { position: 'absolute', right: 0, bottom: 0 },
 
   topRow: {
     position: 'relative',
@@ -711,13 +674,24 @@ const styles = StyleSheet.create({
     gap: 10,
   },
   identityCol: { flex: 1, minWidth: 0 },
-  // Wide layouts: keep the text clear of the team glyph zone.
-  identityColReserved: { paddingRight: 108 },
-  welcomeSmall: { fontSize: 13, fontWeight: '600', color: 'rgba(255,255,255,0.92)', letterSpacing: 0.1 },
-  userName: { fontSize: 24, fontWeight: '800', color: '#ffffff', marginTop: 1, letterSpacing: -0.5 },
-  heroSub: { fontSize: 12.5, color: 'rgba(255,255,255,0.9)', marginTop: 6, lineHeight: 18 },
+  welcomeSmall: { fontSize: 15, fontWeight: '600', color: '#64748b', letterSpacing: 0.1 },
+  wordmark: { fontSize: 34, fontWeight: '900', letterSpacing: -1.2, marginTop: 2, lineHeight: 38 },
+  wmHr: { color: '#16233f' },
+  wmMax: { color: '#f97316' },
+  userName: { fontSize: 25, fontWeight: '800', color: '#16233f', marginTop: 6, letterSpacing: -0.5 },
+  heroSub: {
+    fontSize: 13,
+    color: '#33415a',
+    marginTop: 10,
+    lineHeight: 19,
+    borderLeftWidth: 4,
+    borderLeftColor: '#2563eb',
+    paddingLeft: 12,
+    alignSelf: 'flex-start',
+    maxWidth: '96%',
+  },
 
-  /* Live date / time pills (translucent on the orange banner) */
+  /* Live date / time pills (light — white on the pale card) */
   metaRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginTop: 12 },
   metaPill: {
     flexDirection: 'row',
@@ -726,12 +700,12 @@ const styles = StyleSheet.create({
     paddingHorizontal: 11,
     paddingVertical: 7,
     borderRadius: 100,
-    backgroundColor: 'rgba(255,255,255,0.18)',
+    backgroundColor: '#ffffff',
     borderWidth: 1.5,
-    borderColor: 'rgba(255,255,255,0.45)',
+    borderColor: '#dbe4f0',
     maxWidth: '100%',
   },
-  metaPillText: { fontSize: 12, fontWeight: '700', color: '#ffffff', flexShrink: 1 },
+  metaPillText: { fontSize: 12, fontWeight: '700', color: '#334155', flexShrink: 1 },
 
   chipsFlow: {
     position: 'relative',
@@ -749,9 +723,9 @@ const styles = StyleSheet.create({
     paddingHorizontal: 12,
     paddingVertical: 7,
     borderRadius: 100,
-    backgroundColor: 'rgba(255,255,255,0.94)',
+    backgroundColor: '#ffffff',
     borderWidth: 1.5,
-    borderColor: 'rgba(37,99,235,0.35)',
+    borderColor: '#9dbdfb',
   },
   rolePillText: { fontSize: 13, fontWeight: '700', color: '#1d4ed8' },
 
@@ -777,20 +751,20 @@ const styles = StyleSheet.create({
   statusText: { fontSize: 12, fontWeight: '700' },
   detailRow: { flexDirection: 'row', alignItems: 'center', flexWrap: 'wrap', gap: 6 },
   detailInline: { flexDirection: 'row', alignItems: 'center', gap: 5 },
-  detailText: { fontSize: 13, color: 'rgba(255,255,255,0.96)', fontWeight: '600' },
+  detailText: { fontSize: 13, color: '#334155', fontWeight: '600' },
   detailElapsed: {
     fontSize: 12.5,
     color: '#047857',
     fontWeight: '700',
-    backgroundColor: 'rgba(255,255,255,0.94)',
+    backgroundColor: '#ecfdf5',
     borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.55)',
+    borderColor: '#a7f3d0',
     borderRadius: 100,
     paddingHorizontal: 10,
     paddingVertical: 4,
     overflow: 'hidden',
   },
-  detailLate: { fontSize: 12.5, color: '#ffffff', fontWeight: '600' },
+  detailLate: { fontSize: 12.5, color: '#c2410c', fontWeight: '600' },
   actionsRow: { flexDirection: 'row', alignItems: 'center', flexWrap: 'wrap', gap: 10 },
   punchBtn: {
     flexDirection: 'row',
@@ -799,16 +773,11 @@ const styles = StyleSheet.create({
     paddingVertical: 9,
     paddingHorizontal: 18,
     borderRadius: 100,
-    backgroundColor: '#ffffff',
-    shadowColor: '#7c2d12',
-    shadowOpacity: 0.22,
-    shadowRadius: 6,
-    shadowOffset: { width: 0, height: 3 },
-    elevation: 2,
+    backgroundColor: '#2563eb',
   },
-  punchBtnPressed: { backgroundColor: '#ffedd5' },
+  punchBtnPressed: { backgroundColor: '#1d4ed8' },
   punchBtnDisabled: { opacity: 0.7 },
-  punchBtnText: { color: '#e85f0a', fontSize: 13.5, fontWeight: '700' },
+  punchBtnText: { color: '#fff', fontSize: 13.5, fontWeight: '700' },
   punchMsg: { fontSize: 12.5, fontWeight: '600', flexShrink: 1 },
 
   statsRow: {
@@ -824,33 +793,32 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 10,
-    backgroundColor: '#ffffff',
+    backgroundColor: '#0f172a',
     borderRadius: 14,
-    borderWidth: 1,
-    borderColor: '#e8eefb',
+    borderWidth: 0,
     paddingHorizontal: 12,
     paddingVertical: 12,
     // Soft elevation (iOS + Android)
-    shadowColor: '#0f2142',
-    shadowOpacity: 0.06,
+    shadowColor: '#0f172a',
+    shadowOpacity: 0.25,
     shadowRadius: 8,
     shadowOffset: { width: 0, height: 3 },
-    elevation: 2,
+    elevation: 3,
   },
   statCircle: {
     width: 36,
     height: 36,
-    borderRadius: 12,
+    borderRadius: 18,
     alignItems: 'center',
     justifyContent: 'center',
     flexShrink: 0,
   },
   statMeta: { flexShrink: 1 },
-  statValue: { fontSize: 18, fontWeight: '800', color: '#12294a', fontVariant: ['tabular-nums'], lineHeight: 21 },
+  statValue: { fontSize: 18, fontWeight: '800', color: '#ffffff', fontVariant: ['tabular-nums'], lineHeight: 21 },
   statLabel: {
     fontSize: 10.5,
     fontWeight: '700',
-    color: '#64748b',
+    color: '#94a3b8',
     textTransform: 'uppercase',
     letterSpacing: 0.4,
     marginTop: 1,

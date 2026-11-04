@@ -1,12 +1,12 @@
 /* ------------------------------------------------------------------ */
-/* Dashboard hero — orange banner design (client reference)           */
-/*  • gradient orange card (light → deep), rounded, soft orange shadow */
-/*  • decorative: faint white city skyline (bottom-right) + white      */
-/*    team-people glyph (right)                                       */
-/*  • LEFT: Welcome back, + NAME (white) + subtitle + date/time/location     */
-/*    pills + white attendance chips (state-colored text)                   */
-/*  • light rounded stat tiles BELOW the card (tinted icon, real       */
-/*    values)                                                          */
+/* Dashboard hero — light banner (client reference)                   */
+/*  • white → pale-blue card, thin border, gentle shadow              */
+/*  • decorative: soft blue waves (right) + "Smart HR Management"      */
+/*    tagline with blue underline                                     */
+/*  • LEFT: Welcome to, + HRMAX wordmark (navy/orange) + NAME (navy)   */
+/*    + blue-bar subtitle + date/time/location pills + white chips     */
+/*  • dark navy stats strip BELOW the card (solid icon circles,        */
+/*    white numbers, real values)                                      */
 /* All attendance facts come from the backend — never invented.        */
 /* ------------------------------------------------------------------ */
 
@@ -26,55 +26,59 @@ html {
   color: #12294a;
 }
 
-/* ── Orange banner card — warm, LOW-GLARE palette (easy on the eyes) */
+/* ── Light banner card (client reference): white → pale blue with a    */
+/*    gentle shadow; soft blue waves sit on the right half              */
 .hero .hero-card {
   position: relative;
   overflow: hidden;
   isolation: isolate;
   border-radius: 18px;
-  background: linear-gradient(115deg, #f9a96b 0%, #f2904e 55%, #e97f3b 100%);
+  background: linear-gradient(105deg, #ffffff 0%, #f6f9ff 58%, #eef4ff 100%);
+  border: 1px solid #e3ebfb;
   padding: 26px 30px;
   min-height: 0;
   display: block;
-  box-shadow: 0 8px 22px rgba(120, 70, 30, 0.18);
+  box-shadow: 0 6px 18px rgba(30, 64, 175, 0.08);
 }
 
-/* Soft light sheen from the top-left corner — gentle depth, no hotspot
-   glare (purely decorative, always behind everything). */
-.hero .hero-card::before {
-  content: '';
-  position: absolute;
-  inset: 0;
-  background: radial-gradient(
-    130% 170% at 6% -10%,
-    rgba(255, 255, 255, 0.16) 0%,
-    rgba(255, 255, 255, 0.06) 38%,
-    transparent 60%
-  );
-  z-index: 0;
-  pointer-events: none;
-}
-
-/* Decorative skyline (bottom-right) + white team glyph (right) —
-   ornamental only, always behind the welcome block (z-index: 0). */
-.hero .hero-skyline {
+/* Decorative soft blue waves (right half) — behind everything. */
+.hero .hero-waves {
   position: absolute;
   right: 0;
-  bottom: 0;
-  width: min(66%, 600px);
-  height: auto;
+  top: 0;
+  width: min(58%, 640px);
+  height: 100%;
   z-index: 0;
   pointer-events: none;
 }
 
-.hero .hero-team {
+/* Right-side tagline (reference) — decorative, behind the text. */
+.hero .hero-tagline {
   position: absolute;
-  right: 36px;
+  right: 46px;
   top: 50%;
   transform: translateY(-50%);
-  width: 124px;
   z-index: 0;
+  text-align: center;
   pointer-events: none;
+}
+
+.hero .hero-tagline span {
+  display: block;
+  font-size: 19px;
+  font-weight: 800;
+  color: #16233f;
+  line-height: 1.35;
+  letter-spacing: -0.2px;
+}
+
+.hero .hero-tagline i {
+  display: block;
+  width: 52px;
+  height: 4px;
+  border-radius: 4px;
+  background: #2563eb;
+  margin: 12px auto 0;
 }
 
 /* ── Left: welcome block ──────────────────────────────────────────── */
@@ -82,36 +86,55 @@ html {
   position: relative;
   z-index: 1;
   min-width: 0;
-  /* Reserve the team-glyph zone so a long name / wide pills can never
-     slide under the decoration (overlap guard — reset when the glyph
-     hides below 980px). */
-  padding-right: 158px;
+  /* Reserve the tagline zone — long names / wide pills can never slide
+     under it (overlap guard; reset when the tagline hides below 980px). */
+  padding-right: 300px;
 }
 
 .hero .hero-greet small {
   display: block;
-  font-size: 15px;
+  font-size: 17px;
   font-weight: 600;
-  color: rgba(255, 255, 255, 0.92);
+  color: #64748b;
   letter-spacing: 0.2px;
 }
 
+/* HRMAX wordmark — navy HR + orange MAX (brand accent, decorative) */
+.hero .hero-wordmark {
+  font-size: clamp(38px, 4.6vw, 56px);
+  font-weight: 900;
+  line-height: 1;
+  letter-spacing: -1.6px;
+  margin-top: 4px;
+}
+
+.hero .hero-wordmark .wm-hr {
+  color: #16233f;
+}
+
+.hero .hero-wordmark .wm-max {
+  color: #f97316;
+}
+
 .hero h2.hero-name {
-  margin: 4px 0 0;
-  font-size: clamp(26px, 3vw, 34px);
+  margin: 8px 0 0;
+  font-size: clamp(26px, 3vw, 36px);
   font-weight: 800;
-  color: #ffffff;
-  letter-spacing: -0.5px;
+  color: #16233f;
+  letter-spacing: -0.6px;
   line-height: 1.15;
 }
 
 .hero .hero-sub {
-  margin: 8px 0 0;
-  font-size: 14.5px;
+  margin: 12px 0 0;
+  font-size: 15px;
   font-weight: 500;
-  color: rgba(255, 255, 255, 0.9);
+  color: #33415a;
   line-height: 1.5;
   max-width: 46ch;
+  /* Blue accent bar (reference) */
+  border-left: 4px solid #2563eb;
+  padding-left: 12px;
 }
 
 /* ── Date / time / location pills ─────────────────────────────────── */
@@ -129,17 +152,17 @@ html {
   gap: 7px;
   padding: 7px 13px;
   border-radius: 999px;
-  border: 1.5px solid rgba(255, 255, 255, 0.45);
-  background: rgba(255, 255, 255, 0.18);
+  border: 1.5px solid #dbe4f0;
+  background: #fff;
   font-size: 13px;
   font-weight: 700;
-  color: #ffffff;
+  color: #334155;
   line-height: 1;
   white-space: nowrap;
 }
 
 .hero .meta-pill svg {
-  color: #ffffff;
+  color: #2563eb;
   flex: none;
 }
 
@@ -162,14 +185,15 @@ html {
   font-size: 14px;
   font-weight: 700;
   line-height: 1;
-  border: 1.5px solid rgba(255, 255, 255, 0.55);
-  background: rgba(255, 255, 255, 0.94);
+  border: 1.5px solid #dbe4f0;
+  background: #fff;
   color: #334155;
 }
 
 .hero .chips .chip.role {
-  border-color: rgba(37, 99, 235, 0.35);
+  border-color: #9dbdfb;
   color: #1d4ed8;
+  box-shadow: 0 1px 2px rgba(37, 99, 235, 0.08);
 }
 
 .hero .chips .chip i {
@@ -180,37 +204,49 @@ html {
   flex: none;
 }
 
-/* Attendance states: white pills with state-coloured text/icons so the
-   coding survives on the orange banner. */
 .hero .chips .chip.in {
-  border-color: rgba(255, 255, 255, 0.55);
+  border-color: #a7f3d0;
 }
 
 .hero .chips .chip[data-state='working'] {
+  background: #ecfdf5;
+  border-color: #a7f3d0;
   color: #047857;
 }
 
 .hero .chips .chip[data-state='done'] {
+  background: #eff6ff;
+  border-color: #bfdbfe;
   color: #1d4ed8;
 }
 
 .hero .chips .chip[data-state='leave'] {
+  background: #f5f3ff;
+  border-color: #ddd6fe;
   color: #6d28d9;
 }
 
 .hero .chips .chip[data-state='holiday'] {
+  background: #fffbeb;
+  border-color: #fde68a;
   color: #b45309;
 }
 
 .hero .chips .chip[data-state='idle'] {
+  background: #f8fafc;
+  border-color: #e2e8f0;
   color: #475569;
 }
 
 .hero .chips .chip[data-state='late'] {
+  background: #fff7ed;
+  border-color: #fed7aa;
   color: #c2410c;
 }
 
 .hero .chips .chip[data-state='loading'] {
+  background: #f1f5f9;
+  border-color: #e2e8f0;
   color: #64748b;
 }
 
@@ -221,11 +257,11 @@ html {
   gap: 7px;
   font-size: 14.5px;
   font-weight: 600;
-  color: rgba(255, 255, 255, 0.96);
+  color: #334155;
 }
 
 .hero .hero-detail svg {
-  color: #ffffff;
+  color: #2563eb;
   flex: none;
 }
 
@@ -234,8 +270,8 @@ html {
   align-items: center;
   padding: 7px 12px;
   border-radius: 999px;
-  border: 1.5px solid rgba(255, 255, 255, 0.55);
-  background: rgba(255, 255, 255, 0.94);
+  border: 1px solid #a7f3d0;
+  background: #ecfdf5;
   font-size: 13.5px;
   font-weight: 700;
   color: #047857;
@@ -258,26 +294,25 @@ html {
   padding: 9px 18px;
   border: 0;
   border-radius: 999px;
-  background: #ffffff;
-  color: #e85f0a;
+  background: #2563eb;
+  color: #fff;
   font-size: 14px;
   font-weight: 700;
   font-family: inherit;
   cursor: pointer;
-  box-shadow: 0 5px 14px rgba(146, 64, 14, 0.22);
   transition: background 0.15s ease;
 }
 
 .hero .hero-btn:hover:not(:disabled) {
-  background: #fff7ed;
+  background: #1d4ed8;
 }
 
 .hero .hero-btn:active:not(:disabled) {
-  background: #ffedd5;
+  background: #1e40af;
 }
 
 .hero .hero-btn:focus-visible {
-  outline: 2px solid #ffffff;
+  outline: 2px solid #2563eb;
   outline-offset: 2px;
 }
 
@@ -292,14 +327,11 @@ html {
   gap: 6px;
   font-size: 13.5px;
   font-weight: 600;
-  color: #ffffff;
+  color: #047857;
 }
 
 .hero .hero-msg[data-type='error'] {
-  color: #ffffff;
-  background: rgba(127, 29, 29, 0.42);
-  border-radius: 999px;
-  padding: 6px 12px;
+  color: #b91c1c;
 }
 
 .hero .hero-spin {
@@ -318,29 +350,40 @@ html {
   }
 }
 
-/* ── Light stat tiles ─────────────────────────────────────────────── */
+/* ── Dark stats strip (reference: one navy bar, solid icon circles,    */
+/*    white numbers, uppercase labels, thin dividers)                   */
 .hero .hero-stats {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(190px, 1fr));
-  gap: 12px;
+  gap: 0;
+  background: #0f172a;
+  border-radius: 16px;
+  overflow: hidden;
+  box-shadow: 0 6px 18px rgba(15, 23, 42, 0.18);
 }
 
 .hero .hero-stats .hero-stat {
   display: flex;
   align-items: center;
-  gap: 12px;
+  justify-content: center;
+  gap: 14px;
   min-width: 0;
-  background: #fff;
-  border: 1px solid #e8eefb;
-  border-radius: 14px;
-  padding: 13px 16px;
-  box-shadow: 0 3px 10px rgba(15, 33, 66, 0.05);
+  background: transparent;
+  border: 0;
+  border-right: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 0;
+  padding: 16px 20px;
+  box-shadow: none;
+}
+
+.hero .hero-stats .hero-stat:last-child {
+  border-right: 0;
 }
 
 .hero .hero-stat-icon {
-  width: 40px;
-  height: 40px;
-  border-radius: 12px;
+  width: 42px;
+  height: 42px;
+  border-radius: 50%;
   display: grid;
   place-items: center;
   flex: none;
@@ -353,10 +396,10 @@ html {
 }
 
 .hero .hero-stats .hero-stat-n {
-  font-size: 22px;
+  font-size: 26px;
   font-weight: 800;
   line-height: 1.1;
-  color: #12294a;
+  color: #ffffff;
   font-variant-numeric: tabular-nums;
 }
 
@@ -366,7 +409,7 @@ html {
   font-weight: 700;
   letter-spacing: 0.06em;
   text-transform: uppercase;
-  color: #64748b;
+  color: #94a3b8;
 }
 
 /* ── Responsive ───────────────────────────────────────────────────── */
@@ -376,10 +419,14 @@ html {
     min-height: 0;
   }
 
-  /* The team glyph needs horizontal room — drop it first, and give the
+  /* The tagline needs horizontal room — drop it first, and give the
      welcome block the full width back (no reserved dead zone). */
-  .hero .hero-team {
+  .hero .hero-tagline {
     display: none;
+  }
+
+  .hero .hero-waves {
+    width: 72%;
   }
 
   .hero .welcome {
@@ -388,8 +435,8 @@ html {
 }
 
 @media (max-width: 720px) {
-  .hero .hero-skyline {
-    width: 86%;
+  .hero .hero-waves {
+    width: 88%;
   }
 
   .hero .hero-stats {
@@ -402,6 +449,11 @@ html {
   }
 
   .hero .hero-stats .hero-stat-n {
-    font-size: 20px;
+    font-size: 22px;
+  }
+
+  .hero .hero-stats .hero-stat {
+    padding: 14px 12px;
+    justify-content: flex-start;
   }
 }

@@ -312,8 +312,10 @@ function HeroAttendance({ badge }: { badge: string }) {
 }
 
 /* ------------------------------------------------------------------ */
-/* Hero — orange banner (client reference): gradient card, faint       */
-/* skyline + white team glyph, white text/pills, stat tiles below      */
+/* Hero — light banner (client reference): white→pale-blue card with   */
+/* soft blue waves on the right, HRMAX wordmark + big navy name,       */
+/* blue-bar subtitle, white chips, right-side tagline, and a dark      */
+/* stats strip below (tinted icon → solid icon, real values)           */
 /* ------------------------------------------------------------------ */
 
 export function DashboardHero({ stats, badge, showAttendance = true }: DashboardHeroProps) {
@@ -325,46 +327,26 @@ export function DashboardHero({ stats, badge, showAttendance = true }: Dashboard
   return (
     <section className="hero" aria-label="Welcome summary">
       <div className="hero-card">
-        {/* Decorative: faint city skyline (bottom) + white team glyph (right)
-            — the orange banner look. Purely ornamental. */}
-        <svg className="hero-skyline" viewBox="0 0 560 200" aria-hidden="true" focusable="false">
-          <g fill="rgba(255,255,255,0.14)">
-            <rect x="0" y="120" width="46" height="80" />
-            <rect x="52" y="86" width="34" height="114" />
-            <rect x="64" y="70" width="4" height="16" />
-            <rect x="92" y="140" width="40" height="60" />
-            <rect x="138" y="60" width="52" height="140" />
-            <rect x="152" y="44" width="24" height="16" />
-            <rect x="196" y="110" width="36" height="90" />
-            <rect x="238" y="76" width="44" height="124" />
-            <rect x="288" y="130" width="38" height="70" />
-            <rect x="332" y="94" width="50" height="106" />
-            <rect x="346" y="78" width="22" height="16" />
-            <rect x="388" y="40" width="40" height="160" />
-            <rect x="406" y="14" width="4" height="26" />
-            <rect x="434" y="118" width="44" height="82" />
-            <rect x="484" y="80" width="48" height="120" />
-            <rect x="498" y="64" width="20" height="16" />
-          </g>
+        {/* Decorative: soft blue waves (right) + tagline — ornamental
+            only, always behind the welcome block (z-index: 0). */}
+        <svg className="hero-waves" viewBox="0 0 1200 400" preserveAspectRatio="none" aria-hidden="true" focusable="false">
+          <path fill="#dbe9fb" d="M860 0 C1010 90 1130 210 940 330 C875 372 905 400 905 400 L1200 400 L1200 0 Z" />
+          <path fill="#eef4fd" d="M1200 120 C1075 185 1155 320 995 400 L1200 400 Z" />
+          <path fill="#c7dbf8" opacity="0.85" d="M1200 250 C1115 295 1165 362 1085 400 L1200 400 Z" />
+          <path fill="#eaf1fd" d="M1200 0 L960 0 C1075 65 1135 115 1200 145 Z" />
         </svg>
-        <svg className="hero-team" viewBox="0 0 160 112" aria-hidden="true" focusable="false">
-          <g fill="#ffffff">
-            {/* left teammate */}
-            <path d="M24 80 c0-12 9-21 20-21 s20 9 20 21 z" />
-            <circle cx="44" cy="42" r="14" />
-            {/* right teammate */}
-            <path d="M96 80 c0-12 9-21 20-21 s20 9 20 21 z" />
-            <circle cx="116" cy="42" r="14" />
-            {/* center lead */}
-            <path d="M54 88 c0-15 12-27 26-27 s26 12 26 27 z" />
-            <circle cx="80" cy="30" r="19" />
-          </g>
-          <path d="M8 100 C 44 84, 116 84, 152 100" stroke="#ffffff" strokeWidth="7" fill="none" strokeLinecap="round" />
-        </svg>
+        <div className="hero-tagline" aria-hidden="true">
+          <span>Smart HR Management</span>
+          <span>for a Better Workplace</span>
+          <i />
+        </div>
 
         <div className="welcome">
           <div className="hero-greet">
-            <small>Welcome back,</small>
+            <small>Welcome to,</small>
+          </div>
+          <div className="hero-wordmark" aria-label="HR MAX">
+            <span className="wm-hr">HR</span><span className="wm-max">MAX</span>
           </div>
           <h2 className="hero-name">{displayName}</h2>
           <p className="hero-sub">Here's what's happening with your organization today.</p>
@@ -407,7 +389,7 @@ export function DashboardHero({ stats, badge, showAttendance = true }: Dashboard
           <div key={s.label} className="hero-stat" role="listitem">
             <span
               className="hero-stat-icon"
-              style={{ backgroundColor: `${s.color}1A`, color: s.color }}
+              style={{ backgroundColor: s.color, color: '#ffffff' }}
               aria-hidden="true"
             >
               {statIcon(s.label, 18)}
