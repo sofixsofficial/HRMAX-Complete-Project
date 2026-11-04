@@ -1,8 +1,11 @@
 /* ------------------------------------------------------------------ */
-/* Dashboard hero — minimal design                                     */
-/*  • plain white card (thin border, no gradient / waves / art)        */
-/*  • LEFT: 👋 Welcome back, + NAME + subtitle + date/time/location     */
-/*    pills + orange "View Details →" button + attendance chips        */
+/* Dashboard hero — orange banner design (client reference)           */
+/*  • gradient orange card (light → deep), rounded, soft orange shadow */
+/*  • decorative: faint white city skyline (bottom-right) + white      */
+/*    team-people glyph (right)                                       */
+/*  • LEFT: 👋 Welcome back, + NAME (white) + subtitle + translucent   */
+/*    date/time/location pills + white "View Details →" pill button   */
+/*    + white attendance chips (state-colored text)                   */
 /*  • light rounded stat tiles BELOW the card (tinted icon, real       */
 /*    values)                                                          */
 /* All attendance facts come from the backend — never invented.        */
@@ -24,18 +27,38 @@ html {
   color: #12294a;
 }
 
-/* ── Light card — plain white, thin border (no gradient / waves) ──── */
+/* ── Orange banner card ───────────────────────────────────────────── */
 .hero .hero-card {
   position: relative;
   overflow: hidden;
   isolation: isolate;
   border-radius: 18px;
-  background: #ffffff;
-  border: 1px solid #e8eefb;
+  background: linear-gradient(120deg, #ff9d45 0%, #f97b1f 52%, #ef6a12 100%);
   padding: 26px 30px;
   min-height: 0;
   display: block;
-  box-shadow: 0 1px 2px rgba(15, 33, 66, 0.05);
+  box-shadow: 0 10px 26px rgba(238, 106, 20, 0.28);
+}
+
+/* Decorative skyline (bottom-right) + white team glyph (right) —
+   ornamental only, always behind the welcome block (z-index: 0). */
+.hero .hero-skyline {
+  position: absolute;
+  right: 0;
+  bottom: 0;
+  width: min(62%, 560px);
+  height: auto;
+  z-index: 0;
+  pointer-events: none;
+}
+
+.hero .hero-team {
+  position: absolute;
+  right: 34px;
+  top: 24px;
+  width: 118px;
+  z-index: 0;
+  pointer-events: none;
 }
 
 /* ── Left: welcome block ──────────────────────────────────────────── */
@@ -49,7 +72,7 @@ html {
   display: block;
   font-size: 15px;
   font-weight: 600;
-  color: #6b7a90;
+  color: rgba(255, 255, 255, 0.92);
   letter-spacing: 0.2px;
 }
 
@@ -57,7 +80,7 @@ html {
   margin: 4px 0 0;
   font-size: clamp(26px, 3vw, 34px);
   font-weight: 800;
-  color: #12294a;
+  color: #ffffff;
   letter-spacing: -0.5px;
   line-height: 1.15;
 }
@@ -66,7 +89,7 @@ html {
   margin: 8px 0 0;
   font-size: 14.5px;
   font-weight: 500;
-  color: #64748b;
+  color: rgba(255, 255, 255, 0.9);
   line-height: 1.5;
   max-width: 46ch;
 }
@@ -86,21 +109,21 @@ html {
   gap: 7px;
   padding: 7px 13px;
   border-radius: 999px;
-  border: 1.5px solid #dbe4f0;
-  background: #fff;
+  border: 1.5px solid rgba(255, 255, 255, 0.45);
+  background: rgba(255, 255, 255, 0.18);
   font-size: 13px;
   font-weight: 700;
-  color: #334155;
+  color: #ffffff;
   line-height: 1;
   white-space: nowrap;
 }
 
 .hero .meta-pill svg {
-  color: #2563eb;
+  color: #ffffff;
   flex: none;
 }
 
-/* ── Orange "View Details →" CTA ──────────────────────────────────── */
+/* ── White "View Details →" pill CTA (on orange) ──────────────────── */
 .hero .hero-cta-row {
   display: flex;
   align-items: center;
@@ -115,28 +138,28 @@ html {
   padding: 11px 22px;
   border: 0;
   border-radius: 999px;
-  background: #f97316;
-  color: #fff;
+  background: #ffffff;
+  color: #e85f0a;
   font-size: 14.5px;
   font-weight: 700;
   font-family: inherit;
   cursor: pointer;
-  box-shadow: 0 4px 12px rgba(249, 115, 22, 0.3);
+  box-shadow: 0 6px 16px rgba(146, 64, 14, 0.25);
   transition: background 0.15s ease, transform 0.15s ease;
 }
 
 .hero .hero-cta:hover {
-  background: #ea580c;
+  background: #fff7ed;
   transform: translateY(-1px);
 }
 
 .hero .hero-cta:active {
-  background: #c2410c;
+  background: #ffedd5;
   transform: translateY(0);
 }
 
 .hero .hero-cta:focus-visible {
-  outline: 2px solid #f97316;
+  outline: 2px solid #ffffff;
   outline-offset: 2px;
 }
 
@@ -159,15 +182,14 @@ html {
   font-size: 14px;
   font-weight: 700;
   line-height: 1;
-  border: 1.5px solid #dbe4f0;
-  background: #fff;
+  border: 1.5px solid rgba(255, 255, 255, 0.55);
+  background: rgba(255, 255, 255, 0.94);
   color: #334155;
 }
 
 .hero .chips .chip.role {
-  border-color: #9dbdfb;
+  border-color: rgba(37, 99, 235, 0.35);
   color: #1d4ed8;
-  box-shadow: 0 1px 2px rgba(37, 99, 235, 0.08);
 }
 
 .hero .chips .chip i {
@@ -178,49 +200,37 @@ html {
   flex: none;
 }
 
+/* Attendance states: white pills with state-coloured text/icons so the
+   coding survives on the orange banner. */
 .hero .chips .chip.in {
-  border-color: #a7f3d0;
+  border-color: rgba(255, 255, 255, 0.55);
 }
 
 .hero .chips .chip[data-state='working'] {
-  background: #ecfdf5;
-  border-color: #a7f3d0;
   color: #047857;
 }
 
 .hero .chips .chip[data-state='done'] {
-  background: #eff6ff;
-  border-color: #bfdbfe;
   color: #1d4ed8;
 }
 
 .hero .chips .chip[data-state='leave'] {
-  background: #f5f3ff;
-  border-color: #ddd6fe;
   color: #6d28d9;
 }
 
 .hero .chips .chip[data-state='holiday'] {
-  background: #fffbeb;
-  border-color: #fde68a;
   color: #b45309;
 }
 
 .hero .chips .chip[data-state='idle'] {
-  background: #f8fafc;
-  border-color: #e2e8f0;
   color: #475569;
 }
 
 .hero .chips .chip[data-state='late'] {
-  background: #fff7ed;
-  border-color: #fed7aa;
   color: #c2410c;
 }
 
 .hero .chips .chip[data-state='loading'] {
-  background: #f1f5f9;
-  border-color: #e2e8f0;
   color: #64748b;
 }
 
@@ -231,11 +241,11 @@ html {
   gap: 7px;
   font-size: 14.5px;
   font-weight: 600;
-  color: #334155;
+  color: rgba(255, 255, 255, 0.96);
 }
 
 .hero .hero-detail svg {
-  color: #2563eb;
+  color: #ffffff;
   flex: none;
 }
 
@@ -244,8 +254,8 @@ html {
   align-items: center;
   padding: 7px 12px;
   border-radius: 999px;
-  border: 1px solid #a7f3d0;
-  background: #ecfdf5;
+  border: 1.5px solid rgba(255, 255, 255, 0.55);
+  background: rgba(255, 255, 255, 0.94);
   font-size: 13.5px;
   font-weight: 700;
   color: #047857;
@@ -268,25 +278,26 @@ html {
   padding: 9px 18px;
   border: 0;
   border-radius: 999px;
-  background: #2563eb;
-  color: #fff;
+  background: #ffffff;
+  color: #e85f0a;
   font-size: 14px;
   font-weight: 700;
   font-family: inherit;
   cursor: pointer;
+  box-shadow: 0 5px 14px rgba(146, 64, 14, 0.22);
   transition: background 0.15s ease;
 }
 
 .hero .hero-btn:hover:not(:disabled) {
-  background: #1d4ed8;
+  background: #fff7ed;
 }
 
 .hero .hero-btn:active:not(:disabled) {
-  background: #1e40af;
+  background: #ffedd5;
 }
 
 .hero .hero-btn:focus-visible {
-  outline: 2px solid #2563eb;
+  outline: 2px solid #ffffff;
   outline-offset: 2px;
 }
 
@@ -301,11 +312,14 @@ html {
   gap: 6px;
   font-size: 13.5px;
   font-weight: 600;
-  color: #047857;
+  color: #ffffff;
 }
 
 .hero .hero-msg[data-type='error'] {
-  color: #b91c1c;
+  color: #ffffff;
+  background: rgba(127, 29, 29, 0.42);
+  border-radius: 999px;
+  padding: 6px 12px;
 }
 
 .hero .hero-spin {
@@ -381,9 +395,18 @@ html {
     padding: 22px;
     min-height: 0;
   }
+
+  /* The team glyph needs horizontal room — drop it first. */
+  .hero .hero-team {
+    display: none;
+  }
 }
 
 @media (max-width: 720px) {
+  .hero .hero-skyline {
+    width: 86%;
+  }
+
   .hero .hero-stats {
     grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
   }
