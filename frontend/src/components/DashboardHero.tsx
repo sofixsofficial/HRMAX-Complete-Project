@@ -1,7 +1,6 @@
 import { useEffect, useState } from 'react'
 import {
   AlertCircle,
-  ArrowRight,
   BarChart3,
   Calendar,
   CheckCircle2,
@@ -323,14 +322,6 @@ export function DashboardHero({ stats, badge, showAttendance = true }: Dashboard
   const roleBadge = badge || roleDepartmentLabel(user)
   const displayName = user?.name || roleBadge
 
-  // "View Details" — smooth-jump to the dashboard detail cards right below
-  // the hero (never a dead link).
-  const scrollToDetails = () => {
-    const hero = document.querySelector('.hero')
-    const target = hero?.nextElementSibling ?? document.querySelector('.stats-grid')
-    if (target instanceof HTMLElement) target.scrollIntoView({ behavior: 'smooth', block: 'start' })
-  }
-
   return (
     <section className="hero" aria-label="Welcome summary">
       <div className="hero-card">
@@ -373,7 +364,7 @@ export function DashboardHero({ stats, badge, showAttendance = true }: Dashboard
 
         <div className="welcome">
           <div className="hero-greet">
-            <small>👋 Welcome back,</small>
+            <small>Welcome back,</small>
           </div>
           <h2 className="hero-name">{displayName}</h2>
           <p className="hero-sub">Here's what's happening with your organization today.</p>
@@ -394,12 +385,6 @@ export function DashboardHero({ stats, badge, showAttendance = true }: Dashboard
                 {location}
               </span>
             )}
-          </div>
-
-          <div className="hero-cta-row">
-            <button type="button" className="hero-cta" onClick={scrollToDetails}>
-              View Details <ArrowRight size={16} aria-hidden="true" />
-            </button>
           </div>
 
           {showAttendance ? (

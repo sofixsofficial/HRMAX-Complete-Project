@@ -27,9 +27,7 @@ import { Icon } from '../utils/icons';
 /**
  * Dashboard hero — orange banner (web parity, client reference):
  *  • gradient orange card with faint white city skyline + white team glyph
- *  • "👋 Welcome back," + NAME (white) + subtitle + translucent date/time pills
- *  • white "View Details →" pill button (real handler — scrolls the dashboard
- *    content below the hero; never a dead button)
+ *  • Welcome back, + NAME (white) + subtitle + translucent date/time pills
  *  • role pill + live attendance chips (state-coloured text on white pills)
  *    + gate-validated punch actions
  *  • light rounded stat tiles BELOW the card (tinted icon, real values)
@@ -62,8 +60,9 @@ interface DashboardHeroProps {
    */
   showAttendance?: boolean;
   /**
-   * "View Details →" action — dashboards pass a scroll-to-content handler.
-   * The button only renders when a real handler exists (never dead).
+   * @deprecated The hero no longer renders a "View Details" button (removed
+   * per the client's design) — dashboards may keep passing the scroll
+   * handler; it is simply ignored.
    */
   onViewDetails?: () => void;
 }
@@ -475,7 +474,6 @@ export const DashboardHero: React.FC<DashboardHeroProps> = ({
   stats,
   showPunchActions = true,
   showAttendance = true,
-  onViewDetails,
 }) => {
   const { user } = useAuth();
   const { effectiveCompanyId } = useCompany();
@@ -588,7 +586,7 @@ export const DashboardHero: React.FC<DashboardHeroProps> = ({
 
         <View style={styles.topRow}>
           <View style={styles.identityCol}>
-            <Text style={styles.welcomeSmall}>👋 Welcome back,</Text>
+            <Text style={styles.welcomeSmall}>Welcome back,</Text>
             <Text style={styles.userName} numberOfLines={1} ellipsizeMode="tail">{name}</Text>
             <Text style={styles.heroSub} numberOfLines={2}>
               {subtitle || "Here's what's happening with your organization today."}
@@ -609,19 +607,6 @@ export const DashboardHero: React.FC<DashboardHeroProps> = ({
                 </Text>
               </View>
             </View>
-
-            {/* Orange "View Details →" — real scroll handler from the dashboard */}
-            {onViewDetails ? (
-              <Pressable
-                onPress={onViewDetails}
-                style={({ pressed }) => [styles.ctaBtn, pressed && styles.ctaBtnPressed]}
-                accessibilityRole="button"
-                accessibilityLabel="View details"
-              >
-                <Text style={styles.ctaText}>View Details</Text>
-                <Icon name="arrow-forward" size={15} color="#e85f0a" />
-              </Pressable>
-            ) : null}
           </View>
         </View>
 
@@ -729,26 +714,6 @@ const styles = StyleSheet.create({
     maxWidth: '100%',
   },
   metaPillText: { fontSize: 12, fontWeight: '700', color: '#ffffff', flexShrink: 1 },
-
-  /* White "View Details →" pill CTA (orange label on orange banner) */
-  ctaBtn: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-    alignSelf: 'flex-start',
-    marginTop: 14,
-    paddingVertical: 11,
-    paddingHorizontal: 20,
-    borderRadius: 100,
-    backgroundColor: '#ffffff',
-    shadowColor: '#7c2d12',
-    shadowOpacity: 0.28,
-    shadowRadius: 8,
-    shadowOffset: { width: 0, height: 4 },
-    elevation: 3,
-  },
-  ctaBtnPressed: { backgroundColor: '#fff7ed' },
-  ctaText: { color: '#e85f0a', fontSize: 14, fontWeight: '700' },
 
   chipsFlow: {
     position: 'relative',

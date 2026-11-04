@@ -3,9 +3,8 @@
 /*  • gradient orange card (light → deep), rounded, soft orange shadow */
 /*  • decorative: faint white city skyline (bottom-right) + white      */
 /*    team-people glyph (right)                                       */
-/*  • LEFT: 👋 Welcome back, + NAME (white) + subtitle + translucent   */
-/*    date/time/location pills + white "View Details →" pill button   */
-/*    + white attendance chips (state-colored text)                   */
+/*  • LEFT: Welcome back, + NAME (white) + subtitle + date/time/location     */
+/*    pills + white attendance chips (state-colored text)                   */
 /*  • light rounded stat tiles BELOW the card (tinted icon, real       */
 /*    values)                                                          */
 /* All attendance facts come from the backend — never invented.        */
@@ -121,46 +120,6 @@ html {
 .hero .meta-pill svg {
   color: #ffffff;
   flex: none;
-}
-
-/* ── White "View Details →" pill CTA (on orange) ──────────────────── */
-.hero .hero-cta-row {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  margin-top: 16px;
-}
-
-.hero .hero-cta {
-  display: inline-flex;
-  align-items: center;
-  gap: 8px;
-  padding: 11px 22px;
-  border: 0;
-  border-radius: 999px;
-  background: #ffffff;
-  color: #e85f0a;
-  font-size: 14.5px;
-  font-weight: 700;
-  font-family: inherit;
-  cursor: pointer;
-  box-shadow: 0 6px 16px rgba(146, 64, 14, 0.25);
-  transition: background 0.15s ease, transform 0.15s ease;
-}
-
-.hero .hero-cta:hover {
-  background: #fff7ed;
-  transform: translateY(-1px);
-}
-
-.hero .hero-cta:active {
-  background: #ffedd5;
-  transform: translateY(0);
-}
-
-.hero .hero-cta:focus-visible {
-  outline: 2px solid #ffffff;
-  outline-offset: 2px;
 }
 
 /* ── Chips row (role / status / live attendance facts) ────────────── */
