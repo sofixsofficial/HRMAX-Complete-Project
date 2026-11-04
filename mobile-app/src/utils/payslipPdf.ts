@@ -258,17 +258,24 @@ export const generatePayslipPdf = async (slip: SalarySlip, options: PayslipOptio
     .earnings-only-table th:nth-child(1), .earnings-only-table td:nth-child(1) { width: 40%; }
     .earnings-only-table th:nth-child(2), .earnings-only-table td:nth-child(2) { width: 30%; }
     .earnings-only-table th:nth-child(3), .earnings-only-table td:nth-child(3) { width: 30%; }
-    /* On-screen previews (narrow WebViews): YTD renders only in the printed
-       PDF sheet — four wider columns never collide at any width. */
-    @media screen {
+    /* On-screen previews narrower than A4: YTD columns collapse to zero
+       width — cells STAY IN FLOW (display:none would shift later columns
+       one slot left and squash the Deductions label to one character per
+       line). Content hidden instead; print/PDF keeps the full sheet. */
+    @media screen and (max-width: 900px) {
       .combined-table col.ytd-col,
       .earnings-only-table col.ytd-col { width: 0 !important; }
       .combined-table col.label-col { width: 28% !important; }
       .combined-table col.amt-col { width: 22% !important; }
-      .combined-table th.ytd, .combined-table td.ytd { display: none; }
       .earnings-only-table col.label-col { width: 55% !important; }
       .earnings-only-table col.amt-col { width: 45% !important; }
-      .earnings-only-table th.ytd, .earnings-only-table td.ytd { display: none; }
+      .combined-table th.ytd, .combined-table td.ytd,
+      .earnings-only-table th.ytd, .earnings-only-table td.ytd {
+        visibility: hidden;
+        font-size: 0;
+        padding: 0;
+        overflow: hidden;
+      }
     }
     .net-table { border: 1.5px solid var(--border-strong); margin-bottom: 18px; }
     .net-table td { border: 1px solid var(--border); padding: 12px 14px; }

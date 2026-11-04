@@ -177,7 +177,13 @@ export function SalaryStructure() {
       setLoading(true)
       setError(null)
       let data: SalaryStructure[]
-      if (user?.role === 'master-admin' && !companyId) {
+      // "All Companies" is a SCOPE decision — MA always carries a fallback
+      // user.companyId (platform sentinel), so `!companyId` never fired and
+      // the union query never ran: the filter showed an empty list.
+      const wantsAllCompanies =
+        user?.role === 'master-admin' && canAccessAllCompanies &&
+        !effectiveCompanyId && !searchParams.get('company')
+      if (wantsAllCompanies) {
         data = await getAllSalaryStructures()
       } else if (companyId) {
         data = await getSalaryStructuresByCompany(companyId)

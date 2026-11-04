@@ -13,7 +13,6 @@ import { useRoleBasedStats, useRoleBasedTitle } from '../hooks/useRoleBasedData'
 import { getAllSalarySlips, getSalarySlipsByCompany, getSalarySlipsByUser, getSalaryStats, salaryStatsFromSlips, retryFailedPayslips } from '../services/salaryService'
 import { generatePayslip } from '../utils/payslip'
 import { scopedCompanyIds } from '../utils/companyScope'
-import { downloadPayslipPdf } from '../utils/payslipPdf'
 import { getCompanyPayslipOptions } from '../utils/payslipOptions'
 import type { SalarySlip } from '../types/user'
 import './SalarySlips.css'
@@ -391,7 +390,6 @@ export function SalarySlips() {
                         <div className="action-buttons">
                           <button className="action-btn view" title="View details" onClick={() => openViewModal(slip)}><Eye size={16} /></button>
                           <button className="action-btn view" title="Print Payslip" onClick={async () => { const opts = await getCompanyPayslipOptions(slip.companyId); generatePayslip(slip, opts) }}><Download size={16} /></button>
-                          <button className="action-btn view" title="Download PDF" onClick={async () => { const opts = await getCompanyPayslipOptions(slip.companyId); downloadPayslipPdf(slip, opts) }}><FileText size={16} /></button>
                           <button className="action-btn view" title="Email log" onClick={() => alert(emailLog(slip))}><Mail size={16} /></button>
                         </div>
                       </td>

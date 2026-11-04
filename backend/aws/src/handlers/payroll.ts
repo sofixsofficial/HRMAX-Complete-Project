@@ -253,11 +253,12 @@ export const payrollRoutes: Route[] = [
       const companyCode = String(companyDocs[0]?.shortCode ?? companyDocs[0]?.code ?? 'CO');
 
       const id = newId();
+      const payrollRef = `${companyCode}-${MONTHS[monthIndex]}-${year}`;
       const run: PayrollRunDoc = {
         id, companyId,
         month: MONTHS[monthIndex], year, monthIndex,
         status: 'Calculated',
-        payrollRef: `${companyCode}-${MONTHS[monthIndex]}-${year}`,
+        payrollRef,
         workingDays,
         totalEmployees: items.length,
         totalNet,
@@ -267,6 +268,51 @@ export const payrollRoutes: Route[] = [
         createdBy: caller.uid,
       };
       await putEntity<PayrollRunDoc>(run, { entity: 'payrollRun' });
+
+      // Spec §2/3: the moment payroll is generated, one salary-slip record
+      // exists per item with status 'Pending' — dispatch later flips it to
+      // 'Emailed'. Upsert by (userId + month + year) so a regenerate refreshes
+      // figures instead of duplicating rows.
+      const existingSlips = await queryEntities<Record<string, unknown>>({
+        entity: 'salarySlip', companyId, filters: { year },
+      });
+      const empRows = await queryEntities<Record<string, unknown>>({ entity: 'employee', companyId });
+      const joinByUser = new Map(empRows.map((e: Record<string, unknown>) => [String(e.userId ?? ''), e.joinDate]));
+      for (const item of items) {
+        const prev = existingSlips.find(
+          (s) => String(s.userId ?? '') === item.userId && String(s.month ?? '') === MONTHS[monthIndex],
+        );
+        await putEntity(
+          {
+            ...(prev ?? {}),
+            id: prev ? String(prev.id) : newId(),
+            companyId,
+            userId: item.userId,
+            employeeName: item.employeeName,
+            employeeEmail: item.employeeEmail,
+            employeeId: item.employeeId,
+            designation: item.designation,
+            department: item.department,
+            // Real DOJ — printed on the slip (PDF download + email attach).
+            dateOfJoining: prev?.dateOfJoining ?? joinByUser.get(item.userId) ?? null,
+            payrollRef: `${payrollRef}-${item.employeeId}`,
+            month: MONTHS[monthIndex],
+            year,
+            monthIndex,
+            netSalary: item.netSalary,
+            grossSalary: item.grossSalary,
+            breakdown: { basic: item.grossSalary, overtimePay: item.overtimePay, pf: item.pf, tax: item.professionalTax, absentDeduction: item.absentDeduction },
+            payroll: { workingDays: item.workingDays, presentDays: item.presentDays, paidLeaveDays: item.paidLeaveDays, unpaidLeaveDays: item.unpaidLeaveDays, holidayDays: item.holidayDays, absentDays: item.absentDays, overtimeHours: item.overtimeHours, totalPayableDays: item.totalPayableDays },
+            // Never downgrade an already-emailed slip back to Pending.
+            status: prev ? String(prev.status ?? 'Pending') : 'Pending',
+            version: prev ? Number(prev.version ?? 0) : 0,
+            payrollRunId: id,
+            createdAt: prev?.createdAt ?? isoNow(),
+            updatedAt: isoNow(),
+          },
+          { entity: 'salarySlip', userIdField: 'userId', tsField: 'createdAt' },
+        );
+      }
 
       await putEntity(
         { id: newId(), companyId, runId: id, action: 'calculate', performedBy: caller.uid, performerName: caller.name, month: MONTHS[monthIndex], year, employeeCount: items.length, totalNet, timestamp: isoNow() },
@@ -344,8 +390,16 @@ export const payrollRoutes: Route[] = [
 
       let sent = 0;
       let failed = 0;
+      // Generate-time slips (status Pending, spec §2/3) are UPDATED in place —
+      // never duplicated — and carry the real DOJ the browser download prints.
+      const existingSlips = await queryEntities<Record<string, unknown>>({
+        entity: 'salarySlip', companyId, filters: { year: run.year },
+      });
       for (const item of run.items) {
         if (!item.employeeEmail) { failed++; continue; }
+        const prev = existingSlips.find(
+          (s) => String(s.userId ?? '') === item.userId && String(s.month ?? '') === run.month,
+        );
         const t = templates.payslip(item.employeeName, run.month, run.year, item.netSalary);
         let attachment: { filename: string; content: Buffer; contentType: string } | undefined;
         try {
@@ -360,6 +414,12 @@ export const payrollRoutes: Route[] = [
               year: run.year,
               netSalary: item.netSalary,
               grossSalary: item.grossSalary,
+              // Same values the browser download reads off the slip → identical PDF.
+              basicSalary: Number(prev?.basicSalary ?? 0),
+              allowances: Number(prev?.allowances ?? 0),
+              deductions: Number(prev?.deductions ?? 0),
+              dateOfJoining: (prev?.dateOfJoining as string | null | undefined) ?? null,
+              payDate: (prev?.paidOn as string | null | undefined) ?? new Date(),
               breakdown: { basic: item.grossSalary, overtimePay: item.overtimePay, pf: item.pf, tax: item.professionalTax, absentDeduction: item.absentDeduction },
               payroll: { workingDays: item.workingDays, presentDays: item.presentDays, paidLeaveDays: item.paidLeaveDays, unpaidLeaveDays: item.unpaidLeaveDays, holidayDays: item.holidayDays, absentDays: Math.max(0, item.workingDays - item.totalPayableDays), overtimeHours: item.overtimeHours, totalPayableDays: item.totalPayableDays },
             }),
@@ -381,24 +441,29 @@ export const payrollRoutes: Route[] = [
         });
         if (res.success) sent++; else failed++;
 
-        // Save slip record
+        // Save/update slip record — Pending → Emailed on success (spec §3).
         await putEntity(
           {
-            id: newId(), companyId, userId: item.userId,
+            ...(prev ?? {}),
+            id: prev ? String(prev.id) : newId(),
+            companyId, userId: item.userId,
             employeeName: item.employeeName, employeeEmail: item.employeeEmail,
             employeeId: item.employeeId, designation: item.designation,
+            dateOfJoining: prev?.dateOfJoining ?? null,
             payrollRef: `${run.payrollRef}-${item.employeeId}`,
             month: run.month, year: run.year, monthIndex: run.monthIndex,
             netSalary: item.netSalary, grossSalary: item.grossSalary,
             breakdown: { basic: item.grossSalary, overtimePay: item.overtimePay, pf: item.pf, tax: item.professionalTax, absentDeduction: item.absentDeduction },
             payroll: { workingDays: item.workingDays, presentDays: item.presentDays, paidLeaveDays: item.paidLeaveDays, unpaidLeaveDays: item.unpaidLeaveDays, holidayDays: item.holidayDays, absentDays: Math.max(0, item.workingDays - item.totalPayableDays), overtimeHours: item.overtimeHours, totalPayableDays: item.totalPayableDays },
-            status: res.success ? 'Emailed' : 'Pending',
-            emailStatus: res.success ? 'sent' : 'failed',
-            emailSentAt: res.success ? isoNow() : undefined,
-            payrollRunId: run.id, version: 1,
-            createdAt: isoNow(), updatedAt: isoNow(),
+            status: res.success ? 'Emailed' : String(prev?.status ?? 'Pending'),
+            emailStatus: res.success ? 'sent' : String(prev?.emailStatus ?? 'failed'),
+            emailSentAt: res.success ? isoNow() : prev?.emailSentAt,
+            payrollRunId: run.id,
+            version: prev ? Number(prev.version ?? 0) : 1,
+            createdAt: prev?.createdAt ?? isoNow(),
+            updatedAt: isoNow(),
           },
-          { entity: 'salarySlip', userIdField: 'userId' },
+          { entity: 'salarySlip', userIdField: 'userId', tsField: 'createdAt' },
         );
 
         // Email Center record — the Sent tab reads the `email` collection, so

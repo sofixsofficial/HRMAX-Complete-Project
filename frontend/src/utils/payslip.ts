@@ -410,20 +410,26 @@ export const generatePayslip = (slip: SalarySlip, options: PayslipOptions = {}) 
     .earnings-only-table th:nth-child(2), .earnings-only-table td:nth-child(2) { width: 30%; }
     .earnings-only-table th:nth-child(3), .earnings-only-table td:nth-child(3) { width: 30%; }
 
-    /* On SCREEN the six-column sheet can't hold two labels + four money
-       columns without the amounts colliding (fixed table layout + nowrap
-       money overflows straight into the neighbouring cell). YTD columns
-       therefore render only in print/PDF (the full A4 sheet) and the screen
-       keeps four wider columns — no overlap at any window width. */
-    @media screen {
+    /* Screen narrower than A4: the YTD columns collapse to zero width — but
+       their CELLS STAY IN FLOW. (display:none would shift every later column
+       one slot left in this fixed-layout table and squash the Deductions
+       label to one character per line — the collapse seen in the sample.)
+       Content is hidden instead, so alignment survives at any width. The full
+       six-column sheet renders on wide screens and in print/PDF. */
+    @media screen and (max-width: 900px) {
       .combined-table col.ytd-col,
       .earnings-only-table col.ytd-col { width: 0 !important; }
       .combined-table col.label-col { width: 28% !important; }
       .combined-table col.amt-col { width: 22% !important; }
-      .combined-table th.ytd, .combined-table td.ytd { display: none; }
       .earnings-only-table col.label-col { width: 55% !important; }
       .earnings-only-table col.amt-col { width: 45% !important; }
-      .earnings-only-table th.ytd, .earnings-only-table td.ytd { display: none; }
+      .combined-table th.ytd, .combined-table td.ytd,
+      .earnings-only-table th.ytd, .earnings-only-table td.ytd {
+        visibility: hidden;
+        font-size: 0;
+        padding: 0;
+        overflow: hidden;
+      }
     }
     .net-table {
       border: 1.5px solid var(--border-strong);

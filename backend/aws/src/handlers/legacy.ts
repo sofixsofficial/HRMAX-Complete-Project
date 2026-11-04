@@ -30,6 +30,7 @@ import {
   userPK,
 } from '../lib/db.js';
 import { createNotification, fanOutNotifications, notifyApprovalDecision } from '../lib/notify.js';
+import { generatePayslipPdf } from '../lib/payslipPdf.js';
 import { resolveStakeholders } from '../lib/stakeholders.js';
 import { sendEmailCentral, templates } from '../lib/email.js';
 import { cognitoCreateUser, writeUserDoc } from './auth.js';
@@ -708,17 +709,59 @@ async function sendPayslipEmail(companyId: string, slip: Body): Promise<boolean>
   const net = Number(slip.net ?? slip.netSalary ?? 0);
   const name = String(emp?.name ?? slip.employeeName ?? 'Employee');
   const t = templates.payslip(name, monthName, year, net, slip.version ? Number(slip.version) : undefined);
+  // Spec §3: the Company Admin is ALWAYS cc'd on the employee's payslip mail
+  // (never on their own address — the employee is the To recipient).
+  const adminEmails = (
+    await queryEntities<Body>({ entity: 'user', companyId, filters: { role: 'company-admin' }, limit: 50 })
+  ).map((a) => String(a.email ?? '').trim().toLowerCase()).filter(Boolean);
+  const cc = adminEmails.filter((e) => e !== email.toLowerCase());
+  // Spec §D: the payslip PDF rides ALONG in the email itself. A PDF failure
+  // must never block the dispatch — the mail still goes, just without the
+  // attachment (mirrors the REST dispatch path).
+  let attachment: { filename: string; content: Buffer; contentType: string } | undefined;
+  try {
+    attachment = {
+      filename: `Payslip-${monthName}-${year}-${String(slip.employeeId || slip.userId || 'employee')}.pdf`,
+      content: generatePayslipPdf({
+        employeeName: name,
+        employeeId: String(slip.employeeId ?? ''),
+        designation: String(slip.designation ?? ''),
+        employeeEmail: email,
+        month: monthName,
+        year,
+        netSalary: net,
+        grossSalary: Number(slip.grossSalary ?? net),
+        basicSalary: Number(slip.basicSalary ?? 0),
+        allowances: Number(slip.allowances ?? 0),
+        deductions: Number(slip.deductions ?? 0),
+        // Same values the browser download reads off the slip → identical PDF.
+        dateOfJoining: (slip.dateOfJoining as string | null | undefined) ?? null,
+        payDate: (slip.paidOn as string | null | undefined) ?? (slip.emailSentAt as string | null | undefined) ?? new Date(),
+        breakdown: (slip.breakdown as { basic?: number; hra?: number; da?: number; overtimePay?: number; pf?: number; tax?: number; otherDeductions?: number; absentDeduction?: number; unpaidDeduction?: number; leaveEncashment?: number } | undefined) ?? undefined,
+        payroll: (slip.payroll as { workingDays?: number; presentDays?: number; paidLeaveDays?: number; unpaidLeaveDays?: number; holidayDays?: number; absentDays?: number; overtimeHours?: number; totalPayableDays?: number; grossSalary?: number } | undefined) ?? undefined,
+      }),
+      contentType: 'application/pdf',
+    };
+  } catch {
+    attachment = undefined;
+  }
   const res = await sendEmailCentral({
     companyId,
     to: email,
+    ...(cc.length ? { cc } : {}),
     subject: t.subject,
     html: t.html,
+    ...(attachment ? { attachments: [attachment] } : {}),
     type: 'payslip',
     dedupKey: `payslip-${slip.id}${slip.version ? `-v${slip.version}` : ''}`,
   });
   if (res.success) {
     await patchEntity<Body>('salarySlip', companyId, String(slip.id), {
+      // Spec §3: auto-status — Pending → Emailed on successful dispatch.
+      // A slip already marked Paid (disbursed) keeps that terminal state.
+      status: String(slip.status ?? '') === 'Paid' ? 'Paid' : 'Emailed',
       emailStatus: 'sent',
+      emailSentAt: isoNow(),
       lastEmailedAt: isoNow(),
     }, { entity: 'salarySlip', userIdField: 'userId' });
     // Email Center record: the Sent tab reads the `email` collection (entity
@@ -972,7 +1015,43 @@ export const legacyRoutes: Route[] = [
       const sm = String(s.month ?? '');
       return sm === monthName || Number(s.month) === monthNum;
     });
-    const picked = employeeIds ? inMonth.filter((s) => employeeIds.includes(String(s.userId))) : inMonth;
+    // Spec §2/3: slips are created at GENERATE time with status 'Pending'.
+    // Runs generated before that change have no slip rows at all — materialise
+    // them from the run's items so dispatch still works and every path keeps
+    // the Pending → Emailed lifecycle.
+    let targets = inMonth;
+    if (targets.length === 0) {
+      const runs = await queryEntities<Body>({ entity: 'payrollRun', companyId, filters: { year } });
+      const run =
+        (b.runId ? runs.find((r) => String(r.id) === String(b.runId)) : undefined) ??
+        runs.find((r) => String(r.month) === monthName || Number(r.monthIndex) + 1 === monthNum || Number(r.month) === monthNum);
+      const items = (Array.isArray(run?.items) ? ((run as Body).items as Body[]) : []);
+      const made: Body[] = [];
+      for (const item of items) {
+        const row: Body = {
+          ...item,
+          id: newId(),
+          companyId,
+          userId: String(item.userId ?? ''),
+          month: monthName,
+          year,
+          monthIndex: Number(run?.monthIndex ?? (Number.isNaN(monthNum) ? 0 : monthNum - 1)),
+          netSalary: Number(item.netSalary ?? 0),
+          grossSalary: Number(item.grossSalary ?? 0),
+          breakdown: { basic: item.grossSalary, overtimePay: item.overtimePay, pf: item.pf, tax: item.professionalTax, absentDeduction: item.absentDeduction },
+          payroll: { workingDays: item.workingDays, presentDays: item.presentDays, paidLeaveDays: item.paidLeaveDays, unpaidLeaveDays: item.unpaidLeaveDays, holidayDays: item.holidayDays, absentDays: item.absentDays, overtimeHours: item.overtimeHours, totalPayableDays: item.totalPayableDays },
+          status: 'Pending',
+          payrollRunId: String(run?.id ?? ''),
+          version: 0,
+          createdAt: isoNow(),
+          updatedAt: isoNow(),
+        };
+        await putEntity<Body>(row, { entity: 'salarySlip', userIdField: 'userId', tsField: 'createdAt' });
+        made.push(row);
+      }
+      targets = made;
+    }
+    const picked = employeeIds ? targets.filter((s) => employeeIds.includes(String(s.userId))) : targets;
     let sent = 0;
     let failed = 0;
     for (const slip of picked) {
