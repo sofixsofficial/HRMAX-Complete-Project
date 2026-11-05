@@ -87,7 +87,8 @@ interface StatusStyle {
 /** Light pill palette — pale backgrounds with state-coloured text (reference). */
 const STATUS_STYLES: Record<string, StatusStyle> = {
   working: { color: '#047857', borderColor: '#a7f3d0', backgroundColor: '#ecfdf5' },
-  done: { color: '#1d4ed8', borderColor: '#bfdbfe', backgroundColor: '#eff6ff' },
+  // "Checked Out" (day complete) renders as a GREEN box (user request).
+  done: { color: '#15803d', borderColor: '#86efac', backgroundColor: '#dcfce7' },
   leave: { color: '#6d28d9', borderColor: '#ddd6fe', backgroundColor: '#f5f3ff' },
   holiday: { color: '#b45309', borderColor: '#fde68a', backgroundColor: '#fffbeb' },
   idle: { color: '#475569', borderColor: '#e2e8f0', backgroundColor: '#f8fafc' },
@@ -577,6 +578,19 @@ export const DashboardHero: React.FC<DashboardHeroProps> = ({
           </View>
         </View>
 
+        {/* Live attendance chips (status, checked-in, elapsed) + punch actions
+            — ABOVE the stat tiles, like the other dashboards. */}
+        {showAttendance ? (
+          <View style={styles.chipsFlow}>
+            <HeroAttendance
+              now={now}
+              tz={tz}
+              companyId={effectiveCompanyId || user?.companyId || ''}
+              showPunchActions={showPunchActions}
+            />
+          </View>
+        ) : null}
+
         {/* Stat tiles — real values from the dashboard, inside the card */}
         {stats && stats.length > 0 && (
           <View style={styles.tiles}>
@@ -600,18 +614,6 @@ export const DashboardHero: React.FC<DashboardHeroProps> = ({
             })}
           </View>
         )}
-
-        {/* Live attendance chips (status, checked-in, elapsed) + punch actions */}
-        {showAttendance ? (
-          <View style={styles.chipsFlow}>
-            <HeroAttendance
-              now={now}
-              tz={tz}
-              companyId={effectiveCompanyId || user?.companyId || ''}
-              showPunchActions={showPunchActions}
-            />
-          </View>
-        ) : null}
 
       </LinearGradient>
       </View>
