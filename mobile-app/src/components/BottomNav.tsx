@@ -125,11 +125,18 @@ export const BottomNav: React.FC = () => {
 /**
  * Renders a drawer screen with the bottom bar pinned under it (a real layout
  * sibling, not an overlay — so nothing in the screen is covered).
+ *
+ * The screen sits in its own flex:1 well so the bar always hugs the bottom
+ * edge: without it, a screen whose root is content-sized (short content or
+ * data still loading) packed the children from the top and the bar floated
+ * up mid-screen — the "sometimes the tab moves up" bug.
  */
 export const withBottomNav = <P extends object>(Component: React.ComponentType<P>): React.FC<P> => {
   const Wrapped: React.FC<P> = (props) => (
     <View style={{ flex: 1 }}>
-      <Component {...props} />
+      <View style={{ flex: 1, minHeight: 0 }}>
+        <Component {...props} />
+      </View>
       <BottomNav />
     </View>
   );

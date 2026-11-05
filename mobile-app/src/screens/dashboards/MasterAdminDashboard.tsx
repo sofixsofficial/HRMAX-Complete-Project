@@ -283,54 +283,6 @@ export const MasterAdminDashboard: React.FC<{ navigation: any }> = ({ navigation
         ]}
       />
 
-      {adminAlerts.length > 0 && (
-        <View style={s.alertsSection}>
-          <View style={s.alertsHeader}>
-            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
-              <Icon name="notifications-outline" size={16} color="#f97316" />
-              <Text style={s.sectionTitle}>Admin Alerts</Text>
-              {unreadAlerts > 0 && (
-                <View style={s.unreadBadge}>
-                  <Text style={s.unreadBadgeText}>{unreadAlerts}</Text>
-                </View>
-              )}
-            </View>
-            <TouchableOpacity onPress={handleMarkAllAlertsRead} style={s.markAllBtn}>
-              <Icon name="checkmark-done-outline" size={14} color="#f97316" />
-              <Text style={s.markAllText}>Mark all read</Text>
-            </TouchableOpacity>
-          </View>
-          <View style={s.alertsList}>
-            {adminAlerts.map((a) => (
-              <TouchableOpacity
-                key={a.id}
-                style={[
-                  s.alertItem,
-                  a.read ? s.alertItemRead : s.alertItemUnread,
-                  a.priority === 'high' && !a.read && s.alertItemHigh,
-                ]}
-                onPress={() => handleAlertClick(a)}
-              >
-                <View style={[s.alertIcon, a.read && s.alertIconRead]}>
-                  <Icon
-                    name={a.priority === 'high' ? 'alert-circle-outline' : 'notifications-outline'}
-                    size={16}
-                    color={a.read ? '#94a3b8' : '#f97316'}
-                  />
-                </View>
-                <View style={s.alertInfo}>
-                  <Text style={[s.alertTitle, !a.read && s.alertTitleUnread]} numberOfLines={1}>{a.title}</Text>
-                  <Text style={s.alertBody} numberOfLines={1}>{a.body}</Text>
-                </View>
-                <Text style={s.alertDate}>
-                  {a.createdAt?.toDate ? a.createdAt.toDate().toLocaleDateString() : new Date(a.createdAt || Date.now()).toLocaleDateString()}
-                </Text>
-              </TouchableOpacity>
-            ))}
-          </View>
-        </View>
-      )}
-
       <View style={s.sectionHeader}>
         <Icon name="stats-chart-outline" size={16} color={colors.accent} />
         <Text style={s.sectionTitle}>Global Metrics</Text>
@@ -487,6 +439,56 @@ export const MasterAdminDashboard: React.FC<{ navigation: any }> = ({ navigation
         <StatCard label="Upcoming Holidays" value={stats.upcomingHolidays} icon="calendar-outline" color="#FF6600" onClick={() => navigation?.navigate('HolidayCalendar')} />
         <StatCard label="Assets" value={stats.totalAssets} icon="laptop-outline" color="#3b82f6" onClick={() => navigation?.navigate('Assets')} />
       </StatsGrid>
+
+      {/* Admin Alerts — pinned to the bottom of the dashboard (client request) */}
+      {adminAlerts.length > 0 && (
+        <View style={s.alertsSection}>
+          <View style={s.alertsHeader}>
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+              <Icon name="notifications-outline" size={16} color="#f97316" />
+              <Text style={s.sectionTitle}>Admin Alerts</Text>
+              {unreadAlerts > 0 && (
+                <View style={s.unreadBadge}>
+                  <Text style={s.unreadBadgeText}>{unreadAlerts}</Text>
+                </View>
+              )}
+            </View>
+            <TouchableOpacity onPress={handleMarkAllAlertsRead} style={s.markAllBtn}>
+              <Icon name="checkmark-done-outline" size={14} color="#f97316" />
+              <Text style={s.markAllText}>Mark all read</Text>
+            </TouchableOpacity>
+          </View>
+          <View style={s.alertsList}>
+            {adminAlerts.map((a) => (
+              <TouchableOpacity
+                key={a.id}
+                style={[
+                  s.alertItem,
+                  a.read ? s.alertItemRead : s.alertItemUnread,
+                  a.priority === 'high' && !a.read && s.alertItemHigh,
+                ]}
+                onPress={() => handleAlertClick(a)}
+              >
+                <View style={[s.alertIcon, a.read && s.alertIconRead]}>
+                  <Icon
+                    name={a.priority === 'high' ? 'alert-circle-outline' : 'notifications-outline'}
+                    size={16}
+                    color={a.read ? '#94a3b8' : '#f97316'}
+                  />
+                </View>
+                <View style={s.alertInfo}>
+                  <Text style={[s.alertTitle, !a.read && s.alertTitleUnread]} numberOfLines={1}>{a.title}</Text>
+                  <Text style={s.alertBody} numberOfLines={1}>{a.body}</Text>
+                </View>
+                <Text style={s.alertDate}>
+                  {a.createdAt?.toDate ? a.createdAt.toDate().toLocaleDateString() : new Date(a.createdAt || Date.now()).toLocaleDateString()}
+                </Text>
+              </TouchableOpacity>
+            ))}
+          </View>
+        </View>
+      )}
+
       <View style={{ height: 24 }} />
     </ScrollView>
   );

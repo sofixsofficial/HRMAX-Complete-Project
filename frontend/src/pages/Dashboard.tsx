@@ -242,41 +242,6 @@ export function Dashboard() {
           </div>
         </div>
 
-        {/* Admin Alerts */}
-        {user?.role === 'master-admin' && adminAlerts.length > 0 && (
-          <div className="accordion-card" style={{ marginBottom: 12 }}>
-            <div className="accordion-header">
-              <h3><Bell size={16} /> Admin Alerts</h3>
-              <div className="accordion-right">
-                <button
-                  onClick={() => markAllAdminAlertsAsRead()}
-                  style={{ fontSize: 12, color: '#f97316', background: 'none', border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 4, fontFamily: 'inherit' }}
-                >
-                  Mark all read
-                </button>
-              </div>
-            </div>
-            <div style={{ padding: '0 20px 16px' }}>
-              {adminAlerts.map(a => (
-                <div key={a.id} onClick={() => handleAlertClick(a)}
-                  style={{
-                    display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10,
-                    padding: '9px 12px', borderRadius: 8, cursor: 'pointer',
-                    background: a.read ? '#f9fafb' : '#fff7ed', marginBottom: 6,
-                    border: a.priority === 'high' ? '1px solid #fee2e2' : '1px solid transparent'
-                  }}
-                >
-                  <div style={{ minWidth: 0 }}>
-                    <div style={{ fontSize: 13, fontWeight: a.read ? 400 : 600, color: '#0f172a' }}>{a.title}</div>
-                    <div style={{ fontSize: 12, color: '#64748b', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{a.body}</div>
-                  </div>
-                  <span style={{ fontSize: 11, color: '#9ca3af', flexShrink: 0 }}>{new Date(a.createdAt).toLocaleDateString()}</span>
-                </div>
-              ))}
-            </div>
-          </div>
-        )}
-
         {/* Accordion Sections */}
         <div className="accordion-sections">
           <div className={`accordion-card ${openSection === 'activity' ? 'open' : ''}`}>
@@ -483,6 +448,41 @@ export function Dashboard() {
             </div>
           )}
         </div>
+
+        {/* Admin Alerts — pinned to the bottom of the dashboard (client request) */}
+        {user?.role === 'master-admin' && adminAlerts.length > 0 && (
+          <div className="accordion-card" style={{ marginBottom: 12 }}>
+            <div className="accordion-header">
+              <h3><Bell size={16} /> Admin Alerts</h3>
+              <div className="accordion-right">
+                <button
+                  onClick={() => markAllAdminAlertsAsRead()}
+                  style={{ fontSize: 12, color: '#f97316', background: 'none', border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 4, fontFamily: 'inherit' }}
+                >
+                  Mark all read
+                </button>
+              </div>
+            </div>
+            <div style={{ padding: '0 20px 16px' }}>
+              {adminAlerts.map(a => (
+                <div key={a.id} onClick={() => handleAlertClick(a)}
+                  style={{
+                    display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10,
+                    padding: '9px 12px', borderRadius: 8, cursor: 'pointer',
+                    background: a.read ? '#f9fafb' : '#fff7ed', marginBottom: 6,
+                    border: a.priority === 'high' ? '1px solid #fee2e2' : '1px solid transparent'
+                  }}
+                >
+                  <div style={{ minWidth: 0 }}>
+                    <div style={{ fontSize: 13, fontWeight: a.read ? 400 : 600, color: '#0f172a' }}>{a.title}</div>
+                    <div style={{ fontSize: 12, color: '#64748b', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{a.body}</div>
+                  </div>
+                  <span style={{ fontSize: 11, color: '#9ca3af', flexShrink: 0 }}>{new Date(a.createdAt).toLocaleDateString()}</span>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
       </div>
     </div>
   )

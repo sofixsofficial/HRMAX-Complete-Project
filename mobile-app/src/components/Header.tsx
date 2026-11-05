@@ -123,9 +123,9 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   brandIcon: {
-    width: 30,
-    height: 30,
-    borderRadius: 9,
+    width: 36,
+    height: 36,
+    borderRadius: 11,
     overflow: 'hidden',
     backgroundColor: '#FF6600',
     borderWidth: 1,

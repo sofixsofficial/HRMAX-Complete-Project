@@ -63,6 +63,17 @@ const statIcon = (label: string, size = 20) => {
   return <BarChart3 size={size} />
 }
 
+/** Soft pastel chip tint per stat — the icon itself stays black (client spec). */
+const statTint = (label: string) => {
+  const l = label.toLowerCase()
+  if (l.includes('present')) return '#ecfdf5'
+  if (l.includes('absent') || l.includes('inactive')) return '#fef2f2'
+  if (l.includes('leave')) return '#fffbeb'
+  if (l.includes('task')) return '#fdf2f8'
+  if (l.includes('rate')) return '#eff6ff'
+  return '#f3f4f6'
+}
+
 /* Inline icon for the role chip — tiny stroke SVG, no icon lib. */
 const PersonIcon = (
   <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
@@ -312,9 +323,10 @@ function HeroAttendance({ badge }: { badge: string }) {
 }
 
 /* ------------------------------------------------------------------ */
-/* Hero — light banner (client reference): white→pale-blue card with   */
-/* soft blue waves on the right, big navy name, blue-bar subtitle,     */
-/* white chips, right-side tagline, and simple white stat tiles below  */
+/* Hero — dark banner (sidebar palette: black-blue slate): #0f172a →   */
+/* #1e293b → #1e3a8a card, pale blue waves on the right, white name,  */
+/* blue-bar subtitle, white chips, right-side tagline, and a white     */
+/* KPI strip (tinted icon chips) below                                 */
 /* ------------------------------------------------------------------ */
 
 export function DashboardHero({ stats, badge, showAttendance = true }: DashboardHeroProps) {
@@ -390,7 +402,7 @@ export function DashboardHero({ stats, badge, showAttendance = true }: Dashboard
           <div key={s.label} className="hero-stat" role="listitem">
             <span
               className="hero-stat-icon"
-              style={{ backgroundColor: '#f3f4f6', color: '#000000' }}
+              style={{ backgroundColor: statTint(s.label), color: '#000000' }}
               aria-hidden="true"
             >
               {statIcon(s.label, 18)}

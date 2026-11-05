@@ -25,13 +25,13 @@ import { parseWeekendDays, toDateKey } from '../utils/workingDays';
 import { Icon } from '../utils/icons';
 
 /**
- * Dashboard hero — light banner (web parity, client reference):
- *  • white → pale-blue card with soft blue waves (bottom-right)
- *  • Welcome to, + NAME + blue-bar subtitle + light date/time pills
+ * Dashboard hero — dark banner (sidebar palette: black-blue slate):
+ *  • #0f172a → #1e293b → #1e3a8a card with pale blue waves (right)
+ *  • time greeting + NAME + blue-bar subtitle + white date/time pills
  *  • role pill + live attendance chips (state-coloured pale pills)
  *    + gate-validated punch actions
- *  • white stat tiles BELOW the card (neutral icon chips, black text,
- *    real values)
+ *  • white KPI strip BELOW the card (tinted icon chips, black text,
+ *    hairline dividers, real values)
  *
  * Working Mode derives ONLY from the user's verified today attendance record
  * (`useTodayAttendance`, restored on app resume) — it is never inferred from
@@ -88,6 +88,17 @@ const statIconName = (label: string): string => {
   if (l.includes('approved')) return 'checkmark-done-outline';
   if (l.includes('slip')) return 'document-text-outline';
   return 'grid-outline';
+};
+
+/** Soft pastel chip tint per stat — the icon itself stays black (client spec). */
+const statTint = (label: string): string => {
+  const l = label.toLowerCase();
+  if (l.includes('present')) return '#ecfdf5';
+  if (l.includes('absent') || l.includes('inactive')) return '#fef2f2';
+  if (l.includes('leave')) return '#fffbeb';
+  if (l.includes('task')) return '#fdf2f8';
+  if (l.includes('rate')) return '#eff6ff';
+  return '#f3f4f6';
 };
 
 interface StatusStyle {
@@ -383,7 +394,7 @@ const HeroAttendance: React.FC<{
         {working && (
           <>
             <View style={styles.detailInline}>
-              <Icon name="time-outline" size={13} color="#2563eb" />
+              <Icon name="time-outline" size={13} color="#60a5fa" />
               <Text style={styles.detailText}>Checked in at {fmtPunchTime(todayRecord?.checkIn, tz)}</Text>
             </View>
             <Text style={styles.detailElapsed}>· {formatElapsed(elapsedMs)} elapsed</Text>
@@ -441,7 +452,7 @@ const HeroAttendance: React.FC<{
           )}
           {punchMsg ? (
             <Text
-              style={[styles.punchMsg, { color: punchMsg.type === 'success' ? '#047857' : '#b91c1c' }]}
+              style={[styles.punchMsg, { color: punchMsg.type === 'success' ? '#6ee7b7' : '#fca5a5' }]}
               numberOfLines={3}
             >
               {punchMsg.text}
@@ -550,7 +561,7 @@ export const DashboardHero: React.FC<DashboardHeroProps> = ({
       {/* ── Light banner card (client reference) ── */}
       <View style={styles.cardWrap}>
       <LinearGradient
-        colors={['#ffffff', '#f6f9ff', '#eef4ff']}
+        colors={['#0f172a', '#1e293b', '#1e3a8a']}
         start={{ x: 0, y: 0 }}
         end={{ x: 1, y: 0.85 }}
         style={styles.card}
@@ -610,29 +621,30 @@ export const DashboardHero: React.FC<DashboardHeroProps> = ({
       </LinearGradient>
       </View>
 
-      {/* ── Light stat tiles (real values from the dashboard) ── */}
+      {/* ── KPI strip (real values from the dashboard): one white card,   */}
+      {/* equal columns, hairline dividers, tinted icon chips (black icons) */}
       {stats && stats.length > 0 && (
-        <View style={styles.statsRow}>
+        <View style={styles.statsStrip}>
           {stats.map((st, i) => {
             const v = statAnims[i];
+            const isLast = i === stats.length - 1;
             return (
               <Animated.View
                 key={`${st.label}-${i}`}
                 style={[
-                  styles.statTile,
+                  styles.statCol,
+                  !isLast && styles.statColDivider,
                   {
                     opacity: v,
                     transform: [{ translateY: v.interpolate({ inputRange: [0, 1], outputRange: [12, 0] }) }],
                   },
                 ]}
               >
-                <View style={[styles.statCircle, { backgroundColor: '#f3f4f6' }]}>
+                <View style={[styles.statCircle, { backgroundColor: statTint(st.label) }]}>
                   <Icon name={statIconName(st.label)} size={17} color="#000000" />
                 </View>
-                <View style={styles.statMeta}>
-                  <Text style={styles.statValue} selectable={false}>{st.value}</Text>
-                  <Text style={styles.statLabel} numberOfLines={1} selectable={false}>{st.label}</Text>
-                </View>
+                <Text style={styles.statValue} selectable={false}>{st.value}</Text>
+                <Text style={styles.statLabel} numberOfLines={2} selectable={false}>{st.label}</Text>
               </Animated.View>
             );
           })}
@@ -648,8 +660,8 @@ const styles = StyleSheet.create({
   // gradient card sits inside this wrapper) — gentle blue shadow.
   cardWrap: {
     borderRadius: 18,
-    shadowColor: '#1e3a8a',
-    shadowOpacity: 0.12,
+    shadowColor: '#0f172a',
+    shadowOpacity: 0.3,
     shadowRadius: 12,
     shadowOffset: { width: 0, height: 5 },
     elevation: 3,
@@ -658,7 +670,7 @@ const styles = StyleSheet.create({
     borderRadius: 18,
     overflow: 'hidden',
     borderWidth: 1,
-    borderColor: '#e3ebfb',
+    borderColor: 'rgba(148, 163, 184, 0.35)',
     paddingHorizontal: 18,
     paddingTop: 22,
     paddingBottom: 20,
@@ -674,15 +686,15 @@ const styles = StyleSheet.create({
     gap: 10,
   },
   identityCol: { flex: 1, minWidth: 0 },
-  welcomeSmall: { fontSize: 15, fontWeight: '600', color: '#64748b', letterSpacing: 0.1 },
-  userName: { fontSize: 25, fontWeight: '800', color: '#16233f', marginTop: 3, letterSpacing: -0.5 },
+  welcomeSmall: { fontSize: 15, fontWeight: '600', color: '#94a3b8', letterSpacing: 0.1 },
+  userName: { fontSize: 25, fontWeight: '800', color: '#ffffff', marginTop: 3, letterSpacing: -0.5 },
   heroSub: {
     fontSize: 13,
-    color: '#33415a',
+    color: '#cbd5e1',
     marginTop: 10,
     lineHeight: 19,
     borderLeftWidth: 4,
-    borderLeftColor: '#2563eb',
+    borderLeftColor: '#60a5fa',
     paddingLeft: 12,
     alignSelf: 'flex-start',
     maxWidth: '96%',
@@ -748,7 +760,7 @@ const styles = StyleSheet.create({
   statusText: { fontSize: 12, fontWeight: '700' },
   detailRow: { flexDirection: 'row', alignItems: 'center', flexWrap: 'wrap', gap: 6 },
   detailInline: { flexDirection: 'row', alignItems: 'center', gap: 5 },
-  detailText: { fontSize: 13, color: '#334155', fontWeight: '600' },
+  detailText: { fontSize: 13, color: '#cbd5e1', fontWeight: '600' },
   detailElapsed: {
     fontSize: 12.5,
     color: '#047857',
@@ -761,7 +773,7 @@ const styles = StyleSheet.create({
     paddingVertical: 4,
     overflow: 'hidden',
   },
-  detailLate: { fontSize: 12.5, color: '#c2410c', fontWeight: '600' },
+  detailLate: { fontSize: 12.5, color: '#fdba74', fontWeight: '600' },
   actionsRow: { flexDirection: 'row', alignItems: 'center', flexWrap: 'wrap', gap: 10 },
   punchBtn: {
     flexDirection: 'row',
@@ -770,32 +782,21 @@ const styles = StyleSheet.create({
     paddingVertical: 9,
     paddingHorizontal: 18,
     borderRadius: 100,
-    backgroundColor: '#2563eb',
+    backgroundColor: '#3b82f6',
   },
-  punchBtnPressed: { backgroundColor: '#1d4ed8' },
+  punchBtnPressed: { backgroundColor: '#2563eb' },
   punchBtnDisabled: { opacity: 0.7 },
   punchBtnText: { color: '#fff', fontSize: 13.5, fontWeight: '700' },
   punchMsg: { fontSize: 12.5, fontWeight: '600', flexShrink: 1 },
 
-  statsRow: {
+  statsStrip: {
     marginTop: 12,
     flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: 10,
-  },
-  statTile: {
-    width: '48%',
-    minWidth: 140,
-    flexGrow: 1,
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 10,
     backgroundColor: '#ffffff',
-    borderRadius: 14,
+    borderRadius: 16,
     borderWidth: 1,
     borderColor: '#e8eefb',
-    paddingHorizontal: 12,
-    paddingVertical: 12,
+    overflow: 'hidden',
     // Soft elevation (iOS + Android)
     shadowColor: '#0f2142',
     shadowOpacity: 0.06,
@@ -803,23 +804,32 @@ const styles = StyleSheet.create({
     shadowOffset: { width: 0, height: 3 },
     elevation: 2,
   },
+  statCol: {
+    flex: 1,
+    minWidth: 0,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 13,
+    paddingHorizontal: 4,
+    gap: 7,
+  },
+  statColDivider: { borderRightWidth: 1, borderRightColor: '#eef2f8' },
   statCircle: {
-    width: 36,
-    height: 36,
-    borderRadius: 12,
+    width: 34,
+    height: 34,
+    borderRadius: 11,
     alignItems: 'center',
     justifyContent: 'center',
     flexShrink: 0,
   },
-  statMeta: { flexShrink: 1 },
-  statValue: { fontSize: 18, fontWeight: '800', color: '#000000', fontVariant: ['tabular-nums'], lineHeight: 21 },
+  statValue: { fontSize: 19, fontWeight: '800', color: '#000000', fontVariant: ['tabular-nums'], lineHeight: 22 },
   statLabel: {
-    fontSize: 10.5,
+    fontSize: 9.5,
     fontWeight: '700',
     color: '#000000',
     textTransform: 'uppercase',
     letterSpacing: 0.4,
-    marginTop: 1,
+    textAlign: 'center',
   },
 });
 
