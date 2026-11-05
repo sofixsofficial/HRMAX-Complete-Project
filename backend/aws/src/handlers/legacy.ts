@@ -161,10 +161,23 @@ function deriveLeaveStatus(doc_: Body): { status: string; approvalCount: number 
 }
 
 async function loadLeaveRequest(caller: Caller, body: Body): Promise<Body> {
-  const companyId = String(body.companyId ?? caller.companyId);
-  const id = String(body.id ?? '');
-  const list = await queryEntities<Body>({ entity: 'leaveRequest', companyId, filters: { id }, limit: 1 });
-  const doc_ = list[0];
+  // Mobile sends `leaveId`, other callers send `id` — accept BOTH. The old
+  // `body.id ?? ''` made every mobile approve die with 404 "Leave request not
+  // found" as soon as the decision/note aliases let it past validation.
+  const id = String(body.id ?? body.leaveId ?? '');
+  if (!id) throw new ApiError('bad-request', 'Leave request id is required');
+  // The record's own company when the client sends it, else the caller's — and
+  // when that resolves to the 'global' platform partition (a master-admin's own
+  // companyId) locate the row across readable partitions instead of missing it
+  // (mirrors reviewMissedPunchTier).
+  let companyId = String(body.companyId ?? '') || (caller.companyId === 'global' ? '' : String(caller.companyId ?? ''));
+  let doc_: Body | undefined = companyId
+    ? (await queryEntities<Body>({ entity: 'leaveRequest', companyId, filters: { id }, limit: 1 }))[0]
+    : undefined;
+  if (!doc_) {
+    const found = await locateEntityAcross<Body>('leaveRequest', id, await readPartitions(caller));
+    if (found) doc_ = found.doc;
+  }
   if (!doc_) throw new ApiError('not-found', 'Leave request not found');
   return doc_;
 }
@@ -172,8 +185,12 @@ async function loadLeaveRequest(caller: Caller, body: Body): Promise<Body> {
 /** Sequential-tier gate (RM → CA → Exec → TL) + status recompute + fan-out. */
 async function reviewLeaveTier(caller: Caller, body: Body): Promise<unknown> {
   const tier = String(body.tier ?? '') as LeaveTier;
-  const decision = String(body.decision ?? '') as 'Approved' | 'Rejected';
-  const note = body.note ? String(body.note) : undefined;
+  // Older mobile builds send `action`/`reviewNote` while newer code and the
+  // web use `decision`/`note` — accept BOTH so every installed APK keeps
+  // approving instead of dying on 400 "decision must be Approved or Rejected".
+  const decision = String(body.decision ?? body.action ?? '') as 'Approved' | 'Rejected';
+  const noteRaw = body.note ?? body.reviewNote;
+  const note = noteRaw ? String(noteRaw) : undefined;
   if (!TIER_ORDER.includes(tier)) throw new ApiError('bad-request', 'Invalid tier');
   if (!['Approved', 'Rejected'].includes(decision)) throw new ApiError('bad-request', 'decision must be Approved or Rejected');
   if (decision === 'Rejected' && !note?.trim()) throw new ApiError('bad-request', 'A review note is required for rejection');

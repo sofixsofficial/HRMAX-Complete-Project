@@ -4,6 +4,7 @@ import { useNavigation } from '@react-navigation/native';
 import { db } from '../../aws/clients';
 import { collection, getDocs, query, where, Timestamp } from '../../aws/firestore-compat';
 import { dayKey } from '../../utils/attendanceDate';
+import { recentMissPunchSinceDate } from '../../utils/attendanceStatus';
 import { useCompany } from '../../context/CompanyContext';
 import { useAuth } from '../../context/AuthContext';
 import { useTheme, ThemeColors } from '../../context/ThemeContext';
@@ -68,6 +69,11 @@ export const AttendanceOverviewScreen: React.FC<{ route?: any }> = ({ route }) =
   const [records, setRecords] = useState<any[]>([]);
   const [filter, setFilter] = useState('All');
   const [period, setPeriod] = useState<Period>('Today');
+  // Miss Punch = review queue: its rows must match the dashboard alert's
+  // 14-day pending window (recentMissPunchSinceDate), NOT the period chip —
+  // 'This Week' hid an Oct-30 pending rectification opened on Nov 5 ("1 needs
+  // review" → empty list). Web has no period restriction at all.
+  const missPunchView = filter === 'Miss Punch';
   const [search, setSearch] = useState('');
   const [currentPage, setCurrentPage] = useState(1);
   const [pageSize, setPageSize] = useState(10);
@@ -80,7 +86,10 @@ export const AttendanceOverviewScreen: React.FC<{ route?: any }> = ({ route }) =
 
   const fetchAttendance = useCallback(async () => {
     try {
-      const { start, end } = getPeriodRange(period);
+      const endBoundary = (() => { const d = new Date(); d.setHours(0, 0, 0, 0); d.setDate(d.getDate() + 1); return d; })();
+      const { start, end } = missPunchView
+        ? { start: recentMissPunchSinceDate(), end: endBoundary }
+        : getPeriodRange(period);
       if (scopeIds.length === 0) {
         if (isRestrictedScope) { setRecords([]); return; }
         const snap = await getDocs(query(
@@ -105,7 +114,7 @@ export const AttendanceOverviewScreen: React.FC<{ route?: any }> = ({ route }) =
       const data = results.flatMap((snap: any) => snap.docs.map((d: any) => ({ id: d.id, ...d.data() })));
       setRecords(data);
     } catch (err) { console.error('Failed to fetch attendance:', err); }
-  }, [scopeIds, isRestrictedScope, period]);
+  }, [scopeIds, isRestrictedScope, period, missPunchView]);
 
   useEffect(() => { fetchAttendance(); }, [fetchAttendance]);
 
@@ -115,9 +124,8 @@ export const AttendanceOverviewScreen: React.FC<{ route?: any }> = ({ route }) =
     if (!st) return;
     const valid = ['All', 'Present', 'Absent', 'Late', 'On Leave', 'Miss Punch', 'Approved'].includes(st);
     setFilter(valid ? st : 'All');
-    // Pending rectifications can be days old — 'Today' hid every rectify row the
-    // morning after submission (web has no period restriction at all).
-    setPeriod(st === 'Miss Punch' ? 'This Week' : 'Today');
+    // Period stays as-is: the Miss Punch view fetches its own 14-day pending
+    // window (period chips are hidden there), so no chip switch is needed.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [route?.params?.status]);
 
@@ -285,13 +293,19 @@ export const AttendanceOverviewScreen: React.FC<{ route?: any }> = ({ route }) =
           <Text style={s.count}>{filtered.length} total</Text>
         </View>
 
-        <View style={s.periodRow}>
-          {PERIODS.map((p) => (
-            <TouchableOpacity key={p} style={[s.periodBtn, period === p && s.periodBtnActive]} onPress={() => setPeriod(p)}>
-              <Text style={[s.periodText, period === p && s.periodTextActive]}>{p}</Text>
-            </TouchableOpacity>
-          ))}
-        </View>
+        {missPunchView ? (
+          <Text style={{ fontSize: 12, color: colors.textTertiary, paddingHorizontal: 16, paddingBottom: 6 }}>
+            Pending rectifications · last 14 days (same window as your dashboard alert)
+          </Text>
+        ) : (
+          <View style={s.periodRow}>
+            {PERIODS.map((p) => (
+              <TouchableOpacity key={p} style={[s.periodBtn, period === p && s.periodBtnActive]} onPress={() => setPeriod(p)}>
+                <Text style={[s.periodText, period === p && s.periodTextActive]}>{p}</Text>
+              </TouchableOpacity>
+            ))}
+          </View>
+        )}
 
         <View style={s.searchRow}>
           <View style={s.searchInputWrap}>

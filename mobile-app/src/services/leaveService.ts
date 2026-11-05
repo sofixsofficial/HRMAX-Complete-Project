@@ -478,11 +478,16 @@ export const reviewTierLeaveRequest = async (
   const callableFn = httpsCallable(functions, 'mobileReviewLeaveTier');
   await callableFn({
     leaveId: id,
+    // Record's own company — a master-admin caller's companyId is 'global' and
+    // would never locate the row server-side (same fix as missed-punch).
+    companyId: leaveData.companyId || '',
     tier,
-    action,
+    // Canonical field names the backend reads (`decision`/`note`) — the old
+    // `action`/`reviewNote` pair 400'd with "decision must be Approved...".
+    decision: action,
+    note: reviewNote || '',
     reviewedBy,
     reviewedByName,
-    reviewNote: reviewNote || '',
   });
 
   // Notifications (subject + approver + all master admins) are sent
