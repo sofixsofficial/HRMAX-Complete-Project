@@ -269,6 +269,9 @@ export function hasPermission(caller: Caller, perm: string): boolean {
   if (caller.role === 'reporting-manager') {
     if (perm.startsWith('leave.')) return true;
     if (perm === 'employees.view' || perm === 'attendance.view') return true;
+    // Read-only calendar views the RM drawer exposes — even an explicitly
+    // configured matrix must not 403 the Holidays page/hero fetches.
+    if (perm === 'holidays.view') return true;
   }
 
   // TL / executive: unconfigured matrix = full default access

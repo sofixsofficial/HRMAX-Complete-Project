@@ -322,6 +322,9 @@ export const REPORTING_MANAGER_PERMISSIONS: string[] = [
   'departments.view',
   'reports.view',
   'company.view', 'companies.view',
+  // Read-only company holiday calendar (drawer → Holidays, hero day-context).
+  // Without it EVERY holidays fetch 403'd for unconfigured RMs.
+  'holidays.view',
   // RM views their OWN salary slip + their assigned employees' slips/tasks
   // (client scopes rows to self + team; without these the pages returned
   // "Access denied" / "Failed to load" straight from assertPermission).
