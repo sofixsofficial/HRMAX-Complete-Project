@@ -87,3 +87,14 @@ jobs:
             exit 1
           fi
           echo "AAB signed with expected Play upload key. OK"
+
+      # Store upload copy — without this the verified AAB vanished with the
+      # runner. continue-on-error so a quota hiccup never fails the build
+      # (same policy as the APK workflow's uploads).
+      - name: Upload AAB
+        continue-on-error: true
+        uses: actions/upload-artifact@v4
+        with:
+          name: app-release-aab
+          path: mobile-app/android/app/build/outputs/bundle/release/*.aab
+          retention-days: 30
