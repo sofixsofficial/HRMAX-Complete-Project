@@ -15,6 +15,7 @@ import { Icon } from '../../utils/icons';
 import { StatCard } from '../../components/StatCard';
 import { StatsGrid } from '../../components/StatsGrid';
 import { DashboardHero } from '../../components/DashboardHero';
+import { TodayAttendancePanel } from '../../components/TodayAttendancePanel';
 import { LeaveApprovalsPanel } from '../../components/LeaveApprovalsPanel';
 import { createTask } from '../../services/taskService';
 import { reviewTierLeaveRequest, getActionableLeaveTier } from '../../services/leaveService';
@@ -431,6 +432,10 @@ export const TLOperationalDashboard: React.FC<{ navigation: any }> = ({ navigati
           { label: 'Tasks', value: stats.pendingTasks, color: '#ec4899' },
         ]}
       />
+
+      {/* Complete employee-style check-in/check-out dashboard: status card
+          with punch, attendance ring, recent activity and month records. */}
+      <TodayAttendancePanel navigation={navigation} refreshKey={refreshKey} />
 
       <View style={s.sectionHeader}>
         <Icon name="people-outline" size={16} color={colors.accent} />

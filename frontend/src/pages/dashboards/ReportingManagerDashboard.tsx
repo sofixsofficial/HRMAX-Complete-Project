@@ -14,6 +14,7 @@ import { MissedPunchAlertCard } from '../../components/MissedPunchAlertCard'
 import { LeaveApprovalsPanel } from '../../components/LeaveApprovalsPanel'
 import { LeaveApplyModal } from '../../components/LeaveApplyModal'
 import { SelfAttendanceCard } from '../../components/SelfAttendanceCard'
+import { TodayAttendancePanel } from '../../components/TodayAttendancePanel'
 import { useAuth } from '../../context/AuthContext'
 import { collection, query, where, onSnapshot } from '../../aws/firestore-compat'
 import { db } from '../../aws/clients'
@@ -288,6 +289,9 @@ export function ReportingManagerDashboard() {
 
         {/* Self Attendance */}
         <SelfAttendanceCard role="reporting-manager" />
+        {/* Complete employee-style attendance dashboard (parity with the
+            employee dashboard's Today's Attendance panel). */}
+        <TodayAttendancePanel />
 
         {/* Personal Leave & Attendance Portal */}
         <div className="accordion-card" style={{ marginBottom: 12 }}>

@@ -14,6 +14,7 @@ import { MissedPunchAlertCard } from '../../components/MissedPunchAlertCard'
 import { LeaveApprovalsPanel } from '../../components/LeaveApprovalsPanel'
 import { LeaveApplyModal } from '../../components/LeaveApplyModal'
 import { SelfAttendanceCard } from '../../components/SelfAttendanceCard'
+import { TodayAttendancePanel } from '../../components/TodayAttendancePanel'
 import { useAuth } from '../../context/AuthContext'
 import { useCompany } from '../../context/CompanyContext'
 import { usePermissionScope } from '../../hooks/usePermissionScope'
@@ -292,6 +293,9 @@ export function ExecutiveDashboard() {
 
             {/* Self Attendance */}
             <SelfAttendanceCard role="executive" />
+            {/* Complete employee-style attendance dashboard (parity with the
+                employee dashboard's Today's Attendance panel). */}
+            <TodayAttendancePanel />
 
             {/* Company Filter Bar */}
             <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 16, padding: '8px 12px', background: '#fff', border: '1px solid #f3f4f6', borderRadius: 8, width: 'fit-content', boxShadow: '0 1px 3px rgba(0,0,0,0.04)' }}>

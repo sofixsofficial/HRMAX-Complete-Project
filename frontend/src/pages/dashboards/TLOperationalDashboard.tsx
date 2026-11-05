@@ -18,6 +18,7 @@ import { LeaveReviewModal } from '../../components/LeaveReviewModal'
 import type { LeaveReviewDraft } from '../../components/LeaveReviewModal'
 import { LeaveApplyModal } from '../../components/LeaveApplyModal'
 import { SelfAttendanceCard } from '../../components/SelfAttendanceCard'
+import { TodayAttendancePanel } from '../../components/TodayAttendancePanel'
 import { useAuth } from '../../context/AuthContext'
 import { useTLFilter } from '../../context/TLFilterContext'
 import { useCompany } from '../../context/CompanyContext'
@@ -434,6 +435,9 @@ export function TLOperationalDashboard() {
 
         {/* ===== Self Attendance ===== */}
         <SelfAttendanceCard role="team-leader" />
+        {/* Complete employee-style attendance dashboard (parity with the
+            employee dashboard's Today's Attendance panel). */}
+        <TodayAttendancePanel />
 
         {/* ===== Personal Leave & Attendance Portal ===== */}
         <div className="accordion-card" style={{ marginBottom: 12 }}>

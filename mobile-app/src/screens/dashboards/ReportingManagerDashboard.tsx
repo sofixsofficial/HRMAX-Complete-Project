@@ -15,6 +15,7 @@ import { StatsGrid } from '../../components/StatsGrid';
 import { MissedPunchAlertCard } from '../../components/MissedPunchAlertCard';
 import { LeaveApprovalsPanel } from '../../components/LeaveApprovalsPanel';
 import { DashboardHero } from '../../components/DashboardHero';
+import { TodayAttendancePanel } from '../../components/TodayAttendancePanel';
 import { createLeaveRequest, calcLeaveDays, isLeaveTypePaid } from '../../services/leaveService';
 import type { LeaveType } from '../../types/user';
 
@@ -147,6 +148,10 @@ export const ReportingManagerDashboard: React.FC<{ navigation: any }> = ({ navig
           { label: 'Team', value: team.directReports, color: '#3b82f6' },
         ]}
       />
+
+      {/* Complete employee-style check-in/check-out dashboard: status card
+          with punch, attendance ring, recent activity and month records. */}
+      <TodayAttendancePanel navigation={navigation} refreshKey={refreshKey} />
 
       <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={s.tabRow}>
         {(['overview', 'my-team'] as const).map((t) => (
