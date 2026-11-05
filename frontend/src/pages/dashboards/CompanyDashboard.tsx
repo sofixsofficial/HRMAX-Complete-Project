@@ -14,6 +14,7 @@ import { Modal } from '../../components/Modal'
 import { Toast } from '../../components/Toast'
 import { MissedPunchAlertCard } from '../../components/MissedPunchAlertCard'
 import { LeaveApprovalsPanel } from '../../components/LeaveApprovalsPanel'
+import { TodayAttendancePanel } from '../../components/TodayAttendancePanel'
 import { useAuth } from '../../context/AuthContext'
 import { useDashboardStats } from '../../hooks/useDashboardStats'
 import { subscribeToAdminAlerts, markAdminAlertAsRead, type AdminAlert } from '../../services/notificationService'
@@ -224,10 +225,10 @@ export function CompanyDashboard() {
     <div className="page-container">
       <Header title="Dashboard" />
       <div className="page-content">
-        {/* Welcome Hero — time-based scene, live clock. Company Admin does not
-            check in/out from the dashboard, so no attendance slice here. */}
+        {/* Welcome Hero — employee-style layout, live clock. HR punches from
+            the dashboard like any staff member; Company Admin does not. */}
         <DashboardHero
-          showAttendance={false}
+          showAttendance={user?.role === 'hr'}
           stats={[
             { label: 'Present', value: stats.presentToday, color: '#10b981' },
             { label: 'Absent', value: stats.absentToday, color: '#ef4444' },
@@ -295,6 +296,10 @@ export function CompanyDashboard() {
             )}
           </div>
         </div>
+
+        {/* HR's own attendance — the employee dashboard's Today's Attendance
+            panel, verbatim (org stats above stay company-wide). */}
+        {user?.role === 'hr' && <TodayAttendancePanel />}
 
         {/* Company Admin Notification Center — real-time alerts + broadcast logs */}
         {isCompanyAdmin && companyId && (

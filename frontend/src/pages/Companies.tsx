@@ -1401,7 +1401,9 @@ export function Companies() {
       state: company.state || '',
       city: company.city || '',
       zipCode: company.zipCode || '',
-      timezone: company.timezone || 'UTC',
+      // India-first product default — 'UTC' here made the mobile hero clock
+      // and backend late/date-key math run in UTC for companies with no tz.
+      timezone: company.timezone || 'Asia/Kolkata',
       currency: company.currency || 'INR',
       dateFormat: company.dateFormat || 'MM/DD/YYYY',
       language: company.language || 'English',

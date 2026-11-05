@@ -1,0 +1,670 @@
+import React, { useState, useMemo, useEffect, useRef } from 'react';
+import { View, Text, StyleSheet, TouchableOpacity, Modal, TextInput } from 'react-native';
+import Svg, { Circle } from 'react-native-svg';
+import { query, where, onSnapshot, collection } from '../aws/firestore-compat';
+import { db } from '../aws/clients';
+import { useAuth } from '../context/AuthContext';
+import { useTheme, ThemeColors } from '../context/ThemeContext';
+import { useEmployeePersonalStats } from '../hooks/useEmployeePersonalStats';
+import { useAttendanceGate } from '../hooks/useAttendanceGate';
+import { markCheckIn, markCheckOut, requestPunchRectification } from '../services/attendanceApi';
+import { notifyPunchRectificationRequested } from '../services/notificationService';
+import { logAudit } from '../services/auditLogService';
+import { SelfieCaptureModal } from './SelfieCaptureModal';
+import { BranchQrModal } from './BranchQrModal';
+import { Icon } from '../utils/icons';
+import type { AttendanceRecord } from '../types/user';
+
+const statusColor = (s?: string) => {
+  switch (s) {
+    case 'Present': return '#10b981';
+    case 'Late': return '#eab308';
+    case 'Absent': return '#ef4444';
+    case 'On Leave': return '#3b82f6';
+    case 'Miss Punch': return '#8b5cf6';
+    default: return '#FF6600';
+  }
+};
+
+const formatTime = (d: any) => {
+  if (!d) return '--';
+  const date = d.toDate ? d.toDate() : new Date(d);
+  return date.toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit', hour12: true });
+};
+
+const formatDate = (d: any) => {
+  if (!d) return '';
+  const date = d.toDate ? d.toDate() : new Date(d);
+  return date.toLocaleDateString('en-IN', { day: '2-digit', month: 'short' });
+};
+
+/**
+ * The employee dashboard's own-attendance experience, extracted verbatim so
+ * the HR role sees the same self-service block on the Company Dashboard:
+ * today's status card with check-in/out + punch action, the attendance-rate
+ * ring, real recent punch activity, this-month records with rectification,
+ * and the full-history link. Org stats around it stay company-wide.
+ *
+ * `refreshKey` (from the parent dashboard's pull-to-refresh) combines with an
+ * internal `punchKey` bumped after every punch so either refresh re-reads the
+ * server-confirmed record.
+ */
+export const TodayAttendancePanel: React.FC<{ navigation?: any; refreshKey?: number }> = ({
+  navigation,
+  refreshKey = 0,
+}) => {
+  const { user } = useAuth();
+  const { colors } = useTheme();
+  const { policy, validateCheckIn, validateCheckOut, myBranches } = useAttendanceGate();
+  const s = useMemo(() => createStyles(colors), [colors]);
+
+  const [punchKey, setPunchKey] = useState(0);
+  const stats = useEmployeePersonalStats(refreshKey + punchKey);
+  const { todayRecord, monthStats, monthRecords, attendanceRate, loading } = stats;
+
+  const [checking, setChecking] = useState(false);
+  const [showSelfieCapture, setShowSelfieCapture] = useState(false);
+  const [showQrSheet, setShowQrSheet] = useState(false);
+  const selfieUriRef = useRef<string | null>(null);
+  const [rectifyModal, setRectifyModal] = useState<AttendanceRecord | null>(null);
+  const [rectifyTime, setRectifyTime] = useState('');
+  const [submittingRectify, setSubmittingRectify] = useState(false);
+  const [actionMsg, setActionMsg] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
+  const [managers, setManagers] = useState<string[]>([]);
+
+  useEffect(() => {
+    if (!user?.id) return;
+    // Same manager routing the employee dashboard uses for rectification
+    // notifications (Company Admin → Executive → Team Leader, company-scoped).
+    const unsub = onSnapshot(
+      query(collection(db, 'users'), where('role', 'in', ['company-admin', 'executive', 'team-leader'])),
+      (snap) => {
+        const list = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
+        const scoped = user?.companyId
+          ? list.filter((u: any) => u.companyId === user.companyId || (u.assignedCompanyIds || []).includes(user.companyId))
+          : list;
+        setManagers(scoped.map((u: any) => u.id));
+      },
+      () => {}
+    );
+    return () => unsub();
+  }, [user?.companyId, user?.id]);
+
+  const handleRectifyRequest = async () => {
+    if (!rectifyModal || !rectifyTime || !user) return;
+    setSubmittingRectify(true);
+    try {
+      const [h, m] = rectifyTime.split(':').map(Number);
+      const corrected = new Date(rectifyModal.date);
+      corrected.setHours(h, m, 0, 0);
+      await requestPunchRectification(rectifyModal.id, corrected);
+      await notifyPunchRectificationRequested(
+        user.id, user.name || 'Employee',
+        new Date(rectifyModal.date).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' }),
+        rectifyModal.companyId || user.companyId || '',
+        managers
+      );
+      setActionMsg({ type: 'success', text: 'Rectification request submitted for manager review.' });
+      setRectifyModal(null);
+      setRectifyTime('');
+    } catch (err: any) {
+      setActionMsg({ type: 'error', text: err?.message || 'Failed to submit rectification' });
+    } finally {
+      setSubmittingRectify(false);
+    }
+  };
+
+  const canCheckIn = !todayRecord;
+  const canCheckOut = !!todayRecord && !!todayRecord.checkIn && !todayRecord.checkOut;
+  const completed = !!todayRecord && !!todayRecord.checkIn && !!todayRecord.checkOut;
+
+  // Real punch events, newest first — never invented activity. (Declared after
+  // formatDate/formatTime: a useMemo above them hits the temporal dead zone.)
+  const recentActivity = useMemo(() => {
+    const rows = [...monthRecords]
+      .filter((r: any) => r?.checkIn || r?.checkOut)
+      .sort((a: any, b: any) => new Date(b?.date).getTime() - new Date(a?.date).getTime());
+    return rows
+      .flatMap((r: any) => {
+        const out: Array<{ key: string; title: string; when: string; icon: any; color: string }> = [];
+        if (r.checkOut) {
+          out.push({ key: `${r.id}-out`, title: 'Checked out', when: `${formatDate(r.date)} · ${formatTime(r.checkOut)}`, icon: 'log-out-outline', color: '#3b82f6' });
+        }
+        if (r.checkIn) {
+          out.push({ key: `${r.id}-in`, title: 'Checked in', when: `${formatDate(r.date)} · ${formatTime(r.checkIn)}`, icon: 'log-in-outline', color: '#10b981' });
+        }
+        return out;
+      })
+      .slice(0, 5);
+  }, [monthRecords]);
+
+  const handleCheckIn = async (picked?: { branchId?: string; qrToken?: string }) => {
+    if (!user?.id || checking) return;
+    if (!user.companyId) {
+      setActionMsg({ type: 'error', text: 'No company assigned to your account.' });
+      return;
+    }
+    setChecking(true);
+    try {
+      const res = await validateCheckIn({
+        selfieUri: selfieUriRef.current || undefined,
+        branchId: picked?.branchId,
+        qrToken: picked?.qrToken,
+      });
+      if (!res.ok) {
+        if (res.needsSelfie) {
+          setChecking(false);
+          setShowSelfieCapture(true);
+          return;
+        }
+        if (res.needsQr) {
+          // QR-enabled company: collect the branch code before punching,
+          // instead of letting the server reject it with QR_REQUIRED.
+          setChecking(false);
+          setShowQrSheet(true);
+          return;
+        }
+        // On-screen banner, not Alert.alert: RN-web's Alert is a no-op, which
+        // made every blocked/failed punch look like "nothing happened".
+        setActionMsg({ type: 'error', text: res.reason || 'Attendance policy not satisfied.' });
+        return;
+      }
+      const result = await markCheckIn(user.companyId, {
+        selfieUri: selfieUriRef.current || undefined,
+        branchId: picked?.branchId,
+        qrToken: picked?.qrToken,
+      });
+      selfieUriRef.current = null;
+      setActionMsg({ type: 'success', text: result.message || 'Checked in.' });
+      logAudit({
+        userId: user.id,
+        userName: user.name || 'Employee',
+        userRole: user.role || '',
+        action: 'Checked in',
+        actionType: 'create',
+        module: 'Attendance',
+        targetEntity: 'Attendance',
+        status: 'success',
+      }).catch(() => {});
+      // Re-read the record the SERVER just wrote — the dashboard previously
+      // kept showing "Not Checked In" after a successful punch.
+      setPunchKey((k) => k + 1);
+    } catch (err: any) {
+      setActionMsg({ type: 'error', text: err?.message || 'Check-in failed' });
+    } finally {
+      setChecking(false);
+    }
+  };
+
+  const handleSelfieCaptured = (url: string) => {
+    setShowSelfieCapture(false);
+    selfieUriRef.current = url;
+    handleCheckIn();
+  };
+
+  // QR sheet confirmed: close it and retry the punch with the branch + code.
+  const handleQrPicked = (payload: { branchId: string; qrToken: string }) => {
+    setShowQrSheet(false);
+    handleCheckIn(payload);
+  };
+
+  const handleCheckOut = async () => {
+    if (!todayRecord || checking || !user?.companyId) return;
+    setChecking(true);
+    try {
+      const res = await validateCheckOut();
+      if (!res.ok) {
+        setActionMsg({ type: 'error', text: res.reason || 'Attendance policy not satisfied.' });
+        return;
+      }
+      const result = await markCheckOut(user.companyId, todayRecord.id);
+      setActionMsg({ type: 'success', text: result.message || 'Checked out.' });
+      setPunchKey((k) => k + 1);
+      logAudit({
+        userId: user.id,
+        userName: user.name || 'Employee',
+        userRole: user.role || '',
+        action: 'Checked out',
+        actionType: 'create',
+        module: 'Attendance',
+        targetEntity: 'Attendance',
+        status: 'success',
+      }).catch(() => {});
+    } catch (err: any) {
+      setActionMsg({ type: 'error', text: err?.message || 'Check-out failed' });
+    } finally {
+      setChecking(false);
+    }
+  };
+
+  // Only hide on the FIRST load — a punch refresh keeps the last
+  // server-confirmed values on screen instead of flashing empty.
+  if (loading && !todayRecord && monthRecords.length === 0) return null;
+
+  const policyHints: { label: string; color: string }[] = [];
+  if (policy) {
+    if (policy.wifiOnly) policyHints.push({ label: 'Wi-Fi required', color: '#3b82f6' });
+    if (policy.enableGeofence && policy.officeLocation?.latitude) policyHints.push({ label: `Geofence ${policy.officeLocation.radiusMeters || 100}m`, color: '#10b981' });
+    if (policy.requireSelfie || policy.enableSelfie) policyHints.push({ label: 'Selfie required', color: '#ec4899' });
+  }
+
+  return (
+    <>
+      {actionMsg && (
+        <View style={[s.actionBanner, { backgroundColor: actionMsg.type === 'success' ? '#dcfce7' : '#fee2e2', borderColor: actionMsg.type === 'success' ? '#bbf7d0' : '#fecaca' }]}>
+          <Text style={{ flex: 1, fontSize: 13, fontWeight: '600', color: actionMsg.type === 'success' ? '#16a34a' : '#ef4444' }}>{actionMsg.text}</Text>
+          <TouchableOpacity onPress={() => setActionMsg(null)}><Text style={{ fontSize: 16, color: '#666' }}>×</Text></TouchableOpacity>
+        </View>
+      )}
+
+      {/* Today's status — one scannable card: state + day summary on top, a
+          three-column date/check-in/check-out strip, then the punch action. */}
+      <View style={s.checkInCard}>
+        <View style={s.statusHead}>
+          <View style={{ flex: 1, minWidth: 0 }}>
+            <Text style={s.statusEyebrow}>Today</Text>
+            <View style={s.statusTitleRow}>
+              <View
+                style={[
+                  s.statusDot,
+                  // Green for every success state (checked in / day complete),
+                  // neutral slate until the first punch of the day.
+                  { backgroundColor: todayRecord ? '#10b981' : '#94a3b8' },
+                ]}
+              />
+              <Text style={s.statusHeadline} numberOfLines={1}>
+                {completed ? 'Day Complete' : todayRecord ? 'Checked In' : 'Not Checked In'}
+              </Text>
+            </View>
+            {!!todayRecord?.status && <Text style={s.statusSub}>{todayRecord.status}</Text>}
+          </View>
+          <View
+            style={[
+              s.statusPill,
+              { backgroundColor: completed ? '#10b98118' : todayRecord ? '#3b82f618' : '#94a3b81f' },
+            ]}>
+            <Text
+              style={[
+                s.statusPillText,
+                { color: completed ? '#059669' : todayRecord ? '#2563eb' : '#64748b' },
+              ]}>
+              {completed ? 'Completed' : todayRecord ? 'In progress' : 'Not started'}
+            </Text>
+          </View>
+        </View>
+
+        <View style={s.infoStrip}>
+          <View style={s.infoCell}>
+            <Text style={s.infoLabel}>Date</Text>
+            <Text style={s.infoValue} numberOfLines={1}>
+              {formatDate(todayRecord?.date) ||
+                new Date().toLocaleDateString('en-IN', { day: '2-digit', month: 'short' })}
+            </Text>
+          </View>
+          <View style={s.infoDivider} />
+          <View style={s.infoCell}>
+            <Text style={s.infoLabel}>Check-in</Text>
+            <Text style={s.infoValue} numberOfLines={1}>
+              {todayRecord?.checkIn ? formatTime(todayRecord.checkIn) : '—'}
+            </Text>
+          </View>
+          <View style={s.infoDivider} />
+          <View style={s.infoCell}>
+            <Text style={s.infoLabel}>Check-out</Text>
+            <Text style={s.infoValue} numberOfLines={1}>
+              {todayRecord?.checkOut ? formatTime(todayRecord.checkOut) : '—'}
+            </Text>
+          </View>
+        </View>
+
+        <TouchableOpacity
+          style={[s.checkInWideBtn, (checking || completed) && { opacity: 0.6 }]}
+          onPress={canCheckOut ? handleCheckOut : canCheckIn ? () => handleCheckIn() : undefined}
+          disabled={checking || completed}
+          activeOpacity={0.85}
+          accessibilityRole="button"
+          accessibilityLabel={canCheckOut ? 'Check out' : 'Check in'}>
+          <Icon
+            name={canCheckOut ? 'log-out-outline' : canCheckIn ? 'log-in-outline' : 'checkmark-circle-outline'}
+            size={18}
+            color="#fff"
+          />
+          <Text style={s.checkInWideBtnText}>
+            {checking ? 'Please wait…' : canCheckOut ? 'Check Out' : canCheckIn ? 'Check In' : 'Completed'}
+          </Text>
+        </TouchableOpacity>
+
+        {policyHints.length > 0 && (
+          <View style={s.policyRow}>
+            {policyHints.map((h) => (
+              <View key={h.label} style={[s.policyChip, { backgroundColor: `${h.color}18`, borderColor: `${h.color}45` }]}>
+                <Icon name="shield-checkmark-outline" size={12} color={h.color} />
+                <Text style={{ color: h.color, fontSize: 11, fontWeight: '600' }}>{h.label}</Text>
+              </View>
+            ))}
+          </View>
+        )}
+
+        {todayRecord && !todayRecord.checkOut && !completed && (
+          <TouchableOpacity style={s.missPunchBtn} onPress={() => setRectifyModal(todayRecord)}>
+            <Icon name="alert-circle-outline" size={14} color="#f59e0b" />
+            <Text style={s.missPunchText}>Forgot to check out? Request punch rectification</Text>
+            <Icon name="chevron-forward-outline" size={14} color="#f59e0b" />
+          </TouchableOpacity>
+        )}
+
+        <TouchableOpacity style={s.historyLink} onPress={() => navigation?.navigate('Attendance')}>
+          <Text style={s.historyLinkText}>View full attendance history</Text>
+          <Icon name="chevron-forward-outline" size={14} color={colors.accent} />
+        </TouchableOpacity>
+      </View>
+
+      {/* ── TODAY'S ATTENDANCE: real monthly figures behind a progress ring ── */}
+      <View style={s.sectionHeader}>
+        <Icon name="pie-chart-outline" size={16} color={colors.accent} />
+        <Text style={s.sectionTitle}>Today's Attendance</Text>
+      </View>
+      <View style={s.ringCard}>
+        <View style={s.ringWrap}>
+          <Svg width={104} height={104} viewBox="0 0 104 104">
+            <Circle cx="52" cy="52" r="44" stroke={`${colors.borderLight}`} strokeWidth="11" fill="none" />
+            <Circle
+              cx="52"
+              cy="52"
+              r="44"
+              stroke="#10b981"
+              strokeWidth="11"
+              strokeLinecap="round"
+              fill="none"
+              strokeDasharray={`${2 * Math.PI * 44}`}
+              strokeDashoffset={`${2 * Math.PI * 44 * (1 - (attendanceRate ?? 0) / 100)}`}
+              transform="rotate(-90 52 52)"
+            />
+          </Svg>
+          <View style={s.ringCenter}>
+            <Text style={s.ringValue}>{attendanceRate === null ? '—' : `${attendanceRate}%`}</Text>
+            <Text style={s.ringLabel}>Present</Text>
+          </View>
+        </View>
+
+        <View style={{ flex: 1, gap: 10 }}>
+          {[
+            // Present includes Late — the same numerator the ring's % uses
+            // (present + late) / total, so the two never disagree.
+            { label: 'Present', value: monthStats.present + monthStats.late, color: '#10b981', icon: 'checkmark-circle-outline' },
+            { label: 'Absent', value: monthStats.absent, color: '#ef4444', icon: 'close-circle-outline' },
+            { label: 'On Leave', value: monthStats.onLeave, color: '#8b5cf6', icon: 'umbrella-outline' },
+          ].map((row) => (
+            <View key={row.label} style={s.ringRow}>
+              <View style={[s.ringDot, { backgroundColor: row.color }]} />
+              <Text style={s.ringRowLabel}>{row.label}</Text>
+              <Text style={s.ringRowValue}>{row.value}</Text>
+            </View>
+          ))}
+        </View>
+      </View>
+
+      {/* ── RECENT ACTIVITY: real punch events, never fabricated ── */}
+      <View style={s.sectionHeader}>
+        <Icon name="pulse-outline" size={16} color={colors.accent} />
+        <Text style={s.sectionTitle}>Recent Activity</Text>
+      </View>
+      <View style={s.activityCard}>
+        {recentActivity.length === 0 ? (
+          <Text style={s.activityEmpty}>No punch activity yet this month.</Text>
+        ) : (
+          recentActivity.map((a) => (
+            <View key={a.key} style={s.activityRow}>
+              <View style={[s.activityIcon, { backgroundColor: `${a.color}1a` }]}>
+                <Icon name={a.icon} size={15} color={a.color} />
+              </View>
+              <View style={{ flex: 1 }}>
+                <Text style={s.activityTitle}>{a.title}</Text>
+                <Text style={s.activityWhen}>{a.when}</Text>
+              </View>
+            </View>
+          ))
+        )}
+      </View>
+
+      {monthRecords.length > 0 && (
+        <>
+          <View style={s.sectionHeader}>
+            <Icon name="calendar-outline" size={16} color={colors.accent} />
+            <Text style={s.sectionTitle}>This Month's Attendance</Text>
+          </View>
+          <View style={{ paddingHorizontal: 16, gap: 8 }}>
+            {monthRecords.slice(0, 10).map((rec) => (
+              <TouchableOpacity
+                key={rec.id}
+                style={s.monthRow}
+                onPress={() => !rec.checkOut && setRectifyModal(rec)}>
+                <View style={[s.monthDot, { backgroundColor: statusColor(rec.status) }]} />
+                <View style={{ flex: 1 }}>
+                  <Text style={{ fontSize: 13, fontWeight: '600', color: colors.text }}>{formatDate(rec.date)}</Text>
+                  <Text style={{ fontSize: 11, color: colors.textTertiary, textTransform: 'capitalize' }}>{rec.status || 'Unknown'}</Text>
+                </View>
+                <Text style={{ fontSize: 12, color: colors.textSecondary }}>
+                  {formatTime(rec.checkIn)} – {formatTime(rec.checkOut)}
+                </Text>
+                {!rec.checkOut && (
+                  <TouchableOpacity style={s.rectifyChip} onPress={() => setRectifyModal(rec)}>
+                    <Text style={s.rectifyChipText}>Fix</Text>
+                  </TouchableOpacity>
+                )}
+              </TouchableOpacity>
+            ))}
+          </View>
+        </>
+      )}
+
+      <SelfieCaptureModal
+        visible={showSelfieCapture}
+        companyId={user?.companyId || ''}
+        userId={user?.id || ''}
+        onClose={() => setShowSelfieCapture(false)}
+        onCaptured={handleSelfieCaptured}
+      />
+
+      <BranchQrModal
+        visible={showQrSheet}
+        branches={myBranches.branches}
+        primaryBranchId={myBranches.primaryBranchId}
+        submitting={checking}
+        onClose={() => setShowQrSheet(false)}
+        onSubmit={handleQrPicked}
+      />
+
+      <Modal
+        visible={!!rectifyModal}
+        transparent
+        animationType="fade"
+        onRequestClose={() => !submittingRectify && setRectifyModal(null)}>
+        <View style={[s.modalOverlay, { backgroundColor: colors.modalOverlay }]}>
+          <View style={[s.modalCard, { backgroundColor: colors.card }]}>
+            <View style={s.modalHeader}>
+              <Text style={s.modalTitle}>Request Punch Rectification</Text>
+              <TouchableOpacity onPress={() => setRectifyModal(null)} disabled={submittingRectify}>
+                <Icon name="close" size={20} color={colors.textSecondary} />
+              </TouchableOpacity>
+            </View>
+            <Text style={s.modalDesc}>
+              Date: {rectifyModal?.date ? formatDate(rectifyModal.date) : '—'}
+            </Text>
+            <Text style={[s.modalDesc, { marginTop: 4 }]}>
+              Current check-out: {formatTime(rectifyModal?.checkOut) || 'Not recorded'}
+            </Text>
+            <Text style={[s.modalDesc, { color: colors.textSecondary, marginTop: 12, fontWeight: '600' }]}>Corrected check-out time (HH:MM)</Text>
+            <TextInput
+              style={[s.timeInput, { backgroundColor: colors.surface, borderColor: colors.border, color: colors.text }]}
+              value={rectifyTime}
+              onChangeText={setRectifyTime}
+              placeholder="e.g. 18:30"
+              placeholderTextColor={colors.textTertiary}
+              keyboardType="numbers-and-punctuation"
+              maxLength={5}
+            />
+            <View style={s.modalActions}>
+              <TouchableOpacity style={[s.modalBtn, { borderColor: colors.border }]} onPress={() => setRectifyModal(null)} disabled={submittingRectify}>
+                <Text style={{ color: colors.textSecondary, fontWeight: '600' }}>Cancel</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[s.modalBtn, { backgroundColor: '#FF6600' }, (!rectifyTime || submittingRectify) && { opacity: 0.6 }]}
+                onPress={handleRectifyRequest}
+                disabled={!rectifyTime || submittingRectify}>
+                <Text style={{ color: '#fff', fontWeight: '700' }}>{submittingRectify ? 'Submitting...' : 'Submit Request'}</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
+    </>
+  );
+};
+
+const createStyles = (c: ThemeColors) => StyleSheet.create({
+  actionBanner: {
+    flexDirection: 'row', alignItems: 'center', gap: 10,
+    marginHorizontal: 16, marginTop: 12, padding: 12,
+    borderWidth: 1, borderRadius: 12,
+  },
+  checkInCard: {
+    marginHorizontal: 16,
+    marginTop: 14,
+    borderRadius: 18,
+    borderWidth: 1,
+    borderColor: c.borderLight,
+    backgroundColor: c.card,
+    padding: 16,
+  },
+  statusHead: { flexDirection: 'row', alignItems: 'flex-start', gap: 10 },
+  statusEyebrow: {
+    fontSize: 11,
+    fontWeight: '700',
+    color: c.textTertiary,
+    letterSpacing: 1,
+    textTransform: 'uppercase',
+  },
+  statusTitleRow: { flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 4 },
+  statusDot: { width: 9, height: 9, borderRadius: 5 },
+  statusHeadline: { flexShrink: 1, fontSize: 18, fontWeight: '800', color: c.text },
+  statusSub: { fontSize: 12.5, color: c.textSecondary, marginTop: 3, fontWeight: '600' },
+  statusPill: {
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    borderRadius: 999,
+    marginTop: 2,
+  },
+  statusPillText: { fontSize: 11.5, fontWeight: '700' },
+  infoStrip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginTop: 14,
+    paddingVertical: 10,
+    borderRadius: 14,
+    backgroundColor: `${c.background}cc`,
+    borderWidth: 1,
+    borderColor: c.borderLight,
+  },
+  infoCell: { flex: 1, minWidth: 0, paddingHorizontal: 10, alignItems: 'flex-start' },
+  infoLabel: {
+    fontSize: 10,
+    fontWeight: '700',
+    color: c.textTertiary,
+    letterSpacing: 0.6,
+    textTransform: 'uppercase',
+  },
+  infoValue: { fontSize: 13.5, fontWeight: '700', color: c.text, marginTop: 3 },
+  infoDivider: { width: 1, alignSelf: 'stretch', marginVertical: 4, backgroundColor: c.borderLight },
+  checkInWideBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    backgroundColor: '#FF6600',
+    borderRadius: 14,
+    paddingVertical: 14,
+    marginTop: 16,
+    shadowColor: '#FF6600',
+    shadowOpacity: 0.3,
+    shadowRadius: 10,
+    shadowOffset: { width: 0, height: 5 },
+    elevation: 4,
+  },
+  checkInWideBtnText: { color: '#fff', fontSize: 15.5, fontWeight: '700' },
+  policyRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginTop: 6 },
+  policyChip: { flexDirection: 'row', alignItems: 'center', gap: 5, borderWidth: 1, borderRadius: 20, paddingHorizontal: 10, paddingVertical: 5 },
+  missPunchBtn: {
+    flexDirection: 'row', alignItems: 'center', gap: 6,
+    marginTop: 12, paddingVertical: 8,
+  },
+  missPunchText: { flex: 1, fontSize: 12, fontWeight: '600', color: '#f59e0b' },
+  historyLink: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 4, marginTop: 12 },
+  historyLinkText: { fontSize: 13, fontWeight: '600', color: c.accent },
+  sectionHeader: {
+    flexDirection: 'row', alignItems: 'center', gap: 8,
+    paddingHorizontal: 20, paddingTop: 20, paddingBottom: 10,
+  },
+  sectionTitle: { fontSize: 16, fontWeight: '600', color: c.text },
+  ringCard: {
+    marginHorizontal: 16,
+    backgroundColor: c.card,
+    borderWidth: 1,
+    borderColor: c.borderLight,
+    borderRadius: 18,
+    padding: 16,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 18,
+  },
+  ringWrap: { width: 104, height: 104, alignItems: 'center', justifyContent: 'center' },
+  ringCenter: { position: 'absolute', alignItems: 'center' },
+  ringValue: { fontSize: 22, fontWeight: '800', color: c.text },
+  ringLabel: { fontSize: 11, color: c.textSecondary, marginTop: 1 },
+  ringRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  ringDot: { width: 9, height: 9, borderRadius: 5 },
+  ringRowLabel: { flex: 1, fontSize: 13.5, color: c.textSecondary, fontWeight: '600' },
+  ringRowValue: { fontSize: 15, fontWeight: '800', color: c.text },
+  activityCard: {
+    marginHorizontal: 16,
+    backgroundColor: c.card,
+    borderWidth: 1,
+    borderColor: c.borderLight,
+    borderRadius: 18,
+    padding: 14,
+    gap: 12,
+  },
+  activityEmpty: { fontSize: 13, color: c.textTertiary, textAlign: 'center', paddingVertical: 6 },
+  activityRow: { flexDirection: 'row', alignItems: 'center', gap: 10 },
+  activityIcon: {
+    width: 30,
+    height: 30,
+    borderRadius: 15,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  activityTitle: { fontSize: 13.5, fontWeight: '700', color: c.text },
+  activityWhen: { fontSize: 11.5, color: c.textTertiary, marginTop: 1 },
+  monthRow: {
+    flexDirection: 'row', alignItems: 'center', gap: 10,
+    backgroundColor: c.card, padding: 12,
+    borderWidth: 1, borderColor: c.borderLight, borderRadius: 12,
+  },
+  monthDot: { width: 8, height: 8, borderRadius: 4 },
+  rectifyChip: {
+    backgroundColor: '#f59e0b18', borderWidth: 1, borderColor: '#f59e0b45',
+    borderRadius: 20, paddingHorizontal: 10, paddingVertical: 4,
+  },
+  rectifyChipText: { fontSize: 11, fontWeight: '700', color: '#f59e0b' },
+  modalOverlay: { flex: 1, justifyContent: 'center', padding: 24 },
+  modalCard: { width: '100%', maxWidth: 480, alignSelf: 'center', borderRadius: 16, padding: 18, borderWidth: 1, borderColor: '#00000012' },
+  modalHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 },
+  modalTitle: { fontSize: 16, fontWeight: '700', color: c.text },
+  modalDesc: { fontSize: 13, color: c.textSecondary },
+  timeInput: {
+    borderWidth: 1, borderRadius: 10, paddingHorizontal: 12, paddingVertical: 10,
+    fontSize: 15, marginTop: 8, fontWeight: '600',
+  },
+  modalActions: { flexDirection: 'row', gap: 10, marginTop: 16 },
+  modalBtn: { flex: 1, alignItems: 'center', paddingVertical: 12, borderWidth: 1, borderRadius: 10 },
+});

@@ -10,6 +10,7 @@ import { StatCard } from '../../components/StatCard';
 import { StatsGrid } from '../../components/StatsGrid';
 import { DashboardHero } from '../../components/DashboardHero';
 import { LeaveApprovalsPanel } from '../../components/LeaveApprovalsPanel';
+import { TodayAttendancePanel } from '../../components/TodayAttendancePanel';
 
 const QUICK_ACTIONS = [
   { key: 'Employees', label: 'Employees', icon: 'people-outline', color: '#3b82f6' },
@@ -55,11 +56,12 @@ export const CompanyDashboard: React.FC<{ navigation: any }> = ({ navigation }) 
 
   return (
     <ScrollView ref={heroScrollRef} style={s.container} refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor="#FF6600" />}>
+      {/* HR punches from the dashboard like any staff member; Company Admin does not. */}
       <DashboardHero
         name={user?.name || 'Admin'}
         roleLabel={selectedCompanyName || 'Company Admin'}
         subtitle={selectedCompanyName ? 'Internal Head · Managing your company operations' : "Here's your company's overview today."}
-        showAttendance={false}
+        showAttendance={user?.role === 'hr'}
         onViewDetails={() => heroScrollRef.current?.scrollTo({ y: 330, animated: true })}
         stats={[
           { label: 'Present', value: stats.presentToday, color: '#10b981' },
@@ -96,6 +98,13 @@ export const CompanyDashboard: React.FC<{ navigation: any }> = ({ navigation }) 
           </TouchableOpacity>
         ))}
       </ScrollView>
+
+      {/* HR's own attendance — the employee dashboard's status card, punch,
+          ring, activity and month records, verbatim. Sits BELOW the company
+          sections (web order: company stats → quick actions → attendance). */}
+      {user?.role === 'hr' && (
+        <TodayAttendancePanel navigation={navigation} refreshKey={refreshKey} />
+      )}
 
       <View style={s.sectionHeader}>
         <Icon name="stats-chart-outline" size={16} color={colors.accent} />
