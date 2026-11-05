@@ -324,7 +324,7 @@ function HeroAttendance({ badge }: { badge: string }) {
 
 /* ------------------------------------------------------------------ */
 /* Hero — dark banner (sidebar palette: black-blue slate): #0f172a →   */
-/* #1e293b → #1e3a8a card, pale blue waves on the right, white name,  */
+/* #0b1120 → #152e56 card, pale blue waves on the right, white name,  */
 /* blue-bar subtitle, white chips, right-side tagline, and a white     */
 /* KPI strip (tinted icon chips) below                                 */
 /* ------------------------------------------------------------------ */

@@ -26,7 +26,7 @@ import { Icon } from '../utils/icons';
 
 /**
  * Dashboard hero — dark banner (sidebar palette: black-blue slate):
- *  • #0f172a → #1e293b → #1e3a8a card with pale blue waves (right)
+ *  • #0b1120 → #152e56 card with pale blue waves (right)
  *  • time greeting + NAME + blue-bar subtitle + white date/time pills
  *  • role pill + live attendance chips (state-coloured pale pills)
  *    + gate-validated punch actions
@@ -561,9 +561,9 @@ export const DashboardHero: React.FC<DashboardHeroProps> = ({
       {/* ── Light banner card (client reference) ── */}
       <View style={styles.cardWrap}>
       <LinearGradient
-        colors={['#0f172a', '#1e293b', '#1e3a8a']}
+        colors={['#0b1120', '#152e56']}
         start={{ x: 0, y: 0 }}
-        end={{ x: 1, y: 0.85 }}
+        end={{ x: 1, y: 1 }}
         style={styles.card}
       >
         {/* Decorative: soft blue waves — full-height sweep on the right */}

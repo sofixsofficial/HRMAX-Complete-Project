@@ -1,6 +1,6 @@
 /* ------------------------------------------------------------------ */
 /* Dashboard hero — dark banner (sidebar palette: black-blue slate)    */
-/*  • #0f172a → #1e293b → #1e3a8a card, hairline border, deep shadow  */
+/*  • #0b1120 → #152e56 card, hairline border, deep shadow           */
 /*  • decorative: pale blue waves (right) + "Smart HR Management"      */
 /*    tagline (white, dark halo) with blue underline                  */
 /*  • LEFT: time greeting + NAME (white) + blue-bar subtitle +         */
@@ -26,14 +26,14 @@ html {
   color: #e2e8f0;
 }
 
-/* ── Dark banner card — the sidebar's black-blue (#0f172a → #1e293b  */
-/*    → #1e3a8a); pale blue waves sit on the right half               */
+/* ── Dark banner card — the employee hero's navy→blue (#0b1120 →     */
+/*    #152e56) diagonal; pale blue waves sit on the right half        */
 .hero .hero-card {
   position: relative;
   overflow: hidden;
   isolation: isolate;
   border-radius: 18px;
-  background: linear-gradient(105deg, #0f172a 0%, #1e293b 58%, #1e3a8a 130%);
+  background: linear-gradient(135deg, #0b1120 0%, #152e56 100%);
   border: 1px solid rgba(148, 163, 184, 0.35);
   padding: 26px 30px;
   min-height: 0;
