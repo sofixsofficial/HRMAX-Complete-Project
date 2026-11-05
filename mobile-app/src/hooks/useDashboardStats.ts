@@ -92,7 +92,11 @@ export function useDashboardStats(companyId?: string | string[] | null, refreshK
   const [loading, setLoading] = useState(true);
   const loadedCount = useRef(0);
   const expectedListeners = useRef(0);
-  const { user } = useAuth();
+  const { user, hasPermission } = useAuth();
+  // Assets read is permission-gated server-side (assets.view). HR / reporting
+  // managers / employees lack it — an ungated subscription polled a 403
+  // permission-denied on every snapshot tick and flooded the console.
+  const canViewAssets = hasPermission('assets.view');
 
   const markLoaded = () => {
     loadedCount.current += 1;
@@ -368,11 +372,14 @@ export function useDashboardStats(companyId?: string | string[] | null, refreshK
     });
     unsubscribers.push(unsubDepartments);
 
-    // Assets
-    const unsubAssets = listenCollection('assets', companyIds, (docs) => {
-      setStats((prev) => ({ ...prev, totalAssets: docs.length }));
-    });
-    unsubscribers.push(unsubAssets);
+    // Assets — only when the role may actually open the Assets module; the
+    // listener is simply not counted/started for other roles.
+    if (canViewAssets) {
+      const unsubAssets = listenCollection('assets', companyIds, (docs) => {
+        setStats((prev) => ({ ...prev, totalAssets: docs.length }));
+      });
+      unsubscribers.push(unsubAssets);
+    }
 
     // Announcements
     const unsubAnnouncements = listenCollection('announcements', companyIds, (docs) => {
@@ -411,7 +418,7 @@ export function useDashboardStats(companyId?: string | string[] | null, refreshK
         try { unsub(); } catch {}
       });
     };
-  }, [scopeKey, refreshKey]);
+  }, [scopeKey, refreshKey, canViewAssets]);
 
   return { ...stats, loading, records };
 }

@@ -100,7 +100,10 @@ export function useDashboardStats(companyId?: string | string[] | null): Dashboa
     }
   };
 
-  const { user } = useAuth();
+  const { user, hasPermission } = useAuth();
+  // Assets read is permission-gated server-side (assets.view). HR lacks it —
+  // the ungated subscription polled a 403 permission-denied repeatedly.
+  const canViewAssets = hasPermission('assets.view');
 
   useEffect(() => {
     if (!auth.currentUser || !user) {
@@ -366,10 +369,14 @@ export function useDashboardStats(companyId?: string | string[] | null): Dashboa
     });
     unsubscribers.push(unsubDepartments);
 
-    const unsubAssets = listenScopedCollection('assets', companyIds, (docs) => {
-      setStats(prev => ({ ...prev, totalAssets: docs.length }));
-    });
-    unsubscribers.push(unsubAssets);
+    // Assets — only when the role may actually open the Assets module; other
+    // roles never start the listener (no permission-denied polling).
+    if (canViewAssets) {
+      const unsubAssets = listenScopedCollection('assets', companyIds, (docs) => {
+        setStats(prev => ({ ...prev, totalAssets: docs.length }));
+      });
+      unsubscribers.push(unsubAssets);
+    }
 
     const unsubRoles = listenScopedCollection('roles', companyIds, (docs) => {
       setStats(prev => ({
@@ -392,7 +399,7 @@ export function useDashboardStats(companyId?: string | string[] | null): Dashboa
       clearTimeout(timeout);
       unsubscribers.forEach(unsub => { try { unsub() } catch {} });
     };
-  }, [companyId]);
+  }, [companyId, canViewAssets]);
 
   return { ...stats, loading, records };
 }
