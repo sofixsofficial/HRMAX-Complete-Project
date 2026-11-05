@@ -1,12 +1,12 @@
 /* ------------------------------------------------------------------ */
-/* Dashboard hero — dark banner (sidebar palette: black-blue slate)    */
-/*  • #0b1120 → #152e56 card, hairline border, deep shadow           */
-/*  • decorative: pale blue waves (right) + "Smart HR Management"      */
-/*    tagline (white, dark halo) with blue underline                  */
-/*  • LEFT: time greeting + NAME (white) + blue-bar subtitle +         */
-/*    white date/time pills + white chips (state-coloured)             */
-/*  • white KPI strip BELOW the card (tinted icon chips, black text,   */
-/*    hairline dividers, real values)                                  */
+/* Dashboard hero — employee BrandHomeHero layout (same for every      */
+/* role):                                                              */
+/*  • #0b1120 → #152e56 card, hairline border, deep shadow             */
+/*  • LEFT: time greeting + NAME (white) + translucent role chip       */
+/*  • RIGHT: live date/time (no pills)                                 */
+/*  • stat tiles INSIDE the card (translucent white, state-coloured    */
+/*    values, uppercase labels)                                        */
+/*  • live attendance chips + punch actions below the tiles            */
 /* All attendance facts come from the backend — never invented.        */
 /* ------------------------------------------------------------------ */
 
@@ -15,19 +15,19 @@ html {
   scroll-padding-top: calc(var(--header-h, 68px) + 16px);
 }
 
-/* ── Hero shell (card + strip stack) ──────────────────────────────── */
+/* ── Hero shell (single card) ─────────────────────────────────────── */
 .hero {
   position: relative;
   display: flex;
   flex-direction: column;
-  gap: 16px;
+  gap: 0;
   margin-bottom: 20px;
   font-family: inherit;
   color: #e2e8f0;
 }
 
 /* ── Dark banner card — the employee hero's navy→blue (#0b1120 →     */
-/*    #152e56) diagonal; pale blue waves sit on the right half        */
+/*    #152e56) diagonal                                                */
 .hero .hero-card {
   position: relative;
   overflow: hidden;
@@ -41,58 +41,24 @@ html {
   box-shadow: 0 10px 26px rgba(15, 23, 42, 0.35);
 }
 
-/* Decorative soft blue waves (right half) — behind everything. */
-.hero .hero-waves {
-  position: absolute;
-  right: 0;
-  top: 0;
-  width: min(58%, 640px);
-  height: 100%;
-  z-index: 0;
-  pointer-events: none;
-}
-
-/* Right-side tagline (reference) — decorative, behind the text. */
-.hero .hero-tagline {
-  position: absolute;
-  right: 46px;
-  top: 50%;
-  transform: translateY(-50%);
-  z-index: 0;
-  text-align: center;
-  pointer-events: none;
-}
-
-.hero .hero-tagline span {
-  display: block;
-  font-size: 19px;
-  font-weight: 800;
-  /* White over the dark card region; a dark halo keeps it readable
-     where it crosses the pale waves. */
-  color: #ffffff;
-  text-shadow: 0 1px 2px rgba(2, 6, 23, 0.85), 0 2px 10px rgba(2, 6, 23, 0.6);
-  line-height: 1.35;
-  letter-spacing: -0.2px;
-}
-
-.hero .hero-tagline i {
-  display: block;
-  width: 52px;
-  height: 4px;
-  border-radius: 4px;
-  background: #60a5fa;
-  box-shadow: 0 1px 4px rgba(2, 6, 23, 0.6);
-  margin: 12px auto 0;
-}
-
-/* ── Left: welcome block ──────────────────────────────────────────── */
+/* ── Welcome block ────────────────────────────────────────────────── */
 .hero .welcome {
   position: relative;
   z-index: 1;
   min-width: 0;
-  /* Reserve the tagline zone — long names / wide pills can never slide
-     under it (overlap guard; reset when the tagline hides below 980px). */
-  padding-right: 300px;
+}
+
+/* Head: identity (left) + live clock (right) */
+.hero .hero-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+  flex-wrap: wrap;
+}
+
+.hero .hero-id {
+  min-width: 0;
 }
 
 .hero .hero-greet small {
@@ -112,58 +78,131 @@ html {
   line-height: 1.15;
 }
 
-.hero .hero-sub {
-  margin: 12px 0 0;
-  font-size: 15px;
-  font-weight: 500;
-  color: #cbd5e1;
-  line-height: 1.5;
-  max-width: 46ch;
-  /* Blue accent bar (reference) — brightened for the dark card */
-  border-left: 4px solid #60a5fa;
-  padding-left: 12px;
-}
-
-/* ── Date / time / location pills ─────────────────────────────────── */
-.hero .hero-meta {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 8px;
-  margin-top: 14px;
-}
-
-.hero .meta-pill {
+/* Translucent role chip under the name (employee hero) */
+.hero .hero-role {
   display: inline-flex;
   align-items: center;
   gap: 7px;
-  padding: 7px 13px;
+  margin-top: 10px;
+  padding: 5px 12px;
   border-radius: 999px;
-  border: 1.5px solid #dbe4f0;
-  background: #fff;
+  background: rgba(255, 255, 255, 0.14);
+  border: 1px solid rgba(255, 255, 255, 0.18);
   font-size: 13px;
-  font-weight: 700;
-  color: #334155;
+  font-weight: 600;
+  color: rgba(255, 255, 255, 0.92);
   line-height: 1;
+  max-width: 100%;
+}
+
+.hero .hero-role svg {
+  flex: none;
+  opacity: 0.85;
+}
+
+.hero .hero-role span {
+  overflow: hidden;
+  text-overflow: ellipsis;
   white-space: nowrap;
 }
 
-.hero .meta-pill svg {
-  color: #2563eb;
+/* Live date / time — top right (no pills) */
+.hero .hero-clock {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 3px;
+  flex: none;
+  padding-top: 4px;
+}
+
+.hero .hero-clock-date,
+.hero .hero-clock-time {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  white-space: nowrap;
+}
+
+.hero .hero-clock-date {
+  font-size: 14px;
+  font-weight: 700;
+  color: #ffffff;
+}
+
+.hero .hero-clock-date svg,
+.hero .hero-clock-time > svg:first-child {
+  color: rgba(255, 255, 255, 0.8);
   flex: none;
 }
 
-/* ── Chips row (role / status / live attendance facts) ────────────── */
+.hero .hero-clock-time {
+  font-size: 13.5px;
+  font-weight: 500;
+  color: rgba(255, 255, 255, 0.85);
+}
+
+/* Day / night marker */
+.hero .hero-clock-sun {
+  color: #fcd34d;
+}
+
+.hero .hero-clock-moon {
+  color: #c4b5fd;
+}
+
+/* ── Stat tiles — inside the card, translucent (employee hero) ────── */
+.hero .hero-tiles {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  flex-wrap: nowrap;
+  gap: 10px;
+  margin-top: 18px;
+}
+
+.hero .hero-tile {
+  flex: 1 1 0;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 3px;
+  padding: 11px 6px;
+  text-align: center;
+  border-radius: 14px;
+  background: rgba(255, 255, 255, 0.10);
+  border: 1px solid rgba(255, 255, 255, 0.14);
+}
+
+.hero .hero-tiles .hero-tile-n {
+  font-size: 22px;
+  font-weight: 800;
+  line-height: 1.1;
+  font-variant-numeric: tabular-nums;
+}
+
+.hero .hero-tiles .hero-tile-l {
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: rgba(255, 255, 255, 0.72);
+  line-height: 1.3;
+}
+
+/* ── Chips row (status / live attendance facts) ───────────────────── */
 /* Scoped under .hero .chips so the app's global `.chip` stylesheet
    (used by other pages) never wins over the hero pill look. */
 .hero .chips {
+  position: relative;
+  z-index: 1;
   display: flex;
   flex-wrap: wrap;
   align-items: center;
   gap: 10px;
-  /* Clear the meta pills above — flush contact made the rows read as an
-     overlap (the rows never had a gap of their own). */
-  margin-top: 12px;
+  margin-top: 16px;
 }
 
 .hero .chips .chip {
@@ -175,15 +214,9 @@ html {
   font-size: 14px;
   font-weight: 700;
   line-height: 1;
-  border: 1.5px solid #dbe4f0;
-  background: #fff;
-  color: #334155;
-}
-
-.hero .chips .chip.role {
-  border-color: #9dbdfb;
-  color: #1d4ed8;
-  box-shadow: 0 1px 2px rgba(37, 99, 235, 0.08);
+  border: 1.5px solid rgba(255, 255, 255, 0.22);
+  background: rgba(255, 255, 255, 0.12);
+  color: #ffffff;
 }
 
 .hero .chips .chip i {
@@ -194,50 +227,46 @@ html {
   flex: none;
 }
 
-.hero .chips .chip.in {
-  border-color: #a7f3d0;
-}
-
 .hero .chips .chip[data-state='working'] {
-  background: #ecfdf5;
-  border-color: #a7f3d0;
-  color: #047857;
+  background: rgba(16, 185, 129, 0.18);
+  border-color: rgba(16, 185, 129, 0.5);
+  color: #6ee7b7;
 }
 
 .hero .chips .chip[data-state='done'] {
-  background: #eff6ff;
-  border-color: #bfdbfe;
-  color: #1d4ed8;
+  background: rgba(59, 130, 246, 0.18);
+  border-color: rgba(59, 130, 246, 0.5);
+  color: #93c5fd;
 }
 
 .hero .chips .chip[data-state='leave'] {
-  background: #f5f3ff;
-  border-color: #ddd6fe;
-  color: #6d28d9;
+  background: rgba(139, 92, 246, 0.18);
+  border-color: rgba(139, 92, 246, 0.5);
+  color: #c4b5fd;
 }
 
 .hero .chips .chip[data-state='holiday'] {
-  background: #fffbeb;
-  border-color: #fde68a;
-  color: #b45309;
+  background: rgba(245, 158, 11, 0.18);
+  border-color: rgba(245, 158, 11, 0.5);
+  color: #fcd34d;
 }
 
 .hero .chips .chip[data-state='idle'] {
-  background: #f8fafc;
-  border-color: #e2e8f0;
-  color: #475569;
+  background: rgba(255, 255, 255, 0.10);
+  border-color: rgba(255, 255, 255, 0.22);
+  color: rgba(255, 255, 255, 0.85);
 }
 
 .hero .chips .chip[data-state='late'] {
-  background: #fff7ed;
-  border-color: #fed7aa;
-  color: #c2410c;
+  background: rgba(249, 115, 22, 0.18);
+  border-color: rgba(249, 115, 22, 0.5);
+  color: #fdba74;
 }
 
 .hero .chips .chip[data-state='loading'] {
-  background: #f1f5f9;
-  border-color: #e2e8f0;
-  color: #64748b;
+  background: rgba(255, 255, 255, 0.08);
+  border-color: rgba(255, 255, 255, 0.18);
+  color: rgba(255, 255, 255, 0.7);
 }
 
 /* Live attendance detail inside the chips row */
@@ -260,11 +289,11 @@ html {
   align-items: center;
   padding: 7px 12px;
   border-radius: 999px;
-  border: 1px solid #a7f3d0;
-  background: #ecfdf5;
+  border: 1px solid rgba(16, 185, 129, 0.5);
+  background: rgba(16, 185, 129, 0.16);
   font-size: 13.5px;
   font-weight: 700;
-  color: #047857;
+  color: #6ee7b7;
   line-height: 1;
 }
 
@@ -340,112 +369,39 @@ html {
   }
 }
 
-/* ── KPI strip — one white card, equal columns, hairline dividers      */
-/*    (tinted icon chips keep the black icon + black text spec)         */
-.hero .hero-stats {
-  display: flex;
-  flex-wrap: nowrap;
-  background: #fff;
-  border: 1px solid #e8eefb;
-  border-radius: 16px;
-  overflow: hidden;
-  box-shadow: 0 3px 10px rgba(15, 33, 66, 0.05);
-}
-
-.hero .hero-stats .hero-stat {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  gap: 8px;
-  flex: 1 1 0;
-  min-width: 0;
-  padding: 14px 8px;
-  text-align: center;
-  border-right: 1px solid #eef2f8;
-}
-
-.hero .hero-stats .hero-stat:last-child {
-  border-right: 0;
-}
-
-.hero .hero-stat-icon {
-  width: 40px;
-  height: 40px;
-  border-radius: 12px;
-  display: grid;
-  place-items: center;
-  flex: none;
-}
-
-.hero .hero-stat-meta {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  min-width: 0;
-}
-
-.hero .hero-stats .hero-stat-n {
-  font-size: 22px;
-  font-weight: 800;
-  line-height: 1.1;
-  color: #000000;
-  font-variant-numeric: tabular-nums;
-}
-
-.hero .hero-stats .hero-stat-l {
-  margin-top: 2px;
-  font-size: 11.5px;
-  font-weight: 700;
-  letter-spacing: 0.06em;
-  text-transform: uppercase;
-  color: #000000;
-  line-height: 1.3;
-}
-
 /* ── Responsive ───────────────────────────────────────────────────── */
 @media (max-width: 980px) {
   .hero .hero-card {
     padding: 22px;
     min-height: 0;
   }
-
-  /* The tagline needs horizontal room — drop it first, and give the
-     welcome block the full width back (no reserved dead zone). */
-  .hero .hero-tagline {
-    display: none;
-  }
-
-  .hero .hero-waves {
-    width: 72%;
-  }
-
-  .hero .welcome {
-    padding-right: 0;
-  }
 }
 
 @media (max-width: 720px) {
-  .hero .hero-waves {
-    width: 88%;
+  .hero .hero-head {
+    flex-direction: column;
+    gap: 10px;
   }
 
-  .hero .hero-stats .hero-stat {
-    padding: 12px 4px;
-    gap: 6px;
+  .hero .hero-clock {
+    align-items: flex-start;
+    padding-top: 0;
   }
 
-  .hero .hero-stat-icon {
-    width: 32px;
-    height: 32px;
-    border-radius: 10px;
+  .hero .hero-tiles {
+    flex-wrap: wrap;
   }
 
-  .hero .hero-stats .hero-stat-n {
+  .hero .hero-tile {
+    flex: 1 1 calc(50% - 10px);
+    padding: 9px 4px;
+  }
+
+  .hero .hero-tiles .hero-tile-n {
     font-size: 18px;
   }
 
-  .hero .hero-stats .hero-stat-l {
+  .hero .hero-tiles .hero-tile-l {
     font-size: 9.5px;
     letter-spacing: 0.03em;
   }

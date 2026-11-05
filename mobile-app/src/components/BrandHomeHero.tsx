@@ -63,8 +63,20 @@ export const BrandHomeHero: React.FC<{
           )}
         </View>
         <View style={s.clockCol}>
-          <Text style={s.date}>{date}</Text>
-          <Text style={s.time}>{time}</Text>
+          <View style={s.clockRow}>
+            <Ionicons name="calendar-outline" size={12} color="rgba(255,255,255,0.8)" />
+            <Text style={s.date}>{date}</Text>
+          </View>
+          <View style={[s.clockRow, { marginTop: 3 }]}>
+            <Ionicons name="time-outline" size={12} color="rgba(255,255,255,0.8)" />
+            <Text style={s.time}>{time}</Text>
+            {/* Day / night marker — sun (06:00–18:00) or moon, local clock */}
+            <Ionicons
+              name={now.getHours() >= 6 && now.getHours() < 18 ? 'sunny-outline' : 'moon-outline'}
+              size={12}
+              color={now.getHours() >= 6 && now.getHours() < 18 ? '#fcd34d' : '#c4b5fd'}
+            />
+          </View>
         </View>
       </View>
 
@@ -125,8 +137,9 @@ const s = StyleSheet.create({
   },
   roleChipText: { fontSize: 11.5, color: 'rgba(255,255,255,0.92)', fontWeight: '600' },
   clockCol: { alignItems: 'flex-end', paddingTop: 2 },
+  clockRow: { flexDirection: 'row', alignItems: 'center', gap: 5 },
   date: { fontSize: 13, fontWeight: '700', color: '#fff' },
-  time: { fontSize: 12.5, color: 'rgba(255,255,255,0.85)', marginTop: 3 },
+  time: { fontSize: 12.5, color: 'rgba(255,255,255,0.85)' },
   tiles: { flexDirection: 'row', gap: 8, marginTop: 16 },
   tile: {
     flex: 1,

@@ -1,21 +1,15 @@
 import { useEffect, useState } from 'react'
 import {
   AlertCircle,
-  BarChart3,
   Calendar,
   CheckCircle2,
-  ClipboardList,
   Clock3,
   Loader2,
   LogIn,
   LogOut,
-  MapPin,
-  Percent,
+  Moon,
+  Sun,
   Umbrella,
-  User,
-  UserCheck,
-  Users,
-  UserX,
 } from 'lucide-react'
 import { collection, getDocs, query, where } from '../aws/firestore-compat'
 import { db } from '../aws/clients'
@@ -47,31 +41,6 @@ interface DashboardHeroProps {
    * dashboard, so they pass false — they render a static "Not Checked In" chip.
    */
   showAttendance?: boolean
-}
-
-/** Stat label icon — matches the dark stats strip (person, umbrella, …). */
-const statIcon = (label: string, size = 20) => {
-  const l = label.toLowerCase()
-  if (l.includes('present')) return <User size={size} />
-  if (l.includes('absent') || l.includes('inactive')) return <UserX size={size} />
-  if (l.includes('leave')) return <Umbrella size={size} />
-  if (l.includes('task')) return <ClipboardList size={size} />
-  if (l.includes('rate') || l.includes('month')) return <Percent size={size} />
-  if (l.includes('active')) return <UserCheck size={size} />
-  if (l.includes('team')) return <Users size={size} />
-  if (l.includes('approved')) return <CheckCircle2 size={size} />
-  return <BarChart3 size={size} />
-}
-
-/** Soft pastel chip tint per stat — the icon itself stays black (client spec). */
-const statTint = (label: string) => {
-  const l = label.toLowerCase()
-  if (l.includes('present')) return '#ecfdf5'
-  if (l.includes('absent') || l.includes('inactive')) return '#fef2f2'
-  if (l.includes('leave')) return '#fffbeb'
-  if (l.includes('task')) return '#fdf2f8'
-  if (l.includes('rate')) return '#eff6ff'
-  return '#f3f4f6'
 }
 
 /* Inline icon for the role chip — tiny stroke SVG, no icon lib. */
@@ -201,7 +170,7 @@ function useDayContext(): DayContext {
 /* Attendance slice — live status chip + punch actions                 */
 /* ------------------------------------------------------------------ */
 
-function HeroAttendance({ badge }: { badge: string }) {
+function HeroAttendance() {
   const { tz, dateLong } = useClock()
   const { todayRecord, loading, checkingIn, checkingOut, checkIn, checkOut, msg } = useAttendancePunch()
   const day = useDayContext()
@@ -240,9 +209,6 @@ function HeroAttendance({ badge }: { badge: string }) {
   return (
     <>
       <div className="chips">
-        <span className="chip role">
-          {PersonIcon} <span>{badge}</span>
-        </span>
         <span className={`chip${hasIn ? ' in' : ''}`} data-state={pillState} role="status" aria-live="polite">
           <i aria-hidden="true" /> {pillText}
         </span>
@@ -323,15 +289,15 @@ function HeroAttendance({ badge }: { badge: string }) {
 }
 
 /* ------------------------------------------------------------------ */
-/* Hero — dark banner (sidebar palette: black-blue slate): #0f172a →   */
-/* #0b1120 → #152e56 card, pale blue waves on the right, white name,  */
-/* blue-bar subtitle, white chips, right-side tagline, and a white     */
-/* KPI strip (tinted icon chips) below                                 */
+/* Hero — employee BrandHomeHero layout (same for every role):         */
+/* #0b1120 → #152e56 card, greeting + white name + translucent role    */
+/* chip on the left, live date/time top-right, stat tiles INSIDE the   */
+/* card (translucent, state-coloured values), attendance chips below   */
 /* ------------------------------------------------------------------ */
 
 export function DashboardHero({ stats, badge, showAttendance = true }: DashboardHeroProps) {
   const { user } = useAuth()
-  const { now, tz, time, location } = useClock()
+  const { now, tz, time } = useClock()
   const roleBadge = badge || roleDepartmentLabel(user)
   const displayName = user?.name || roleBadge
   // Time-of-day greeting (user-requested): morning <12, afternoon <17,
@@ -343,76 +309,51 @@ export function DashboardHero({ stats, badge, showAttendance = true }: Dashboard
   return (
     <section className="hero" aria-label="Welcome summary">
       <div className="hero-card">
-        {/* Decorative: soft blue waves (right) + tagline — ornamental
-            only, always behind the welcome block (z-index: 0). */}
-        <svg className="hero-waves" viewBox="0 0 1200 400" preserveAspectRatio="none" aria-hidden="true" focusable="false">
-          <path fill="#dbe9fb" d="M860 0 C1010 90 1130 210 940 330 C875 372 905 400 905 400 L1200 400 L1200 0 Z" />
-          <path fill="#eef4fd" d="M1200 120 C1075 185 1155 320 995 400 L1200 400 Z" />
-          <path fill="#c7dbf8" opacity="0.85" d="M1200 250 C1115 295 1165 362 1085 400 L1200 400 Z" />
-          <path fill="#eaf1fd" d="M1200 0 L960 0 C1075 65 1135 115 1200 145 Z" />
-        </svg>
-        <div className="hero-tagline" aria-hidden="true">
-          <span>Smart HR Management</span>
-          <span>for a Better Workplace</span>
-          <i />
-        </div>
-
         <div className="welcome">
-          <div className="hero-greet">
-            <small>{greeting}</small>
-          </div>
-          <h2 className="hero-name">{displayName}</h2>
-          <p className="hero-sub">Here's what's happening with your organization today.</p>
-
-          {/* Live date / time / real device location pills */}
-          <div className="hero-meta" aria-label="Current date and time">
-            <span className="meta-pill">
-              <Calendar size={14} aria-hidden="true" />
-              {formatInZone(now, tz, { weekday: 'short', month: 'short', day: 'numeric', year: 'numeric' })}
-            </span>
-            <span className="meta-pill">
-              <Clock3 size={14} aria-hidden="true" />
-              {time}
-            </span>
-            {location && (
-              <span className="meta-pill">
-                <MapPin size={14} aria-hidden="true" />
-                {location}
-              </span>
-            )}
-          </div>
-
-          {showAttendance ? (
-            <HeroAttendance badge={roleBadge} />
-          ) : (
-            /* Master Admin / Company Admin — role chip only (no attendance
-               slice, so no "Not Checked In" pill). */
-            <div className="chips">
-              <span className="chip role">
+          <div className="hero-head">
+            <div className="hero-id">
+              <div className="hero-greet">
+                <small>{greeting}</small>
+              </div>
+              <h2 className="hero-name">{displayName}</h2>
+              <span className="hero-role">
                 {PersonIcon} <span>{roleBadge}</span>
               </span>
             </div>
-          )}
-        </div>
-      </div>
 
-      {/* Light stat tiles — real values from the role's dashboard */}
-      <div className="hero-stats" role="list" aria-label="Dashboard statistics">
-        {stats.map((s) => (
-          <div key={s.label} className="hero-stat" role="listitem">
-            <span
-              className="hero-stat-icon"
-              style={{ backgroundColor: statTint(s.label), color: '#000000' }}
-              aria-hidden="true"
-            >
-              {statIcon(s.label, 18)}
-            </span>
-            <div className="hero-stat-meta">
-              <div className="hero-stat-n">{s.value ?? '–'}</div>
-              <div className="hero-stat-l">{s.label}</div>
+            {/* Live date / time — real clock (device zone / company tz) */}
+            <div className="hero-clock" aria-label="Current date and time">
+              <span className="hero-clock-date">
+                <Calendar size={13} aria-hidden="true" />
+                {formatInZone(now, tz, { month: 'short', day: 'numeric', year: 'numeric' })}
+              </span>
+              <span className="hero-clock-time">
+                <Clock3 size={13} aria-hidden="true" />
+                {time}
+                {/* Day / night marker — sun (06:00–18:00) or moon, local clock */}
+                {hour >= 6 && hour < 18 ? (
+                  <Sun size={13} className="hero-clock-sun" aria-hidden="true" />
+                ) : (
+                  <Moon size={13} className="hero-clock-moon" aria-hidden="true" />
+                )}
+              </span>
             </div>
           </div>
-        ))}
+
+          {/* Stat tiles — real values from the role's dashboard */}
+          <div className="hero-tiles" role="list" aria-label="Dashboard statistics">
+            {stats.map((s) => (
+              <div key={s.label} className="hero-tile" role="listitem">
+                <span className="hero-tile-n" style={{ color: s.color || '#60a5fa' }}>
+                  {s.value ?? '–'}
+                </span>
+                <span className="hero-tile-l">{s.label}</span>
+              </div>
+            ))}
+          </div>
+
+          {showAttendance ? <HeroAttendance /> : null}
+        </div>
       </div>
     </section>
   )

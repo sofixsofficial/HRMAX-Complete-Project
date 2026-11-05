@@ -1,7 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { View, Text, StyleSheet, Animated, AccessibilityInfo, Pressable, ActivityIndicator } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
-import Svg, { Path } from 'react-native-svg';
 import { collection, getDocs, query, where } from '../aws/firestore-compat';
 import { db } from '../aws/clients';
 import { useAuth } from '../context/AuthContext';
@@ -25,13 +24,12 @@ import { parseWeekendDays, toDateKey } from '../utils/workingDays';
 import { Icon } from '../utils/icons';
 
 /**
- * Dashboard hero — dark banner (sidebar palette: black-blue slate):
- *  • #0b1120 → #152e56 card with pale blue waves (right)
- *  • time greeting + NAME + blue-bar subtitle + white date/time pills
- *  • role pill + live attendance chips (state-coloured pale pills)
- *    + gate-validated punch actions
- *  • white KPI strip BELOW the card (tinted icon chips, black text,
- *    hairline dividers, real values)
+ * Dashboard hero — the employee BrandHomeHero layout, shared by EVERY role:
+ *  • #0b1120 → #152e56 card (employee hero palette)
+ *  • time greeting + NAME (white) + translucent role chip on the left,
+ *    live date/time top-right
+ *  • stat tiles INSIDE the card (translucent white, state-coloured values)
+ *  • live attendance chips + gate-validated punch actions (roles that punch)
  *
  * Working Mode derives ONLY from the user's verified today attendance record
  * (`useTodayAttendance`, restored on app resume) — it is never inferred from
@@ -49,6 +47,11 @@ export interface DashboardHeroStat {
 interface DashboardHeroProps {
   name: string;
   roleLabel?: string;
+  /**
+   * @deprecated The employee-style hero no longer renders a subtitle line
+   * (removed per the client's design) — dashboards may keep passing one;
+   * it is simply ignored.
+   */
   subtitle?: string;
   stats?: DashboardHeroStat[];
   /** Compact Check In/Out in the hero (gate-validated). EmployeeDashboard
@@ -73,32 +76,6 @@ interface DashboardHeroProps {
 const fmtPunchTime = (value: Parameters<typeof toDate>[0], tz: string | null) => {
   const d = toDate(value);
   return d ? formatInZone(d, tz, { hour: '2-digit', minute: '2-digit', hour12: true }) : '--:--';
-};
-
-const statIconName = (label: string): string => {
-  const l = label.toLowerCase();
-  if (l.includes('inactive')) return 'remove-circle-outline';
-  if (l.includes('present')) return 'checkmark-circle-outline';
-  if (l.includes('absent')) return 'close-circle-outline';
-  if (l.includes('leave')) return 'leaf-outline';
-  if (l.includes('task')) return 'clipboard-outline';
-  if (l.includes('active')) return 'trending-up-outline';
-  if (l.includes('team')) return 'people-outline';
-  if (l.includes('rate') || l.includes('month')) return 'stats-chart-outline';
-  if (l.includes('approved')) return 'checkmark-done-outline';
-  if (l.includes('slip')) return 'document-text-outline';
-  return 'grid-outline';
-};
-
-/** Soft pastel chip tint per stat — the icon itself stays black (client spec). */
-const statTint = (label: string): string => {
-  const l = label.toLowerCase();
-  if (l.includes('present')) return '#ecfdf5';
-  if (l.includes('absent') || l.includes('inactive')) return '#fef2f2';
-  if (l.includes('leave')) return '#fffbeb';
-  if (l.includes('task')) return '#fdf2f8';
-  if (l.includes('rate')) return '#eff6ff';
-  return '#f3f4f6';
 };
 
 interface StatusStyle {
@@ -477,7 +454,6 @@ const HeroAttendance: React.FC<{
 export const DashboardHero: React.FC<DashboardHeroProps> = ({
   name,
   roleLabel,
-  subtitle,
   stats,
   showPunchActions = true,
   showAttendance = true,
@@ -552,13 +528,15 @@ export const DashboardHero: React.FC<DashboardHeroProps> = ({
   const hour = now.getHours();
   const greeting =
     hour < 12 ? 'Good morning,' : hour < 17 ? 'Good afternoon,' : hour < 21 ? 'Good evening,' : 'Good night,';
+  // Day / night marker for the clock: sun between 06:00–18:00, moon otherwise.
+  const isDay = hour >= 6 && hour < 18;
   // Synchronous fill so the map below always has a value (the effect above
   // is what actually drives them).
   while (statAnims.length < statCount) statAnims.push(new Animated.Value(0));
 
   return (
     <Animated.View style={[styles.root, { opacity: fadeAnim, transform: [{ translateY: slideAnim }] }]}>
-      {/* ── Light banner card (client reference) ── */}
+      {/* ── Employee-style hero card (client reference) ── */}
       <View style={styles.cardWrap}>
       <LinearGradient
         colors={['#0b1120', '#152e56']}
@@ -566,90 +544,77 @@ export const DashboardHero: React.FC<DashboardHeroProps> = ({
         end={{ x: 1, y: 1 }}
         style={styles.card}
       >
-        {/* Decorative: soft blue waves — full-height sweep on the right */}
-        <Svg pointerEvents="none" style={styles.wavesArt} width={140} height="100%" viewBox="0 0 1200 400" preserveAspectRatio="none">
-          <Path d="M860 0 C1010 90 1130 210 940 330 C875 372 905 400 905 400 L1200 400 L1200 0 Z" fill="#dbe9fb" />
-          <Path d="M1200 120 C1075 185 1155 320 995 400 L1200 400 Z" fill="#eef4fd" />
-          <Path d="M1200 250 C1115 295 1165 362 1085 400 L1200 400 Z" fill="#c7dbf8" opacity={0.85} />
-          <Path d="M1200 0 L960 0 C1075 65 1135 115 1200 145 Z" fill="#eaf1fd" />
-        </Svg>
-
         <View style={styles.topRow}>
           <View style={styles.identityCol}>
             <Text style={styles.welcomeSmall}>{greeting}</Text>
             <Text style={styles.userName} numberOfLines={1} ellipsizeMode="tail">{name}</Text>
-            <Text style={styles.heroSub} numberOfLines={2}>
-              {subtitle || "Here's what's happening with your organization today."}
-            </Text>
-
-            {/* Live date + time pills (real clock — device zone/company tz) */}
-            <View style={styles.metaRow}>
-              <View style={styles.metaPill}>
-                <Icon name="calendar-outline" size={13} color="#2563eb" />
-                <Text style={styles.metaPillText} numberOfLines={1}>
-                  {formatInZone(now, tz, { weekday: 'short', month: 'short', day: 'numeric', year: 'numeric' })}
-                </Text>
+            {roleLabel ? (
+              <View style={styles.roleChip}>
+                <Text style={styles.roleChipText} numberOfLines={1}>{roleLabel}</Text>
               </View>
-              <View style={styles.metaPill}>
-                <Icon name="time-outline" size={13} color="#2563eb" />
-                <Text style={styles.metaPillText}>
-                  {formatInZone(now, tz, { hour: '2-digit', minute: '2-digit', hour12: true })}
-                </Text>
-              </View>
+            ) : null}
+          </View>
+          {/* Live date + time (real clock — device zone/company tz) */}
+          <View style={styles.clockCol}>
+            <View style={styles.clockRow}>
+              <Icon name="calendar-outline" size={12} color="rgba(255,255,255,0.8)" />
+              <Text style={styles.clockDate} numberOfLines={1}>
+                {formatInZone(now, tz, { month: 'short', day: 'numeric', year: 'numeric' })}
+              </Text>
+            </View>
+            <View style={[styles.clockRow, { marginTop: 3 }]}>
+              <Icon name="time-outline" size={12} color="rgba(255,255,255,0.8)" />
+              <Text style={styles.clockTime} numberOfLines={1}>
+                {formatInZone(now, tz, { weekday: 'short', hour: '2-digit', minute: '2-digit', hour12: true })}
+              </Text>
+              {/* Day / night marker — sun (06:00–18:00) or moon, local clock */}
+              <Icon
+                name={isDay ? 'sunny-outline' : 'moon-outline'}
+                size={12}
+                color={isDay ? '#fcd34d' : '#c4b5fd'}
+              />
             </View>
           </View>
         </View>
 
-        {/* Role pill + live attendance chips (status, checked-in, elapsed) */}
-        <View style={styles.chipsFlow}>
-          {roleLabel ? (
-            <View style={styles.rolePill}>
-              <Icon name="people-outline" size={13} color="#1d4ed8" />
-              <Text style={styles.rolePillText} numberOfLines={1}>{roleLabel}</Text>
-            </View>
-          ) : null}
-          {showAttendance ? (
+        {/* Stat tiles — real values from the dashboard, inside the card */}
+        {stats && stats.length > 0 && (
+          <View style={styles.tiles}>
+            {stats.map((st, i) => {
+              const v = statAnims[i];
+              return (
+                <Animated.View
+                  key={`${st.label}-${i}`}
+                  style={[
+                    styles.tile,
+                    {
+                      opacity: v,
+                      transform: [{ translateY: v.interpolate({ inputRange: [0, 1], outputRange: [12, 0] }) }],
+                    },
+                  ]}
+                >
+                  <Text style={[styles.tileValue, { color: st.color || '#60a5fa' }]} selectable={false}>{st.value}</Text>
+                  <Text style={styles.tileLabel} numberOfLines={1} selectable={false}>{st.label}</Text>
+                </Animated.View>
+              );
+            })}
+          </View>
+        )}
+
+        {/* Live attendance chips (status, checked-in, elapsed) + punch actions */}
+        {showAttendance ? (
+          <View style={styles.chipsFlow}>
             <HeroAttendance
               now={now}
               tz={tz}
               companyId={effectiveCompanyId || user?.companyId || ''}
               showPunchActions={showPunchActions}
             />
-          ) : null}
-        </View>
+          </View>
+        ) : null}
 
       </LinearGradient>
       </View>
-
-      {/* ── KPI strip (real values from the dashboard): one white card,   */}
-      {/* equal columns, hairline dividers, tinted icon chips (black icons) */}
-      {stats && stats.length > 0 && (
-        <View style={styles.statsStrip}>
-          {stats.map((st, i) => {
-            const v = statAnims[i];
-            const isLast = i === stats.length - 1;
-            return (
-              <Animated.View
-                key={`${st.label}-${i}`}
-                style={[
-                  styles.statCol,
-                  !isLast && styles.statColDivider,
-                  {
-                    opacity: v,
-                    transform: [{ translateY: v.interpolate({ inputRange: [0, 1], outputRange: [12, 0] }) }],
-                  },
-                ]}
-              >
-                <View style={[styles.statCircle, { backgroundColor: statTint(st.label) }]}>
-                  <Icon name={statIconName(st.label)} size={17} color="#000000" />
-                </View>
-                <Text style={styles.statValue} selectable={false}>{st.value}</Text>
-                <Text style={styles.statLabel} numberOfLines={2} selectable={false}>{st.label}</Text>
-              </Animated.View>
-            );
-          })}
-        </View>
-      )}
     </Animated.View>
   );
 };
@@ -675,8 +640,6 @@ const styles = StyleSheet.create({
     paddingTop: 22,
     paddingBottom: 20,
   },
-  wavesArt: { position: 'absolute', right: 0, top: 0 },
-
   topRow: {
     position: 'relative',
     zIndex: 1,
@@ -688,33 +651,25 @@ const styles = StyleSheet.create({
   identityCol: { flex: 1, minWidth: 0 },
   welcomeSmall: { fontSize: 15, fontWeight: '600', color: '#94a3b8', letterSpacing: 0.1 },
   userName: { fontSize: 25, fontWeight: '800', color: '#ffffff', marginTop: 3, letterSpacing: -0.5 },
-  heroSub: {
-    fontSize: 13,
-    color: '#cbd5e1',
-    marginTop: 10,
-    lineHeight: 19,
-    borderLeftWidth: 4,
-    borderLeftColor: '#60a5fa',
-    paddingLeft: 12,
+  /* Translucent role chip under the name (employee hero) */
+  roleChip: {
     alignSelf: 'flex-start',
-    maxWidth: '96%',
-  },
-
-  /* Live date / time pills (light — white on the pale card) */
-  metaRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginTop: 12 },
-  metaPill: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-    paddingHorizontal: 11,
-    paddingVertical: 7,
-    borderRadius: 100,
-    backgroundColor: '#ffffff',
-    borderWidth: 1.5,
-    borderColor: '#dbe4f0',
+    marginTop: 7,
+    paddingHorizontal: 9,
+    paddingVertical: 3,
+    borderRadius: 999,
+    backgroundColor: 'rgba(255,255,255,0.14)',
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.18)',
     maxWidth: '100%',
   },
-  metaPillText: { fontSize: 12, fontWeight: '700', color: '#334155', flexShrink: 1 },
+  roleChipText: { fontSize: 11.5, color: 'rgba(255,255,255,0.92)', fontWeight: '600' },
+
+  /* Live date / time — top right (employee hero) */
+  clockCol: { alignItems: 'flex-end', paddingTop: 2 },
+  clockRow: { flexDirection: 'row', alignItems: 'center', gap: 5 },
+  clockDate: { fontSize: 13, fontWeight: '700', color: '#ffffff' },
+  clockTime: { fontSize: 12.5, color: 'rgba(255,255,255,0.85)' },
 
   chipsFlow: {
     position: 'relative',
@@ -725,19 +680,6 @@ const styles = StyleSheet.create({
     gap: 8,
     marginTop: 14,
   },
-  rolePill: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-    paddingHorizontal: 12,
-    paddingVertical: 7,
-    borderRadius: 100,
-    backgroundColor: '#ffffff',
-    borderWidth: 1.5,
-    borderColor: '#9dbdfb',
-  },
-  rolePillText: { fontSize: 13, fontWeight: '700', color: '#1d4ed8' },
-
   statusChip: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -789,46 +731,27 @@ const styles = StyleSheet.create({
   punchBtnText: { color: '#fff', fontSize: 13.5, fontWeight: '700' },
   punchMsg: { fontSize: 12.5, fontWeight: '600', flexShrink: 1 },
 
-  statsStrip: {
-    marginTop: 12,
-    flexDirection: 'row',
-    backgroundColor: '#ffffff',
-    borderRadius: 16,
-    borderWidth: 1,
-    borderColor: '#e8eefb',
-    overflow: 'hidden',
-    // Soft elevation (iOS + Android)
-    shadowColor: '#0f2142',
-    shadowOpacity: 0.06,
-    shadowRadius: 8,
-    shadowOffset: { width: 0, height: 3 },
-    elevation: 2,
-  },
-  statCol: {
+  /* Stat tiles — inside the card, translucent (employee hero) */
+  tiles: { position: 'relative', zIndex: 1, flexDirection: 'row', gap: 8, marginTop: 16 },
+  tile: {
     flex: 1,
     minWidth: 0,
     alignItems: 'center',
-    justifyContent: 'center',
-    paddingVertical: 13,
+    gap: 2,
+    paddingVertical: 9,
     paddingHorizontal: 4,
-    gap: 7,
+    borderRadius: 14,
+    backgroundColor: 'rgba(255,255,255,0.10)',
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.14)',
   },
-  statColDivider: { borderRightWidth: 1, borderRightColor: '#eef2f8' },
-  statCircle: {
-    width: 34,
-    height: 34,
-    borderRadius: 11,
-    alignItems: 'center',
-    justifyContent: 'center',
-    flexShrink: 0,
-  },
-  statValue: { fontSize: 19, fontWeight: '800', color: '#000000', fontVariant: ['tabular-nums'], lineHeight: 22 },
-  statLabel: {
+  tileValue: { fontSize: 18, fontWeight: '800', fontVariant: ['tabular-nums'], lineHeight: 22 },
+  tileLabel: {
     fontSize: 9.5,
     fontWeight: '700',
-    color: '#000000',
+    color: 'rgba(255,255,255,0.72)',
     textTransform: 'uppercase',
-    letterSpacing: 0.4,
+    letterSpacing: 0.5,
     textAlign: 'center',
   },
 });
