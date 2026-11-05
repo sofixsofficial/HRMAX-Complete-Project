@@ -36,3 +36,7 @@ android/
 # local signing material (never commit)
 hrmax-upload.jks
 hrmax-signing.json
+
+# Store build artifacts — never commit binaries
+*.aab
+*.apk
