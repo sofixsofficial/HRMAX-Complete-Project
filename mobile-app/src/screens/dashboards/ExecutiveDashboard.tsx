@@ -1,5 +1,5 @@
 import React, { useState, useMemo, useEffect } from 'react';
-import { View, Text, ScrollView, StyleSheet, RefreshControl, TouchableOpacity } from 'react-native';
+import { View, Text, ScrollView, type ScrollViewInstance, StyleSheet, RefreshControl, TouchableOpacity } from 'react-native';
 import { collection, query, where, onSnapshot } from '../../aws/firestore-compat';
 import { db } from '../../aws/clients';
 import { useAuth } from '../../context/AuthContext';
@@ -93,7 +93,7 @@ export const ExecutiveDashboard: React.FC<{ navigation: any }> = ({ navigation }
   const noCompanies = availableCompanies.length === 0;
 
   // "View Details →" scrolls the dashboard content below the hero.
-  const heroScrollRef = React.useRef<ScrollView>(null);
+  const heroScrollRef = React.useRef<ScrollViewInstance>(null);
 
   return (
     <ScrollView ref={heroScrollRef} style={s.container} refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor="#FF6600" />}>

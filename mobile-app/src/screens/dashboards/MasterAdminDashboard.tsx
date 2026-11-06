@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { View, Text, ScrollView, StyleSheet, RefreshControl, TouchableOpacity, Alert, Platform } from 'react-native';
+import { View, Text, ScrollView, type ScrollViewInstance, StyleSheet, RefreshControl, TouchableOpacity, Alert, Platform } from 'react-native';
 import { collection, query, where, onSnapshot } from '../../aws/firestore-compat';
 import { db } from '../../aws/clients';
 import { useAuth } from '../../context/AuthContext';
@@ -159,9 +159,9 @@ export const MasterAdminDashboard: React.FC<{ navigation: any }> = ({ navigation
   // Quick Actions is a horizontal row. Touch devices swipe it natively, but a
   // desktop mouse wheel only produces vertical deltas — bridge them to
   // horizontal scrolling on web so the row actually scrolls in the browser.
-  const quickRowRef = React.useRef<ScrollView>(null);
+  const quickRowRef = React.useRef<ScrollViewInstance>(null);
   // "View Details →" in the hero scrolls the dashboard content below it.
-  const heroScrollRef = React.useRef<ScrollView>(null);
+  const heroScrollRef = React.useRef<ScrollViewInstance>(null);
   useEffect(() => {
     if (Platform.OS !== 'web') return;
     const node: any = (quickRowRef.current as any)?.getScrollableNode?.();

@@ -746,7 +746,7 @@ export const MyLeavesAttendanceScreen: React.FC<{ navigation: any }> = ({ naviga
       </ScrollView>
 
       {/* ── RECTIFY MODAL ── */}
-      <Modal visible={!!rectifyModal} transparent animationType="fade" onRequestClose={() => !submittingRectify && setRectifyModal(null)}>
+      <Modal visible={!!rectifyModal} transparent animationType="fade" onRequestClose={() => { if (!submittingRectify) setRectifyModal(null); }}>
         <View style={[s.modalOverlay, { backgroundColor: 'rgba(0,0,0,0.5)' }]}>
           <View style={[s.modalCard, { backgroundColor: colors.card }]}>
             <Text style={s.modalTitle}>Rectify Missed Punch</Text>

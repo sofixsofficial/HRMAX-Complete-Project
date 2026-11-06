@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { View, Text, ScrollView, StyleSheet, RefreshControl, TouchableOpacity } from 'react-native';
+import { View, Text, ScrollView, type ScrollViewInstance, StyleSheet, RefreshControl, TouchableOpacity } from 'react-native';
 import { useAuth } from '../../context/AuthContext';
 import { useTheme, ThemeColors } from '../../context/ThemeContext';
 import { useDashboardStats } from '../../hooks/useDashboardStats';
@@ -46,7 +46,7 @@ export const CompanyDashboard: React.FC<{ navigation: any }> = ({ navigation }) 
   const onRefresh = () => { setRefreshing(true); setRefreshKey((k) => k + 1); };
 
   // "View Details →" scrolls the dashboard content below the hero.
-  const heroScrollRef = React.useRef<ScrollView>(null);
+  const heroScrollRef = React.useRef<ScrollViewInstance>(null);
 
   useEffect(() => {
     if (!loading) setRefreshing(false);

@@ -1,6 +1,6 @@
 import React, { useState, useMemo, useEffect } from 'react';
 import {
-  View, Text, ScrollView, StyleSheet, RefreshControl, TouchableOpacity,
+  View, Text, ScrollView, type ScrollViewInstance, StyleSheet, RefreshControl, TouchableOpacity,
   Modal, TextInput, Alert, ActivityIndicator,
 } from 'react-native';
 import { collection, query, where, onSnapshot, getDocs, orderBy, limit } from '../../aws/firestore-compat';
@@ -375,7 +375,7 @@ export const TLOperationalDashboard: React.FC<{ navigation: any }> = ({ navigati
 
   // "View Details →" scrolls the dashboard content below the hero (both
   // return branches share this ref — only one ever mounts).
-  const heroScrollRef = React.useRef<ScrollView>(null);
+  const heroScrollRef = React.useRef<ScrollViewInstance>(null);
   const scrollToDetails = () => heroScrollRef.current?.scrollTo({ y: 330, animated: true });
 
   if (loading && !refreshing) return <DashboardSkeleton />;

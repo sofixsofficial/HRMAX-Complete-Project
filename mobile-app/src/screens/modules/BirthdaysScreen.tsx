@@ -229,7 +229,7 @@ export default function BirthdaysScreen() {
         renderItem={renderBirthday}
         contentContainerStyle={birthdayEmployees.length === 0 ? styles.emptyList : styles.list}
         ListEmptyComponent={<EmptyStateView icon="gift-outline" title="No birthdays" subtitle="No birthdays found for the selected filter" />}
-        ListFooterComponent={renderPagination()}
+        ListFooterComponent={renderPagination() ?? undefined}
       />
     </View>
   );

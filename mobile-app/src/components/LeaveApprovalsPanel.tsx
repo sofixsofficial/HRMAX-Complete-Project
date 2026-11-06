@@ -491,7 +491,7 @@ export const LeaveApprovalsPanel: React.FC<LeaveApprovalsPanelProps> = ({ mode =
       </Modal>
 
       {/* ── REVIEW MODAL (Approve / Reject with remark) ── */}
-      <Modal visible={!!review} transparent animationType="slide" onRequestClose={() => !submitting && setReview(null)}>
+      <Modal visible={!!review} transparent animationType="slide" onRequestClose={() => { if (!submitting) setReview(null); }}>
         <View style={styles.overlay}>
           <View style={[styles.modalCard, { backgroundColor: colors.card }]}>
             <Text style={[styles.modalTitle, { color: colors.text }]}>

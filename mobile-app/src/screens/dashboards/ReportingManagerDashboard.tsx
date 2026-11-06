@@ -1,6 +1,6 @@
 import React, { useState, useMemo, useEffect } from 'react';
 import {
-  View, Text, ScrollView, StyleSheet, RefreshControl, TouchableOpacity,
+  View, Text, ScrollView, type ScrollViewInstance, StyleSheet, RefreshControl, TouchableOpacity,
   Modal, TextInput, ActivityIndicator,
 } from 'react-native';
 import { useAuth } from '../../context/AuthContext';
@@ -132,7 +132,7 @@ export const ReportingManagerDashboard: React.FC<{ navigation: any }> = ({ navig
   const canAddLeave = !!(leaveTarget && leaveType && leaveStart && leaveEnd && leaveReason);
 
   // "View Details →" scrolls the dashboard content below the hero.
-  const heroScrollRef = React.useRef<ScrollView>(null);
+  const heroScrollRef = React.useRef<ScrollViewInstance>(null);
 
   return (
     <ScrollView ref={heroScrollRef} style={s.container} refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor="#FF6600" />}>

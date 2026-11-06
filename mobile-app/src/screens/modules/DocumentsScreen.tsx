@@ -221,7 +221,7 @@ export default function DocumentsScreen() {
           renderItem={renderDoc}
           contentContainerStyle={filtered.length === 0 ? styles.emptyList : styles.list}
           ListEmptyComponent={<EmptyStateView icon="folder-open-outline" title="No documents" subtitle="No documents uploaded yet" />}
-          ListFooterComponent={renderPagination()}
+          ListFooterComponent={renderPagination() ?? undefined}
         />
       )}
 

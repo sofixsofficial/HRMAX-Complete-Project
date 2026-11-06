@@ -632,7 +632,7 @@ export const EmployeeDashboard: React.FC<{ navigation: any }> = ({ navigation })
         visible={!!rectifyModal}
         transparent
         animationType="fade"
-        onRequestClose={() => !submittingRectify && setRectifyModal(null)}>
+        onRequestClose={() => { if (!submittingRectify) setRectifyModal(null); }}>
         <View style={[s.modalOverlay, { backgroundColor: colors.modalOverlay }]}>
           <View style={[s.modalCard, { backgroundColor: colors.card }]}>
             <View style={s.modalHeader}>

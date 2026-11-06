@@ -98,7 +98,7 @@ export const NotificationsScreen: React.FC = () => {
                 <Icon name="checkmark-done-outline" size={16} color={colors.accent} />
                 <Text style={[styles.markAllText, { color: colors.accent }]}>Mark all as read ({unreadCount})</Text>
               </TouchableOpacity>
-            ) : null
+            ) : undefined
           }
           renderItem={({ item }) => (
             <TouchableOpacity

@@ -196,7 +196,7 @@ export default function DocumentsManagementScreen() {
           renderItem={renderDoc}
           contentContainerStyle={filtered.length === 0 ? styles.emptyList : styles.list}
           ListEmptyComponent={<EmptyStateView icon="folder-outline" title="No documents" subtitle="No documents found" />}
-          ListFooterComponent={renderPagination()}
+          ListFooterComponent={renderPagination() ?? undefined}
         />
       )}
 
