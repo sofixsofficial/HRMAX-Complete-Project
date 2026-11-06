@@ -52,6 +52,17 @@ jobs:
         working-directory: mobile-app
         run: npx expo prebuild --platform android --no-install
 
+      # Keep APK versionCodes unique and increasing too (Play's original
+      # releases went through 17; app.json's static 17 would collide on
+      # sideload updates as well). See android-build.yml for details.
+      - name: Set unique versionCode
+        working-directory: mobile-app
+        run: |
+          VC=$((1000 + GITHUB_RUN_NUMBER))
+          sed -E -i "s/versionCode [0-9]+/versionCode ${VC}/" android/app/build.gradle
+          grep -qE "versionCode ${VC}([^0-9]|$)" android/app/build.gradle || { echo "::error::versionCode ${VC} not written into build.gradle"; exit 1; }
+          echo "versionCode=${VC} (1000 + run_number ${GITHUB_RUN_NUMBER})"
+
       - name: Build APK
         working-directory: mobile-app/android
         run: ./gradlew assembleRelease --no-daemon
