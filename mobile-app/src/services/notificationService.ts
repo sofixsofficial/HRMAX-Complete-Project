@@ -33,6 +33,17 @@ export const createNotification = async (
   return result.data as string;
 };
 
+// REST timestamps are ISO strings (or Timestamp-like objects); always hand
+// callers a real Date — Hermes lacks String#toLocaleDateString, and raw
+// strings reaching date formatters crash native screens ("undefined is not a
+// function", cf. the Notifications list fix).
+const toDate = (raw: any): Date => {
+  if (raw instanceof Date) return raw;
+  if (typeof raw?.toDate === 'function') return raw.toDate();
+  const parsed = new Date(raw ?? Date.now());
+  return Number.isNaN(parsed.getTime()) ? new Date() : parsed;
+};
+
 export const subscribeToNotifications = (userId: string, callback: (notifications: AppNotification[]) => void): (() => void) => {
   const q = query(notificationsRef, where('userId', '==', userId), orderBy('createdAt', 'desc'), limit(50));
   return onSnapshot(q, (snap) => {
@@ -45,7 +56,7 @@ export const subscribeToNotifications = (userId: string, callback: (notification
       read: d.data().read || false,
       link: d.data().link || '',
       companyId: d.data().companyId || '',
-      createdAt: d.data().createdAt?.toDate?.() || d.data().createdAt || new Date(),
+      createdAt: toDate(d.data().createdAt),
     })) as AppNotification[];
     callback(items);
   }, () => callback([]));

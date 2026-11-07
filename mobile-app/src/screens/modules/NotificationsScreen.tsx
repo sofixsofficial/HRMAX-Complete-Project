@@ -13,8 +13,22 @@ import { navigateToNotificationLink } from '../../navigation/navigationRef';
 import { useNavigation } from '@react-navigation/native';
 import { ScreenHeader } from '../../components/ScreenHeader';
 
-function timeAgo(date: Date): string {
-  const diff = Math.max(0, Date.now() - (date instanceof Date ? date.getTime() : new Date(date).getTime()));
+/**
+ * Friendly age of a notification.
+ *
+ * `createdAt` arrives as an ISO string from the REST layer (the notification
+ * service keeps the raw value when the field has no toDate()). Hermes — the
+ * React Native JS engine — does NOT implement String#toLocaleDateString, so
+ * calling it on that raw value crashed the Notifications list with
+ * "undefined is not a function" for any notification older than 7 days (the
+ * only branch that formats an absolute date). Normalize to a real Date first
+ * and keep a manual fallback so a missing Intl can never crash the list.
+ */
+function timeAgo(value: Date | string | number | null | undefined): string {
+  const date = value instanceof Date ? value : new Date(value ?? Date.now());
+  const time = date.getTime();
+  if (Number.isNaN(time)) return '';
+  const diff = Math.max(0, Date.now() - time);
   const mins = Math.floor(diff / 60000);
   if (mins < 1) return 'Just now';
   if (mins < 60) return `${mins}m ago`;
@@ -22,7 +36,13 @@ function timeAgo(date: Date): string {
   if (hours < 24) return `${hours}h ago`;
   const days = Math.floor(hours / 24);
   if (days < 7) return `${days}d ago`;
-  return date.toLocaleDateString('en-IN');
+  try {
+    return date.toLocaleDateString('en-IN');
+  } catch {
+    const mm = String(date.getMonth() + 1).padStart(2, '0');
+    const dd = String(date.getDate()).padStart(2, '0');
+    return `${dd}/${mm}/${date.getFullYear()}`;
+  }
 }
 
 function iconForType(type: string): string {
